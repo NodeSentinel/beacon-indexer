@@ -40,6 +40,9 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
         
+      - name: Generate Prisma client
+        run: pnpm run prisma:generate
+        
       - name: Build packages
         run: pnpm run build
         
@@ -70,8 +73,6 @@ jobs:
           
       - name: Setup database
         run: |
-          DATABASE_URL="postgresql://postgres:password@localhost:5433/beacon_test?schema=public" \
-          pnpm exec prisma generate --schema=./prisma/schema.prisma
           DATABASE_URL="postgresql://postgres:password@localhost:5433/beacon_test?schema=public" \
           pnpm exec prisma db push --schema=./prisma/schema.prisma
           
