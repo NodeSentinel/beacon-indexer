@@ -41,6 +41,7 @@
     "dev:fetch:ethereum": "node ./scripts/setDbUrl.js pnpm --filter fetch run dev:ethereum",
     "test": "pnpm -r run test",
     "test:coverage": "pnpm -r run test:coverage",
+    "test:e2e:local": "./scripts/run-e2e-local.sh",
     "lint": "pnpm -r run lint",
     "lint:fix": "pnpm -r run lint:fix",
     "type-check": "pnpm -r exec tsc --noEmit",

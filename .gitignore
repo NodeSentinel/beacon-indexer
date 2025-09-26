@@ -11,3 +11,5 @@ test.ts
 
 .env*
 !.env.example
+
+.pnpm-store/

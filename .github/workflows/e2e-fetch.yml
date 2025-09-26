@@ -1,0 +1,72 @@
+name: E2E Fetch
+
+on:
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'packages/fetch/src/services/**'
+      - 'packages/fetch/e2e/**'
+      - 'prisma/**'
+      - 'packages/fetch/package.json'
+      - 'pnpm-lock.yaml'
+  push:
+    branches: [ main ]
+    paths:
+      - 'packages/fetch/src/services/**'
+      - 'packages/fetch/e2e/**'
+      - 'prisma/**'
+      - 'packages/fetch/package.json'
+      - 'pnpm-lock.yaml'
+
+jobs:
+  e2e-fetch:
+    runs-on: ubuntu-latest
+    
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: beacon_test
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: password
+        ports:
+          - '5433:5432'  # Puerto 5433 para evitar conflicto con dev
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'pnpm'
+        cache-dependency-path: 'pnpm-lock.yaml'
+
+    - name: Install pnpm
+      uses: pnpm/action-setup@v2
+      with:
+        version: 9.2.0
+
+    - name: Install dependencies
+      run: pnpm install --frozen-lockfile
+
+    - name: Generate Prisma client
+      run: pnpm exec prisma generate --schema=./prisma/schema.prisma
+
+    - name: Setup database
+      run: pnpm exec prisma db push --schema=./prisma/schema.prisma
+      env:
+        DATABASE_URL: postgresql://postgres:password@localhost:5433/beacon_test?schema=public
+
+    - name: Run E2E tests
+      run: |
+        cd packages/fetch
+        pnpm test:e2e
+      env:
+        DATABASE_URL: postgresql://postgres:password@localhost:5433/beacon_test?schema=public

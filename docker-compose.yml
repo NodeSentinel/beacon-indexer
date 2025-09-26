@@ -39,7 +39,7 @@ services:
     networks:
       - app-network
 
-  fetch:
+  beacon-fetch:
     container_name: fetch
     restart: on-failure
     env_file:

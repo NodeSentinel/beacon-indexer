@@ -25,4 +25,10 @@ export class ValidatorsStorage {
       );
     }
   }
+
+  async getValidatorById(id: number) {
+    return this.prisma.validator.findUnique({
+      where: { id },
+    });
+  }
 }
