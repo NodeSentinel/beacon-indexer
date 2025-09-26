@@ -1,0 +1,99 @@
+{
+  "name": "beacon-indexer",
+  "description": "Beacon chain indexer and API for collecting and exposing Ethereum beacon chain validator data",
+  "version": "1.0.0",
+  "type": "module",
+  "private": true,
+  "author": {
+    "name": "Domínguez Nicolás",
+    "email": "nf.dominguez.87@gmail.com"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/NodeSentinel/beacon-indexer.git"
+  },
+  "homepage": "https://github.com/NodeSentinel/beacon-indexer#readme",
+  "website": "https://node-sentinel.xyz",
+  "bugs": {
+    "url": "https://github.com/NodeSentinel/beacon-indexer/issues"
+  },
+  "keywords": [
+    "gnosis chain",
+    "ethereum",
+    "beacon chain",
+    "beacon-chain",
+    "validator",
+    "indexer",
+    "blockchain",
+    "consensus",
+    "staking"
+  ],
+  "engines": {
+    "node": ">=18.0.0",
+    "pnpm": ">=8.0.0"
+  },
+  "packageManager": "pnpm@9.2.0",
+  "scripts": {
+    "build": "pnpm -r run build",
+    "dev": "pnpm -r run dev",
+    "dev:fetch:gnosis": "node ./scripts/setDbUrl.js pnpm --filter fetch run dev:gnosis",
+    "dev:fetch:ethereum": "node ./scripts/setDbUrl.js pnpm --filter fetch run dev:ethereum",
+    "test": "pnpm -r run test",
+    "test:coverage": "pnpm -r run test:coverage",
+    "lint": "pnpm -r run lint",
+    "lint:fix": "pnpm -r run lint:fix",
+    "type-check": "pnpm -r exec tsc --noEmit",
+    "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md}\"",
+    "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,json,md}\"",
+    "clean-db": "node scripts/setDbUrl.js node scripts/cleanDatabase.js",
+    "migrate:create": "node scripts/setDbUrl.js npx prisma migrate dev --create-only --schema=./prisma/schema.prisma",
+    "migrate:reset-initial": "node scripts/resetInitialMigration.js",
+    "migrate:dev": "node scripts/setDbUrl.js npx prisma migrate dev --schema=./prisma/schema.prisma",
+    "migrate:deploy": "node scripts/setDbUrl.js npx prisma migrate deploy --schema=./prisma/schema.prisma",
+    "migrate:reset": "node scripts/setDbUrl.js npx prisma migrate reset --schema=./prisma/schema.prisma",
+    "prisma:generate": "node scripts/setDbUrl.js npx prisma generate --schema=./prisma/schema.prisma",
+    "prisma:studio": "node scripts/setDbUrl.js npx prisma studio --schema=./prisma/schema.prisma",
+    "prepare": "husky",
+    "changeset": "changeset",
+    "version-packages": "changeset version",
+    "release": "changeset publish"
+  },
+  "dependencies": {
+    "@prisma/client": "5.15.0",
+    "dotenv": "^16.0.3"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.7.0",
+    "@t3-oss/env-core": "^0.9.2",
+    "@types/node": "^22.17.2",
+    "@typescript-eslint/eslint-plugin": "^8.5.0",
+    "@typescript-eslint/parser": "^8.5.0",
+    "dotenv-cli": "^10.0.0",
+    "eslint": "^9.7.0",
+    "eslint-config-prettier": "^9.1.0",
+    "eslint-plugin-import": "^2.29.1",
+    "eslint-plugin-node": "^11.1.0",
+    "eslint-plugin-prettier": "^5.2.1",
+    "husky": "^9.1.7",
+    "lint-staged": "^16.1.6",
+    "pnpm": "^9.2.0",
+    "prettier": "^3.2.5",
+    "prisma": "5.15.0",
+    "tsx": "^4.7.1",
+    "typescript": "^5.4.5",
+    "typescript-eslint": "^8.5.0"
+  },
+  "lint-staged": {
+    "*.{ts,tsx,js,jsx}": [
+      "eslint --fix",
+      "prettier --write"
+    ],
+    "*.{json,md}": [
+      "prettier --write"
+    ],
+    "packages/fetch/**/*.{ts,tsx}": [
+      "bash -c 'cd packages/fetch && pnpm exec tsc --noEmit'"
+    ]
+  }
+}

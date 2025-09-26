@@ -1,0 +1,63 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: db
+    env_file:
+      - .env
+    ports:
+      - "5432:5432"
+    volumes:
+      - beacon_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - app-network
+
+  migrate:
+    image: node:18-alpine
+    working_dir: /app
+    volumes:
+      - .:/app
+    env_file:
+      - .env
+    environment:
+      - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?schema=public
+      - DOCKER_ENV=true
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: >
+      sh -c "
+        apk add --no-cache openssl &&
+        echo 'Waiting for database to be ready...' &&
+        node scripts/setDbUrl.js npx prisma migrate deploy --schema=./prisma/schema.prisma &&
+        echo 'Database migration completed successfully!'
+      "
+    networks:
+      - app-network
+
+  fetch:
+    container_name: fetch
+    restart: on-failure
+    env_file:
+      - .env
+    environment:
+      - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?schema=public
+      - DOCKER_ENV=true
+    build:
+      context: .
+      dockerfile: packages/fetch/Dockerfile
+    depends_on:
+      - migrate
+    networks:
+      - app-network
+
+networks:
+  app-network:
+    driver: bridge
+
+volumes:
+  beacon_postgres_data:

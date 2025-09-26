@@ -1,0 +1,229 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../node_modules/.prisma/client"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Epoch {
+  epoch                       Int     @id
+  validatorsBalancesFetched   Boolean @default(false)
+  validatorsActivationFetched Boolean @default(false)
+  rewardsFetched              Boolean @default(false)
+  committeesFetched           Boolean @default(false)
+  slotsFetched                Boolean @default(false)
+  syncCommitteesFetched       Boolean @default(false)
+}
+
+model Slot {
+  slot        Int     @id
+  blockNumber Int?
+  processed   Boolean @default(false)
+
+  committee                    Committee[]
+  attestationsProcessed        Boolean     @default(false)
+  committeeValidatorCounts     Json? // Stores the number of validators per committee index as an array: [350, 340, ...], required for attestation processing
+  blockAndSyncRewardsProcessed Boolean     @default(false)
+  executionRewardsProcessed    Boolean     @default(false)
+  beaconBlockProcessed         Boolean     @default(false)
+  // beacon block data extracted from the beacon block
+  withdrawalsRewards           Json? // ["validatorIndex:amount", "validatorIndex:amount", ...]
+  clDeposits                   Json?
+  clVoluntaryExits             Json?
+  elDeposits                   Json?
+  elWithdrawals                Json?
+  elConsolidations             Json?
+  //proposer_slashings
+  //attester_slashings
+
+  @@index([processed, slot])
+}
+
+model SyncCommittee {
+  fromEpoch           Int
+  toEpoch             Int
+  validators          Json // Array of validator indices as strings: ["1", "2", "3", ...]
+  validatorAggregates Json // Array of arrays of validator indices as strings: [["1", "2"], ["3", "4"], ...]
+
+  @@id([fromEpoch, toEpoch])
+  @@index([fromEpoch])
+  @@index([toEpoch])
+}
+
+// Committee is a list of validators that were assigned to a slot.
+// It hold at least the last 1h missed attestations.
+// Then it is summarized into HourlyValidatorStats.
+model Committee {
+  slot                 Int
+  index                Int // indicates what position in the epoch this slot is in
+  aggregationBitsIndex Int // indicates what position in the aggregation bits this validator was assigned to
+  validatorIndex       Int // TODO: should be a relation?
+  attestationDelay     Int?
+  slot_relation        Slot @relation(fields: [slot], references: [slot], onDelete: Cascade)
+
+  @@id([slot, index, aggregationBitsIndex])
+  @@index([slot, validatorIndex])
+  @@index([slot, attestationDelay])
+  @@index([validatorIndex, slot])
+}
+
+model Validator {
+  id                Int      @id
+  status            Int?
+  balance           Decimal  @db.Decimal(78, 0)
+  effectiveBalance  Decimal? @db.Decimal(78, 0)
+  withdrawalAddress String?
+  users             User[]   @relation("UserToValidator")
+
+  @@index([withdrawalAddress])
+  @@index([status])
+}
+
+model ExecutionRewards {
+  address     String
+  timestamp   DateTime
+  amount      Decimal  @db.Decimal(78, 0)
+  blockNumber Int      @id
+
+  @@index([timestamp, address])
+}
+
+// Note: HourlyValidatorStats and HourlyBlockAndSyncRewards have been separated to avoid deadlocks.
+// both processes that update these tables are running in parallel.
+// one updates blockAndSyncRewards, the other updates attestations rewards.
+model HourlyValidatorStats {
+  validatorIndex Int
+  hour           Int // 0-23
+  date           DateTime @db.Date // dd-mm-yyyy
+
+  head       BigInt?
+  target     BigInt?
+  source     BigInt?
+  inactivity BigInt?
+
+  missedHead       BigInt?
+  missedTarget     BigInt?
+  missedSource     BigInt?
+  missedInactivity BigInt?
+
+  attestationsMissed Int?
+
+  @@id([validatorIndex, date, hour])
+  @@index([date, hour])
+}
+
+model HourlyBlockAndSyncRewards {
+  validatorIndex Int
+  hour           Int // 0-23
+  date           DateTime @db.Date // dd-mm-yyyy
+
+  blockReward   BigInt? // Reward for proposing a block
+  syncCommittee BigInt? // Rewarded for participating in the sync committee
+
+  @@id([validatorIndex, date, hour])
+  @@index([date, hour])
+}
+
+model EpochRewardsTemp {
+  validatorIndex Int
+  hour           Int // 0-23
+  date           DateTime @db.Date // dd-mm-yyyy
+
+  head       BigInt?
+  target     BigInt?
+  source     BigInt?
+  inactivity BigInt?
+
+  missedHead       BigInt?
+  missedTarget     BigInt?
+  missedSource     BigInt?
+  missedInactivity BigInt?
+
+  @@id([validatorIndex, date, hour])
+}
+
+model DailyValidatorStats {
+  validatorIndex Int
+  date           DateTime @db.Date
+
+  head          BigInt?
+  target        BigInt?
+  source        BigInt?
+  inactivity    BigInt?
+  syncCommittee BigInt?
+  blockReward   BigInt?
+
+  missedHead       BigInt?
+  missedTarget     BigInt?
+  missedSource     BigInt?
+  missedInactivity BigInt?
+
+  attestationsMissed Int?
+
+  @@id([validatorIndex, date])
+  @@index([date])
+}
+
+model LastSummaryUpdate {
+  id                    Int       @id @default(autoincrement())
+  hourlyValidatorStats  DateTime?
+  dailyValidatorStats   DateTime? @db.Date
+  weeklyValidatorStats  DateTime?
+  monthlyValidatorStats DateTime?
+  yearlyValidatorStats  DateTime?
+}
+
+model User {
+  id            BigInt    @id
+  loginId       String    @unique @default(nanoid())
+  userId        BigInt    @unique
+  chatId        BigInt    @unique
+  username      String    @unique
+  messageId     BigInt?
+  lastClaimed   DateTime?
+  hasBlockedBot Boolean   @default(false)
+  createdAt     DateTime  @default(now())
+
+  performanceNotif     DateTime?
+  performanceThreshold Int       @default(90)
+
+  inactiveNotif                DateTime?
+  inactiveOnMissedAttestations Int       @default(3)
+
+  feeRewardAddresses  FeeRewardAddress[]  @relation("FeeRewardAddressToUser")
+  validators          Validator[]         @relation("UserToValidator")
+  withdrawalAddresses WithdrawalAddress[] @relation("UserToWithdrawalAddress")
+}
+
+model WithdrawalAddress {
+  address String @id
+  users   User[] @relation("UserToWithdrawalAddress")
+}
+
+model FeeRewardAddress {
+  address String @id
+  users   User[] @relation("FeeRewardAddressToUser")
+}
+
+model ValidatorsStats {
+  validatorId     Int
+  validatorStatus Int?
+  oneHourMissed   Int?
+  lastMissed      Int[] // Array of last missed slots: [1020, 1021, .., 1040]
+
+  dailyCLRewards BigInt?
+  dailyELRewards BigInt?
+
+  weeklyCLRewards BigInt?
+  weeklyELRewards BigInt?
+
+  monthlyCLRewards BigInt?
+  monthlyELRewards BigInt?
+
+  timestamp DateTime
+
+  @@id([validatorId])
+}
