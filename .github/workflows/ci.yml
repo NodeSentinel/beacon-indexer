@@ -59,6 +59,13 @@ jobs:
           find . -name ".prisma" -type d 2>/dev/null || echo "No .prisma directories found"
           echo "Checking if @prisma/client is hoisted:"
           ls -la node_modules/@prisma/ || echo "@prisma not found in root"
+          echo "Testing path resolution from fetch package:"
+          cd packages/fetch
+          echo "Current directory: $(pwd)"
+          echo "Checking ../../node_modules/.prisma/client:"
+          ls -la ../../node_modules/.prisma/client/ || echo "Path not found"
+          echo "Checking ./node_modules/.prisma/client:"
+          ls -la ./node_modules/.prisma/client/ || echo "Path not found"
         
       - name: Type check
         run: pnpm run type-check
