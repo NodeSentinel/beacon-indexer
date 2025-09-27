@@ -43,6 +43,13 @@ jobs:
       - name: Generate Prisma client
         run: pnpm exec prisma generate --schema=./prisma/schema.prisma
         
+      - name: Verify Prisma client location
+        run: |
+          echo "Checking Prisma client location..."
+          ls -la node_modules/.prisma/client/ || echo "Client not found in root node_modules"
+          ls -la packages/fetch/node_modules/.prisma/client/ || echo "Client not found in fetch node_modules"
+          find . -name ".prisma" -type d 2>/dev/null || echo "No .prisma directories found"
+        
       - name: Type check
         run: pnpm run type-check
         
