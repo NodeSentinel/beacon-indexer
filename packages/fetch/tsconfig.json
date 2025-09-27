@@ -16,7 +16,7 @@
     "baseUrl": ".",
     "paths": {
       "@/*": ["*"],
-      "@prisma/client": ["../../node_modules/.prisma/client"]
+      "@prisma/client": ["../../node_modules/.prisma/client/index"]
     }
   },
   "include": ["./src/**/*", "../../node_modules/.prisma/client/**/*"],
