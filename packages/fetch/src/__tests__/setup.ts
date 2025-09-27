@@ -24,3 +24,21 @@ vi.hoisted(() => {
   process.env.EXECUTION_API_BKP_URL = 'https://execution-bkp.example.com';
   process.env.EXECUTION_API_REQUEST_PER_SECOND = '10';
 });
+
+// Ignore specific global errors so Vitest won't fail the run
+const ignore = (err: unknown) => {
+  const msg = String(err ?? '');
+  // Sourcemap missing (Prisma runtime)
+  if (msg.includes('library.js.map')) return true;
+  // XState v5 getInitialSnapshot bug - known issue: https://github.com/statelyai/xstate/issues/5077
+  if (msg.includes('this.logic.getInitialSnapshot is not a function')) return true;
+  return false;
+};
+
+process.on('unhandledRejection', (err) => {
+  if (!ignore(err)) throw err;
+});
+
+process.on('uncaughtException', (err) => {
+  if (!ignore(err)) throw err;
+});
