@@ -46,9 +46,14 @@ jobs:
       - name: Verify Prisma client location
         run: |
           echo "Checking Prisma client location..."
+          echo "Root node_modules:"
           ls -la node_modules/.prisma/client/ || echo "Client not found in root node_modules"
+          echo "Fetch node_modules:"
           ls -la packages/fetch/node_modules/.prisma/client/ || echo "Client not found in fetch node_modules"
+          echo "All .prisma directories:"
           find . -name ".prisma" -type d 2>/dev/null || echo "No .prisma directories found"
+          echo "Checking if @prisma/client is hoisted:"
+          ls -la node_modules/@prisma/ || echo "@prisma not found in root"
         
       - name: Type check
         run: pnpm run type-check
