@@ -43,6 +43,11 @@ jobs:
       - name: Generate Prisma client
         run: pnpm exec prisma generate --schema=./prisma/schema.prisma
         
+      - name: Copy Prisma client to fetch package
+        run: |
+          mkdir -p packages/fetch/node_modules/.prisma
+          cp -r node_modules/.prisma/client packages/fetch/node_modules/.prisma/
+        
       - name: Verify Prisma client location
         run: |
           echo "Checking Prisma client location..."

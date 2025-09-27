@@ -18,6 +18,6 @@
       "@/*": ["*"]
     }
   },
-  "include": ["./src/**/*", "../../node_modules/.prisma/client/**/*"],
+  "include": ["./src/**/*"],
   "exclude": ["node_modules", "dist", "**/*.test.ts", "**/*.spec.ts", "**/__tests__/**"]
 }
