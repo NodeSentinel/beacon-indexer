@@ -41,7 +41,7 @@ jobs:
         run: pnpm install --frozen-lockfile
         
       - name: Generate Prisma client
-        run: pnpm exec prisma generate --schema=./packages/db/prisma/schema.prisma
+        run: pnpm run db:generate
         
       - name: Build db package
         run: pnpm --filter @beacon-indexer/db run build
