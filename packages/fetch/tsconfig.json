@@ -15,7 +15,8 @@
     "rootDir": "./src",
     "baseUrl": ".",
     "paths": {
-      "@/*": ["*"]
+      "@/*": ["*"],
+      "@prisma/client": ["../../node_modules/.prisma/client"]
     }
   },
   "include": ["./src/**/*"],
