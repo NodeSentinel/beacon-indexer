@@ -48,7 +48,7 @@ done
 # Setup database
 echo -e "${GREEN}🗄️  Setting up database...${NC}"
 DATABASE_URL="postgresql://postgres:password@localhost:5433/beacon_test?schema=public" \
-pnpm exec prisma db push --schema=./prisma/schema.prisma
+pnpm exec prisma db push --schema=./packages/db/prisma/schema.prisma
 
 # Run E2E tests
 echo -e "${GREEN}🧪 Running E2E tests...${NC}"

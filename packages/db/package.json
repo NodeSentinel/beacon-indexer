@@ -1,0 +1,28 @@
+{
+  "name": "@beacon-indexer/db",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "types": "./dist/index.d.ts",
+  "main": "./dist/index.js",
+  "scripts": {
+    "prisma:generate": "prisma generate --schema prisma/schema.prisma",
+    "build": "tsc -p tsconfig.json",
+    "db:migrate": "prisma migrate dev --schema prisma/schema.prisma",
+    "db:deploy": "prisma migrate deploy --schema prisma/schema.prisma",
+    "db:studio": "prisma studio --schema prisma/schema.prisma"
+  },
+  "dependencies": {
+    "@prisma/client": "6.16.2",
+    "prisma": "^6.16.2"
+  },
+  "devDependencies": {
+    "typescript": "^5.5.0"
+  }
+}

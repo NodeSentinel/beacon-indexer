@@ -1,6 +1,7 @@
 services:
   postgres:
     image: postgres:16
+    platform: linux/arm64
     container_name: db
     env_file:
       - .env
@@ -18,6 +19,7 @@ services:
 
   migrate:
     image: node:18-alpine
+    platform: linux/arm64
     working_dir: /app
     volumes:
       - .:/app
@@ -33,7 +35,7 @@ services:
       sh -c "
         apk add --no-cache openssl &&
         echo 'Waiting for database to be ready...' &&
-        node scripts/setDbUrl.js npx prisma migrate deploy --schema=./prisma/schema.prisma &&
+        node scripts/setDbUrl.js npx prisma migrate deploy --schema=./packages/db/prisma/schema.prisma &&
         echo 'Database migration completed successfully!'
       "
     networks:
@@ -50,8 +52,11 @@ services:
     build:
       context: .
       dockerfile: packages/fetch/Dockerfile
+      platforms:
+        - linux/arm64
     depends_on:
-      - migrate
+      migrate:
+        condition: service_completed_successfully
     networks:
       - app-network
 

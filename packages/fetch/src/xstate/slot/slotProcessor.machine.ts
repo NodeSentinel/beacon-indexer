@@ -1,4 +1,4 @@
-import { Slot } from '@prisma/client';
+import { Slot } from '@beacon-indexer/db';
 import ms from 'ms';
 import { setup, assign, sendParent } from 'xstate';
 

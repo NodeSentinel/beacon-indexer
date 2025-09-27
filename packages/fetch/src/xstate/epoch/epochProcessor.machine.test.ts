@@ -1,7 +1,7 @@
 import { test, expect, vi, beforeEach } from 'vitest';
 import { createActor, createMachine } from 'xstate';
 
-import { BeaconTime } from '@/src/services/consensus/utils/time.js';
+import { BeaconTime } from '../../services/consensus/utils/time.js';
 
 // Mock the logging functions
 vi.mock('@/src/xstate/pinoLog.js', () => ({

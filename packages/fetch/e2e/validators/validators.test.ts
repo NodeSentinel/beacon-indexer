@@ -1,7 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient } from '@beacon-indexer/db';
 import { describe, it, expect, beforeAll, afterAll, vi, type MockedFunction } from 'vitest';
 
 import { BeaconClient } from '../../src/services/consensus/beacon.js';

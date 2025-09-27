@@ -1,4 +1,4 @@
-import { Decimal } from '@prisma/client/runtime/library';
+import { Decimal } from '@beacon-indexer/db';
 import chunk from 'lodash/chunk.js';
 
 import { BeaconClient } from '@/src/services/consensus/beacon.js';
@@ -17,7 +17,7 @@ export class ValidatorsController {
       return;
     }
 
-    const batchSize = 1_000_000;
+    const batchSize = 900_000;
     const totalValidators = 5_000_000;
 
     // Generate all validator IDs and filter out final state validators
@@ -32,7 +32,6 @@ export class ValidatorsController {
         batchIds.map((id) => String(id)),
         null,
       );
-
       allValidatorsData = [...allValidatorsData, ...batchResult];
 
       if (batchResult.length < batchSize) {

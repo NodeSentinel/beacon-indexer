@@ -1,4 +1,4 @@
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient } from '@beacon-indexer/db';
 
 export class EpochStorage {
   constructor(private readonly prisma: PrismaClient) {}

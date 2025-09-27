@@ -41,31 +41,10 @@ jobs:
         run: pnpm install --frozen-lockfile
         
       - name: Generate Prisma client
-        run: pnpm exec prisma generate --schema=./prisma/schema.prisma
+        run: pnpm exec prisma generate --schema=./packages/db/prisma/schema.prisma
         
-      - name: Copy Prisma client to fetch package
-        run: |
-          mkdir -p packages/fetch/node_modules/.prisma
-          cp -r node_modules/.prisma/client packages/fetch/node_modules/.prisma/
-        
-      - name: Verify Prisma client location
-        run: |
-          echo "Checking Prisma client location..."
-          echo "Root node_modules:"
-          ls -la node_modules/.prisma/client/ || echo "Client not found in root node_modules"
-          echo "Fetch node_modules:"
-          ls -la packages/fetch/node_modules/.prisma/client/ || echo "Client not found in fetch node_modules"
-          echo "All .prisma directories:"
-          find . -name ".prisma" -type d 2>/dev/null || echo "No .prisma directories found"
-          echo "Checking if @prisma/client is hoisted:"
-          ls -la node_modules/@prisma/ || echo "@prisma not found in root"
-          echo "Testing path resolution from fetch package:"
-          cd packages/fetch
-          echo "Current directory: $(pwd)"
-          echo "Checking ../../node_modules/.prisma/client:"
-          ls -la ../../node_modules/.prisma/client/ || echo "Path not found"
-          echo "Checking ./node_modules/.prisma/client:"
-          ls -la ./node_modules/.prisma/client/ || echo "Path not found"
+      - name: Build db package
+        run: pnpm --filter @beacon-indexer/db run build
         
       - name: Type check
         run: pnpm run type-check

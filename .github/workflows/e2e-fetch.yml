@@ -41,7 +41,10 @@ jobs:
         run: pnpm install --frozen-lockfile
         
       - name: Generate Prisma client
-        run: pnpm exec prisma generate --schema=./prisma/schema.prisma
+        run: pnpm exec prisma generate --schema=./packages/db/prisma/schema.prisma
+        
+      - name: Build db package
+        run: pnpm --filter @beacon-indexer/db run build
         
       - name: Build packages
         run: pnpm run build
@@ -74,7 +77,7 @@ jobs:
       - name: Setup database
         run: |
           DATABASE_URL="postgresql://postgres:password@localhost:5433/beacon_test?schema=public" \
-          pnpm exec prisma db push --schema=./prisma/schema.prisma
+          pnpm exec prisma db push --schema=./packages/db/prisma/schema.prisma
           
       - name: Run e2e tests
         run: |

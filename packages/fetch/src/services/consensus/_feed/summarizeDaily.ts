@@ -1,4 +1,4 @@
-import { Prisma } from '@prisma/client';
+import { Prisma } from '@beacon-indexer/db';
 import { addDays } from 'date-fns';
 import ms from 'ms';
 

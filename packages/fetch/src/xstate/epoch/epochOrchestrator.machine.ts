@@ -1,4 +1,4 @@
-import { Epoch } from '@prisma/client';
+import { Epoch } from '@beacon-indexer/db';
 import ms from 'ms';
 import { setup, assign, stopChild, ActorRefFrom } from 'xstate';
 
