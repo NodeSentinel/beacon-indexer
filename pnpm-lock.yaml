@@ -8,6 +8,9 @@ importers:
 
   .:
     dependencies:
+      '@beacon-indexer/db':
+        specifier: workspace:*
+        version: link:packages/db
       dotenv:
         specifier: ^16.0.3
         version: 16.6.1
