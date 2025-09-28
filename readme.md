@@ -4,12 +4,12 @@
 
 Tools for blockchain node operators — keep your validators online, secure, and efficient.
 
-### ⚡ Monitor Your Validators
+### Monitor Your Validators
 
 Get real-time insights and instant alerts for your Ethereum and Gnosis validators:
 
-[![Ethereum Bot](https://img.shields.io/badge/🔥_Ethereum_Bot-5865F2?style=for-the-badge&logo=telegram&logoColor=white)](https://t.me/ethereum_nodeSentinel_bot)
-[![Gnosis Bot](https://img.shields.io/badge/🟢_Gnosis_Bot-30B57C?style=for-the-badge&logo=telegram&logoColor=white)](https://t.me/gbc_validators_bot)
+[![Ethereum Bot](https://img.shields.io/badge/_Ethereum_Bot-5865F2?style=for-the-badge&logo=telegram&logoColor=white)](https://t.me/ethereum_nodeSentinel_bot)
+[![Gnosis Bot](https://img.shields.io/badge/_Gnosis_Bot-30B57C?style=for-the-badge&logo=telegram&logoColor=white)](https://t.me/gbc_validators_bot)
 
 # Beacon Indexer
 
