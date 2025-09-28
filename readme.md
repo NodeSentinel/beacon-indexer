@@ -1,19 +1,23 @@
-# NodeSentinel - Beacon Indexer
+# NodeSentinel
 
-[![Website](https://img.shields.io/badge/Website-node--sentinel.xyz-blue?style=for-the-badge&logo=web)](http://node-sentinel.xyz/)
+[![Website](https://img.shields.io/badge/🌐_Website-node--sentinel.xyz-1a73e8?style=for-the-badge)](http://node-sentinel.xyz/)
 
-A lightweight beacon chain indexer designed to collect and process validator data from Ethereum and Gnosis beacon chains. This project implements a state machine-based architecture using XState to efficiently process blockchain data with minimal resource requirements.
+Tools for blockchain node operators — keep your validators online, secure, and efficient.
 
-## Monitor Your Validators
+### ⚡ Monitor Your Validators
 
-Keep your nodes running efficiently with real-time insights and instant alerts. Directly from Telegram.
+Get real-time insights and instant alerts for your Ethereum and Gnosis validators:
 
-[![Ethereum Bot](https://img.shields.io/badge/Ethereum-Bot-blue?style=for-the-badge&logo=telegram)](https://t.me/ethereum_nodeSentinel_bot)
-[![Gnosis Bot](https://img.shields.io/badge/Gnosis-Bot-blue?style=for-the-badge&logo=telegram)](https://t.me/gbc_validators_bot)
+[![Ethereum Bot](https://img.shields.io/badge/🔥_Ethereum_Bot-5865F2?style=for-the-badge&logo=telegram&logoColor=white)](https://t.me/ethereum_nodeSentinel_bot)
+[![Gnosis Bot](https://img.shields.io/badge/🟢_Gnosis_Bot-30B57C?style=for-the-badge&logo=telegram&logoColor=white)](https://t.me/gbc_validators_bot)
 
-## Overview
+# Beacon Indexer
 
-The Beacon Indexer is a highly optimized system that processes and index beacon chain data. It features intelligent data summarization strategies and automatic pruning mechanisms to maintain efficiency while providing comprehensive validator analytics.
+A lightweight beacon chain indexer for collecting and processing validator data from Ethereum and Gnosis beacon chains.
+
+It’s easy to run — just provide a beacon API URL and the slot number to start indexing from.
+
+The code is written in TypeScript and uses XState to orchestrate the data fetching workflow.
 
 ## Requirements
 
