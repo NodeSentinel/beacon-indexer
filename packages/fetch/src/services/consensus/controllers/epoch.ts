@@ -2,6 +2,7 @@ import { BeaconClient } from '@/src/services/consensus/beacon.js';
 import { EpochStorage } from '@/src/services/consensus/storage/epoch.js';
 import { getEpochFromSlot, getOldestLookbackSlot } from '@/src/services/consensus/utils/misc.js';
 
+export const MAX_UNPROCESSED_EPOCHS = 5;
 export class EpochController {
   constructor(
     private readonly beaconClient: BeaconClient,
@@ -14,8 +15,6 @@ export class EpochController {
   }
 
   async getEpochsToCreate(lastEpoch: number | null) {
-    const MAX_UNPROCESSED_EPOCHS = 5;
-
     // Get count of unprocessed epochs
     const unprocessedCount = await this.epochStorage.getUnprocessedCount();
 

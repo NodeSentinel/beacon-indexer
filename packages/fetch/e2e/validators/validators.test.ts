@@ -19,12 +19,15 @@ describe('Validators E2E Tests', () => {
   let mockBeaconClient: Pick<BeaconClient, 'getValidators'>;
 
   beforeAll(async () => {
+    if (!process.env.DATABASE_URL) {
+      throw new Error('DATABASE_URL is not set');
+    }
+
     // Initialize database connection
     prisma = new PrismaClient({
       datasources: {
         db: {
-          url:
-            process.env.DATABASE_URL || 'postgresql://postgres:password@postgres:5432/beacon_test',
+          url: process.env.DATABASE_URL,
         },
       },
     });
@@ -52,7 +55,7 @@ describe('Validators E2E Tests', () => {
       // Clean database before tests
       await prisma.validator.deleteMany();
 
-      // Load mock data (5 validators)
+      // Load mock data
       const mockData = JSON.parse(fs.readFileSync(MOCK_PATH, 'utf8')) as GetValidators;
       (
         mockBeaconClient.getValidators as MockedFunction<BeaconClient['getValidators']>
@@ -67,19 +70,19 @@ describe('Validators E2E Tests', () => {
     });
 
     it('should save and retrieve validator data correctly', async () => {
-      // Test validator with index 10001 (2nd in mock data)
+      // Test validator with index 10001
       const validator2 = await validatorsStorage.getValidatorById(10001);
       expect(validator2).toBeTruthy();
       expect(validator2?.id).toBe(10001);
-      expect(validator2?.status).toBe(2); // active_ongoing
+      expect(validator2?.status).toBe(2);
       expect(validator2?.balance.toString()).toBe('32019036041');
       expect(validator2?.effectiveBalance?.toString()).toBe('32000000000');
 
-      // Test validator with index 10005 (5th in mock data)
+      // Test validator with index 10005
       const validator5 = await validatorsStorage.getValidatorById(10005);
       expect(validator5).toBeTruthy();
       expect(validator5?.id).toBe(10005);
-      expect(validator5?.status).toBe(2); // active_ongoing
+      expect(validator5?.status).toBe(2);
       expect(validator5?.balance.toString()).toBe('32018977816');
       expect(validator5?.effectiveBalance?.toString()).toBe('32000000000');
     });
@@ -89,7 +92,7 @@ describe('Validators E2E Tests', () => {
       const validatorWithdrawn = await validatorsStorage.getValidatorById(10000);
       expect(validatorWithdrawn).toBeTruthy();
       expect(validatorWithdrawn?.id).toBe(10000);
-      expect(validatorWithdrawn?.status).toBe(8); // withdrawal_done
+      expect(validatorWithdrawn?.status).toBe(8);
       expect(validatorWithdrawn?.balance.toString()).toBe('0');
     });
   });
