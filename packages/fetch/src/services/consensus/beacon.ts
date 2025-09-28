@@ -29,6 +29,7 @@ export interface BeaconClientConfig {
   archiveNodeConcurrency: number;
   archiveNodeRetries: number;
   baseDelay: number;
+  slotStartIndexing: number;
 }
 
 /**
@@ -37,6 +38,7 @@ export interface BeaconClientConfig {
  */
 export class BeaconClient extends ReliableRequestClient {
   private readonly axiosInstance: AxiosInstance;
+  public readonly slotStartIndexing: number;
 
   constructor(config: BeaconClientConfig) {
     super({
@@ -49,6 +51,7 @@ export class BeaconClient extends ReliableRequestClient {
       baseDelay: config.baseDelay,
     });
 
+    this.slotStartIndexing = config.slotStartIndexing;
     this.axiosInstance = axios.create();
     this.axiosInstance.interceptors.request.use(logRequest);
     this.axiosInstance.interceptors.response.use(logResponse);
