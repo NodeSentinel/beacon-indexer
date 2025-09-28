@@ -1,4 +1,4 @@
-import { Decimal } from '@prisma/client/runtime/library';
+import { Decimal } from '@beacon-indexer/db';
 import { AxiosResponse } from 'axios';
 import ms from 'ms';
 

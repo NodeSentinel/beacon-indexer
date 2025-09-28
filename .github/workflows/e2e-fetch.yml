@@ -1,0 +1,92 @@
+name: e2e-fetch
+
+on:
+  pull_request:
+    branches: [main, develop]
+  push:
+    branches: [main, develop]
+
+jobs:
+  e2e-fetch:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9.2.0
+          
+      - name: Get pnpm store directory
+        shell: bash
+        run: |
+          echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
+          
+      - name: Setup pnpm cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-store-
+            
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+        
+      - name: Generate Prisma client
+        run: pnpm run db:generate
+        
+      - name: Build db package
+        run: pnpm --filter @beacon-indexer/db run build
+        
+      - name: Build packages
+        run: pnpm run build
+        
+      - name: Start PostgreSQL container
+        run: |
+          docker run --name e2e-postgres \
+            -e POSTGRES_DB=beacon_test \
+            -e POSTGRES_USER=postgres \
+            -e POSTGRES_PASSWORD=password \
+            -p 5433:5432 \
+            --tmpfs /var/lib/postgresql/data \
+            -d postgres:16
+          
+      - name: Wait for PostgreSQL
+        run: |
+          for i in {1..60}; do
+            if docker exec e2e-postgres pg_isready -U postgres -d beacon_test >/dev/null 2>&1; then
+              echo "PostgreSQL is ready!"
+              sleep 2
+              break
+            fi
+            if [ $i -eq 60 ]; then
+              echo "PostgreSQL failed to start after 60 seconds"
+              exit 1
+            fi
+            sleep 1
+          done
+          
+      - name: Setup database
+        run: |
+          DATABASE_URL="postgresql://postgres:password@localhost:5433/beacon_test?schema=public" \
+          pnpm --filter @beacon-indexer/db exec prisma db push --schema=prisma/schema.prisma
+          
+      - name: Run e2e tests
+        run: |
+          cd packages/fetch
+          DATABASE_URL="postgresql://postgres:password@localhost:5433/beacon_test?schema=public" \
+          pnpm test:e2e
+          
+      - name: Cleanup
+        if: always()
+        run: |
+          docker stop e2e-postgres || true
+          docker rm e2e-postgres || true

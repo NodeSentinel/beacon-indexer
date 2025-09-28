@@ -1,5 +1,5 @@
-import { Prisma } from '@prisma/client';
-import { Decimal } from '@prisma/client/runtime/library';
+import { Prisma } from '@beacon-indexer/db';
+import { Decimal } from '@beacon-indexer/db';
 import chunk from 'lodash/chunk.js';
 import ms from 'ms';
 

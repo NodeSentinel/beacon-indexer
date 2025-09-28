@@ -1,4 +1,4 @@
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient } from '@beacon-indexer/db';
 
 async function cleanDatabase() {
   // Check if we're running on localhost
@@ -20,7 +20,7 @@ async function cleanDatabase() {
       await tx.$executeRaw`truncate "Epoch"`;
       await tx.$executeRaw`truncate "Slot" cascade`;
       await tx.$executeRaw`truncate "Committee" cascade`;
-      //      await tx.$executeRaw`truncate "Validator" cascade`;
+      await tx.$executeRaw`truncate "Validator" cascade`;
       await tx.$executeRaw`truncate "SyncCommittee" cascade`;
 
       await tx.$executeRaw`truncate "ExecutionRewards"`;

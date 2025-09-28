@@ -1,4 +1,4 @@
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient } from '@beacon-indexer/db';
 import ms from 'ms';
 
 import { env, chainConfig } from '@/src/lib/env.js';

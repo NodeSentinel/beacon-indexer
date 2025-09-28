@@ -1,4 +1,4 @@
-import { PrismaClient, Validator } from '@prisma/client';
+import { PrismaClient, Validator } from '@beacon-indexer/db';
 import chunk from 'lodash/chunk.js';
 import ms from 'ms';
 
@@ -24,5 +24,11 @@ export class ValidatorsStorage {
         },
       );
     }
+  }
+
+  async getValidatorById(id: number) {
+    return this.prisma.validator.findUnique({
+      where: { id },
+    });
   }
 }

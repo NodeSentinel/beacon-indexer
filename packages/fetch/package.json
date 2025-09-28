@@ -12,6 +12,7 @@
     "test": "vitest",
     "test:coverage": "vitest --coverage",
     "test:watch": "vitest --watch",
+    "test:e2e": "vitest run e2e --config vitest.e2e.config.ts --no-coverage",
     "xstate-logs": "watch -n 1 -c cat logs/machines-status.log",
     "clean-db": "tsx src/utils/cleanDatabase.ts",
     "lint": "eslint .",
@@ -19,7 +20,7 @@
     "type-check": "tsc --noEmit"
   },
   "dependencies": {
-    "@prisma/client": "5.15.0",
+    "@beacon-indexer/db": "workspace:*",
     "@t3-oss/env-core": "^0.10.1",
     "axios": "^1.7.2",
     "axios-cache-interceptor": "^1.8.0",
@@ -58,7 +59,6 @@
     "eslint": "^9.7.0",
     "eslint-plugin-prettier": "^5.2.1",
     "eslint-plugin-sort-destructure-keys": "^2.0.0",
-    "prisma": "5.15.0",
     "tsx": "^4.7.1",
     "typescript": "^5.4.5",
     "vitest": "^3.2.4"

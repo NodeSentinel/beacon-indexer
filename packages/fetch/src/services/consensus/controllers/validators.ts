@@ -1,5 +1,4 @@
-import { Decimal } from '@prisma/client/runtime/library';
-import chunk from 'lodash/chunk.js';
+import { Decimal } from '@beacon-indexer/db';
 
 import { BeaconClient } from '@/src/services/consensus/beacon.js';
 import { VALIDATOR_STATUS } from '@/src/services/consensus/constants.js';
@@ -18,26 +17,25 @@ export class ValidatorsController {
     }
 
     const batchSize = 1_000_000;
-    const totalValidators = 5_000_000;
-
-    // Generate all validator IDs and filter out final state validators
-    const allValidatorIds = Array.from({ length: totalValidators }, (_, i) => i);
-
-    // Create chunks of batchSize
-    const batches = chunk(allValidatorIds, batchSize);
     let allValidatorsData: Awaited<ReturnType<typeof this.beaconClient.getValidators>> = [];
-    for (const batchIds of batches) {
-      const batchResult = await this.beaconClient.getValidators(
-        'head',
-        batchIds.map((id) => String(id)),
-        null,
-      );
+    let currentValidatorId = 0;
+
+    // Keep fetching validators in batches until we get fewer results than batchSize
+    while (true) {
+      // Generate batch of validator IDs starting from currentValidatorId
+      const batchIds = Array.from({ length: batchSize }, (_, i) => String(currentValidatorId + i));
+
+      const batchResult = await this.beaconClient.getValidators('head', batchIds, null);
 
       allValidatorsData = [...allValidatorsData, ...batchResult];
 
+      // If we get fewer results than batchSize, we've reached the end
       if (batchResult.length < batchSize) {
         break;
       }
+
+      // Move to next batch
+      currentValidatorId += batchSize;
     }
 
     await this.validatorsStorage.saveValidators(

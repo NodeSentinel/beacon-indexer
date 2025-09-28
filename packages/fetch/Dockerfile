@@ -10,10 +10,15 @@ WORKDIR /app
 
 # Copy package management files first
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
-COPY prisma/schema.prisma ./prisma/schema.prisma
 
 # Copy only the required script
 COPY scripts/setDbUrl.js ./scripts/setDbUrl.js
+
+# Copy db package files
+COPY packages/db/package.json ./packages/db/package.json
+COPY packages/db/tsconfig.json ./packages/db/tsconfig.json
+COPY packages/db/src ./packages/db/src
+COPY packages/db/prisma ./packages/db/prisma
 
 # Copy fetch package files
 COPY packages/fetch/package.json ./packages/fetch/package.json
@@ -26,10 +31,13 @@ RUN pnpm install --frozen-lockfile
 # Copy source code
 COPY packages/fetch ./packages/fetch
 
-# Generate Prisma client 
-RUN npx prisma generate --schema=./prisma/schema.prisma
+# Generate Prisma client from db package
+RUN npx prisma generate --schema=./packages/db/prisma/schema.prisma
 
-# Build the fetch package from root using pnpm workspace command
+# Build the db package first
+RUN pnpm --filter @beacon-indexer/db run build
+
+# Build the fetch package after db is ready
 RUN pnpm --filter fetch run build
 
 # Verify the build output

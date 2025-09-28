@@ -191,7 +191,7 @@ export class BeaconClient extends ReliableRequestClient {
         },
       );
       return res.data.data;
-    }, 'full');
+    }, 'archive');
   }
 
   /**

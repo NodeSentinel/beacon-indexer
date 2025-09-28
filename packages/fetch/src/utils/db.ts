@@ -1,4 +1,4 @@
-import { Prisma, LastSummaryUpdate } from '@prisma/client';
+import { Prisma, LastSummaryUpdate } from '@beacon-indexer/db';
 import memoizee from 'memoizee';
 import ms from 'ms';
 

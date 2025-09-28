@@ -66,7 +66,10 @@ export abstract class ReliableRequestClient {
         pRetry(() => callEndpoint(url), {
           retries,
           minTimeout: ms('1s'),
-          onFailedAttempt: async (error: { attemptNumber: number }) => {
+          onFailedAttempt: async (error: { attemptNumber: number; message: string }) => {
+            console.log(
+              `Failed attempt ${error.attemptNumber} for ${url}. Error: ${error.message}`,
+            );
             const delay = this.calculateBackoffDelay(error.attemptNumber);
             await new Promise((resolve) => setTimeout(resolve, delay));
           },
