@@ -30,6 +30,7 @@ async function main() {
     archiveNodeConcurrency: env.CONSENSUS_API_REQUEST_PER_SECOND,
     archiveNodeRetries: 30,
     baseDelay: ms('1s'),
+    slotStartIndexing: env.CONSENSUS_LOOKBACK_SLOT,
   });
 
   const beaconTime = new BeaconTime({

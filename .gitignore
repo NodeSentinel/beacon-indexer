@@ -100,8 +100,3 @@ jspm_packages/
 # Temporary folders
 tmp/
 temp/
-
-# Test files
-test.ts
-*.test.ts
-*.spec.ts

@@ -83,7 +83,7 @@ jobs:
         run: |
           cd packages/fetch
           DATABASE_URL="postgresql://postgres:password@localhost:5433/beacon_test?schema=public" \
-          pnpm test:e2e
+          pnpm vitest run --config vitest.e2e.config.ts --no-coverage
           
       - name: Cleanup
         if: always()

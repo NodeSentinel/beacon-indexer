@@ -20,10 +20,7 @@ export const getCreateEpochActor = (epochController: EpochController, slotDurati
 
     logMachine('epochCreator', `State: ${JSON.stringify(snapshot.value)}`, {
       // Current state info
-      lastEpoch: context.lastEpoch,
-      epochsToCreate: context.epochsToCreate,
-      // Simple status
-      hasEpochsToCreate: context.epochsToCreate.length > 0,
+      slotDuration: context.slotDuration,
     });
   });
 
