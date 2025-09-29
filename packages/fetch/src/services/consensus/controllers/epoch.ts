@@ -1,21 +1,40 @@
 import { BeaconClient } from '@/src/services/consensus/beacon.js';
 import { EpochStorage } from '@/src/services/consensus/storage/epoch.js';
-import { getEpochFromSlot, getOldestLookbackSlot } from '@/src/services/consensus/utils/misc.js';
+import { getEpochFromSlot } from '@/src/services/consensus/utils/misc.js';
 
+export const MAX_UNPROCESSED_EPOCHS = 5;
 export class EpochController {
   constructor(
     private readonly beaconClient: BeaconClient,
     private readonly epochStorage: EpochStorage,
   ) {}
 
-  async getLastCreated() {
-    const result = await this.epochStorage.getLastCreated();
+  async getMaxEpoch() {
+    const result = await this.epochStorage.getMaxEpoch();
     return result?.epoch ?? null;
   }
 
-  async getEpochsToCreate(lastEpoch: number | null) {
-    const MAX_UNPROCESSED_EPOCHS = 5;
+  async getMinEpochToProcess() {
+    return this.epochStorage.getMinEpochToProcess();
+  }
 
+  async getUnprocessedCount() {
+    return this.epochStorage.getUnprocessedCount();
+  }
+
+  async markEpochAsProcessed(epoch: number) {
+    await this.epochStorage.markEpochAsProcessed(epoch);
+  }
+
+  async getAllEpochs() {
+    return this.epochStorage.getAllEpochs();
+  }
+
+  async getEpochCount() {
+    return this.epochStorage.getEpochCount();
+  }
+
+  private async getEpochsToCreate(lastEpoch: number | null) {
     // Get count of unprocessed epochs
     const unprocessedCount = await this.epochStorage.getUnprocessedCount();
 
@@ -27,8 +46,8 @@ export class EpochController {
     // Calculate how many epochs we need to create
     const epochsNeeded = MAX_UNPROCESSED_EPOCHS - unprocessedCount;
 
-    // Get the starting epoch for creation
-    const lookbackEpoch = getEpochFromSlot(getOldestLookbackSlot());
+    // Get the starting epoch for creation using slotStartIndexing from BeaconClient
+    const lookbackEpoch = getEpochFromSlot(this.beaconClient.slotStartIndexing);
     const startEpoch = lastEpoch ? lastEpoch + 1 : lookbackEpoch;
 
     // Create array of epochs to create
@@ -40,11 +59,22 @@ export class EpochController {
     return epochsToCreate;
   }
 
-  async createEpochs(epochsToCreate: number[]) {
-    return this.epochStorage.createEpochs(epochsToCreate);
-  }
+  // New method that handles the complete epoch creation logic internally
+  async createEpochsIfNeeded() {
+    try {
+      // Get the last created epoch
+      const lastEpoch = await this.getMaxEpoch();
 
-  async getMinEpochToProcess() {
-    return this.epochStorage.getMinEpochToProcess();
+      // Get epochs to create based on the last epoch
+      const epochsToCreate = await this.getEpochsToCreate(lastEpoch);
+
+      // If there are epochs to create, create them
+      if (epochsToCreate.length > 0) {
+        await this.epochStorage.createEpochs(epochsToCreate);
+      }
+    } catch (error) {
+      // Log error but don't throw to prevent machine from stopping
+      console.error('Error in createEpochsIfNeeded:', error);
+    }
   }
 }

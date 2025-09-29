@@ -3,7 +3,7 @@ import { PrismaClient } from '@beacon-indexer/db';
 export class EpochStorage {
   constructor(private readonly prisma: PrismaClient) {}
 
-  async getLastCreated() {
+  async getMaxEpoch() {
     return await this.prisma.epoch.findFirst({
       orderBy: { epoch: 'desc' },
       select: { epoch: true },
@@ -61,5 +61,28 @@ export class EpochStorage {
     return {
       ...nextEpoch,
     };
+  }
+
+  async markEpochAsProcessed(epoch: number) {
+    await this.prisma.epoch.update({
+      where: { epoch },
+      data: {
+        validatorsBalancesFetched: true,
+        rewardsFetched: true,
+        committeesFetched: true,
+        slotsFetched: true,
+        syncCommitteesFetched: true,
+      },
+    });
+  }
+
+  async getAllEpochs() {
+    return this.prisma.epoch.findMany({
+      orderBy: { epoch: 'asc' },
+    });
+  }
+
+  async getEpochCount() {
+    return this.prisma.epoch.count();
   }
 }
