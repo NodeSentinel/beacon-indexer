@@ -14,7 +14,7 @@ export default defineConfig({
     bail: 5, // Stop after 5 test failures
     //silent: false, // Show console logs
     disableConsoleIntercept: true,
-    exclude: ['**/e2e/**/*', 'node_modules'], // Exclude e2e tests from this config
+    exclude: ['src/e2e/**/*', 'node_modules'], // Exclude e2e tests from this config
   },
   resolve: {
     alias: {
