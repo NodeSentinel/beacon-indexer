@@ -21,6 +21,7 @@ const mockBeaconTime = new BeaconTime({
   slotDurationMs: SLOT_DURATION_MS,
   slotsPerEpoch: SLOTS_PER_EPOCH,
   epochsPerSyncCommitteePeriod: 256, // 256 epochs per sync committee period
+  slotStartIndexing: 32,
 });
 
 // Mock the logging functions - simple mocks that do nothing

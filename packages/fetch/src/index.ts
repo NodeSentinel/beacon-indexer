@@ -30,6 +30,7 @@ async function main() {
     archiveNodeConcurrency: env.CONSENSUS_API_REQUEST_PER_SECOND,
     archiveNodeRetries: 30,
     baseDelay: ms('1s'),
+    slotStartIndexing: env.CONSENSUS_LOOKBACK_SLOT,
   });
 
   const beaconTime = new BeaconTime({
@@ -37,6 +38,7 @@ async function main() {
     slotDurationMs: chainConfig.beacon.slotDurationInSeconds * 1000,
     slotsPerEpoch: chainConfig.beacon.slotsPerEpoch,
     epochsPerSyncCommitteePeriod: chainConfig.beacon.epochsPerSyncCommitteePeriod,
+    slotStartIndexing: env.CONSENSUS_LOOKBACK_SLOT,
   });
 
   const validatorsStorage = new ValidatorsStorage(prisma);

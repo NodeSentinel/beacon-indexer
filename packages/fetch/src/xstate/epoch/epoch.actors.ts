@@ -11,24 +11,6 @@ import { EpochController } from '@/src/services/consensus/controllers/epoch.js';
 
 const prisma = getPrisma();
 
-export const getLastCreatedEpoch = fromPromise(
-  async ({ input }: { input: { epochController: EpochController } }) => {
-    return input.epochController.getLastCreated();
-  },
-);
-
-export const getEpochsToCreate = fromPromise(
-  async ({ input }: { input: { epochController: EpochController; lastEpoch: number | null } }) => {
-    return input.epochController.getEpochsToCreate(input.lastEpoch);
-  },
-);
-
-export const createEpochs = fromPromise(
-  async ({ input }: { input: { epochController: EpochController; epochsToCreate: number[] } }) => {
-    return input.epochController.createEpochs(input.epochsToCreate);
-  },
-);
-
 /**
  * Finds the minimum unprocessed epoch that needs processing
  * Returns a single epoch with its current state
@@ -36,6 +18,12 @@ export const createEpochs = fromPromise(
 export const getMinEpochToProcess = fromPromise(
   async ({ input }: { input: { epochController: EpochController } }) => {
     return input.epochController.getMinEpochToProcess();
+  },
+);
+
+export const createEpochsIfNeeded = fromPromise(
+  async ({ input }: { input: { epochController: EpochController } }) => {
+    await input.epochController.createEpochsIfNeeded();
   },
 );
 

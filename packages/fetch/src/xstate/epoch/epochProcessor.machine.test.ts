@@ -82,6 +82,7 @@ describe('epochProcessorMachine', () => {
         slotDurationMs: SLOT_DURATION_MS,
         slotsPerEpoch: SLOTS_PER_EPOCH,
         epochsPerSyncCommitteePeriod: 256,
+        slotStartIndexing: 32,
       });
 
       // Mock time for currentEpoch < 99 (canProcessEpoch = false)
@@ -146,6 +147,7 @@ describe('epochProcessorMachine', () => {
         slotDurationMs: SLOT_DURATION_MS,
         slotsPerEpoch: SLOTS_PER_EPOCH,
         epochsPerSyncCommitteePeriod: 256,
+        slotStartIndexing: 32,
       });
 
       // Mock time for currentEpoch >= 99 (canProcessEpoch = true)

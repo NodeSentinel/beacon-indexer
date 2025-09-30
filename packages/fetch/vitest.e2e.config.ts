@@ -13,8 +13,8 @@ export default defineConfig({
     retry: 1,
     bail: 5,
     disableConsoleIntercept: true,
-    include: ['**/e2e/**/*.test.ts', '**/e2e/**/*.test.js'], // Only include e2e test files
-    exclude: ['**/e2e/**/*.json', '**/e2e/**/mocks/**'], // Exclude JSON files and mocks
+    include: ['src/e2e/**/*.test.ts'], // Include all e2e test files
+    exclude: ['src/e2e/**/mocks/**'], // Exclude mocks directory but allow JSON files
   },
   resolve: {
     alias: {
