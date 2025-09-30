@@ -1,6 +1,5 @@
 import { BeaconClient } from '@/src/services/consensus/beacon.js';
 import { EpochStorage } from '@/src/services/consensus/storage/epoch.js';
-import { getEpochFromSlot } from '@/src/services/consensus/utils/misc.js';
 
 export const MAX_UNPROCESSED_EPOCHS = 5;
 export class EpochController {
@@ -47,8 +46,7 @@ export class EpochController {
     const epochsNeeded = MAX_UNPROCESSED_EPOCHS - unprocessedCount;
 
     // Get the starting epoch for creation using slotStartIndexing from BeaconClient
-    const lookbackEpoch = getEpochFromSlot(this.beaconClient.slotStartIndexing);
-    const startEpoch = lastEpoch ? lastEpoch + 1 : lookbackEpoch;
+    const startEpoch = lastEpoch ? lastEpoch + 1 : this.beaconClient.slotStartIndexing;
 
     // Create array of epochs to create
     const epochsToCreate = [];
