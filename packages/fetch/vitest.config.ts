@@ -14,7 +14,8 @@ export default defineConfig({
     bail: 5, // Stop after 5 test failures
     //silent: false, // Show console logs
     disableConsoleIntercept: true,
-    exclude: ['src/e2e/**/*', 'node_modules'], // Exclude e2e tests from this config
+    include: ['src/**/*.test.ts'], // Only include unit test files
+    exclude: ['src/e2e/**/*', 'node_modules'], // Exclude e2e tests from this confi
   },
   resolve: {
     alias: {

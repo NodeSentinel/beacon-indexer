@@ -4,16 +4,12 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import { BeaconClient } from '../../services/consensus/beacon.js';
 import { EpochController } from '../../services/consensus/controllers/epoch.js';
 import { EpochStorage } from '../../services/consensus/storage/epoch.js';
-import { getEpochFromSlot } from '../../services/consensus/utils/misc.js';
 
 describe('Epoch Creation E2E Tests', () => {
   let prisma: PrismaClient;
   let epochStorage: EpochStorage;
   let epochController: EpochController;
-  let mockBeaconClient: Pick<BeaconClient, 'slotStartIndexing'>;
 
-  // Mock slotStartIndexing value for testing
-  const MOCK_SLOT_START_INDEXING = 1000000;
   const MAX_UNPROCESSED_EPOCHS = 5;
 
   beforeAll(async () => {
@@ -33,12 +29,11 @@ describe('Epoch Creation E2E Tests', () => {
     // Initialize storage and controller
     epochStorage = new EpochStorage(prisma);
 
-    // Mock BeaconClient with slotStartIndexing
-    mockBeaconClient = {
-      slotStartIndexing: MOCK_SLOT_START_INDEXING,
-    };
-
-    epochController = new EpochController(mockBeaconClient as BeaconClient, epochStorage);
+    // Create EpochController with mocked BeaconClient
+    epochController = new EpochController(
+      { slotStartIndexing: 32000 } as BeaconClient, // Mock slot that represents epoch 1000
+      epochStorage,
+    );
 
     // Clean database before tests
     await prisma.epoch.deleteMany();
@@ -55,8 +50,6 @@ describe('Epoch Creation E2E Tests', () => {
     });
 
     it('should create MAX_UNPROCESSED_EPOCHS epochs when no epochs exist in DB', async () => {
-      const expectedStartEpoch = getEpochFromSlot(MOCK_SLOT_START_INDEXING);
-
       // Use the new createEpochsIfNeeded method
       await epochController.createEpochsIfNeeded();
 
@@ -64,9 +57,14 @@ describe('Epoch Creation E2E Tests', () => {
       const createdEpochs = await epochController.getAllEpochs();
 
       expect(createdEpochs).toHaveLength(MAX_UNPROCESSED_EPOCHS);
-      // Should be consecutive epochs starting from expectedStartEpoch
-      for (let i = 0; i < createdEpochs.length; i++) {
-        expect(createdEpochs[i].epoch).toBe(expectedStartEpoch + i);
+
+      // Verify epochs start from the correct epoch (32000 / 32 = 1000)
+      const expectedStartEpoch = 1000;
+      expect(createdEpochs[0].epoch).toBe(expectedStartEpoch);
+
+      // Should be consecutive epochs
+      for (let i = 1; i < createdEpochs.length; i++) {
+        expect(createdEpochs[i].epoch).toBe(createdEpochs[i - 1].epoch + 1);
       }
 
       // Verify all epochs are unprocessed (all flags are false)
@@ -96,12 +94,10 @@ describe('Epoch Creation E2E Tests', () => {
     });
 
     it('should create only the difference when less than MAX_UNPROCESSED_EPOCHS are unprocessed', async () => {
-      const startEpoch = getEpochFromSlot(MOCK_SLOT_START_INDEXING);
-
       // Create 3 unprocessed epochs (less than MAX_UNPROCESSED_EPOCHS = 5)
       const existingEpochs: number[] = [];
       for (let i = 0; i < 3; i++) {
-        existingEpochs.push(startEpoch + i);
+        existingEpochs.push(1000 + i); // Use a fixed starting epoch for test
       }
       await epochStorage.createEpochs(existingEpochs);
 

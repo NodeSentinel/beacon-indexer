@@ -46,7 +46,9 @@ export class EpochController {
     const epochsNeeded = MAX_UNPROCESSED_EPOCHS - unprocessedCount;
 
     // Get the starting epoch for creation using slotStartIndexing from BeaconClient
-    const startEpoch = lastEpoch ? lastEpoch + 1 : this.beaconClient.slotStartIndexing;
+    const startEpoch = lastEpoch
+      ? lastEpoch + 1
+      : Math.floor(this.beaconClient.slotStartIndexing / 32);
 
     // Create array of epochs to create
     const epochsToCreate = [];
