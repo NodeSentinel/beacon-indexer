@@ -32,7 +32,7 @@ RUN pnpm install --frozen-lockfile
 COPY packages/fetch ./packages/fetch
 
 # Generate Prisma client from db package
-RUN npx prisma generate --schema=./packages/db/prisma/schema.prisma
+RUN pnpx prisma generate --schema=./packages/db/prisma/schema.prisma
 
 # Build the db package first
 RUN pnpm --filter @beacon-indexer/db run build
