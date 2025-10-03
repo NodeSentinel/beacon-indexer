@@ -1,9 +1,9 @@
 import { PrismaClient } from '@beacon-indexer/db';
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 
-import { BeaconClient } from '../../services/consensus/beacon.js';
-import { EpochController } from '../../services/consensus/controllers/epoch.js';
-import { EpochStorage } from '../../services/consensus/storage/epoch.js';
+import { BeaconClient } from '@/src/services/consensus/beacon.js';
+import { EpochController } from '@/src/services/consensus/controllers/epoch.js';
+import { EpochStorage } from '@/src/services/consensus/storage/epoch.js';
 
 describe('Epoch Creation E2E Tests', () => {
   let prisma: PrismaClient;

@@ -12,12 +12,12 @@
     "strictNullChecks": true,
     "strictFunctionTypes": true,
     "outDir": "./dist",
-    "rootDir": "./src",
+    "rootDir": ".",
     "baseUrl": ".",
     "paths": {
       "@/*": ["*"]
     }
   },
-  "include": ["./src/**/*"],
+  "include": ["./src/**/*", "./e2e/**/*"],
   "exclude": ["node_modules", "dist"]
 }
