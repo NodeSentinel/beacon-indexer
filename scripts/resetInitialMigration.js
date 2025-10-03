@@ -2,7 +2,7 @@
 
 // Script to reset and recreate the initial migration during development
 import { spawn } from 'child_process';
-import { existsSync, rmSync, readdirSync } from 'fs';
+import { existsSync } from 'fs';
 import { join, dirname } from 'path';
 
 import { config } from 'dotenv';
@@ -39,6 +39,24 @@ process.env.DATABASE_URL = DATABASE_URL;
 
 console.log('🔗 DATABASE_URL constructed:', DATABASE_URL.replace(/:([^:@]+)@/, ':***@'));
 
+// Safety checks to prevent production execution
+function checkProductionSafety() {
+  const { NODE_ENV = 'development', POSTGRES_HOST = 'localhost' } = process.env;
+
+  const isLocalhost = POSTGRES_HOST === 'localhost';
+  const isDevelopment = NODE_ENV === 'development';
+  const isLocalDatabase = DATABASE_URL.includes('localhost') || DATABASE_URL.includes('127.0.0.1');
+
+  if (!isLocalhost || !isDevelopment || !isLocalDatabase) {
+    console.error('❌ This script can only be run on localhost in development mode!');
+    console.error('   Required conditions:');
+    console.error(`   - POSTGRES_HOST=localhost (current: ${POSTGRES_HOST})`);
+    console.error(`   - NODE_ENV=development (current: ${NODE_ENV})`);
+    console.error(`   - DATABASE_URL contains localhost (current: ${isLocalDatabase})`);
+    process.exit(1);
+  }
+}
+
 async function executeCommand(command, args = []) {
   return new Promise((resolve, reject) => {
     const child = spawn(command, args, {
@@ -63,36 +81,26 @@ async function executeCommand(command, args = []) {
 
 async function resetInitialMigration() {
   try {
-    console.log('🔄 Step 1: Dropping database...');
+    // Run safety checks first
+    checkProductionSafety();
+
+    console.log('🔄 Step 1: Resetting database and migrations...');
     await executeCommand('npx', [
       'prisma',
-      'db',
-      'push',
-      '--force-reset',
-      '--schema=./prisma/schema.prisma',
+      'migrate',
+      'reset',
+      '--force',
+      '--schema=./packages/db/prisma/schema.prisma',
     ]);
 
-    console.log('🗑️  Step 2: Removing existing migrations...');
-    const migrationsDir = './prisma/migrations';
-    if (existsSync(migrationsDir)) {
-      const migrations = readdirSync(migrationsDir);
-      migrations.forEach((migration) => {
-        if (migration !== '.gitkeep') {
-          const migrationPath = join(migrationsDir, migration);
-          rmSync(migrationPath, { recursive: true, force: true });
-          console.log(`   Removed: ${migration}`);
-        }
-      });
-    }
-
-    console.log('✨ Step 3: Creating new initial migration...');
+    console.log('✨ Step 2: Creating new initial migration...');
     await executeCommand('npx', [
       'prisma',
       'migrate',
       'dev',
       '--name',
       'initial',
-      '--schema=./prisma/schema.prisma',
+      '--schema=./packages/db/prisma/schema.prisma',
     ]);
 
     console.log('✅ Initial migration reset completed successfully!');
