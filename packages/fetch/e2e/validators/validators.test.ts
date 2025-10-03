@@ -4,10 +4,10 @@ import path from 'path';
 import { PrismaClient } from '@beacon-indexer/db';
 import { describe, it, expect, beforeAll, afterAll, vi, type MockedFunction } from 'vitest';
 
-import { BeaconClient } from '../../services/consensus/beacon.js';
-import { ValidatorsController } from '../../services/consensus/controllers/validators.js';
-import { ValidatorsStorage } from '../../services/consensus/storage/validators.js';
-import { GetValidators } from '../../services/consensus/types.js';
+import { BeaconClient } from '@/src/services/consensus/beacon.js';
+import { ValidatorsController } from '@/src/services/consensus/controllers/validators.js';
+import { ValidatorsStorage } from '@/src/services/consensus/storage/validators.js';
+import { GetValidators } from '@/src/services/consensus/types.js';
 
 // Mock data file
 const MOCK_PATH = path.join(__dirname, 'mocks/validators.json');

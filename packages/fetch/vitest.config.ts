@@ -15,7 +15,7 @@ export default defineConfig({
     //silent: false, // Show console logs
     disableConsoleIntercept: true,
     include: ['src/**/*.test.ts'], // Only include unit test files
-    exclude: ['src/e2e/**/*', 'node_modules'], // Exclude e2e tests from this confi
+    exclude: ['e2e/**/*', 'node_modules'], // Exclude e2e tests from this config
   },
   resolve: {
     alias: {
