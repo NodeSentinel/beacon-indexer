@@ -1,5 +1,4 @@
 import { Epoch } from '@beacon-indexer/db';
-import ms from 'ms';
 import { setup, assign, stopChild, ActorRefFrom } from 'xstate';
 
 import { getMinEpochToProcess } from './epoch.actors.js';
@@ -51,8 +50,8 @@ export const epochOrchestratorMachine = setup({
     },
   },
   delays: {
-    slotDuration: ({ context }) => ms(`${context.slotDuration}s`),
-    noMinEpochDelay: ({ context }) => ms(`${context.slotDuration / 3}s`),
+    slotDuration: ({ context }) => context.slotDuration,
+    noMinEpochDelay: ({ context }) => context.slotDuration / 3,
   },
 }).createMachine({
   id: 'EpochOrchestrator',
@@ -127,6 +126,7 @@ export const epochOrchestratorMachine = setup({
                 slotDuration: context.slotDuration,
                 lookbackSlot: context.lookbackSlot,
                 beaconTime: context.beaconTime,
+                epochController: context.epochController,
               },
             });
 
