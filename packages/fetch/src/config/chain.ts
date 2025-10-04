@@ -1,6 +1,8 @@
 // Chain-specific configuration
 // This file contains static configuration values that differ between Ethereum and Gnosis chains
 
+import ms from 'ms';
+
 export interface ChainConfig {
   // Blockchain Configuration
   blockchain: {
@@ -11,7 +13,7 @@ export interface ChainConfig {
   // Beacon Chain Configuration (static values only)
   beacon: {
     genesisTimestamp: number;
-    slotDurationInSeconds: number;
+    slotDuration: number;
     slotsPerEpoch: number;
     epochsPerSyncCommitteePeriod: number;
     maxAttestationDelay: number;
@@ -26,8 +28,8 @@ export const ethereumConfig: ChainConfig = {
     chainId: 1,
   },
   beacon: {
-    genesisTimestamp: 1606824000,
-    slotDurationInSeconds: 12,
+    genesisTimestamp: ms('1606824023s'),
+    slotDuration: ms('12s'),
     slotsPerEpoch: 32,
     epochsPerSyncCommitteePeriod: 256,
     maxAttestationDelay: 2,
@@ -43,9 +45,9 @@ export const gnosisConfig: ChainConfig = {
     scDepositAddress: '0x0B98057eA310F4d31F2a452B414647007d1645d9',
   },
   beacon: {
-    genesisTimestamp: 1638993340,
-    slotDurationInSeconds: 12,
-    slotsPerEpoch: 32,
+    genesisTimestamp: ms('1638993340s'),
+    slotDuration: ms('5s'),
+    slotsPerEpoch: 16,
     epochsPerSyncCommitteePeriod: 256,
     maxAttestationDelay: 2,
     delaySlotsToHead: 2,

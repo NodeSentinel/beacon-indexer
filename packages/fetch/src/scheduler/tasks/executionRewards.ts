@@ -1,4 +1,3 @@
-import { differenceInSeconds } from 'date-fns';
 import { SimpleIntervalJob, AsyncTask } from 'toad-scheduler';
 
 import { chainConfig } from '@/src/lib/env.js';
@@ -19,10 +18,10 @@ const _fetchExecutionRewardsTask = async (logger: CustomLogger) => {
 
   if (latestReward) {
     const now = new Date();
-    const secondsSinceLastBlock = Math.abs(differenceInSeconds(now, latestReward.timestamp));
+    const millisecondsSinceLastBlock = Math.abs(now.getTime() - latestReward.timestamp.getTime());
 
     // A block can be missed for a slot, so we allow to fetch only 3 blocks before the current
-    if (secondsSinceLastBlock < chainConfig.beacon.slotDurationInSeconds * 3) {
+    if (millisecondsSinceLastBlock < chainConfig.beacon.slotDuration * 3) {
       logger.info(`Skipping, too close to the head.`);
       return;
     }

@@ -35,7 +35,7 @@ async function main() {
 
   const beaconTime = new BeaconTime({
     genesisTimestamp: chainConfig.beacon.genesisTimestamp,
-    slotDurationMs: chainConfig.beacon.slotDurationInSeconds * 1000,
+    slotDurationMs: chainConfig.beacon.slotDuration,
     slotsPerEpoch: chainConfig.beacon.slotsPerEpoch,
     epochsPerSyncCommitteePeriod: chainConfig.beacon.epochsPerSyncCommitteePeriod,
     slotStartIndexing: env.CONSENSUS_LOOKBACK_SLOT,
@@ -50,7 +50,7 @@ async function main() {
   // Start indexing the beacon chain
   await validatorsController.initValidators();
 
-  await initXstateMachines(epochController, beaconTime, chainConfig.beacon.slotDurationInSeconds);
+  await initXstateMachines(epochController, beaconTime, chainConfig.beacon.slotDuration);
 
   // Handle graceful shutdown
   process.on('SIGINT', () => {

@@ -1,6 +1,7 @@
 -- CreateTable
 CREATE TABLE "public"."Epoch" (
     "epoch" INTEGER NOT NULL,
+    "processed" BOOLEAN NOT NULL DEFAULT false,
     "validatorsBalancesFetched" BOOLEAN NOT NULL DEFAULT false,
     "validatorsActivationFetched" BOOLEAN NOT NULL DEFAULT false,
     "rewardsFetched" BOOLEAN NOT NULL DEFAULT false,

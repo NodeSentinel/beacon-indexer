@@ -31,7 +31,7 @@ async function updateValidatorStatusTask(logger: CustomLogger) {
       
       constants AS (
         SELECT 
-          ${maxSlotToQuery} - (3600 / ${chainConfig.beacon.slotDurationInSeconds}) as min_slot,
+          ${maxSlotToQuery} - (3600 / (${chainConfig.beacon.slotDuration} / 1000)) as min_slot,
           ${maxSlotToQuery} as max_slot,
           ${chainConfig.beacon.maxAttestationDelay} as max_attestation_delay
       ),
