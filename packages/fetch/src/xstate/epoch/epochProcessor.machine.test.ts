@@ -21,7 +21,7 @@ vi.mock('@/src/xstate/multiMachineLogger.js', () => ({
 }));
 
 // Mock all the actor functions to avoid database and network calls
-vi.mock('@/src/xstate/epoch/epoch.actors.js', () => ({
+const mockEpochActors = vi.hoisted(() => ({
   fetchAttestationsRewards: vi.fn(() => Promise.resolve()),
   fetchValidatorsBalances: vi.fn(() => Promise.resolve()),
   fetchCommittees: vi.fn(() => Promise.resolve()),
@@ -34,6 +34,8 @@ vi.mock('@/src/xstate/epoch/epoch.actors.js', () => ({
   ),
   markEpochAsProcessed: vi.fn(),
 }));
+
+vi.mock('@/src/xstate/epoch/epoch.actors.js', () => mockEpochActors);
 
 // Mock the slotOrchestratorMachine as a proper XState machine
 vi.mock('@/src/xstate/slot/slotOrchestrator.machine.js', () => {
@@ -247,7 +249,7 @@ describe('epochProcessorMachine', () => {
       const getTimeSpy = vi.spyOn(Date.prototype, 'getTime').mockReturnValue(mockCurrentTime);
 
       // Create a parent machine that spawns the epoch processor as a child
-      const parentMachine = createMachine({
+      const epochOrchestratorMachineMock = createMachine({
         id: 'parent',
         initial: 'waitingForEpochProcessing',
         types: {
@@ -294,7 +296,10 @@ describe('epochProcessorMachine', () => {
         },
       });
 
-      const { actor: parentActor, snapshots } = createActorWithSnapshots(parentMachine, {});
+      const { actor: parentActor, snapshots } = createActorWithSnapshots(
+        epochOrchestratorMachineMock,
+        {},
+      );
 
       // Start the parent actor (which will spawn the epoch processor as a child)
       parentActor.start();
