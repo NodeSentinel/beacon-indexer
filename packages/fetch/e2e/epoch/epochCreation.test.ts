@@ -119,5 +119,76 @@ describe('Epoch Creation E2E Tests', () => {
         expect(allEpochs[i].epoch).toBe(allEpochs[i - 1].epoch + 1);
       }
     });
+
+    it('should create epochs in database with correct default values', async () => {
+      const epochsToCreate = [1000, 1001, 1002];
+      await epochStorage.createEpochs(epochsToCreate);
+
+      const createdEpochs = await epochStorage.getAllEpochs();
+      expect(createdEpochs).toHaveLength(3);
+
+      // Verify epochs are stored correctly
+      expect(createdEpochs.map((e) => e.epoch)).toEqual([1000, 1001, 1002]);
+
+      // Verify all default values are set correctly
+      createdEpochs.forEach((epoch) => {
+        expect(epoch.processed).toBe(false);
+        expect(epoch.validatorsBalancesFetched).toBe(false);
+        expect(epoch.rewardsFetched).toBe(false);
+        expect(epoch.committeesFetched).toBe(false);
+        expect(epoch.slotsFetched).toBe(false);
+        expect(epoch.syncCommitteesFetched).toBe(false);
+      });
+    });
+
+    it('should throw error when trying to create duplicate epochs', async () => {
+      // Create epochs first time
+      const epochs = [1000, 1001, 1002];
+      await epochStorage.createEpochs(epochs);
+
+      // Try to create the same epochs again - should throw error due to duplicate key constraint
+      await expect(epochStorage.createEpochs(epochs)).rejects.toThrow();
+
+      // Should still have only 3 epochs (no duplicates were created)
+      const allEpochs = await epochStorage.getAllEpochs();
+      expect(allEpochs).toHaveLength(3);
+      expect(allEpochs.map((e) => e.epoch)).toEqual([1000, 1001, 1002]);
+    });
+
+    it('should handle database queries correctly for max epoch detection', async () => {
+      // Test getMaxEpoch when DB is empty
+      const maxEpochEmpty = await epochStorage.getMaxEpoch();
+      expect(maxEpochEmpty).toBeNull();
+
+      // Create some epochs
+      await epochStorage.createEpochs([1000, 1001, 1002]);
+
+      // Test getMaxEpoch when DB has data
+      const maxEpoch = await epochStorage.getMaxEpoch();
+      expect(maxEpoch?.epoch).toBe(1002);
+    });
+
+    it('should throw error when first epoch is not next to max epoch in DB', async () => {
+      // First create some epochs
+      const initialEpochs = [1000, 1001, 1002];
+      await epochStorage.createEpochs(initialEpochs);
+
+      // Try to create epochs that don't start from the next epoch (1003)
+      const invalidEpochs = [1004, 1005, 1006]; // Should start from 1003, not 1004
+
+      await expect(epochStorage.createEpochs(invalidEpochs)).rejects.toThrow(
+        'First epoch to create (1004) must be the next epoch after the max epoch in DB (1002). Expected: 1003',
+      );
+    });
+
+    it('should allow creating epochs when DB is empty', async () => {
+      // Test that we can create epochs when DB is empty
+      const epochsToCreate = [1000, 1001, 1002];
+      await epochStorage.createEpochs(epochsToCreate);
+
+      const createdEpochs = await epochStorage.getAllEpochs();
+      expect(createdEpochs).toHaveLength(3);
+      expect(createdEpochs.map((e) => e.epoch)).toEqual([1000, 1001, 1002]);
+    });
   });
 });
