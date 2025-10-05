@@ -56,7 +56,7 @@ vi.mock('@/src/xstate/slot/slotOrchestrator.machine.js', () => {
 
 // Import the machine after mocks are set up
 // eslint-disable-next-line import/order
-import { epochProcessorMachine, type EpochProcessorMachine } from './epochProcessor.machine.js';
+import { epochProcessorMachine } from './epochProcessor.machine.js';
 
 // Reset mocks before each test
 beforeEach(() => {
@@ -64,7 +64,7 @@ beforeEach(() => {
 });
 
 describe('epochProcessorMachine', () => {
-  describe('checkingCanProcess', () => {
+  describe('checkingCanProcess, waiting and retry', () => {
     test('if can not process, should go to waiting and then retry', async () => {
       const SLOT_DURATION = ms('10ms');
       const SLOTS_PER_EPOCH = 32;
@@ -87,16 +87,22 @@ describe('epochProcessorMachine', () => {
       const actor = createActor(epochProcessorMachine, {
         input: {
           epoch: 100,
-          validatorsBalancesFetched: false,
-          rewardsFetched: false,
-          committeesFetched: false,
-          slotsFetched: false,
-          syncCommitteesFetched: false,
-          validatorsActivationFetched: false,
-          slotDuration: SLOT_DURATION,
-          lookbackSlot: 32,
-          beaconTime: mockBeaconTime,
-          epochController: mockEpochController,
+          epochDBSnapshot: {
+            validatorsBalancesFetched: false,
+            rewardsFetched: false,
+            committeesFetched: false,
+            slotsFetched: false,
+            syncCommitteesFetched: false,
+            validatorsActivationFetched: false,
+          },
+          config: {
+            slotDuration: SLOT_DURATION,
+            lookbackSlot: 32,
+          },
+          services: {
+            beaconTime: mockBeaconTime,
+            epochController: mockEpochController,
+          },
         },
       });
 
@@ -137,16 +143,22 @@ describe('epochProcessorMachine', () => {
       const actor = createActor(epochProcessorMachine, {
         input: {
           epoch: 100,
-          validatorsBalancesFetched: false,
-          rewardsFetched: false,
-          committeesFetched: false,
-          slotsFetched: false,
-          syncCommitteesFetched: false,
-          validatorsActivationFetched: false,
-          slotDuration: SLOT_DURATION,
-          lookbackSlot: 32,
-          beaconTime: mockBeaconTime,
-          epochController: mockEpochController,
+          epochDBSnapshot: {
+            validatorsBalancesFetched: false,
+            rewardsFetched: false,
+            committeesFetched: false,
+            slotsFetched: false,
+            syncCommitteesFetched: false,
+            validatorsActivationFetched: false,
+          },
+          config: {
+            slotDuration: SLOT_DURATION,
+            lookbackSlot: 32,
+          },
+          services: {
+            beaconTime: mockBeaconTime,
+            epochController: mockEpochController,
+          },
         },
       });
 
@@ -163,8 +175,8 @@ describe('epochProcessorMachine', () => {
     });
   });
 
-  describe('epochProcessorMachine - markEpochAsProcessed', () => {
-    test('should call markEpochAsProcessed when epoch processing completes', async () => {
+  describe('state.epochCompleted', () => {
+    test('should mark epoch as processed when epoch processing completes', async () => {
       const SLOT_DURATION = ms('10ms');
       const SLOTS_PER_EPOCH = 32;
 
@@ -184,12 +196,12 @@ describe('epochProcessorMachine', () => {
       const getTimeSpy = vi.spyOn(Date.prototype, 'getTime').mockReturnValue(mockCurrentTime);
 
       // Create a simple parent machine that can receive the EPOCH_COMPLETED event
-      const parentMachine = createMachine({
+      const mockEpochOrchestratorMachine = createMachine({
         id: 'parent',
         initial: 'waiting',
         types: {
           context: {} as {
-            epochActor: ActorRefFrom<EpochProcessorMachine> | null;
+            epochActor: ActorRefFrom<typeof epochProcessorMachine> | null;
             epochCompleted: boolean;
           },
         },
@@ -201,8 +213,6 @@ describe('epochProcessorMachine', () => {
           waiting: {
             entry: assign({
               epochActor: ({ spawn }) => {
-                // Use the real epochProcessorMachine - this is mandatory
-                // But we need to provide mocked actors
                 const testMachine = epochProcessorMachine.provide({
                   actors: {
                     fetchValidatorsBalances: fromPromise(() => Promise.resolve()),
@@ -234,16 +244,22 @@ describe('epochProcessorMachine', () => {
                   id: 'epochProcessor:100',
                   input: {
                     epoch: 100,
-                    validatorsBalancesFetched: false, // Set to false to trigger validators balances fetching
-                    rewardsFetched: false, // Set to false to trigger rewards fetching
-                    committeesFetched: true, // Set to true to skip committees
-                    slotsFetched: true, // Set to true to skip slots
-                    syncCommitteesFetched: true, // Set to true to skip sync committees
-                    validatorsActivationFetched: true, // Set to true to skip validators activation
-                    slotDuration: SLOT_DURATION,
-                    lookbackSlot: 32,
-                    beaconTime: mockBeaconTime,
-                    epochController: mockEpochController,
+                    epochDBSnapshot: {
+                      validatorsBalancesFetched: false, // Set to false to trigger validators balances fetching
+                      rewardsFetched: false, // Set to false to trigger rewards fetching
+                      committeesFetched: true, // Set to true to skip committees
+                      slotsFetched: true, // Set to true to skip slots
+                      syncCommitteesFetched: true, // Set to true to skip sync committees
+                      validatorsActivationFetched: true, // Set to true to skip validators activation
+                    },
+                    config: {
+                      slotDuration: SLOT_DURATION,
+                      lookbackSlot: 32,
+                    },
+                    services: {
+                      beaconTime: mockBeaconTime,
+                      epochController: mockEpochController,
+                    },
                   },
                 });
               },
@@ -258,19 +274,21 @@ describe('epochProcessorMachine', () => {
           },
         },
       });
-
-      const parentActor = createActor(parentMachine, {
+      const epochOrchestratorMachine = createActor(mockEpochOrchestratorMachine, {
         input: {},
       });
-
-      // Start the parent actor (which will spawn the epoch processor as a child)
-      parentActor.start();
+      epochOrchestratorMachine.start();
 
       // Wait for the complete flow to reach completion
-      await new Promise((resolve) => setTimeout(resolve, 5000));
+      await new Promise((resolve) => setTimeout(resolve, 100));
+
+      expect(epochOrchestratorMachine.getSnapshot().context.epochCompleted).toBe(true);
+      expect(epochOrchestratorMachine.getSnapshot().context.epochActor?.getSnapshot().value).toBe(
+        'epochCompleted',
+      );
 
       // Stop the actors
-      parentActor.stop();
+      epochOrchestratorMachine.stop();
 
       // Verify that markEpochAsProcessed was called
       expect(vi.mocked(mockEpochController.markEpochAsProcessed)).toHaveBeenCalledWith(100);

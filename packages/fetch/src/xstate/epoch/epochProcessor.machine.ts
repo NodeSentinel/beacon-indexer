@@ -21,12 +21,9 @@ import { pinoLog } from '@/src/xstate/pinoLog.js';
 export const epochProcessorMachine = setup({
   types: {} as {
     context: {
-      // Core epoch information
       epoch: number;
       startSlot: number;
       endSlot: number;
-
-      // Database snapshot - what has been fetched/processed
       epochDBSnapshot: {
         validatorsBalancesFetched: boolean;
         validatorsActivationFetched: boolean;
@@ -35,25 +32,18 @@ export const epochProcessorMachine = setup({
         slotsFetched: boolean;
         syncCommitteesFetched: boolean;
       };
-
-      // Coordination flags - semaphores for parallel state coordination
       coordination: {
         committeesReady: boolean;
         epochStarted: boolean;
       };
-
-      // Configuration and services
       config: {
         slotDuration: number;
         lookbackSlot: number;
       };
-
       services: {
         beaconTime: BeaconTime;
         epochController: EpochController;
       };
-
-      // Active actors
       actors: {
         slotOrchestratorActor?: ActorRefFrom<typeof slotOrchestratorMachine> | null;
       };
@@ -71,16 +61,22 @@ export const epochProcessorMachine = setup({
       | SlotsCompletedEvent;
     input: {
       epoch: number;
-      validatorsBalancesFetched: boolean;
-      rewardsFetched: boolean;
-      committeesFetched: boolean;
-      slotsFetched: boolean;
-      syncCommitteesFetched: boolean;
-      validatorsActivationFetched: boolean;
-      slotDuration: number;
-      lookbackSlot: number;
-      beaconTime: BeaconTime;
-      epochController: EpochController;
+      epochDBSnapshot: {
+        validatorsBalancesFetched: boolean;
+        rewardsFetched: boolean;
+        committeesFetched: boolean;
+        slotsFetched: boolean;
+        syncCommitteesFetched: boolean;
+        validatorsActivationFetched: boolean;
+      };
+      config: {
+        slotDuration: number;
+        lookbackSlot: number;
+      };
+      services: {
+        beaconTime: BeaconTime;
+        epochController: EpochController;
+      };
     };
   },
   actors: {
@@ -161,36 +157,18 @@ export const epochProcessorMachine = setup({
   id: 'EpochProcessor',
   initial: 'checkingCanProcess',
   context: ({ input }) => {
-    const { startSlot, endSlot } = input.beaconTime.getEpochSlots(input.epoch);
+    const { startSlot, endSlot } = input.services.beaconTime.getEpochSlots(input.epoch);
     return {
-      // Core epoch information
       epoch: input.epoch,
       startSlot: startSlot,
       endSlot: endSlot,
-      // Database snapshot - what has been fetched/processed
-      epochDBSnapshot: {
-        validatorsBalancesFetched: input.validatorsBalancesFetched,
-        rewardsFetched: input.rewardsFetched,
-        committeesFetched: input.committeesFetched,
-        slotsFetched: input.slotsFetched,
-        syncCommitteesFetched: input.syncCommitteesFetched,
-        validatorsActivationFetched: input.validatorsActivationFetched,
-      },
-      // Coordination flags - semaphores for parallel state coordination
+      epochDBSnapshot: input.epochDBSnapshot,
       coordination: {
         committeesReady: false,
         epochStarted: false,
       },
-      // Configuration and services
-      config: {
-        slotDuration: input.slotDuration,
-        lookbackSlot: input.lookbackSlot,
-      },
-      services: {
-        beaconTime: input.beaconTime,
-        epochController: input.epochController,
-      },
-      // Active actors
+      config: input.config,
+      services: input.services,
       actors: {
         slotOrchestratorActor: null,
       },
@@ -745,5 +723,3 @@ export const epochProcessorMachine = setup({
     },
   },
 });
-
-export type EpochProcessorMachine = typeof epochProcessorMachine;

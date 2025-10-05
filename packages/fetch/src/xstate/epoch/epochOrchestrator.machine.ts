@@ -117,16 +117,22 @@ export const epochOrchestratorMachine = setup({
               id: epochId,
               input: {
                 epoch,
-                validatorsBalancesFetched: context.epochData.validatorsBalancesFetched,
-                rewardsFetched: context.epochData.rewardsFetched,
-                committeesFetched: context.epochData.committeesFetched,
-                slotsFetched: context.epochData.slotsFetched,
-                syncCommitteesFetched: context.epochData.syncCommitteesFetched,
-                validatorsActivationFetched: context.epochData.validatorsActivationFetched,
-                slotDuration: context.slotDuration,
-                lookbackSlot: context.lookbackSlot,
-                beaconTime: context.beaconTime,
-                epochController: context.epochController,
+                epochDBSnapshot: {
+                  validatorsBalancesFetched: context.epochData.validatorsBalancesFetched,
+                  rewardsFetched: context.epochData.rewardsFetched,
+                  committeesFetched: context.epochData.committeesFetched,
+                  slotsFetched: context.epochData.slotsFetched,
+                  syncCommitteesFetched: context.epochData.syncCommitteesFetched,
+                  validatorsActivationFetched: context.epochData.validatorsActivationFetched,
+                },
+                config: {
+                  slotDuration: context.slotDuration,
+                  lookbackSlot: context.lookbackSlot,
+                },
+                services: {
+                  beaconTime: context.beaconTime,
+                  epochController: context.epochController,
+                },
               },
             });
 
