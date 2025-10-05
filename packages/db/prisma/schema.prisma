@@ -100,6 +100,32 @@ model HourlyValidatorStats {
     hour           Int // 0-23
     date           DateTime @db.Date // dd-mm-yyyy
 
+    // TODO: refactor this table to be split in two:
+    // take the id of the first table to relate to the second table (with the json field)
+    // also, unify hour+date in a single field.
+
+    //table1
+    // id
+    // validatorIndex
+    // bucketTime
+    // totalRewards (positive - penalties)
+    // totalSlotsMissed
+
+    //table2
+    // id from table1
+    // slots: {
+    //     "slot": number, // slot
+    //     "h": string, // head
+    //     "t": string, // target
+    //     "s": string, // source
+    //     "i": string, // inactivity
+    //     "mH": string, // missed head
+    //     "mT": string, // missed target
+    //     "mS": string, // missed source
+    //     "mI": string, // missed inactivity
+    //     "d": number // delay
+    // }[]
+
     head       BigInt?
     target     BigInt?
     source     BigInt?
@@ -111,6 +137,7 @@ model HourlyValidatorStats {
     missedInactivity BigInt?
 
     attestationsMissed Int?
+    slotsMissed        Json? // Array of missed slots: [1020, 1021, .., 1040]
 
     @@id([validatorIndex, date, hour])
     @@index([date, hour])
