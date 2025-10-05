@@ -1,6 +1,5 @@
 import { Decimal } from '@beacon-indexer/db';
 import { AxiosResponse } from 'axios';
-import ms from 'ms';
 
 import { env, chainConfig } from '@/src/lib/env.js';
 import { Blockscout_Blocks, Etherscan_BlockReward } from '@/src/services/execution/types.js';
@@ -72,9 +71,7 @@ export async function getBlock(blockNumber: number): Promise<BlockResponse | nul
 
       // Wait one slot before trying the next endpoint
       if (i < endpoints.length - 1) {
-        await new Promise((resolve) =>
-          setTimeout(resolve, ms(`${chainConfig.beacon.slotDurationInSeconds}s`)),
-        );
+        await new Promise((resolve) => setTimeout(resolve, chainConfig.beacon.slotDuration));
       }
     }
   }

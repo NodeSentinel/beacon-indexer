@@ -10,6 +10,7 @@ datasource db {
 
 model Epoch {
     epoch                       Int     @id
+    processed                   Boolean @default(false)
     validatorsBalancesFetched   Boolean @default(false)
     validatorsActivationFetched Boolean @default(false)
     rewardsFetched              Boolean @default(false)

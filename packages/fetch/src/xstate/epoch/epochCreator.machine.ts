@@ -1,4 +1,3 @@
-import ms from 'ms';
 import { setup } from 'xstate';
 
 import { createEpochsIfNeeded } from './epoch.actors.js';
@@ -20,7 +19,7 @@ export const epochCreationMachine = setup({
     createEpochsIfNeeded,
   },
   delays: {
-    slotDuration: ({ context }) => ms(`${context.slotDuration}s`),
+    slotDuration: ({ context }) => context.slotDuration,
   },
 }).createMachine({
   id: 'EpochCreator',

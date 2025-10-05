@@ -3,6 +3,7 @@ import { createActor, createMachine, sendParent } from 'xstate';
 
 import { createControllablePromise } from '@/src/__tests__/utils.js';
 import { EpochController } from '@/src/services/consensus/controllers/epoch.js';
+// eslint-disable-next-line import/order
 import { BeaconTime } from '@/src/services/consensus/utils/time.js';
 
 const mockEpochController = {
@@ -10,6 +11,7 @@ const mockEpochController = {
   getEpochsToCreate: vi.fn(),
   createEpochs: vi.fn(),
   getMinEpochToProcess: vi.fn(),
+  markEpochAsProcessed: vi.fn(),
 } as unknown as EpochController;
 
 // Mock BeaconTime instance for testing
@@ -263,6 +265,7 @@ describe('epochOrchestratorMachine', () => {
     // Arrange
     const mockEpochData = {
       epoch: 100,
+      processed: false,
       validatorsBalancesFetched: false,
       rewardsFetched: false,
       committeesFetched: false,
@@ -316,6 +319,7 @@ describe('epochOrchestratorMachine', () => {
 
     // Update mock to return null for subsequent calls to prevent further processing
     vi.mocked(mockEpochController.getMinEpochToProcess).mockResolvedValue(null);
+
     // Send EPOCH_COMPLETED event directly to the orchestrator to simulate completion
     epochOrchestratorActor.send({ type: 'EPOCH_COMPLETED', machineId: 'epochProcessor:100' });
 
@@ -330,6 +334,9 @@ describe('epochOrchestratorMachine', () => {
     expect(snapshot.value).toBe('noMinEpochToProcess');
     expect(snapshot.context.epochData).toBe(null);
     expect(snapshot.context.epochActor).toBe(null);
+
+    // Note: markEpochAsProcessed is called by the epochProcessor, not the orchestrator
+    // The orchestrator just receives the EPOCH_COMPLETED event and cleans up
 
     // Verify the state transitions using microsteps in correct order
     expect(microstepValues.length).toBeGreaterThanOrEqual(2);

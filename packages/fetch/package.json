@@ -44,7 +44,7 @@
     "rate-limiter-flexible": "^5.0.3",
     "toad-scheduler": "^3.0.1",
     "viem": "^2.23.13",
-    "xstate": "^5.22.0",
+    "xstate": "^5.22.1",
     "zod": "^3.23.8"
   },
   "devDependencies": {

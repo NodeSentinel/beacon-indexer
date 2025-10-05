@@ -143,7 +143,7 @@ export const slotProcessorMachine = setup({
       elWithdrawals: [],
       elConsolidations: [],
     },
-    slotDuration: ms(`${input.slotDuration}s`),
+    slotDuration: input.slotDuration,
     lookbackSlot: input.lookbackSlot,
   }),
 

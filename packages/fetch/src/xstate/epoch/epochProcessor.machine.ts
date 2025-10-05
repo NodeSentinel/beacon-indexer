@@ -1,8 +1,8 @@
-import ms from 'ms';
 import { setup, assign, sendParent, stopChild, raise, ActorRefFrom } from 'xstate';
 
 import { slotOrchestratorMachine, SlotsCompletedEvent } from '../slot/slotOrchestrator.machine.js';
 
+import { EpochController } from '@/src/services/consensus/controllers/epoch.js';
 import { BeaconTime } from '@/src/services/consensus/utils/time.js';
 import {
   fetchAttestationsRewards,
@@ -13,6 +13,7 @@ import {
   updateSlotsFetched,
   updateSyncCommitteesFetched,
   trackingTransitioningValidators,
+  markEpochAsProcessed,
 } from '@/src/xstate/epoch/epoch.actors.js';
 import { logActor } from '@/src/xstate/multiMachineLogger.js';
 import { pinoLog } from '@/src/xstate/pinoLog.js';
@@ -20,13 +21,9 @@ import { pinoLog } from '@/src/xstate/pinoLog.js';
 export const epochProcessorMachine = setup({
   types: {} as {
     context: {
-      beaconTime: BeaconTime;
       epoch: number;
       startSlot: number;
       endSlot: number;
-      slotDuration: number;
-      lookbackSlot: number;
-
       epochDBSnapshot: {
         validatorsBalancesFetched: boolean;
         validatorsActivationFetched: boolean;
@@ -35,11 +32,21 @@ export const epochProcessorMachine = setup({
         slotsFetched: boolean;
         syncCommitteesFetched: boolean;
       };
-
-      slotOrchestratorActor?: ActorRefFrom<typeof slotOrchestratorMachine> | null;
-
-      committeesReady: boolean;
-      epochStarted: boolean;
+      coordination: {
+        committeesReady: boolean;
+        epochStarted: boolean;
+      };
+      config: {
+        slotDuration: number;
+        lookbackSlot: number;
+      };
+      services: {
+        beaconTime: BeaconTime;
+        epochController: EpochController;
+      };
+      actors: {
+        slotOrchestratorActor?: ActorRefFrom<typeof slotOrchestratorMachine> | null;
+      };
     };
     events:
       | {
@@ -54,15 +61,22 @@ export const epochProcessorMachine = setup({
       | SlotsCompletedEvent;
     input: {
       epoch: number;
-      validatorsBalancesFetched: boolean;
-      rewardsFetched: boolean;
-      committeesFetched: boolean;
-      slotsFetched: boolean;
-      syncCommitteesFetched: boolean;
-      validatorsActivationFetched: boolean;
-      slotDuration: number;
-      lookbackSlot: number;
-      beaconTime: BeaconTime;
+      epochDBSnapshot: {
+        validatorsBalancesFetched: boolean;
+        rewardsFetched: boolean;
+        committeesFetched: boolean;
+        slotsFetched: boolean;
+        syncCommitteesFetched: boolean;
+        validatorsActivationFetched: boolean;
+      };
+      config: {
+        slotDuration: number;
+        lookbackSlot: number;
+      };
+      services: {
+        beaconTime: BeaconTime;
+        epochController: EpochController;
+      };
     };
   },
   actors: {
@@ -75,36 +89,52 @@ export const epochProcessorMachine = setup({
     updateSlotsFetched,
     updateSyncCommitteesFetched,
     trackingTransitioningValidators,
+    markEpochAsProcessed,
   },
   guards: {
     canProcessEpoch: ({ context }): boolean => {
-      const currentEpoch = context.beaconTime.getEpochNumberFromTimestamp(new Date().getTime());
+      const currentEpoch = context.services.beaconTime.getEpochNumberFromTimestamp(
+        new Date().getTime(),
+      );
       // We need to wait for the epoch to start
       return context.epoch <= currentEpoch + 1;
     },
     canFetchCommittees: ({ context }): boolean => {
-      const currentEpoch = context.beaconTime.getEpochNumberFromTimestamp(new Date().getTime());
+      const currentEpoch = context.services.beaconTime.getEpochNumberFromTimestamp(
+        new Date().getTime(),
+      );
       // We can fetch up to 1 epoch in advance
       return context.epoch < currentEpoch + 1;
     },
     canFetchSyncCommittees: ({ context }): boolean => {
-      const currentEpoch = context.beaconTime.getEpochNumberFromTimestamp(new Date().getTime());
+      const currentEpoch = context.services.beaconTime.getEpochNumberFromTimestamp(
+        new Date().getTime(),
+      );
       // We can fetch up to 1 epoch in advance
       return context.epoch <= currentEpoch + 1;
     },
     hasEpochEnded: ({ context }): boolean => {
-      const currentSlot = context.beaconTime.getSlotNumberFromTimestamp(new Date().getTime());
+      const currentSlot = context.services.beaconTime.getSlotNumberFromTimestamp(
+        new Date().getTime(),
+      );
       return currentSlot > context.endSlot;
     },
     isFirstEpochOfSyncCommitteePeriod: ({ context }): boolean => {
-      return context.epoch === context.beaconTime.getSyncCommitteePeriodStartEpoch(context.epoch);
+      return (
+        context.epoch ===
+        context.services.beaconTime.getSyncCommitteePeriodStartEpoch(context.epoch)
+      );
     },
     isLookbackEpoch: ({ context }): boolean => {
-      const lookbackEpoch = context.beaconTime.getEpochFromSlot(context.lookbackSlot);
+      const lookbackEpoch = context.services.beaconTime.getEpochFromSlot(
+        context.config.lookbackSlot,
+      );
       return context.epoch === lookbackEpoch;
     },
     hasEpochAlreadyStarted: ({ context }): boolean => {
-      const currentSlot = context.beaconTime.getSlotNumberFromTimestamp(new Date().getTime());
+      const currentSlot = context.services.beaconTime.getSlotNumberFromTimestamp(
+        new Date().getTime(),
+      );
       return currentSlot >= context.startSlot;
     },
     isSyncCommitteeFetched: (_context, params: { isFetched: boolean }): boolean => {
@@ -117,53 +147,54 @@ export const epochProcessorMachine = setup({
       context.epochDBSnapshot.validatorsBalancesFetched,
     hasValidatorsActivationFetched: ({ context }) =>
       context.epochDBSnapshot.validatorsActivationFetched,
-    canProcessSlots: ({ context }) => context.committeesReady && context.epochStarted,
+    canProcessSlots: ({ context }) =>
+      context.coordination.committeesReady && context.coordination.epochStarted,
   },
   delays: {
-    slotDurationHalf: ({ context }) => context.slotDuration / 2,
+    slotDurationHalf: ({ context }) => context.config.slotDuration / 2,
   },
 }).createMachine({
   id: 'EpochProcessor',
   initial: 'checkingCanProcess',
   context: ({ input }) => {
-    const { startSlot, endSlot } = input.beaconTime.getEpochSlots(input.epoch);
+    const { startSlot, endSlot } = input.services.beaconTime.getEpochSlots(input.epoch);
     return {
       epoch: input.epoch,
       startSlot: startSlot,
       endSlot: endSlot,
-      epochDBSnapshot: {
-        validatorsBalancesFetched: input.validatorsBalancesFetched,
-        rewardsFetched: input.rewardsFetched,
-        committeesFetched: input.committeesFetched,
-        slotsFetched: input.slotsFetched,
-        syncCommitteesFetched: input.syncCommitteesFetched,
-        validatorsActivationFetched: input.validatorsActivationFetched,
+      epochDBSnapshot: input.epochDBSnapshot,
+      coordination: {
+        committeesReady: false,
+        epochStarted: false,
       },
-      slotOrchestratorActor: null,
-      committeesReady: false,
-      epochStarted: false,
-      slotDuration: ms(`${input.slotDuration}s`),
-      lookbackSlot: input.lookbackSlot,
-      beaconTime: input.beaconTime,
+      config: input.config,
+      services: input.services,
+      actors: {
+        slotOrchestratorActor: null,
+      },
     };
   },
   states: {
     checkingCanProcess: {
+      entry: [
+        pinoLog(
+          ({ context }) => `Checking if we can process the epoch, ${context.epoch}`,
+          'EpochProcessor',
+        ),
+      ],
       description:
         'Check if we can start processing the epoch, we can fetch some data one epoch ahead.',
-      entry: pinoLog(
-        ({ context }) => `Checking if we can process the epoch, ${context.epoch}`,
-        'EpochProcessor',
-      ),
-      always: [
-        {
-          guard: 'canProcessEpoch',
-          target: 'epochProcessing',
-        },
-        {
-          target: 'waiting',
-        },
-      ],
+      after: {
+        0: [
+          {
+            guard: 'canProcessEpoch',
+            target: 'epochProcessing',
+          },
+          {
+            target: 'waiting',
+          },
+        ],
+      },
     },
     waiting: {
       entry: pinoLog(
@@ -380,12 +411,18 @@ export const epochProcessorMachine = setup({
                   on: {
                     COMMITTEES_FETCHED: {
                       actions: assign({
-                        committeesReady: true,
+                        coordination: ({ context }) => ({
+                          ...context.coordination,
+                          committeesReady: true,
+                        }),
                       }),
                     },
                     EPOCH_STARTED: {
                       actions: assign({
-                        epochStarted: true,
+                        coordination: ({ context }) => ({
+                          ...context.coordination,
+                          epochStarted: true,
+                        }),
                       }),
                     },
                     '*': {
@@ -420,32 +457,38 @@ export const epochProcessorMachine = setup({
                       'EpochProcessor:slotsProcessing',
                     ),
                     assign({
-                      slotOrchestratorActor: ({ context, spawn }) => {
-                        const orchestratorId = `slotOrchestrator:${context.epoch}`;
+                      actors: ({ context, spawn }) => ({
+                        ...context.actors,
+                        slotOrchestratorActor: (() => {
+                          const orchestratorId = `slotOrchestrator:${context.epoch}`;
 
-                        const actor = spawn('slotOrchestratorMachine', {
-                          id: orchestratorId,
-                          input: {
-                            epoch: context.epoch,
-                            lookbackSlot: context.lookbackSlot,
-                            slotDuration: context.slotDuration,
-                          },
-                        });
+                          const actor = spawn('slotOrchestratorMachine', {
+                            id: orchestratorId,
+                            input: {
+                              epoch: context.epoch,
+                              lookbackSlot: context.config.lookbackSlot,
+                              slotDuration: context.config.slotDuration,
+                            },
+                          });
 
-                        // Automatically log the actor's state and context
-                        logActor(actor, orchestratorId);
+                          // Automatically log the actor's state and context
+                          logActor(actor, orchestratorId);
 
-                        return actor;
-                      },
+                          return actor;
+                        })(),
+                      }),
                     }),
                   ],
                   on: {
                     SLOTS_COMPLETED: {
                       target: 'updatingSlotsFetched',
                       actions: [
-                        stopChild(({ context }) => context.slotOrchestratorActor?.id || ''),
+                        stopChild(({ context }) => context.actors.slotOrchestratorActor?.id || ''),
                         assign({
-                          slotOrchestratorActor: null,
+                          actors: ({ context }) => ({
+                            ...context.actors,
+                            slotOrchestratorActor: null,
+                          }),
                         }),
                       ],
                     },
@@ -645,19 +688,38 @@ export const epochProcessorMachine = setup({
       onDone: 'complete',
     },
     complete: {
-      entry: [
-        pinoLog(
-          ({ context }) => `Epoch processing completed for epoch ${context.epoch}`,
-          'EpochProcessor',
-        ),
-        sendParent(({ context }) => ({
-          type: 'EPOCH_COMPLETED',
+      invoke: {
+        src: 'markEpochAsProcessed',
+        input: ({ context }) => ({
+          epochController: context.services.epochController,
+          epoch: context.epoch,
           machineId: `epochProcessor:${context.epoch}`,
-        })),
-      ],
+        }),
+        onDone: {
+          target: 'epochCompleted',
+          actions: [
+            pinoLog(
+              ({ context }) => `Epoch ${context.epoch} marked as processed`,
+              'EpochProcessor',
+            ),
+            sendParent(({ context }) => ({
+              type: 'EPOCH_COMPLETED',
+              machineId: `epochProcessor:${context.epoch}`,
+            })),
+          ],
+        },
+        onError: {
+          target: 'complete',
+          actions: pinoLog(
+            ({ event }) => `Error marking epoch as processed: ${event.error}`,
+            'EpochProcessor',
+            'error',
+          ),
+        },
+      },
+    },
+    epochCompleted: {
       type: 'final',
     },
   },
 });
-
-export type EpochProcessorMachine = typeof epochProcessorMachine;

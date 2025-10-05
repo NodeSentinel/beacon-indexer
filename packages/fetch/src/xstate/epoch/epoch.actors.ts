@@ -27,6 +27,17 @@ export const createEpochsIfNeeded = fromPromise(
   },
 );
 
+export const markEpochAsProcessed = fromPromise(
+  async ({
+    input,
+  }: {
+    input: { epochController: EpochController; epoch: number; machineId: string };
+  }) => {
+    await input.epochController.markEpochAsProcessed(input.epoch);
+    return { success: true, machineId: input.machineId };
+  },
+);
+
 export const fetchValidatorsBalances = fromPromise(
   async ({ input }: { input: { startSlot: number } }) => {
     await _fetchValidatorsBalances(input.startSlot);

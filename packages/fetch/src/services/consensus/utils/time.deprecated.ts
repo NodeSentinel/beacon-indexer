@@ -1,7 +1,7 @@
 import { chainConfig } from '@/src/lib/env.js';
 
 const GENESIS_TIMESTAMP = chainConfig.beacon.genesisTimestamp;
-const SLOT_DURATION_MS = chainConfig.beacon.slotDurationInSeconds * 1000;
+const SLOT_DURATION_MS = chainConfig.beacon.slotDuration;
 const SLOTS_PER_EPOCH = chainConfig.beacon.slotsPerEpoch;
 /**
  * Given a timestamp, determine the slot number.

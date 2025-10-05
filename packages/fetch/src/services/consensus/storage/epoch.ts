@@ -25,6 +25,8 @@ export class EpochStorage {
   }
 
   async createEpochs(epochsToCreate: number[]) {
+    // TODO: add validation to ensure no gaps in the epochs
+
     const epochsData = epochsToCreate.map((epoch: number) => ({
       epoch: epoch,
       validatorsBalancesFetched: false,
@@ -43,13 +45,14 @@ export class EpochStorage {
   async getMinEpochToProcess() {
     const nextEpoch = await this.prisma.epoch.findFirst({
       where: {
-        OR: [
-          { validatorsBalancesFetched: false },
-          { rewardsFetched: false },
-          { committeesFetched: false },
-          { slotsFetched: false },
-          { validatorsActivationFetched: false },
-        ],
+        processed: false,
+        // OR: [
+        //   { validatorsBalancesFetched: false },
+        //   { rewardsFetched: false },
+        //   { committeesFetched: false },
+        //   { slotsFetched: false },
+        //   { validatorsActivationFetched: false },
+        // ],
       },
       orderBy: { epoch: 'asc' },
     });
@@ -67,11 +70,7 @@ export class EpochStorage {
     await this.prisma.epoch.update({
       where: { epoch },
       data: {
-        validatorsBalancesFetched: true,
-        rewardsFetched: true,
-        committeesFetched: true,
-        slotsFetched: true,
-        syncCommitteesFetched: true,
+        processed: true,
       },
     });
   }

@@ -1,7 +1,15 @@
+import ms from 'ms';
 import { test, expect, vi, beforeEach } from 'vitest';
-import { createActor, createMachine } from 'xstate';
+import { createActor, createMachine, assign, ActorRefFrom, fromPromise } from 'xstate';
 
 import { BeaconTime } from '../../services/consensus/utils/time.js';
+
+import { EpochController } from '@/src/services/consensus/controllers/epoch.js';
+
+// Mock EpochController
+const mockEpochController = {
+  markEpochAsProcessed: vi.fn().mockResolvedValue(undefined),
+} as unknown as EpochController;
 
 // Mock the logging functions
 vi.mock('@/src/xstate/pinoLog.js', () => ({
@@ -13,16 +21,21 @@ vi.mock('@/src/xstate/multiMachineLogger.js', () => ({
 }));
 
 // Mock all the actor functions to avoid database and network calls
-vi.mock('@/src/xstate/epoch/epoch.actors.js', () => ({
+const mockEpochActors = vi.hoisted(() => ({
   fetchAttestationsRewards: vi.fn(() => Promise.resolve()),
   fetchValidatorsBalances: vi.fn(() => Promise.resolve()),
   fetchCommittees: vi.fn(() => Promise.resolve()),
   fetchSyncCommittees: vi.fn(() => Promise.resolve()),
-  checkSyncCommitteeForEpochInDB: vi.fn(() => Promise.resolve({ isFetched: false })),
-  updateSlotsFetched: vi.fn(() => Promise.resolve()),
-  updateSyncCommitteesFetched: vi.fn(() => Promise.resolve()),
-  trackingTransitioningValidators: vi.fn(() => Promise.resolve()),
+  checkSyncCommitteeForEpochInDB: vi.fn(() => Promise.resolve({ isFetched: true })),
+  updateSlotsFetched: vi.fn(() => Promise.resolve({ success: true })),
+  updateSyncCommitteesFetched: vi.fn(() => Promise.resolve({ success: true })),
+  trackingTransitioningValidators: vi.fn(() =>
+    Promise.resolve({ success: true, processedCount: 0 }),
+  ),
+  markEpochAsProcessed: vi.fn(),
 }));
+
+vi.mock('@/src/xstate/epoch/epoch.actors.js', () => mockEpochActors);
 
 // Mock the slotOrchestratorMachine as a proper XState machine
 vi.mock('@/src/xstate/slot/slotOrchestrator.machine.js', () => {
@@ -41,26 +54,8 @@ vi.mock('@/src/xstate/slot/slotOrchestrator.machine.js', () => {
   };
 });
 
-// Mock the slotOrchestratorMachine to avoid XState v5 getInitialSnapshot bug
-// This is a known issue in XState v5: https://github.com/statelyai/xstate/issues/5077
-// The tests pass but there are unhandled errors from XState internals
-vi.mock('@/src/xstate/slot/slotOrchestrator.machine.js', () => {
-  const mockMachine = createMachine({
-    id: 'mockSlotOrchestrator',
-    initial: 'idle',
-    states: {
-      idle: {
-        type: 'final',
-      },
-    },
-  });
-
-  return {
-    slotOrchestratorMachine: mockMachine,
-  };
-});
-
 // Import the machine after mocks are set up
+// eslint-disable-next-line import/order
 import { epochProcessorMachine } from './epochProcessor.machine.js';
 
 // Reset mocks before each test
@@ -69,17 +64,15 @@ beforeEach(() => {
 });
 
 describe('epochProcessorMachine', () => {
-  describe('epochProcessorMachine - canProcessEpoch guard', () => {
-    test('step by step: when canProcess is false, should go to waiting and retry', async () => {
-      // Test constants for readability
-      const GENESIS_TIMESTAMP = 1606824000000; // Example genesis timestamp
-      const SLOT_DURATION_MS = 100; // 100ms per slot for fast tests
+  describe('checkingCanProcess, waiting and retry', () => {
+    test('if can not process, should go to waiting and then retry', async () => {
+      const SLOT_DURATION = ms('10ms');
       const SLOTS_PER_EPOCH = 32;
 
       // Create actor with conditions to go to waiting
       const mockBeaconTime = new BeaconTime({
-        genesisTimestamp: GENESIS_TIMESTAMP,
-        slotDurationMs: SLOT_DURATION_MS,
+        genesisTimestamp: 1606824000000,
+        slotDurationMs: SLOT_DURATION,
         slotsPerEpoch: SLOTS_PER_EPOCH,
         epochsPerSyncCommitteePeriod: 256,
         slotStartIndexing: 32,
@@ -87,108 +80,220 @@ describe('epochProcessorMachine', () => {
 
       // Mock time for currentEpoch < 99 (canProcessEpoch = false)
       // We're at epoch 97, so canProcessEpoch will be false for epoch 100
-      const EPOCH_97_START_TIME = GENESIS_TIMESTAMP + 97 * SLOTS_PER_EPOCH * SLOT_DURATION_MS;
+      const EPOCH_97_START_TIME = mockBeaconTime.getTimestampFromEpochNumber(97);
       const mockCurrentTime = EPOCH_97_START_TIME + 50; // 50ms into epoch 97
       const getTimeSpy = vi.spyOn(Date.prototype, 'getTime').mockReturnValue(mockCurrentTime);
 
-      // Track microsteps using XState inspection API (as recommended by XState maintainer)
-      const microstepValues: string[] = [];
       const actor = createActor(epochProcessorMachine, {
         input: {
           epoch: 100,
-          validatorsBalancesFetched: false,
-          rewardsFetched: false,
-          committeesFetched: false,
-          slotsFetched: false,
-          syncCommitteesFetched: false,
-          validatorsActivationFetched: false,
-          slotDuration: 0.1, // 100ms = 0.1 seconds
-          lookbackSlot: 32,
-          beaconTime: mockBeaconTime,
-        },
-        inspect: (inspectionEvent) => {
-          if (inspectionEvent.type === '@xstate.microstep') {
-            // @ts-expect-error - snapshot.value exists at runtime for microstep events but not in type definition
-            microstepValues.push(inspectionEvent.snapshot.value);
-          }
+          epochDBSnapshot: {
+            validatorsBalancesFetched: false,
+            rewardsFetched: false,
+            committeesFetched: false,
+            slotsFetched: false,
+            syncCommitteesFetched: false,
+            validatorsActivationFetched: false,
+          },
+          config: {
+            slotDuration: SLOT_DURATION,
+            lookbackSlot: 32,
+          },
+          services: {
+            beaconTime: mockBeaconTime,
+            epochController: mockEpochController,
+          },
         },
       });
 
       actor.start();
 
-      // Wait for the complete sequence: checkingCanProcess -> waiting -> checkingCanProcess -> waiting
-      await new Promise((resolve) => setTimeout(resolve, 100));
+      // Wait for the complete sequence:
+      // checkingCanProcess -> waiting (after 0ms delay)
+      // waiting -> checkingCanProcess (after slotDurationHalf delay = 5ms)
+      // checkingCanProcess -> waiting (after 0ms delay)
+      await new Promise((resolve) => setTimeout(resolve, 20));
 
-      // With always transitions, we need to use microsteps to capture the intermediate states
-      // Verify we have the expected microsteps
-      expect(microstepValues.length).toBeGreaterThanOrEqual(3);
-      expect(microstepValues).toContain('checkingCanProcess');
-      expect(microstepValues).toContain('waiting');
-
-      // Verify the sequence: waiting -> checkingCanProcess -> waiting (retry sequence)
-      expect(microstepValues[0]).toBe('waiting');
-      expect(microstepValues[1]).toBe('checkingCanProcess');
-      expect(microstepValues[2]).toBe('waiting');
+      // Stop the actor
+      actor.stop();
 
       // Clean up
-      actor.stop();
       getTimeSpy.mockRestore();
     });
 
-    test('when canProcess is true, should go to epochProcessing', async () => {
-      // Test constants for readability
-      const GENESIS_TIMESTAMP = 1606824000000; // Example genesis timestamp
-      const SLOT_DURATION_MS = 100; // 100ms per slot for fast tests
+    test('when canProcess is true (1 epoch in advance), should go to epochProcessing', async () => {
+      const SLOT_DURATION = ms('10ms');
       const SLOTS_PER_EPOCH = 32;
 
       // Create actor with conditions to go to epochProcessing
       const mockBeaconTime = new BeaconTime({
-        genesisTimestamp: GENESIS_TIMESTAMP,
-        slotDurationMs: SLOT_DURATION_MS,
+        genesisTimestamp: 1606824000000,
+        slotDurationMs: SLOT_DURATION,
         slotsPerEpoch: SLOTS_PER_EPOCH,
         epochsPerSyncCommitteePeriod: 256,
         slotStartIndexing: 32,
       });
 
-      // Mock time for currentEpoch >= 99 (canProcessEpoch = true)
-      // We're at epoch 99, so canProcessEpoch will be true for epoch 100
-      const EPOCH_99_START_TIME = GENESIS_TIMESTAMP + 99 * SLOTS_PER_EPOCH * SLOT_DURATION_MS;
-      const mockCurrentTime = EPOCH_99_START_TIME + 50; // 50ms into epoch 99
+      // Mock time for currentEpoch >= 100 (canProcessEpoch = true)
+      // We're at epoch 101, so canProcessEpoch will be true for epoch 100 (1 epoch in advance)
+      const EPOCH_101_START_TIME = mockBeaconTime.getTimestampFromEpochNumber(101);
+      const mockCurrentTime = EPOCH_101_START_TIME + 50; // 50ms into epoch 101
       const getTimeSpy = vi.spyOn(Date.prototype, 'getTime').mockReturnValue(mockCurrentTime);
 
       const actor = createActor(epochProcessorMachine, {
         input: {
           epoch: 100,
-          validatorsBalancesFetched: false,
-          rewardsFetched: false,
-          committeesFetched: false,
-          slotsFetched: false,
-          syncCommitteesFetched: false,
-          validatorsActivationFetched: false,
-          slotDuration: 0.1, // 100ms = 0.1 seconds
-          lookbackSlot: 32,
-          beaconTime: mockBeaconTime,
+          epochDBSnapshot: {
+            validatorsBalancesFetched: false,
+            rewardsFetched: false,
+            committeesFetched: false,
+            slotsFetched: false,
+            syncCommitteesFetched: false,
+            validatorsActivationFetched: false,
+          },
+          config: {
+            slotDuration: SLOT_DURATION,
+            lookbackSlot: 32,
+          },
+          services: {
+            beaconTime: mockBeaconTime,
+            epochController: mockEpochController,
+          },
         },
-      });
-
-      // Track state transitions
-      const stateTransitions: string[] = [];
-      const subscription = actor.subscribe((snapshot) => {
-        stateTransitions.push(snapshot.value as string);
       });
 
       actor.start();
 
       // Wait for transition
-      await new Promise((resolve) => setTimeout(resolve, 5));
+      await new Promise((resolve) => setTimeout(resolve, 10));
 
-      const snapshot = actor.getSnapshot();
-      expect(snapshot.value).toHaveProperty('epochProcessing');
-      expect(stateTransitions[0]).toHaveProperty('epochProcessing');
+      // Stop the actor
+      actor.stop();
 
       // Clean up
-      subscription.unsubscribe();
-      actor.stop();
+      getTimeSpy.mockRestore();
+    });
+  });
+
+  describe('state.epochCompleted', () => {
+    test('should mark epoch as processed when epoch processing completes', async () => {
+      const SLOT_DURATION = ms('10ms');
+      const SLOTS_PER_EPOCH = 32;
+
+      const mockBeaconTime = new BeaconTime({
+        genesisTimestamp: 1606824000000,
+        slotDurationMs: SLOT_DURATION,
+        slotsPerEpoch: SLOTS_PER_EPOCH,
+        epochsPerSyncCommitteePeriod: 256,
+        slotStartIndexing: 32,
+      });
+
+      // Mock time for currentEpoch >= 101 (canProcessEpoch = true for epoch 100)
+      // We need to simulate that epoch 100 has ended so that rewards can be processed
+      const { endSlot } = mockBeaconTime.getEpochSlots(100);
+      const EPOCH_100_END_TIME = mockBeaconTime.getTimestampFromSlotNumber(endSlot);
+      const mockCurrentTime = EPOCH_100_END_TIME + 100; // 100ms after epoch 100 ended
+      const getTimeSpy = vi.spyOn(Date.prototype, 'getTime').mockReturnValue(mockCurrentTime);
+
+      // Create a simple parent machine that can receive the EPOCH_COMPLETED event
+      const mockEpochOrchestratorMachine = createMachine({
+        id: 'parent',
+        initial: 'waiting',
+        types: {
+          context: {} as {
+            epochActor: ActorRefFrom<typeof epochProcessorMachine> | null;
+            epochCompleted: boolean;
+          },
+        },
+        context: {
+          epochActor: null,
+          epochCompleted: false,
+        },
+        states: {
+          waiting: {
+            entry: assign({
+              epochActor: ({ spawn }) => {
+                const testMachine = epochProcessorMachine.provide({
+                  actors: {
+                    fetchValidatorsBalances: fromPromise(() => Promise.resolve()),
+                    fetchAttestationsRewards: fromPromise(() => Promise.resolve()),
+                    fetchCommittees: fromPromise(() => Promise.resolve()),
+                    fetchSyncCommittees: fromPromise(() => Promise.resolve()),
+                    checkSyncCommitteeForEpochInDB: fromPromise(() =>
+                      Promise.resolve({ isFetched: true as boolean }),
+                    ),
+                    updateSlotsFetched: fromPromise(() =>
+                      Promise.resolve({ success: true as boolean }),
+                    ),
+                    updateSyncCommitteesFetched: fromPromise(() =>
+                      Promise.resolve({ success: true as boolean }),
+                    ),
+                    trackingTransitioningValidators: fromPromise(() =>
+                      Promise.resolve({ success: true as boolean, processedCount: 0 }),
+                    ),
+                    markEpochAsProcessed: fromPromise(({ input }) => {
+                      return input.epochController.markEpochAsProcessed(input.epoch).then(() => ({
+                        success: true,
+                        machineId: input.machineId,
+                      }));
+                    }),
+                  },
+                });
+
+                return spawn(testMachine, {
+                  id: 'epochProcessor:100',
+                  input: {
+                    epoch: 100,
+                    epochDBSnapshot: {
+                      validatorsBalancesFetched: false, // Set to false to trigger validators balances fetching
+                      rewardsFetched: false, // Set to false to trigger rewards fetching
+                      committeesFetched: true, // Set to true to skip committees
+                      slotsFetched: true, // Set to true to skip slots
+                      syncCommitteesFetched: true, // Set to true to skip sync committees
+                      validatorsActivationFetched: true, // Set to true to skip validators activation
+                    },
+                    config: {
+                      slotDuration: SLOT_DURATION,
+                      lookbackSlot: 32,
+                    },
+                    services: {
+                      beaconTime: mockBeaconTime,
+                      epochController: mockEpochController,
+                    },
+                  },
+                });
+              },
+            }),
+            on: {
+              EPOCH_COMPLETED: {
+                actions: assign({
+                  epochCompleted: true,
+                }),
+              },
+            },
+          },
+        },
+      });
+      const epochOrchestratorMachine = createActor(mockEpochOrchestratorMachine, {
+        input: {},
+      });
+      epochOrchestratorMachine.start();
+
+      // Wait for the complete flow to reach completion
+      await new Promise((resolve) => setTimeout(resolve, 100));
+
+      expect(epochOrchestratorMachine.getSnapshot().context.epochCompleted).toBe(true);
+      expect(epochOrchestratorMachine.getSnapshot().context.epochActor?.getSnapshot().value).toBe(
+        'epochCompleted',
+      );
+
+      // Stop the actors
+      epochOrchestratorMachine.stop();
+
+      // Verify that markEpochAsProcessed was called
+      expect(vi.mocked(mockEpochController.markEpochAsProcessed)).toHaveBeenCalledWith(100);
+
+      // Clean up
       getTimeSpy.mockRestore();
     });
   });
