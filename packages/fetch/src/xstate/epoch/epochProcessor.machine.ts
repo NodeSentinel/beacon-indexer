@@ -207,7 +207,7 @@ export const epochProcessorMachine = setup({
     },
     epochProcessing: {
       description:
-        'Epoch data can be processed at different times, committee and sync committees can be fetched in advance, the rest needs to wait for the epoch to start',
+        'Epoch data can be processed at different times, committee and sync committees can be fetched 1 epoch in advance, the rest needs to wait for the epoch to start',
       entry: pinoLog(
         ({ context }) => `Starting epoch processing for epoch ${context.epoch}`,
         'EpochProcessor',
@@ -215,34 +215,38 @@ export const epochProcessorMachine = setup({
       type: 'parallel',
       states: {
         waitingForEpochToStart: {
-          description: 'Wait for the epoch to start before processing tasks that require it',
+          description: 'Wait for the epoch to start and send the EPOCH_STARTED event',
           initial: 'checkingEpochStatus',
           states: {
             checkingEpochStatus: {
-              always: [
-                {
-                  guard: 'hasEpochAlreadyStarted',
-                  target: 'epochStarted',
-                },
-                {
-                  target: 'waiting',
-                  actions: pinoLog(
-                    ({ context }) => `Waiting for epoch ${context.epoch} to start`,
-                    'EpochProcessor:waitingForEpochToStart',
-                  ),
-                },
-              ],
+              after: {
+                0: [
+                  {
+                    guard: 'hasEpochAlreadyStarted',
+                    target: 'epochStarted',
+                  },
+                  {
+                    target: 'waiting',
+                    actions: pinoLog(
+                      ({ context }) => `Waiting for epoch ${context.epoch} to start`,
+                      'EpochProcessor:waitingForEpochToStart',
+                    ),
+                  },
+                ],
+              },
             },
             waiting: {
-              always: [
-                {
-                  guard: 'hasEpochAlreadyStarted',
-                  target: 'epochStarted',
-                },
-                {
-                  target: 'delaying',
-                },
-              ],
+              after: {
+                0: [
+                  {
+                    guard: 'hasEpochAlreadyStarted',
+                    target: 'epochStarted',
+                  },
+                  {
+                    target: 'delaying',
+                  },
+                ],
+              },
             },
             delaying: {
               after: {
@@ -260,6 +264,7 @@ export const epochProcessorMachine = setup({
           },
         },
         fetching: {
+          description: 'Fetching data for the epoch',
           type: 'parallel',
           states: {
             committees: {

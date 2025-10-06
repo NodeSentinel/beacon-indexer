@@ -175,6 +175,230 @@ describe('epochProcessorMachine', () => {
     });
   });
 
+  describe('epochProcessing.waitingForEpochToStart', () => {
+    test('should go through checking -> waiting -> delaying -> checking when epoch has not started', async () => {
+      const SLOT_DURATION = ms('10ms');
+      const SLOTS_PER_EPOCH = 32;
+
+      const mockBeaconTime = new BeaconTime({
+        genesisTimestamp: 1606824000000,
+        slotDurationMs: SLOT_DURATION,
+        slotsPerEpoch: SLOTS_PER_EPOCH,
+        epochsPerSyncCommitteePeriod: 256,
+        slotStartIndexing: 32,
+      });
+
+      // Mock time so that we're in epoch 100 but epoch 100 has not started yet
+      // We need to be in epoch 100 but before the start slot of epoch 100
+      const EPOCH_100_START_SLOT = mockBeaconTime.getEpochSlots(100).startSlot;
+      const EPOCH_100_START_TIME = mockBeaconTime.getTimestampFromSlotNumber(EPOCH_100_START_SLOT);
+      const mockCurrentTime = EPOCH_100_START_TIME - 50; // 50ms before epoch 100 starts
+      const getTimeSpy = vi.spyOn(Date.prototype, 'getTime').mockReturnValue(mockCurrentTime);
+
+      const actor = createActor(epochProcessorMachine, {
+        input: {
+          epoch: 100,
+          epochDBSnapshot: {
+            validatorsBalancesFetched: true, // Set to true to skip validators balances
+            rewardsFetched: true, // Set to true to skip rewards
+            committeesFetched: true, // Set to true to skip committees
+            slotsFetched: true, // Set to true to skip slots
+            syncCommitteesFetched: true, // Set to true to skip sync committees
+            validatorsActivationFetched: true, // Set to true to skip validators activation
+          },
+          config: {
+            slotDuration: SLOT_DURATION,
+            lookbackSlot: 32,
+          },
+          services: {
+            beaconTime: mockBeaconTime,
+            epochController: mockEpochController,
+          },
+        },
+      });
+
+      actor.start();
+
+      // Wait for the first cycle: checkingEpochStatus -> waiting -> delaying -> waiting
+      await new Promise((resolve) => setTimeout(resolve, 15)); // Wait for slotDurationHalf (5ms) + buffer
+
+      // Check that we're in the delaying state after the first cycle
+      const snapshot = actor.getSnapshot();
+      expect(snapshot.value).toEqual({
+        epochProcessing: {
+          waitingForEpochToStart: 'delaying',
+          fetching: {
+            committees: 'complete',
+            syncingCommittees: 'complete',
+            slotsProcessing: 'waitingForPrerequisites',
+            trackingValidatorsActivation: 'waitingForEpochStart',
+            validatorsBalances: 'complete',
+            rewards: 'waitingForEpochEndDelaying',
+          },
+        },
+      });
+
+      // Stop the actor
+      actor.stop();
+
+      // Clean up
+      getTimeSpy.mockRestore();
+    });
+
+    test('should go through checking -> waiting -> delaying -> checking -> epochStarted when epoch starts', async () => {
+      const SLOT_DURATION = ms('10ms');
+      const SLOTS_PER_EPOCH = 32;
+
+      const mockBeaconTime = new BeaconTime({
+        genesisTimestamp: 1606824000000,
+        slotDurationMs: SLOT_DURATION,
+        slotsPerEpoch: SLOTS_PER_EPOCH,
+        epochsPerSyncCommitteePeriod: 256,
+        slotStartIndexing: 32,
+      });
+
+      // Mock time so that we're in epoch 100 but epoch 100 has not started yet
+      const EPOCH_100_START_SLOT = mockBeaconTime.getEpochSlots(100).startSlot;
+      const EPOCH_100_START_TIME = mockBeaconTime.getTimestampFromSlotNumber(EPOCH_100_START_SLOT);
+      let mockCurrentTime = EPOCH_100_START_TIME - 50; // 50ms before epoch 100 starts
+      const getTimeSpy = vi.spyOn(Date.prototype, 'getTime').mockReturnValue(mockCurrentTime);
+
+      const actor = createActor(epochProcessorMachine, {
+        input: {
+          epoch: 100,
+          epochDBSnapshot: {
+            validatorsBalancesFetched: true, // Set to true to skip validators balances
+            rewardsFetched: true, // Set to true to skip rewards
+            committeesFetched: true, // Set to true to skip committees
+            slotsFetched: true, // Set to true to skip slots
+            syncCommitteesFetched: true, // Set to true to skip sync committees
+            validatorsActivationFetched: true, // Set to true to skip validators activation
+          },
+          config: {
+            slotDuration: SLOT_DURATION,
+            lookbackSlot: 32,
+          },
+          services: {
+            beaconTime: mockBeaconTime,
+            epochController: mockEpochController,
+          },
+        },
+      });
+
+      actor.start();
+
+      // Wait for the first cycle: checkingEpochStatus -> waiting -> delaying -> waiting
+      await new Promise((resolve) => setTimeout(resolve, 15)); // Wait for slotDurationHalf (5ms) + buffer
+
+      // Now simulate that the epoch has started by updating the mock time
+      mockCurrentTime = EPOCH_100_START_TIME + 10; // 10ms after epoch 100 starts
+      getTimeSpy.mockReturnValue(mockCurrentTime);
+
+      // Wait for the second cycle: waiting -> checkingEpochStatus -> epochStarted
+      await new Promise((resolve) => setTimeout(resolve, 15)); // Wait for slotDurationHalf (5ms) + buffer
+
+      // Check that we've reached the epochStarted state
+      const snapshot = actor.getSnapshot();
+      expect(snapshot.value).toEqual({
+        epochProcessing: {
+          waitingForEpochToStart: 'epochStarted',
+          fetching: {
+            committees: 'complete',
+            syncingCommittees: 'complete',
+            slotsProcessing: 'complete',
+            trackingValidatorsActivation: 'complete',
+            validatorsBalances: 'complete',
+            rewards: 'waitingForEpochEndDelaying',
+          },
+        },
+      });
+
+      // Stop the actor
+      actor.stop();
+
+      // Clean up
+      getTimeSpy.mockRestore();
+    });
+
+    test('should emit EPOCH_STARTED event internally when epoch starts', async () => {
+      const SLOT_DURATION = ms('10ms');
+      const SLOTS_PER_EPOCH = 32;
+
+      const mockBeaconTime = new BeaconTime({
+        genesisTimestamp: 1606824000000,
+        slotDurationMs: SLOT_DURATION,
+        slotsPerEpoch: SLOTS_PER_EPOCH,
+        epochsPerSyncCommitteePeriod: 256,
+        slotStartIndexing: 32,
+      });
+
+      // Mock time so that we're in epoch 100 but epoch 100 has not started yet
+      const EPOCH_100_START_SLOT = mockBeaconTime.getEpochSlots(100).startSlot;
+      const EPOCH_100_START_TIME = mockBeaconTime.getTimestampFromSlotNumber(EPOCH_100_START_SLOT);
+      let mockCurrentTime = EPOCH_100_START_TIME - 50; // 50ms before epoch 100 starts
+      const getTimeSpy = vi.spyOn(Date.prototype, 'getTime').mockReturnValue(mockCurrentTime);
+
+      const actor = createActor(epochProcessorMachine, {
+        input: {
+          epoch: 100,
+          epochDBSnapshot: {
+            validatorsBalancesFetched: true, // Set to true to skip validators balances
+            rewardsFetched: true, // Set to true to skip rewards
+            committeesFetched: true, // Set to true to skip committees
+            slotsFetched: true, // Set to true to skip slots
+            syncCommitteesFetched: true, // Set to true to skip sync committees
+            validatorsActivationFetched: true, // Set to true to skip validators activation
+          },
+          config: {
+            slotDuration: SLOT_DURATION,
+            lookbackSlot: 32,
+          },
+          services: {
+            beaconTime: mockBeaconTime,
+            epochController: mockEpochController,
+          },
+        },
+      });
+
+      actor.start();
+
+      // Wait for the first cycle: checkingEpochStatus -> waiting -> delaying -> waiting
+      await new Promise((resolve) => setTimeout(resolve, 15)); // Wait for slotDurationHalf (5ms) + buffer
+
+      // Now simulate that the epoch has started by updating the mock time
+      mockCurrentTime = EPOCH_100_START_TIME + 10; // 10ms after epoch 100 starts
+      getTimeSpy.mockReturnValue(mockCurrentTime);
+
+      // Wait for the second cycle: waiting -> checkingEpochStatus -> epochStarted
+      await new Promise((resolve) => setTimeout(resolve, 15)); // Wait for slotDurationHalf (5ms) + buffer
+
+      // Wait a bit more to ensure the event is processed
+      await new Promise((resolve) => setTimeout(resolve, 10));
+
+      // Verify that the machine reached the epochStarted state
+      const snapshot = actor.getSnapshot();
+      expect(snapshot.value).toEqual({
+        epochProcessing: {
+          waitingForEpochToStart: 'epochStarted',
+          fetching: {
+            committees: 'complete',
+            syncingCommittees: 'complete',
+            slotsProcessing: 'complete',
+            trackingValidatorsActivation: 'complete',
+            validatorsBalances: 'complete',
+            rewards: 'waitingForEpochEndDelaying',
+          },
+        },
+      });
+
+      // Stop the actor
+      actor.stop();
+
+      // Clean up
+      getTimeSpy.mockRestore();
+    });
+  });
+
   describe('state.epochCompleted', () => {
     test('should mark epoch as processed when epoch processing completes', async () => {
       const SLOT_DURATION = ms('10ms');
