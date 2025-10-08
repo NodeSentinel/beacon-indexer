@@ -58,6 +58,7 @@ The code is written in TypeScript and uses XState to orchestrate the data fetchi
 - docker compose up postgres
 - pnpm db:prisma-generate
 - pnpm migrate:dev
+- pnpm build
 - pnpm dev:fetch
 
 ## Architecture
