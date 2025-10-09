@@ -204,7 +204,7 @@ export const epochProcessorMachine = setup({
       ),
       type: 'parallel',
       states: {
-        waitingForEpochToStart: {
+        monitoringEpochStart: {
           description: 'Wait for the epoch to start and send the EPOCH_STARTED event',
           initial: 'checkingEpochStatus',
           states: {
