@@ -582,6 +582,223 @@ describe('epochProcessorMachine', () => {
         subscription.unsubscribe();
       });
     });
+
+    describe('when epoch has started', () => {
+      describe('committees', () => {
+        const SLOT_DURATION = ms('10ms');
+        const SLOTS_PER_EPOCH = 32;
+        const EPOCH_101_START_TIME = 1606824000000 + 101 * 32 * 10;
+
+        const mockBeaconTime = new BeaconTime({
+          genesisTimestamp: 1606824000000,
+          slotDurationMs: SLOT_DURATION,
+          slotsPerEpoch: SLOTS_PER_EPOCH,
+          epochsPerSyncCommitteePeriod: 256,
+          slotStartIndexing: 32,
+        });
+
+        beforeEach(() => {
+          vi.useFakeTimers();
+          vi.setSystemTime(new Date(EPOCH_101_START_TIME + 50));
+          resetMockActors();
+        });
+
+        afterEach(() => {
+          vi.useRealTimers();
+          vi.clearAllTimers();
+        });
+
+        describe('when committees are already processed', () => {
+          test('should go directly to complete', async () => {
+            const actor = createActor(
+              epochProcessorMachine.provide({
+                guards: {
+                  hasEpochAlreadyStarted: vi.fn(() => true),
+                },
+              }),
+              {
+                input: {
+                  epoch: 100,
+                  epochDBSnapshot: { ...epochDBSnapshotMock, committeesFetched: true },
+                  config: {
+                    slotDuration: SLOT_DURATION,
+                    lookbackSlot: 32,
+                  },
+                  services: {
+                    beaconTime: mockBeaconTime,
+                    epochController: mockEpochController,
+                  },
+                },
+              },
+            );
+
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const stateTransitions: SnapshotFrom<any>[] = [];
+            const subscription = actor.subscribe((snapshot) => {
+              stateTransitions.push(snapshot.value);
+            });
+
+            actor.start();
+            vi.runOnlyPendingTimers();
+            await Promise.resolve();
+
+            expect(stateTransitions[0]).toBe('checkingCanProcess');
+
+            const step1 = stateTransitions[1];
+            expect(typeof step1 === 'object' && 'epochProcessing' in step1).toBe(true);
+            const step1Obj = step1;
+            expect(step1Obj.epochProcessing.fetching.committees).toBe('checkingIfAlreadyProcessed');
+
+            vi.advanceTimersByTime(10);
+            await Promise.resolve();
+
+            const finalState = stateTransitions[stateTransitions.length - 1];
+            expect(typeof finalState === 'object' && 'epochProcessing' in finalState).toBe(true);
+            const finalStateObj = finalState;
+            expect(finalStateObj.epochProcessing.fetching.committees).toBe('complete');
+
+            actor.stop();
+            subscription.unsubscribe();
+          });
+        });
+
+        describe('when committees are not processed', () => {
+          test('should go to fetching and then complete', async () => {
+            mockEpochActors.fetchCommittees.mockImplementation(
+              () =>
+                new Promise((resolve) => {
+                  setTimeout(() => resolve({ success: true }), 20);
+                }),
+            );
+
+            const actor = createActor(
+              epochProcessorMachine.provide({
+                guards: {
+                  hasEpochAlreadyStarted: vi.fn(() => true),
+                },
+              }),
+              {
+                input: {
+                  epoch: 100,
+                  epochDBSnapshot: { ...epochDBSnapshotMock, committeesFetched: false },
+                  config: {
+                    slotDuration: SLOT_DURATION,
+                    lookbackSlot: 32,
+                  },
+                  services: {
+                    beaconTime: mockBeaconTime,
+                    epochController: mockEpochController,
+                  },
+                },
+              },
+            );
+
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const stateTransitions: SnapshotFrom<any>[] = [];
+            const subscription = actor.subscribe((snapshot) => {
+              stateTransitions.push(snapshot.value);
+            });
+
+            actor.start();
+            vi.runOnlyPendingTimers();
+            await Promise.resolve();
+
+            expect(stateTransitions[0]).toBe('checkingCanProcess');
+
+            const step1 = stateTransitions[1];
+            expect(typeof step1 === 'object' && 'epochProcessing' in step1).toBe(true);
+            const step1Obj = step1;
+            expect(step1Obj.epochProcessing.fetching.committees).toBe('checkingIfAlreadyProcessed');
+
+            vi.advanceTimersByTime(10);
+            await Promise.resolve();
+
+            const step2 = stateTransitions[stateTransitions.length - 1];
+            expect(typeof step2 === 'object' && 'epochProcessing' in step2).toBe(true);
+            const step2Obj = step2;
+            expect(step2Obj.epochProcessing.fetching.committees).toBe('fetching');
+
+            vi.advanceTimersByTime(30);
+            await Promise.resolve();
+
+            const finalState = stateTransitions[stateTransitions.length - 1];
+            expect(typeof finalState === 'object' && 'epochProcessing' in finalState).toBe(true);
+            const finalStateObj = finalState;
+            expect(finalStateObj.epochProcessing.fetching.committees).toBe('complete');
+
+            actor.stop();
+            subscription.unsubscribe();
+          });
+
+          test('should stay in fetching when fetch fails', async () => {
+            mockEpochActors.fetchCommittees.mockImplementation(
+              () =>
+                new Promise((_, reject) => {
+                  setTimeout(() => reject(new Error('Network error')), 20);
+                }),
+            );
+
+            const actor = createActor(
+              epochProcessorMachine.provide({
+                guards: {
+                  hasEpochAlreadyStarted: vi.fn(() => true),
+                },
+              }),
+              {
+                input: {
+                  epoch: 100,
+                  epochDBSnapshot: { ...epochDBSnapshotMock, committeesFetched: false },
+                  config: {
+                    slotDuration: SLOT_DURATION,
+                    lookbackSlot: 32,
+                  },
+                  services: {
+                    beaconTime: mockBeaconTime,
+                    epochController: mockEpochController,
+                  },
+                },
+              },
+            );
+
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const stateTransitions: SnapshotFrom<any>[] = [];
+            const subscription = actor.subscribe((snapshot) => {
+              stateTransitions.push(snapshot.value);
+            });
+
+            actor.start();
+            vi.runOnlyPendingTimers();
+            await Promise.resolve();
+
+            expect(stateTransitions[0]).toBe('checkingCanProcess');
+
+            const step1 = stateTransitions[1];
+            expect(typeof step1 === 'object' && 'epochProcessing' in step1).toBe(true);
+            const step1Obj = step1;
+            expect(step1Obj.epochProcessing.fetching.committees).toBe('checkingIfAlreadyProcessed');
+
+            vi.advanceTimersByTime(10);
+            await Promise.resolve();
+
+            const step2 = stateTransitions[stateTransitions.length - 1];
+            expect(typeof step2 === 'object' && 'epochProcessing' in step2).toBe(true);
+            const step2Obj = step2;
+            expect(step2Obj.epochProcessing.fetching.committees).toBe('fetching');
+
+            vi.advanceTimersByTime(50);
+            await Promise.resolve();
+
+            const finalState = stateTransitions[stateTransitions.length - 1];
+            expect(typeof finalState === 'object' && 'epochProcessing' in finalState).toBe(true);
+            const finalStateObj = finalState;
+            expect(finalStateObj.epochProcessing.fetching.committees).toBe('fetching');
+
+            actor.stop();
+            subscription.unsubscribe();
+          });
+        });
+      });
+    });
   });
 
   // describe('epochCompleted', () => {
