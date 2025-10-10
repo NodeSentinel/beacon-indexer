@@ -85,133 +85,185 @@ vi.mock('@/src/xstate/slot/slotOrchestrator.machine.js', () => {
 });
 
 describe('epochProcessorMachine', () => {
-  // describe('checkingCanProcess:waiting', () => {
-  //   test('if can not process, should go to waiting and then retry', async () => {
-  //     const SLOT_DURATION = ms('10ms');
-  //     const SLOTS_PER_EPOCH = 32;
+  describe('checkingCanProcess:waiting', () => {
+    const SLOT_DURATION = ms('10ms');
+    const SLOTS_PER_EPOCH = 32;
 
-  //     // Create actor with conditions to go to waiting
-  //     const mockBeaconTime = new BeaconTime({
-  //       genesisTimestamp: 1606824000000,
-  //       slotDurationMs: SLOT_DURATION,
-  //       slotsPerEpoch: SLOTS_PER_EPOCH,
-  //       epochsPerSyncCommitteePeriod: 256,
-  //       slotStartIndexing: 32,
-  //     });
+    const mockBeaconTime = new BeaconTime({
+      genesisTimestamp: 1606824000000,
+      slotDurationMs: SLOT_DURATION,
+      slotsPerEpoch: SLOTS_PER_EPOCH,
+      epochsPerSyncCommitteePeriod: 256,
+      slotStartIndexing: 32,
+    });
 
-  //     // Mock time for currentEpoch < 99 (canProcessEpoch = false)
-  //     // We're at epoch 97, so canProcessEpoch will be false for epoch 100
-  //     const EPOCH_97_START_TIME = mockBeaconTime.getTimestampFromEpochNumber(97);
-  //     const mockCurrentTime = EPOCH_97_START_TIME + 50; // 50ms into epoch 97
-  //     vi.useFakeTimers();
-  //     vi.setSystemTime(new Date(mockCurrentTime));
+    beforeEach(() => {
+      vi.useFakeTimers();
+      resetMockActors();
+    });
 
-  //     const actor = createActor(epochProcessorMachine.provide({
-  //       guards: {
-  //         hasEpochAlreadyStarted: vi.fn(() => false),
-  //       },
-  //      }), {
-  //       input: {
-  //         epoch: 100,
-  //         epochDBSnapshot: {
-  //           validatorsBalancesFetched: false,
-  //           rewardsFetched: false,
-  //           committeesFetched: false,
-  //           slotsFetched: false,
-  //           syncCommitteesFetched: false,
-  //           validatorsActivationFetched: false,
-  //         },
-  //         config: {
-  //           slotDuration: SLOT_DURATION,
-  //           lookbackSlot: 32,
-  //         },
-  //         services: {
-  //           beaconTime: mockBeaconTime,
-  //           epochController: mockEpochController,
-  //         },
-  //       },
-  //     });
+    afterEach(() => {
+      vi.useRealTimers();
+      vi.clearAllTimers();
+    });
 
-  //     actor.start();
+    test('cannot process epoch (too early), should go to waiting and retry', async () => {
+      const EPOCH_97_START_TIME = mockBeaconTime.getTimestampFromEpochNumber(97);
+      const mockCurrentTime = EPOCH_97_START_TIME + 50;
+      vi.setSystemTime(new Date(mockCurrentTime));
 
-  //     // Wait for the complete sequence:
-  //     // checkingCanProcess -> waiting (after 0ms delay)
-  //     // waiting -> checkingCanProcess (after slotDurationHalf delay = 5ms)
-  //     // checkingCanProcess -> waiting (after 0ms delay)
-  //     // Flush immediate transitions and scheduled delays
-  //     vi.runOnlyPendingTimers();
-  //     await Promise.resolve();
-  //     vi.advanceTimersByTime(20);
-  //     await Promise.resolve();
+      const actor = createActor(
+        epochProcessorMachine.provide({
+          guards: {
+            hasEpochAlreadyStarted: vi.fn(() => false),
+          },
+        }),
+        {
+          input: {
+            epoch: 100,
+            epochDBSnapshot: { ...epochDBSnapshotMock },
+            config: {
+              slotDuration: SLOT_DURATION,
+              lookbackSlot: 32,
+            },
+            services: {
+              beaconTime: mockBeaconTime,
+              epochController: mockEpochController,
+            },
+          },
+        },
+      );
 
-  //     // Stop the actor
-  //     actor.stop();
+      const stateTransitions: SnapshotFrom<any>[] = [];
+      const subscription = actor.subscribe((snapshot) => {
+        stateTransitions.push(snapshot.value);
+      });
 
-  //     // Clean up
-  //     vi.useRealTimers();
-  //   });
+      actor.start();
+      vi.runOnlyPendingTimers();
+      await Promise.resolve();
 
-  //   test('when canProcess is true (1 epoch in advance), should go to epochProcessing', async () => {
-  //     const SLOT_DURATION = ms('10ms');
-  //     const SLOTS_PER_EPOCH = 32;
+      expect(stateTransitions[0]).toBe('checkingCanProcess');
 
-  //     // Create actor with conditions to go to epochProcessing
-  //     const mockBeaconTime = new BeaconTime({
-  //       genesisTimestamp: 1606824000000,
-  //       slotDurationMs: SLOT_DURATION,
-  //       slotsPerEpoch: SLOTS_PER_EPOCH,
-  //       epochsPerSyncCommitteePeriod: 256,
-  //       slotStartIndexing: 32,
-  //     });
+      const step1 = stateTransitions[1];
+      expect(step1).toBe('waiting');
 
-  //     // Mock time for currentEpoch >= 100 (canProcessEpoch = true)
-  //     // We're at epoch 101, so canProcessEpoch will be true for epoch 100 (1 epoch in advance)
-  //     const EPOCH_101_START_TIME = mockBeaconTime.getTimestampFromEpochNumber(101);
-  //     const mockCurrentTime = EPOCH_101_START_TIME + 50; // 50ms into epoch 101
-  //     vi.useFakeTimers();
-  //     vi.setSystemTime(new Date(mockCurrentTime));
+      vi.advanceTimersByTime(20);
+      await Promise.resolve();
 
-  //     const actor = createActor(epochProcessorMachine.provide({
-  //       guards: {
-  //         hasEpochAlreadyStarted: vi.fn(() => false),
-  //       },
-  //      }), {
-  //       input: {
-  //         epoch: 100,
-  //         epochDBSnapshot: {
-  //           validatorsBalancesFetched: false,
-  //           rewardsFetched: false,
-  //           committeesFetched: false,
-  //           slotsFetched: false,
-  //           syncCommitteesFetched: false,
-  //           validatorsActivationFetched: false,
-  //         },
-  //         config: {
-  //           slotDuration: SLOT_DURATION,
-  //           lookbackSlot: 32,
-  //         },
-  //         services: {
-  //           beaconTime: mockBeaconTime,
-  //           epochController: mockEpochController,
-  //         },
-  //       },
-  //     });
+      const finalState = stateTransitions[stateTransitions.length - 1];
+      expect(finalState).toBe('waiting');
 
-  //     actor.start();
+      actor.stop();
+      subscription.unsubscribe();
+    });
 
-  //     // Flush immediate transitions
-  //     vi.runOnlyPendingTimers();
-  //     await Promise.resolve();
-  //     vi.advanceTimersByTime(10);
-  //     await Promise.resolve();
+    test('should cycle between checkingCanProcess and waiting when epoch is too early', async () => {
+      const EPOCH_97_START_TIME = mockBeaconTime.getTimestampFromEpochNumber(97);
+      const mockCurrentTime = EPOCH_97_START_TIME + 50;
+      vi.setSystemTime(new Date(mockCurrentTime));
 
-  //     // Stop the actor
-  //     actor.stop();
+      const actor = createActor(
+        epochProcessorMachine.provide({
+          guards: {
+            hasEpochAlreadyStarted: vi.fn(() => false),
+          },
+        }),
+        {
+          input: {
+            epoch: 100,
+            epochDBSnapshot: { ...epochDBSnapshotMock },
+            config: {
+              slotDuration: SLOT_DURATION,
+              lookbackSlot: 32,
+            },
+            services: {
+              beaconTime: mockBeaconTime,
+              epochController: mockEpochController,
+            },
+          },
+        },
+      );
 
-  //     // Clean up
-  //     vi.useRealTimers();
-  //   });
-  // });
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const stateTransitions: SnapshotFrom<any>[] = [];
+      const subscription = actor.subscribe((snapshot) => {
+        stateTransitions.push(snapshot.value);
+      });
+
+      actor.start();
+      vi.runOnlyPendingTimers();
+      await Promise.resolve();
+
+      expect(stateTransitions[0]).toBe('checkingCanProcess');
+      expect(stateTransitions[1]).toBe('waiting');
+
+      vi.advanceTimersByTime(5);
+      await Promise.resolve();
+
+      expect(stateTransitions[2]).toBe('checkingCanProcess');
+
+      vi.advanceTimersByTime(5);
+      await Promise.resolve();
+
+      expect(stateTransitions[3]).toBe('waiting');
+
+      actor.stop();
+      subscription.unsubscribe();
+    });
+
+    test('can process epoch (1 epoch in advance), should go to epochProcessing', async () => {
+      const EPOCH_101_START_TIME = mockBeaconTime.getTimestampFromEpochNumber(101);
+      const mockCurrentTime = EPOCH_101_START_TIME + 50;
+      vi.setSystemTime(new Date(mockCurrentTime));
+
+      const actor = createActor(
+        epochProcessorMachine.provide({
+          guards: {
+            hasEpochAlreadyStarted: vi.fn(() => false),
+          },
+        }),
+        {
+          input: {
+            epoch: 100,
+            epochDBSnapshot: { ...epochDBSnapshotMock },
+            config: {
+              slotDuration: SLOT_DURATION,
+              lookbackSlot: 32,
+            },
+            services: {
+              beaconTime: mockBeaconTime,
+              epochController: mockEpochController,
+            },
+          },
+        },
+      );
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const stateTransitions: SnapshotFrom<any>[] = [];
+      const subscription = actor.subscribe((snapshot) => {
+        stateTransitions.push(snapshot.value);
+      });
+
+      actor.start();
+      vi.runOnlyPendingTimers();
+      await Promise.resolve();
+
+      expect(stateTransitions[0]).toBe('checkingCanProcess');
+
+      const step1 = stateTransitions[1];
+      expect(typeof step1 === 'object' && 'epochProcessing' in step1).toBe(true);
+
+      vi.advanceTimersByTime(10);
+      await Promise.resolve();
+
+      const finalState = stateTransitions[stateTransitions.length - 1];
+      expect(typeof finalState === 'object' && 'epochProcessing' in finalState).toBe(true);
+
+      actor.stop();
+      subscription.unsubscribe();
+    });
+  });
 
   describe('epochProcessing', () => {
     describe('when epoch has not started yet', () => {
