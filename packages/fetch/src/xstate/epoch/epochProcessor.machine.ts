@@ -206,9 +206,9 @@ export const epochProcessorMachine = setup({
       states: {
         monitoringEpochStart: {
           description: 'Wait for the epoch to start and send the EPOCH_STARTED event',
-          initial: 'checkingEpochStatus',
+          initial: 'checkingEpochStart',
           states: {
-            checkingEpochStatus: {
+            checkingEpochStart: {
               after: {
                 0: [
                   {
@@ -259,9 +259,9 @@ export const epochProcessorMachine = setup({
           states: {
             committees: {
               description: 'Get epoch committees',
-              initial: 'checkingEpochStatus',
+              initial: 'checkingIfAlreadyProcessed',
               states: {
-                checkingEpochStatus: {
+                checkingIfAlreadyProcessed: {
                   after: {
                     0: [
                       {
@@ -307,9 +307,9 @@ export const epochProcessorMachine = setup({
             syncingCommittees: {
               description:
                 'Get sync committees. Sync committees persist across multiple epochs, we fetch them only for the first epoch of the sync committee period.',
-              initial: 'checkingEpochStatus',
+              initial: 'checkingIfAlreadyProcessed',
               states: {
-                checkingEpochStatus: {
+                checkingIfAlreadyProcessed: {
                   after: {
                     0: [
                       {
@@ -533,10 +533,10 @@ export const epochProcessorMachine = setup({
                     'EpochProcessor:trackingTransitioningValidators',
                   ),
                   on: {
-                    EPOCH_STARTED: 'checkingStatus',
+                    EPOCH_STARTED: 'checkingIfAlreadyProcessed',
                   },
                 },
-                checkingStatus: {
+                checkingIfAlreadyProcessed: {
                   after: {
                     0: [
                       {
@@ -579,14 +579,14 @@ export const epochProcessorMachine = setup({
             validatorsBalances: {
               description:
                 'Get all active beacon validators balances. We need to know the validators balances to calculate missed rewards.',
-              initial: 'checkingStatus',
+              initial: 'waitingForEpochStart',
               states: {
                 waitingForEpochStart: {
                   on: {
-                    EPOCH_STARTED: 'checkingStatus',
+                    EPOCH_STARTED: 'checkingIfAlreadyProcessed',
                   },
                 },
-                checkingStatus: {
+                checkingIfAlreadyProcessed: {
                   after: {
                     0: [
                       {
