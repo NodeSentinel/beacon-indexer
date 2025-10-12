@@ -383,7 +383,6 @@ export const epochProcessorMachine = setup({
                         target: 'complete',
                       },
                     ],
-                    onError: 'fetching',
                   },
                 },
                 complete: {
