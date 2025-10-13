@@ -369,9 +369,6 @@ export const epochProcessorMachine = setup({
                     onDone: {
                       target: 'complete',
                     },
-                    onError: {
-                      target: 'updatingSyncCommitteesFetched',
-                    },
                   },
                 },
                 fetching: {

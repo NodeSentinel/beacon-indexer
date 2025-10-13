@@ -2,11 +2,22 @@ import ms from 'ms';
 import { test, expect, vi, beforeEach } from 'vitest';
 import { createActor, fromPromise, SnapshotFrom } from 'xstate';
 
-import { BeaconTime } from '../../services/consensus/utils/time.js';
-
-import { epochProcessorMachine } from './epochProcessor.machine.js';
-
+import { createControllablePromise } from '@/src/__tests__/utils.js';
 import { EpochController } from '@/src/services/consensus/controllers/epoch.js';
+import { BeaconTime } from '@/src/services/consensus/utils/time.js';
+import { epochProcessorMachine } from '@/src/xstate/epoch/epochProcessor.machine.js';
+
+// Helper function to find the last epochProcessing state from state transitions
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function getLastEpochProcessingState(stateTransitions: any[]) {
+  for (let i = stateTransitions.length - 1; i >= 0; i--) {
+    const state = stateTransitions[i];
+    if (typeof state === 'object' && state !== null && 'epochProcessing' in state) {
+      return state;
+    }
+  }
+  return null;
+}
 
 // Mock EpochController
 const mockEpochController = {
@@ -287,11 +298,9 @@ describe('epochProcessorMachine', () => {
         // Advance some slots, epoch still doesn't start and committees should be in fetching
         vi.advanceTimersByTime(SLOT_DURATION * 3);
         await Promise.resolve();
-        const step2 = stateTransitions[stateTransitions.length - 1];
-        expect(typeof step2 === 'object' && 'epochProcessing' in step2).toBe(true);
-        const step2Obj = step2;
-        expect(step2Obj.epochProcessing.monitoringEpochStart).not.toBe('epochStarted');
-        expect(step2Obj.epochProcessing.fetching.committees).toBe('fetching');
+        const step2 = getLastEpochProcessingState(stateTransitions);
+        expect(step2!.epochProcessing.monitoringEpochStart).not.toBe('epochStarted');
+        expect(step2!.epochProcessing.fetching.committees).toBe('fetching');
 
         // Clean up
         actor.stop();
@@ -349,7 +358,8 @@ describe('epochProcessorMachine', () => {
         expect(mockEpochActors.checkSyncCommitteeForEpochInDB).toHaveBeenCalled();
         expect(mockEpochActors.fetchSyncCommittees).toHaveBeenCalled();
 
-        // get the states that ensures the syncCommittees are fetching: checkingIfAlreadyProcessed -> checkingInDB -> fetching
+        // get the states that ensures the syncCommittees are fetching (in order)
+        // checkingIfAlreadyProcessed -> checkingInDB -> fetching
         const syncStates = stateTransitions
           .filter((state) => typeof state === 'object' && 'epochProcessing' in state)
           .map((state) => {
@@ -357,17 +367,14 @@ describe('epochProcessorMachine', () => {
             return epochProcessing.fetching?.syncingCommittees;
           })
           .filter(Boolean);
-
-        // Check that all the states are present
+        // check they exists
         expect(syncStates).toContain('checkingIfAlreadyProcessed');
         expect(syncStates).toContain('checkingInDB');
         expect(syncStates).toContain('fetching');
-
-        // Verify the order
+        // check the order
         const checkingIfAlreadyProcessedIndex = syncStates.indexOf('checkingIfAlreadyProcessed');
         const checkingInDBIndex = syncStates.indexOf('checkingInDB');
         const fetchingIndex = syncStates.indexOf('fetching');
-
         expect(checkingIfAlreadyProcessedIndex).toBeLessThan(checkingInDBIndex);
         expect(checkingInDBIndex).toBeLessThan(fetchingIndex);
 
@@ -421,11 +428,9 @@ describe('epochProcessorMachine', () => {
         vi.advanceTimersByTime(SLOT_DURATION * 2);
         await Promise.resolve();
 
-        const finalState = stateTransitions[stateTransitions.length - 1];
-        expect(typeof finalState === 'object' && 'epochProcessing' in finalState).toBe(true);
-        const finalStateObj = finalState;
-        expect(finalStateObj.epochProcessing.monitoringEpochStart).not.toBe('epochStarted');
-        expect(finalStateObj.epochProcessing.fetching.slotsProcessing).toBe(
+        const finalState = getLastEpochProcessingState(stateTransitions);
+        expect(finalState!.epochProcessing.monitoringEpochStart).not.toBe('epochStarted');
+        expect(finalState!.epochProcessing.fetching.slotsProcessing).toBe(
           'waitingForPrerequisites',
         );
 
@@ -481,11 +486,9 @@ describe('epochProcessorMachine', () => {
         vi.advanceTimersByTime(SLOT_DURATION * 2);
         await Promise.resolve();
 
-        const finalState = stateTransitions[stateTransitions.length - 1];
-        expect(typeof finalState === 'object' && 'epochProcessing' in finalState).toBe(true);
-        const finalStateObj = finalState;
-        expect(finalStateObj.epochProcessing.monitoringEpochStart).not.toBe('epochStarted');
-        expect(finalStateObj.epochProcessing.fetching.trackingValidatorsActivation).toBe(
+        const finalState = getLastEpochProcessingState(stateTransitions);
+        expect(finalState!.epochProcessing.monitoringEpochStart).not.toBe('epochStarted');
+        expect(finalState!.epochProcessing.fetching.trackingValidatorsActivation).toBe(
           'waitingForEpochStart',
         );
 
@@ -540,11 +543,10 @@ describe('epochProcessorMachine', () => {
         vi.advanceTimersByTime(SLOT_DURATION * 2);
         await Promise.resolve();
 
-        const finalState = stateTransitions[stateTransitions.length - 1];
-        expect(typeof finalState === 'object' && 'epochProcessing' in finalState).toBe(true);
-        const finalStateObj = finalState;
-        expect(finalStateObj.epochProcessing.monitoringEpochStart).not.toBe('epochStarted');
-        expect(finalStateObj.epochProcessing.fetching.validatorsBalances).toBe(
+        const finalState = getLastEpochProcessingState(stateTransitions);
+        expect(finalState).not.toBeNull();
+        expect(finalState!.epochProcessing.monitoringEpochStart).not.toBe('epochStarted');
+        expect(finalState!.epochProcessing.fetching.validatorsBalances).toBe(
           'waitingForEpochStart',
         );
 
@@ -629,10 +631,9 @@ describe('epochProcessorMachine', () => {
             vi.advanceTimersByTime(SLOT_DURATION);
             await Promise.resolve();
 
-            const finalState = stateTransitions[stateTransitions.length - 1];
-            expect(typeof finalState === 'object' && 'epochProcessing' in finalState).toBe(true);
-            const finalStateObj = finalState;
-            expect(finalStateObj.epochProcessing.fetching.committees).toBe('complete');
+            const finalState = getLastEpochProcessingState(stateTransitions);
+            expect(finalState).not.toBeNull();
+            expect(finalState!.epochProcessing.fetching.committees).toBe('complete');
 
             // Verify fetchCommittees was NOT called since committees are already processed
             expect(mockEpochActors.fetchCommittees).not.toHaveBeenCalled();
@@ -711,10 +712,9 @@ describe('epochProcessorMachine', () => {
             vi.advanceTimersByTime(SLOT_DURATION);
             await Promise.resolve();
 
-            const step2 = stateTransitions[stateTransitions.length - 1];
-            expect(typeof step2 === 'object' && 'epochProcessing' in step2).toBe(true);
-            const step2Obj = step2;
-            expect(step2Obj.epochProcessing.fetching.committees).toBe('fetching');
+            const step2 = getLastEpochProcessingState(stateTransitions);
+            expect(step2).not.toBeNull();
+            expect(step2!.epochProcessing.fetching.committees).toBe('fetching');
 
             // Step 5: Verify fetchCommittees was called
             expect(mockEpochActors.fetchCommittees).toHaveBeenCalledWith(
@@ -726,10 +726,9 @@ describe('epochProcessorMachine', () => {
             await Promise.resolve();
 
             // Step 7: Should go to complete
-            const finalState = stateTransitions[stateTransitions.length - 1];
-            expect(typeof finalState === 'object' && 'epochProcessing' in finalState).toBe(true);
-            const finalStateObj = finalState;
-            expect(finalStateObj.epochProcessing.fetching.committees).toBe('complete');
+            const finalState = getLastEpochProcessingState(stateTransitions);
+            expect(finalState).not.toBeNull();
+            expect(finalState!.epochProcessing.fetching.committees).toBe('complete');
 
             // Step 8: Verify needsCommitteesFetch guard was called and returned true
             expect(mockNeedsCommitteesFetch).toHaveBeenCalled();
@@ -793,18 +792,16 @@ describe('epochProcessorMachine', () => {
             vi.advanceTimersByTime(SLOT_DURATION);
             await Promise.resolve();
 
-            const step2 = stateTransitions[stateTransitions.length - 1];
-            expect(typeof step2 === 'object' && 'epochProcessing' in step2).toBe(true);
-            const step2Obj = step2;
-            expect(step2Obj.epochProcessing.fetching.committees).toBe('fetching');
+            const step2 = getLastEpochProcessingState(stateTransitions);
+            expect(step2).not.toBeNull();
+            expect(step2!.epochProcessing.fetching.committees).toBe('fetching');
 
             vi.advanceTimersByTime(SLOT_DURATION * 2);
             await Promise.resolve();
 
-            const finalState = stateTransitions[stateTransitions.length - 1];
-            expect(typeof finalState === 'object' && 'epochProcessing' in finalState).toBe(true);
-            const finalStateObj = finalState;
-            expect(finalStateObj.epochProcessing.fetching.committees).toBe('fetching');
+            const finalState = getLastEpochProcessingState(stateTransitions);
+            expect(finalState).not.toBeNull();
+            expect(finalState!.epochProcessing.fetching.committees).toBe('fetching');
 
             actor.stop();
             subscription.unsubscribe();
@@ -864,10 +861,9 @@ describe('epochProcessorMachine', () => {
             await Promise.resolve();
 
             // Verify we reached complete state
-            const finalState = stateTransitions[stateTransitions.length - 1];
-            expect(typeof finalState === 'object' && 'epochProcessing' in finalState).toBe(true);
-            const finalStateObj = finalState;
-            expect(finalStateObj.epochProcessing.fetching.committees).toBe('complete');
+            const finalState = getLastEpochProcessingState(stateTransitions);
+            expect(finalState).not.toBeNull();
+            expect(finalState!.epochProcessing.fetching.committees).toBe('complete');
 
             // The complete state should have emitted COMMITTEES_FETCHED event
             // This is verified by the state transition to complete
@@ -903,58 +899,281 @@ describe('epochProcessorMachine', () => {
           vi.clearAllTimers();
         });
 
-        test('should go to complete when syncCommittees are already processed', async () => {
-          const actor = createActor(
-            epochProcessorMachine.provide({
-              guards: {
-                hasEpochAlreadyStarted: vi.fn(() => true),
-              },
-            }),
-            {
-              input: {
-                epoch: 100,
-                epochDBSnapshot: { ...epochDBSnapshotMock, syncCommitteesFetched: true },
-                config: {
-                  slotDuration: SLOT_DURATION,
-                  lookbackSlot: 32,
-                },
-                services: {
-                  beaconTime: mockBeaconTime,
-                  epochController: mockEpochController,
-                },
-              },
-            },
-          );
+        describe('syncingCommittees states', () => {
+          describe('when syncCommittees are already processed', () => {
+            test('should go directly to complete (hasSyncCommitteesFetched = true)', async () => {
+              // Mock the guard to return true for more explicit testing
+              const mockHasSyncCommitteesFetched = vi.fn(() => true);
 
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const stateTransitions: SnapshotFrom<any>[] = [];
-          const subscription = actor.subscribe((snapshot) => {
-            stateTransitions.push(snapshot.value);
+              const actor = createActor(
+                epochProcessorMachine.provide({
+                  guards: {
+                    hasEpochAlreadyStarted: vi.fn(() => true),
+                    hasSyncCommitteesFetched: mockHasSyncCommitteesFetched,
+                  },
+                }),
+                {
+                  input: {
+                    epoch: 100,
+                    epochDBSnapshot: { ...epochDBSnapshotMock, syncCommitteesFetched: true },
+                    config: {
+                      slotDuration: SLOT_DURATION,
+                      lookbackSlot: 32,
+                    },
+                    services: {
+                      beaconTime: mockBeaconTime,
+                      epochController: mockEpochController,
+                    },
+                  },
+                },
+              );
+
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              const stateTransitions: SnapshotFrom<any>[] = [];
+              const subscription = actor.subscribe((snapshot) => {
+                stateTransitions.push(snapshot.value);
+              });
+
+              actor.start();
+              vi.runOnlyPendingTimers();
+              await Promise.resolve();
+
+              // Step 0: Should start in checkingCanProcess
+              expect(stateTransitions[0]).toBe('checkingCanProcess');
+
+              // Step 1: Should go to epochProcessing with syncingCommittees in checkingIfAlreadyProcessed
+              const step1 = stateTransitions[1];
+              expect(typeof step1 === 'object' && 'epochProcessing' in step1).toBe(true);
+              expect(step1.epochProcessing.fetching.syncingCommittees).toBe(
+                'checkingIfAlreadyProcessed',
+              );
+
+              // Advance time to trigger the guard evaluation
+              vi.advanceTimersByTime(SLOT_DURATION / 2);
+
+              // Verify that the guard was called
+              expect(mockHasSyncCommitteesFetched).toHaveBeenCalled();
+
+              // Step 2: Should go directly to complete (skipping checkingInDB)
+              const step2 = getLastEpochProcessingState(stateTransitions);
+              expect(step2).not.toBeNull();
+              expect(step2!.epochProcessing.fetching.syncingCommittees).toBe('complete');
+
+              // Verify that checkSyncCommitteeForEpochInDB was NOT called (skipped the checkingInDB state)
+              expect(mockEpochActors.checkSyncCommitteeForEpochInDB).not.toHaveBeenCalled();
+
+              actor.stop();
+              subscription.unsubscribe();
+            });
           });
 
-          actor.start();
-          vi.runOnlyPendingTimers();
-          await Promise.resolve();
+          describe('when syncCommittees are not processed', () => {
+            describe('if found in DB', () => {
+              test('should go to updatingSyncCommitteesFetched > complete', async () => {
+                // Create controllable promises
+                const checkSyncCommitteePromise = createControllablePromise<{
+                  isFetched: boolean;
+                }>();
+                const updateSyncCommitteesPromise = createControllablePromise<{
+                  success: boolean;
+                }>();
 
-          expect(stateTransitions[0]).toBe('checkingCanProcess');
+                // Mock checkSyncCommitteeForEpochInDB to return controllable promise
+                mockEpochActors.checkSyncCommitteeForEpochInDB.mockImplementation(
+                  () => checkSyncCommitteePromise.promise,
+                );
 
-          const step1 = stateTransitions[1];
-          expect(typeof step1 === 'object' && 'epochProcessing' in step1).toBe(true);
-          const step1Obj = step1;
-          expect(step1Obj.epochProcessing.fetching.syncingCommittees).toBe(
-            'checkingIfAlreadyProcessed',
-          );
+                // Mock updateSyncCommitteesFetched to return controllable promise
+                mockEpochActors.updateSyncCommitteesFetched.mockImplementation(
+                  () => updateSyncCommitteesPromise.promise,
+                );
 
-          vi.advanceTimersByTime(SLOT_DURATION);
-          await Promise.resolve();
+                const actor = createActor(
+                  epochProcessorMachine.provide({
+                    guards: {
+                      hasEpochAlreadyStarted: vi.fn(() => true),
+                      hasSyncCommitteesFetched: vi.fn(() => false),
+                    },
+                  }),
+                  {
+                    input: {
+                      epoch: 100,
+                      epochDBSnapshot: { ...epochDBSnapshotMock, syncCommitteesFetched: false },
+                      config: {
+                        slotDuration: SLOT_DURATION,
+                        lookbackSlot: 32,
+                      },
+                      services: {
+                        beaconTime: mockBeaconTime,
+                        epochController: mockEpochController,
+                      },
+                    },
+                  },
+                );
 
-          const finalState = stateTransitions[stateTransitions.length - 1];
-          expect(typeof finalState === 'object' && 'epochProcessing' in finalState).toBe(true);
-          const finalStateObj = finalState;
-          expect(finalStateObj.epochProcessing.fetching.syncingCommittees).toBe('complete');
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                const stateTransitions: SnapshotFrom<any>[] = [];
+                const subscription = actor.subscribe((snapshot) => {
+                  stateTransitions.push(snapshot.value);
+                });
 
-          actor.stop();
-          subscription.unsubscribe();
+                actor.start();
+                vi.runOnlyPendingTimers();
+                await Promise.resolve();
+
+                // Step 0: Should start in checkingCanProcess
+                expect(stateTransitions[0]).toBe('checkingCanProcess');
+
+                // Step 1: Should go to epochProcessing with syncingCommittees in checkingIfAlreadyProcessed
+                const step1 = getLastEpochProcessingState(stateTransitions);
+                expect(step1.epochProcessing.fetching.syncingCommittees).toBe(
+                  'checkingIfAlreadyProcessed',
+                );
+
+                // Advance time to trigger the guard evaluation
+                vi.advanceTimersByTime(1);
+
+                // Step 2: Should go to checkingInDB
+                const step2 = getLastEpochProcessingState(stateTransitions);
+                expect(step2.epochProcessing.fetching.syncingCommittees).toBe('checkingInDB');
+
+                // Verify that checkSyncCommitteeForEpochInDB was called
+                expect(mockEpochActors.checkSyncCommitteeForEpochInDB).toHaveBeenCalledWith(
+                  expect.objectContaining({ input: { epoch: 100 } }),
+                );
+
+                // Now resolve with isFetched: true (found in DB)
+                checkSyncCommitteePromise.resolve({ isFetched: true });
+                await Promise.resolve();
+
+                // Step 3: Should go to updatingSyncCommitteesFetched (NOT fetching)
+                const step3 = getLastEpochProcessingState(stateTransitions);
+                expect(step3.epochProcessing.fetching.syncingCommittees).toBe(
+                  'updatingSyncCommitteesFetched',
+                );
+
+                // Verify that updateSyncCommitteesFetched was called
+                expect(mockEpochActors.updateSyncCommitteesFetched).toHaveBeenCalledWith(
+                  expect.objectContaining({ input: { epoch: 100 } }),
+                );
+
+                // Verify that fetchSyncCommittees was NOT called
+                expect(mockEpochActors.fetchSyncCommittees).not.toHaveBeenCalled();
+
+                // Resolve updateSyncCommitteesFetched to complete
+                updateSyncCommitteesPromise.resolve({ success: true });
+                await Promise.resolve();
+
+                // Step 4: Should go to complete
+                const step4 = getLastEpochProcessingState(stateTransitions);
+                expect(step4.epochProcessing.fetching.syncingCommittees).toBe('complete');
+
+                actor.stop();
+                subscription.unsubscribe();
+              });
+            });
+
+            describe('if NOT found in DB', () => {
+              test('should go to fetching > complete', async () => {
+                // Mock the guard to return false
+                const mockHasSyncCommitteesFetched = vi.fn(() => false);
+
+                // Create controllable promises
+                const checkSyncCommitteePromise = createControllablePromise<{
+                  isFetched: boolean;
+                }>();
+                const fetchSyncCommitteesPromise = createControllablePromise<{
+                  success: boolean;
+                }>();
+
+                // Mock checkSyncCommitteeForEpochInDB to return controllable promise
+                mockEpochActors.checkSyncCommitteeForEpochInDB.mockImplementation(
+                  () => checkSyncCommitteePromise.promise,
+                );
+
+                // Mock fetchSyncCommittees to return controllable promise
+                mockEpochActors.fetchSyncCommittees.mockImplementation(
+                  () => fetchSyncCommitteesPromise.promise,
+                );
+
+                const actor = createActor(
+                  epochProcessorMachine.provide({
+                    guards: {
+                      hasEpochAlreadyStarted: vi.fn(() => true),
+                      hasSyncCommitteesFetched: mockHasSyncCommitteesFetched,
+                    },
+                  }),
+                  {
+                    input: {
+                      epoch: 100,
+                      epochDBSnapshot: { ...epochDBSnapshotMock, syncCommitteesFetched: false },
+                      config: {
+                        slotDuration: SLOT_DURATION,
+                        lookbackSlot: 32,
+                      },
+                      services: {
+                        beaconTime: mockBeaconTime,
+                        epochController: mockEpochController,
+                      },
+                    },
+                  },
+                );
+
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                const stateTransitions: SnapshotFrom<any>[] = [];
+                const subscription = actor.subscribe((snapshot) => {
+                  stateTransitions.push(snapshot.value);
+                });
+
+                actor.start();
+                vi.runOnlyPendingTimers();
+                await Promise.resolve();
+
+                // Step 0: Should start in checkingCanProcess
+                expect(stateTransitions[0]).toBe('checkingCanProcess');
+
+                // Step 1: Should go to epochProcessing with syncingCommittees in checkingIfAlreadyProcessed
+                const step1 = getLastEpochProcessingState(stateTransitions);
+                expect(step1!.epochProcessing.fetching.syncingCommittees).toBe(
+                  'checkingIfAlreadyProcessed',
+                );
+
+                // Advance time to trigger the guard evaluation
+                vi.advanceTimersByTime(SLOT_DURATION);
+                await Promise.resolve();
+
+                // Step 2: Should go to checkingInDB
+                const step2 = getLastEpochProcessingState(stateTransitions);
+                expect(step2!.epochProcessing.fetching.syncingCommittees).toBe('checkingInDB');
+
+                // Verify that checkSyncCommitteeForEpochInDB was called
+                expect(mockEpochActors.checkSyncCommitteeForEpochInDB).toHaveBeenCalledWith(
+                  expect.objectContaining({ input: { epoch: 100 } }),
+                );
+                checkSyncCommitteePromise.resolve({ isFetched: false });
+                await Promise.resolve();
+
+                // Step 3: Should go to fetching
+                const step3 = getLastEpochProcessingState(stateTransitions);
+                expect(step3.epochProcessing.fetching.syncingCommittees).toBe('fetching');
+                expect(mockEpochActors.fetchSyncCommittees).toHaveBeenCalledWith(
+                  expect.objectContaining({ input: { epoch: 100 } }),
+                );
+                expect(mockEpochActors.updateSyncCommitteesFetched).not.toHaveBeenCalled();
+
+                // Resolve fetchSyncCommittees to complete
+                fetchSyncCommitteesPromise.resolve({ success: true });
+                await Promise.resolve();
+
+                // Step 4: Should go to complete
+                const step4 = getLastEpochProcessingState(stateTransitions);
+                expect(step4.epochProcessing.fetching.syncingCommittees).toBe('complete');
+
+                actor.stop();
+                subscription.unsubscribe();
+              });
+            });
+          });
         });
       });
     });

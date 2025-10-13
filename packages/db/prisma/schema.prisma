@@ -143,6 +143,9 @@ model HourlyValidatorStats {
     @@index([date, hour])
 }
 
+// TODO: unificar esta tabla con HourlyValidatorStats. Ahora que tenemos xstate podemos procesar
+// ambos rewards, guardar los datos en memoria y luego actualizar la tabla principal.
+// antes no se podia porque ambos procesos corrian en paralelo y se bloqueaban mutuamente.
 model HourlyBlockAndSyncRewards {
     validatorIndex Int
     hour           Int // 0-23
