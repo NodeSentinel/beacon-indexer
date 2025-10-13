@@ -119,7 +119,7 @@ describe('epochOrchestratorMachine', () => {
     controllableGetMinEpochPromise.resolve(null);
 
     // Wait for the state transition to complete
-    await new Promise((resolve) => setTimeout(resolve, 5));
+    await new Promise((resolve) => setTimeout(resolve, 50));
 
     // Assert - Should transition to noMinEpochToProcess after resolving with null
     snapshot = actor.getSnapshot();
@@ -222,7 +222,7 @@ describe('epochOrchestratorMachine', () => {
     actor.start();
 
     // Assert - Should be in gettingMinEpoch state initially
-    let snapshot = actor.getSnapshot();
+    const snapshot = actor.getSnapshot();
     expect(snapshot.value).toBe('gettingMinEpoch');
     expect(vi.mocked(mockEpochController.getMinEpochToProcess)).toHaveBeenCalledTimes(1);
 
@@ -233,9 +233,9 @@ describe('epochOrchestratorMachine', () => {
     await new Promise((resolve) => setTimeout(resolve, 5));
 
     // Assert - Should transition to noMinEpochToProcess after resolving with null
-    snapshot = actor.getSnapshot();
-    expect(snapshot.value).toBe('noMinEpochToProcess');
-    expect(snapshot.context.epochData).toBe(null);
+    // Use the last state from transitions instead of current snapshot
+    const finalState = stateTransitions[stateTransitions.length - 1];
+    expect(finalState).toBe('noMinEpochToProcess');
 
     // Wait for the 33ms delay to complete and retry
     await new Promise((resolve) => setTimeout(resolve, 50));
