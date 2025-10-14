@@ -133,6 +133,7 @@ export const epochProcessorMachine = setup({
       context.epochDBSnapshot.validatorsBalancesFetched,
     isValidatorsActivationProcessed: ({ context }) =>
       context.epochDBSnapshot.validatorsActivationFetched,
+    hasRewardsFetched: ({ context }) => context.epochDBSnapshot.rewardsFetched,
   },
   delays: {
     slotDurationHalf: ({ context }) => context.config.slotDuration / 2,
@@ -613,8 +614,23 @@ export const epochProcessorMachine = setup({
                     'EpochProcessor:rewards',
                   ),
                   on: {
-                    VALIDATORS_BALANCES_FETCHED: 'waitingForEpochToEnd',
+                    VALIDATORS_BALANCES_FETCHED: 'checkingIfAlreadyProcessed',
                   },
+                },
+                checkingIfAlreadyProcessed: {
+                  always: [
+                    {
+                      guard: 'hasRewardsFetched',
+                      target: 'complete',
+                      actions: pinoLog(
+                        ({ context }) => `Rewards already fetched for epoch ${context.epoch} `,
+                        'EpochProcessor:rewards',
+                      ),
+                    },
+                    {
+                      target: 'waitingForEpochToEnd',
+                    },
+                  ],
                 },
                 waitingForEpochToEnd: {
                   after: {

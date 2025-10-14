@@ -1,6 +1,6 @@
 import ms from 'ms';
 import { test, expect, vi, beforeEach } from 'vitest';
-import { createActor, fromPromise, SnapshotFrom } from 'xstate';
+import { createActor, fromPromise, SnapshotFrom, setup } from 'xstate';
 
 import { createControllablePromise } from '@/src/__tests__/utils.js';
 import { EpochController } from '@/src/services/consensus/controllers/epoch.js';
@@ -10,6 +10,23 @@ import { epochProcessorMachine } from '@/src/xstate/epoch/epochProcessor.machine
 // Helper function to find the last epochProcessing state from state transitions
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function getLastEpochProcessingState(stateTransitions: any[]) {
+  // First check if we have an "epochCompleted" state (final state)
+  for (let i = stateTransitions.length - 1; i >= 0; i--) {
+    const state = stateTransitions[i];
+    if (typeof state === 'string' && state === 'epochCompleted') {
+      return { epochProcessing: 'epochCompleted' };
+    }
+  }
+
+  // Then check if we have a "complete" state (which means epochProcessing is done)
+  for (let i = stateTransitions.length - 1; i >= 0; i--) {
+    const state = stateTransitions[i];
+    if (typeof state === 'string' && state === 'complete') {
+      return { epochProcessing: 'complete' };
+    }
+  }
+
+  // If no "complete" state found, look for the last epochProcessing state
   for (let i = stateTransitions.length - 1; i >= 0; i--) {
     const state = stateTransitions[i];
     if (typeof state === 'object' && state !== null && 'epochProcessing' in state) {
@@ -70,7 +87,7 @@ const mockEpochActors = vi.hoisted(() => ({
   updateSlotsFetched: vi.fn(() => new Promise(() => {})),
   updateSyncCommitteesFetched: vi.fn(() => new Promise(() => {})),
   trackingTransitioningValidators: vi.fn(() => new Promise(() => {})),
-  markEpochAsProcessed: vi.fn(() => Promise.resolve()),
+  markEpochAsProcessed: vi.fn(() => Promise.resolve({ success: true, machineId: 'test' })),
 }));
 
 // Mock slotOrchestratorMachine
@@ -2330,6 +2347,135 @@ describe('epochProcessorMachine', () => {
           });
         });
       });
+    });
+  });
+
+  describe('complete', () => {
+    const mockBeaconTime = new BeaconTime({
+      genesisTimestamp: GENESIS_TIMESTAMP,
+      slotDurationMs: SLOT_DURATION,
+      slotsPerEpoch: SLOTS_PER_EPOCH,
+      epochsPerSyncCommitteePeriod: EPOCHS_PER_SYNC_COMMITTEE_PERIOD,
+      slotStartIndexing: SLOT_START_INDEXING,
+    });
+
+    beforeEach(() => {
+      vi.useFakeTimers();
+      // Set time to after epoch 100 has ended (epoch 100 * 32 + 1 = slot 3201)
+      vi.setSystemTime(
+        new Date(EPOCH_100_START_TIME + SLOTS_PER_EPOCH * SLOT_DURATION + SLOT_DURATION),
+      );
+      resetMockActors();
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+      vi.clearAllTimers();
+    });
+
+    test('should invoke markEpochAsProcessed and transition to epochCompleted', async () => {
+      // Create controllable promise for markEpochAsProcessed
+      const markEpochPromise = createControllablePromise<{ success: boolean; machineId: string }>();
+
+      // Mock markEpochAsProcessed to return controllable promise
+      mockEpochActors.markEpochAsProcessed.mockImplementation(() => markEpochPromise.promise);
+
+      // Create a parent actor to handle sendParent events
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const receivedEvents: any[] = [];
+      const parentActor = createActor(
+        setup({}).createMachine({
+          id: 'parent',
+          initial: 'idle',
+          states: {
+            idle: {
+              on: {
+                EPOCH_COMPLETED: {
+                  target: 'completed',
+                  actions: [
+                    ({ event }) => {
+                      receivedEvents.push(event);
+                    },
+                  ],
+                },
+              },
+            },
+            completed: {
+              type: 'final',
+            },
+          },
+        }),
+      );
+
+      // Start the parent actor first
+      parentActor.start();
+
+      const actor = createActor(epochProcessorMachine.provide({}), {
+        input: {
+          epoch: 100,
+          epochDBSnapshot: {
+            committeesFetched: true,
+            syncCommitteesFetched: true,
+            validatorsBalancesFetched: true,
+            validatorsActivationFetched: true,
+            slotsFetched: true,
+            rewardsFetched: true,
+          },
+          config: {
+            slotDuration: SLOT_DURATION,
+            lookbackSlot: 32,
+          },
+          services: {
+            beaconTime: mockBeaconTime,
+            epochController: mockEpochController,
+          },
+        },
+        parent: parentActor,
+      });
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const stateTransitions: SnapshotFrom<any>[] = [];
+      const subscription = actor.subscribe((snapshot) => {
+        stateTransitions.push(snapshot.value);
+      });
+
+      actor.start();
+      vi.runOnlyPendingTimers();
+      vi.advanceTimersByTime(5);
+      await Promise.resolve();
+
+      // Should go to complete
+      const step2 = getLastMachineState(stateTransitions, 'complete');
+      expect(step2).toBe('complete');
+
+      // Verify that markEpochAsProcessed was called
+      expect(mockEpochActors.markEpochAsProcessed).toHaveBeenCalledWith(
+        expect.objectContaining({
+          input: {
+            epochController: mockEpochController,
+            epoch: 100,
+            machineId: 'epochProcessor:100',
+          },
+        }),
+      );
+
+      // Resolve markEpochAsProcessed to complete
+      markEpochPromise.resolve({ success: true, machineId: 'epochProcessor:100' });
+      await Promise.resolve();
+      // Should go to epochCompleted
+      const finalState = getLastMachineState(stateTransitions, 'epochCompleted');
+      expect(finalState).not.toBeNull();
+      expect(finalState).toBe('epochCompleted');
+
+      // Verify that the parent received the EPOCH_COMPLETED event
+      expect(receivedEvents).toHaveLength(1);
+      expect(receivedEvents[0]).toEqual({
+        type: 'EPOCH_COMPLETED',
+        machineId: 'epochProcessor:100',
+      });
+
+      parentActor.stop();
+      subscription.unsubscribe();
     });
   });
 });
