@@ -131,7 +131,7 @@ export const epochProcessorMachine = setup({
     needsCommitteesFetch: ({ context }) => !context.epochDBSnapshot.committeesFetched,
     hasValidatorsBalancesFetched: ({ context }) =>
       context.epochDBSnapshot.validatorsBalancesFetched,
-    hasValidatorsActivationFetched: ({ context }) =>
+    isValidatorsActivationProcessed: ({ context }) =>
       context.epochDBSnapshot.validatorsActivationFetched,
   },
   delays: {
@@ -509,7 +509,7 @@ export const epochProcessorMachine = setup({
                   after: {
                     0: [
                       {
-                        guard: 'hasValidatorsActivationFetched',
+                        guard: 'isValidatorsActivationProcessed',
                         target: 'complete',
                         actions: pinoLog(
                           ({ context }) =>

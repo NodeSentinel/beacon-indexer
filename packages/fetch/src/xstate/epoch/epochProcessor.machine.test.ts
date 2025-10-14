@@ -1,6 +1,6 @@
 import ms from 'ms';
 import { test, expect, vi, beforeEach } from 'vitest';
-import { createActor, fromPromise, SnapshotFrom, sendParent } from 'xstate';
+import { createActor, fromPromise, SnapshotFrom } from 'xstate';
 
 import { createControllablePromise } from '@/src/__tests__/utils.js';
 import { EpochController } from '@/src/services/consensus/controllers/epoch.js';
@@ -105,16 +105,23 @@ vi.mock('@/src/xstate/multiMachineLogger.js', () => ({
 }));
 
 describe('epochProcessorMachine', () => {
-  describe('checkingCanProcess:waiting', () => {
-    const SLOT_DURATION = ms('10ms');
-    const SLOTS_PER_EPOCH = 32;
+  // Global test constants
+  const SLOT_DURATION = ms('10ms');
+  const SLOTS_PER_EPOCH = 32;
+  const GENESIS_TIMESTAMP = 1606824000000;
+  const EPOCHS_PER_SYNC_COMMITTEE_PERIOD = 256;
+  const SLOT_START_INDEXING = 32;
+  const EPOCH_97_START_TIME = GENESIS_TIMESTAMP + 97 * SLOTS_PER_EPOCH * 10;
+  const EPOCH_100_START_TIME = GENESIS_TIMESTAMP + 100 * SLOTS_PER_EPOCH * 10;
+  const EPOCH_101_START_TIME = GENESIS_TIMESTAMP + 101 * SLOTS_PER_EPOCH * 10;
 
+  describe('checkingCanProcess', () => {
     const mockBeaconTime = new BeaconTime({
-      genesisTimestamp: 1606824000000,
+      genesisTimestamp: GENESIS_TIMESTAMP,
       slotDurationMs: SLOT_DURATION,
       slotsPerEpoch: SLOTS_PER_EPOCH,
-      epochsPerSyncCommitteePeriod: 256,
-      slotStartIndexing: 32,
+      epochsPerSyncCommitteePeriod: EPOCHS_PER_SYNC_COMMITTEE_PERIOD,
+      slotStartIndexing: SLOT_START_INDEXING,
     });
 
     beforeEach(() => {
@@ -128,7 +135,6 @@ describe('epochProcessorMachine', () => {
     });
 
     test('cannot process epoch (too early), should go to waiting and retry', async () => {
-      const EPOCH_97_START_TIME = mockBeaconTime.getTimestampFromEpochNumber(97);
       const mockCurrentTime = EPOCH_97_START_TIME + 50;
       vi.setSystemTime(new Date(mockCurrentTime));
 
@@ -190,7 +196,6 @@ describe('epochProcessorMachine', () => {
     });
 
     test('can process epoch (1 epoch in advance), should go to epochProcessing', async () => {
-      const EPOCH_101_START_TIME = mockBeaconTime.getTimestampFromEpochNumber(101);
       const mockCurrentTime = EPOCH_101_START_TIME + 10;
       vi.setSystemTime(new Date(mockCurrentTime));
 
@@ -237,17 +242,13 @@ describe('epochProcessorMachine', () => {
   });
 
   describe('epochProcessing', () => {
-    describe('when epoch has not started yet', () => {
-      const SLOT_DURATION = ms('10ms');
-      const SLOTS_PER_EPOCH = 32;
-      const EPOCH_100_START_TIME = 1606824000000 + 100 * 32 * 10; // 100 epochs * 32 slots * 10ms
-
+    describe('before epoch starts', () => {
       const mockBeaconTime = new BeaconTime({
-        genesisTimestamp: 1606824000000,
+        genesisTimestamp: GENESIS_TIMESTAMP,
         slotDurationMs: SLOT_DURATION,
         slotsPerEpoch: SLOTS_PER_EPOCH,
-        epochsPerSyncCommitteePeriod: 256,
-        slotStartIndexing: 32,
+        epochsPerSyncCommitteePeriod: EPOCHS_PER_SYNC_COMMITTEE_PERIOD,
+        slotStartIndexing: SLOT_START_INDEXING,
       });
 
       beforeEach(() => {
@@ -563,18 +564,14 @@ describe('epochProcessorMachine', () => {
       });
     });
 
-    describe('when epoch has started', () => {
+    describe('after epoch starts', () => {
       describe('committees', () => {
-        const SLOT_DURATION = ms('10ms');
-        const SLOTS_PER_EPOCH = 32;
-        const EPOCH_101_START_TIME = 1606824000000 + 101 * 32 * 10;
-
         const mockBeaconTime = new BeaconTime({
-          genesisTimestamp: 1606824000000,
+          genesisTimestamp: GENESIS_TIMESTAMP,
           slotDurationMs: SLOT_DURATION,
           slotsPerEpoch: SLOTS_PER_EPOCH,
-          epochsPerSyncCommitteePeriod: 256,
-          slotStartIndexing: 32,
+          epochsPerSyncCommitteePeriod: EPOCHS_PER_SYNC_COMMITTEE_PERIOD,
+          slotStartIndexing: SLOT_START_INDEXING,
         });
 
         beforeEach(() => {
@@ -588,7 +585,7 @@ describe('epochProcessorMachine', () => {
           vi.clearAllTimers();
         });
 
-        describe('when committees are already processed', () => {
+        describe('already processed', () => {
           test('should go directly to complete', async () => {
             // Mock fetchCommittees to verify it's NOT called
             mockEpochActors.fetchCommittees.mockImplementation(
@@ -650,7 +647,7 @@ describe('epochProcessorMachine', () => {
           });
         });
 
-        describe('when committees are not processed', () => {
+        describe('not processed', () => {
           test('should fetch committees and then complete', async () => {
             // Mock needsCommitteesFetch guard to return true
             const mockNeedsCommitteesFetch = vi.fn(() => true);
@@ -816,7 +813,7 @@ describe('epochProcessorMachine', () => {
           });
         });
 
-        describe('when transitions to complete', () => {
+        describe('transitions to complete', () => {
           test('should emit COMMITTEES_FETCHED event', async () => {
             // Mock needsCommitteesFetch guard to return true
             const mockNeedsCommitteesFetch = vi.fn(() => true);
@@ -884,16 +881,12 @@ describe('epochProcessorMachine', () => {
       });
 
       describe('syncCommittees', () => {
-        const SLOT_DURATION = ms('10ms');
-        const SLOTS_PER_EPOCH = 32;
-        const EPOCH_101_START_TIME = 1606824000000 + 101 * 32 * 10;
-
         const mockBeaconTime = new BeaconTime({
-          genesisTimestamp: 1606824000000,
+          genesisTimestamp: GENESIS_TIMESTAMP,
           slotDurationMs: SLOT_DURATION,
           slotsPerEpoch: SLOTS_PER_EPOCH,
-          epochsPerSyncCommitteePeriod: 256,
-          slotStartIndexing: 32,
+          epochsPerSyncCommitteePeriod: EPOCHS_PER_SYNC_COMMITTEE_PERIOD,
+          slotStartIndexing: SLOT_START_INDEXING,
         });
 
         beforeEach(() => {
@@ -907,8 +900,8 @@ describe('epochProcessorMachine', () => {
           vi.clearAllTimers();
         });
 
-        describe('syncingCommittees states', () => {
-          describe('when syncCommittees are already processed', () => {
+        describe('states', () => {
+          describe('already processed', () => {
             test('should go directly to complete (hasSyncCommitteesFetched = true)', async () => {
               // Mock the guard to return true for more explicit testing
               const mockHasSyncCommitteesFetched = vi.fn(() => true);
@@ -975,7 +968,7 @@ describe('epochProcessorMachine', () => {
             });
           });
 
-          describe('when syncCommittees are not processed', () => {
+          describe('not processed', () => {
             describe('if found in DB', () => {
               test('should go to updatingSyncCommitteesFetched > complete', async () => {
                 // Create controllable promises
@@ -1186,13 +1179,12 @@ describe('epochProcessorMachine', () => {
       });
 
       describe('slotsProcessing', () => {
-        const SLOT_DURATION = ms('10ms');
         const mockBeaconTime = new BeaconTime({
-          genesisTimestamp: 1606824000000,
+          genesisTimestamp: GENESIS_TIMESTAMP,
           slotDurationMs: SLOT_DURATION,
-          slotsPerEpoch: 32,
-          epochsPerSyncCommitteePeriod: 256,
-          slotStartIndexing: 32,
+          slotsPerEpoch: SLOTS_PER_EPOCH,
+          epochsPerSyncCommitteePeriod: EPOCHS_PER_SYNC_COMMITTEE_PERIOD,
+          slotStartIndexing: SLOT_START_INDEXING,
         });
 
         beforeEach(() => {
@@ -1205,17 +1197,14 @@ describe('epochProcessorMachine', () => {
           vi.clearAllTimers();
         });
 
-        describe('waiting for committees to be fetched before continuing', () => {
+        describe('waiting for committees', () => {
           test('should stay in waitingForCommittees until COMMITTEES_FETCHED arrives, then transition to checkingSlotsProcessed', async () => {
-            const SLOT_DURATION = ms('10ms');
-            const SLOTS_PER_EPOCH = 32;
-
             const mockBeaconTime = new BeaconTime({
-              genesisTimestamp: 1606824000000,
+              genesisTimestamp: GENESIS_TIMESTAMP,
               slotDurationMs: SLOT_DURATION,
               slotsPerEpoch: SLOTS_PER_EPOCH,
-              epochsPerSyncCommitteePeriod: 256,
-              slotStartIndexing: 32,
+              epochsPerSyncCommitteePeriod: EPOCHS_PER_SYNC_COMMITTEE_PERIOD,
+              slotStartIndexing: SLOT_START_INDEXING,
             });
 
             // Mock needsCommitteesFetch to return true so committees will be fetched
@@ -1293,7 +1282,7 @@ describe('epochProcessorMachine', () => {
         });
 
         describe('checkingSlotsProcessed', () => {
-          describe('when slots are already processed', () => {
+          describe('already processed', () => {
             test('should go to complete', async () => {
               vi.useFakeTimers();
 
@@ -1351,7 +1340,7 @@ describe('epochProcessorMachine', () => {
             });
           });
 
-          describe('when slots are NOT processed', () => {
+          describe('not processed', () => {
             test('should go to processingSlots', async () => {
               vi.useFakeTimers();
 
@@ -1573,6 +1562,234 @@ describe('epochProcessorMachine', () => {
 
             actor.stop();
             subscription.unsubscribe();
+          });
+        });
+      });
+
+      describe('trackingValidatorsActivation', () => {
+        const mockBeaconTime = new BeaconTime({
+          genesisTimestamp: GENESIS_TIMESTAMP,
+          slotDurationMs: SLOT_DURATION,
+          slotsPerEpoch: SLOTS_PER_EPOCH,
+          epochsPerSyncCommitteePeriod: EPOCHS_PER_SYNC_COMMITTEE_PERIOD,
+          slotStartIndexing: SLOT_START_INDEXING,
+        });
+
+        beforeEach(() => {
+          vi.useFakeTimers();
+          vi.setSystemTime(new Date(EPOCH_101_START_TIME + 50));
+          resetMockActors();
+        });
+
+        afterEach(() => {
+          vi.useRealTimers();
+          vi.clearAllTimers();
+        });
+
+        describe('before epoch starts', () => {
+          test('should wait for epoch to start', async () => {
+            const actor = createActor(
+              epochProcessorMachine.provide({
+                guards: {
+                  hasEpochAlreadyStarted: vi.fn(() => false),
+                },
+              }),
+              {
+                input: {
+                  epoch: 100,
+                  epochDBSnapshot: { ...epochDBSnapshotMock, validatorsActivationFetched: false },
+                  config: {
+                    slotDuration: SLOT_DURATION,
+                    lookbackSlot: 32,
+                  },
+                  services: {
+                    beaconTime: mockBeaconTime,
+                    epochController: mockEpochController,
+                  },
+                },
+              },
+            );
+
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const stateTransitions: SnapshotFrom<any>[] = [];
+            const subscription = actor.subscribe((snapshot) => {
+              stateTransitions.push(snapshot.value);
+            });
+
+            actor.start();
+            vi.runOnlyPendingTimers();
+            await Promise.resolve();
+
+            // Should start in checkingCanProcess
+            expect(stateTransitions[0]).toBe('checkingCanProcess');
+
+            // Should go to epochProcessing with trackingValidatorsActivation in waitingForEpochStart
+            const step1 = getLastEpochProcessingState(stateTransitions);
+            expect(step1.epochProcessing.fetching.trackingValidatorsActivation).toBe(
+              'waitingForEpochStart',
+            );
+
+            // Wait a bit to ensure it doesn't change (epoch should not start)
+            vi.advanceTimersByTime(SLOT_DURATION * 2);
+            await Promise.resolve();
+
+            const finalState = getLastEpochProcessingState(stateTransitions);
+            expect(finalState.epochProcessing.fetching.trackingValidatorsActivation).toBe(
+              'waitingForEpochStart',
+            );
+
+            actor.stop();
+            subscription.unsubscribe();
+          });
+        });
+
+        describe('after epoch starts', () => {
+          describe('already processed', () => {
+            test('should go to complete', async () => {
+              // Mock the guard to return true for more explicit testing
+              const mockIsValidatorsActivationProcessed = vi.fn(() => true);
+
+              const actor = createActor(
+                epochProcessorMachine.provide({
+                  guards: {
+                    hasEpochAlreadyStarted: vi.fn(() => true),
+                    isValidatorsActivationProcessed: mockIsValidatorsActivationProcessed,
+                  },
+                }),
+                {
+                  input: {
+                    epoch: 100,
+                    epochDBSnapshot: { ...epochDBSnapshotMock, validatorsActivationFetched: true },
+                    config: {
+                      slotDuration: SLOT_DURATION,
+                      lookbackSlot: 32,
+                    },
+                    services: {
+                      beaconTime: mockBeaconTime,
+                      epochController: mockEpochController,
+                    },
+                  },
+                },
+              );
+
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              const stateTransitions: SnapshotFrom<any>[] = [];
+              const subscription = actor.subscribe((snapshot) => {
+                stateTransitions.push(snapshot.value);
+              });
+
+              actor.start();
+              vi.runOnlyPendingTimers();
+              await Promise.resolve();
+
+              // Step 0: Should start in checkingCanProcess
+              expect(stateTransitions[0]).toBe('checkingCanProcess');
+
+              // Step 1: Should go to epochProcessing with trackingValidatorsActivation in waitingForEpochStart
+              const step1 = stateTransitions[1];
+              expect(typeof step1 === 'object' && 'epochProcessing' in step1).toBe(true);
+              expect(step1.epochProcessing.fetching.trackingValidatorsActivation).toBe(
+                'waitingForEpochStart',
+              );
+
+              // Advance time to trigger epoch start and EPOCH_STARTED event
+              vi.advanceTimersByTime(SLOT_DURATION);
+              await Promise.resolve();
+
+              // Verify that the guard was called
+              expect(mockIsValidatorsActivationProcessed).toHaveBeenCalled();
+
+              // Step 2: Should transition directly to complete (checkingIfAlreadyProcessed has after: 0)
+              const step2 = getLastEpochProcessingState(stateTransitions);
+              expect(step2).not.toBeNull();
+              expect(step2!.epochProcessing.fetching.trackingValidatorsActivation).toBe('complete');
+
+              // Verify that trackingTransitioningValidators was NOT called
+              expect(mockEpochActors.trackingTransitioningValidators).not.toHaveBeenCalled();
+
+              actor.stop();
+              subscription.unsubscribe();
+            });
+          });
+
+          describe('not processed', () => {
+            test('should go to fetching and then complete', async () => {
+              // Create controllable promise for trackingTransitioningValidators
+              const trackingPromise = createControllablePromise<{
+                success: boolean;
+                processedCount: number;
+              }>();
+
+              // Mock trackingTransitioningValidators to return controllable promise
+              mockEpochActors.trackingTransitioningValidators.mockImplementation(
+                () => trackingPromise.promise,
+              );
+
+              const actor = createActor(
+                epochProcessorMachine.provide({
+                  guards: {
+                    hasEpochAlreadyStarted: vi.fn(() => true),
+                  },
+                }),
+                {
+                  input: {
+                    epoch: 100,
+                    epochDBSnapshot: { ...epochDBSnapshotMock, validatorsActivationFetched: false },
+                    config: {
+                      slotDuration: SLOT_DURATION,
+                      lookbackSlot: 32,
+                    },
+                    services: {
+                      beaconTime: mockBeaconTime,
+                      epochController: mockEpochController,
+                    },
+                  },
+                },
+              );
+
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              const stateTransitions: SnapshotFrom<any>[] = [];
+              const subscription = actor.subscribe((snapshot) => {
+                stateTransitions.push(snapshot.value);
+              });
+
+              actor.start();
+              vi.runOnlyPendingTimers();
+              await Promise.resolve();
+
+              // Step 0: Should start in checkingCanProcess
+              expect(stateTransitions[0]).toBe('checkingCanProcess');
+
+              // Step 1: Should go to epochProcessing with trackingValidatorsActivation in waitingForEpochStart
+              const step1 = getLastEpochProcessingState(stateTransitions);
+              expect(step1!.epochProcessing.fetching.trackingValidatorsActivation).toBe(
+                'waitingForEpochStart',
+              );
+
+              // Advance time to trigger epoch start and EPOCH_STARTED event
+              vi.advanceTimersByTime(SLOT_DURATION);
+              await Promise.resolve();
+
+              // Step 2: Should transition directly to fetching (checkingIfAlreadyProcessed has after: 0)
+              const step2 = getLastEpochProcessingState(stateTransitions);
+              expect(step2!.epochProcessing.fetching.trackingValidatorsActivation).toBe('fetching');
+
+              // Verify that trackingTransitioningValidators was called
+              expect(mockEpochActors.trackingTransitioningValidators).toHaveBeenCalledWith(
+                expect.objectContaining({ input: { epoch: 100 } }),
+              );
+
+              // Resolve trackingTransitioningValidators to complete
+              trackingPromise.resolve({ success: true, processedCount: 5 });
+              await Promise.resolve();
+
+              // Step 4: Should go to complete
+              const step4 = getLastEpochProcessingState(stateTransitions);
+              expect(step4!.epochProcessing.fetching.trackingValidatorsActivation).toBe('complete');
+
+              actor.stop();
+              subscription.unsubscribe();
+            });
           });
         });
       });
