@@ -21,6 +21,8 @@ import { pinoLog } from '@/src/xstate/pinoLog.js';
  * This machine processes one epoch at a time.
  */
 
+// TODO: make this machine to process N epochs at a time.
+
 export const epochOrchestratorMachine = setup({
   types: {} as {
     context: {
@@ -93,15 +95,17 @@ export const epochOrchestratorMachine = setup({
     },
 
     checkingIfCanSpawnEpochProcessor: {
-      always: [
-        {
-          guard: 'hasEpochDataInContext',
-          target: 'processingEpoch',
-        },
-        {
-          target: 'noMinEpochToProcess',
-        },
-      ],
+      after: {
+        0: [
+          {
+            guard: 'hasEpochDataInContext',
+            target: 'processingEpoch',
+          },
+          {
+            target: 'noMinEpochToProcess',
+          },
+        ],
+      },
     },
 
     processingEpoch: {
