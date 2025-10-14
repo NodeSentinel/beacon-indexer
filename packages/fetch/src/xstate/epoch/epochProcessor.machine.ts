@@ -684,14 +684,6 @@ export const epochProcessorMachine = setup({
             })),
           ],
         },
-        onError: {
-          target: 'complete',
-          actions: pinoLog(
-            ({ event }) => `Error marking epoch as processed: ${event.error}`,
-            'EpochProcessor',
-            'error',
-          ),
-        },
       },
     },
     epochCompleted: {

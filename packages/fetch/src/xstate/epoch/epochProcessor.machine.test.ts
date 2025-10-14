@@ -19,6 +19,42 @@ function getLastEpochProcessingState(stateTransitions: any[]) {
   return null;
 }
 
+// Helper function to get the last state of a specific sub-state
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function getLastMachineState(stateTransitions: any[], subStatePath: string) {
+  // If path has dots, it's a nested state - look for epochProcessing states
+  if (subStatePath.includes('.')) {
+    const epochProcessingStates = stateTransitions.filter(
+      (state) => typeof state === 'object' && state !== null && 'epochProcessing' in state,
+    );
+
+    if (epochProcessingStates.length === 0) return null;
+
+    const lastState = epochProcessingStates[epochProcessingStates.length - 1];
+    const pathParts = subStatePath.split('.');
+
+    let current = lastState;
+    for (const part of pathParts) {
+      if (current && typeof current === 'object' && part in current) {
+        current = current[part];
+      } else {
+        return null;
+      }
+    }
+
+    return current;
+  } else {
+    // If no dots, it's a top-level state - look for string states
+    for (let i = stateTransitions.length - 1; i >= 0; i--) {
+      const state = stateTransitions[i];
+      if (typeof state === 'string' && state === subStatePath) {
+        return state;
+      }
+    }
+    return null;
+  }
+}
+
 // Mock EpochController
 const mockEpochController = {
   markEpochAsProcessed: vi.fn().mockResolvedValue(undefined),
@@ -2012,6 +2048,281 @@ describe('epochProcessorMachine', () => {
               // Step 3: Should go to complete
               const step3 = getLastEpochProcessingState(stateTransitions);
               expect(step3!.epochProcessing.fetching.validatorsBalances).toBe('complete');
+
+              actor.stop();
+              subscription.unsubscribe();
+            });
+          });
+        });
+      });
+
+      describe('rewards', () => {
+        const mockBeaconTime = new BeaconTime({
+          genesisTimestamp: GENESIS_TIMESTAMP,
+          slotDurationMs: SLOT_DURATION,
+          slotsPerEpoch: SLOTS_PER_EPOCH,
+          epochsPerSyncCommitteePeriod: EPOCHS_PER_SYNC_COMMITTEE_PERIOD,
+          slotStartIndexing: SLOT_START_INDEXING,
+        });
+
+        beforeEach(() => {
+          vi.useFakeTimers();
+          vi.setSystemTime(new Date(EPOCH_101_START_TIME + 50));
+          resetMockActors();
+        });
+
+        afterEach(() => {
+          vi.useRealTimers();
+          vi.clearAllTimers();
+        });
+
+        describe('waiting for validators balances', () => {
+          test('should wait for VALIDATORS_BALANCES_FETCHED event', async () => {
+            // Create controllable promise for fetchValidatorsBalances
+            const fetchBalancesPromise = createControllablePromise<{ success: boolean }>();
+
+            // Mock fetchValidatorsBalances to return controllable promise
+            mockEpochActors.fetchValidatorsBalances.mockImplementation(
+              () => fetchBalancesPromise.promise,
+            );
+
+            const actor = createActor(
+              epochProcessorMachine.provide({
+                guards: {
+                  hasValidatorsBalancesFetched: vi.fn(() => false),
+                },
+              }),
+              {
+                input: {
+                  epoch: 100,
+                  epochDBSnapshot: { ...epochDBSnapshotMock, validatorsBalancesFetched: false },
+                  config: {
+                    slotDuration: SLOT_DURATION,
+                    lookbackSlot: 32,
+                  },
+                  services: {
+                    beaconTime: mockBeaconTime,
+                    epochController: mockEpochController,
+                  },
+                },
+              },
+            );
+
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const stateTransitions: SnapshotFrom<any>[] = [];
+            const subscription = actor.subscribe((snapshot) => {
+              stateTransitions.push(snapshot.value);
+            });
+
+            actor.start();
+            vi.runOnlyPendingTimers();
+            await Promise.resolve();
+
+            // Should start in checkingCanProcess
+            expect(stateTransitions[0]).toBe('checkingCanProcess');
+
+            // Demonstrate that getLastMachineState works with top-level states too
+            const topLevelState = getLastMachineState(stateTransitions, 'checkingCanProcess');
+            expect(topLevelState).toBe('checkingCanProcess');
+
+            // Advance time to ensure validatorsBalances reaches fetching state
+            vi.advanceTimersByTime(SLOT_DURATION);
+            await Promise.resolve();
+
+            // Verify that validatorsBalances is in fetching state
+            const validatorsBalancesState = getLastMachineState(
+              stateTransitions,
+              'epochProcessing.fetching.validatorsBalances',
+            );
+            expect(validatorsBalancesState).toBe('fetching');
+
+            // Verify that fetchValidatorsBalances was called
+            expect(mockEpochActors.fetchValidatorsBalances).toHaveBeenCalledWith(
+              expect.objectContaining({ input: { startSlot: 3200 } }), // 100 * 32 = 3200
+            );
+
+            // Should go to epochProcessing with rewards in waitingForValidatorsBalances
+            const rewardsState = getLastMachineState(
+              stateTransitions,
+              'epochProcessing.fetching.rewards',
+            );
+            expect(rewardsState).toBe('waitingForValidatorsBalances');
+
+            // Wait a bit to ensure rewards doesn't change (no VALIDATORS_BALANCES_FETCHED event yet)
+            vi.advanceTimersByTime(SLOT_DURATION * 2);
+            await Promise.resolve();
+
+            // Verify rewards is still waiting
+            const rewardsStillWaiting = getLastMachineState(
+              stateTransitions,
+              'epochProcessing.fetching.rewards',
+            );
+            expect(rewardsStillWaiting).toBe('waitingForValidatorsBalances');
+
+            // Verify that validatorsBalances is still in fetching (controlled promise still pending)
+            const validatorsBalancesStillFetching = getLastMachineState(
+              stateTransitions,
+              'epochProcessing.fetching.validatorsBalances',
+            );
+            expect(validatorsBalancesStillFetching).toBe('fetching');
+
+            // Verify that fetchAttestationsRewards was NOT called
+            expect(mockEpochActors.fetchAttestationsRewards).not.toHaveBeenCalled();
+
+            actor.stop();
+            subscription.unsubscribe();
+          });
+        });
+
+        describe('waiting for epoch to end', () => {
+          describe('epoch has ended', () => {
+            test('should go to fetching and complete', async () => {
+              // Create controllable promise for fetchAttestationsRewards
+              const fetchRewardsPromise = createControllablePromise<{ success: boolean }>();
+
+              // Mock fetchAttestationsRewards to return controllable promise
+              mockEpochActors.fetchAttestationsRewards.mockImplementation(
+                () => fetchRewardsPromise.promise,
+              );
+
+              const actor = createActor(
+                epochProcessorMachine.provide({
+                  guards: {
+                    hasEpochAlreadyStarted: vi.fn(() => true),
+                    hasEpochEnded: vi.fn(() => true), // Epoch has ended
+                  },
+                }),
+                {
+                  input: {
+                    epoch: 100,
+                    epochDBSnapshot: { ...epochDBSnapshotMock, validatorsBalancesFetched: true },
+                    config: {
+                      slotDuration: SLOT_DURATION,
+                      lookbackSlot: 32,
+                    },
+                    services: {
+                      beaconTime: mockBeaconTime,
+                      epochController: mockEpochController,
+                    },
+                  },
+                },
+              );
+
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              const stateTransitions: SnapshotFrom<any>[] = [];
+              const subscription = actor.subscribe((snapshot) => {
+                stateTransitions.push(snapshot.value);
+              });
+
+              actor.start();
+              vi.runOnlyPendingTimers();
+              await Promise.resolve();
+
+              // Simulate VALIDATORS_BALANCES_FETCHED event by sending it directly
+              actor.send({ type: 'VALIDATORS_BALANCES_FETCHED' });
+              await Promise.resolve();
+
+              // Advance time to trigger the guard evaluation
+              vi.advanceTimersByTime(SLOT_DURATION);
+              await Promise.resolve();
+
+              // Should go to fetching
+              const rewardsFetching = getLastMachineState(
+                stateTransitions,
+                'epochProcessing.fetching.rewards',
+              );
+              expect(rewardsFetching).toBe('fetching');
+
+              // Verify that fetchAttestationsRewards was called
+              expect(mockEpochActors.fetchAttestationsRewards).toHaveBeenCalledWith(
+                expect.objectContaining({ input: { epoch: 100 } }),
+              );
+
+              // Resolve fetchAttestationsRewards to complete
+              fetchRewardsPromise.resolve({ success: true });
+              await Promise.resolve();
+
+              // Should go to complete
+              const rewardsComplete = getLastMachineState(
+                stateTransitions,
+                'epochProcessing.fetching.rewards',
+              );
+              expect(rewardsComplete).toBe('complete');
+
+              actor.stop();
+              subscription.unsubscribe();
+            });
+          });
+
+          describe('epoch has not ended', () => {
+            test('should cycle through waiting', async () => {
+              const actor = createActor(
+                epochProcessorMachine.provide({
+                  guards: {
+                    hasEpochAlreadyStarted: vi.fn(() => true),
+                    hasEpochEnded: vi.fn(() => false), // Epoch has NOT ended
+                  },
+                }),
+                {
+                  input: {
+                    epoch: 100,
+                    epochDBSnapshot: { ...epochDBSnapshotMock, validatorsBalancesFetched: true },
+                    config: {
+                      slotDuration: SLOT_DURATION,
+                      lookbackSlot: 32,
+                    },
+                    services: {
+                      beaconTime: mockBeaconTime,
+                      epochController: mockEpochController,
+                    },
+                  },
+                },
+              );
+
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              const stateTransitions: SnapshotFrom<any>[] = [];
+              const subscription = actor.subscribe((snapshot) => {
+                stateTransitions.push(snapshot.value);
+              });
+
+              actor.start();
+              vi.runOnlyPendingTimers();
+              await Promise.resolve();
+
+              // Simulate VALIDATORS_BALANCES_FETCHED event by sending it directly
+              actor.send({ type: 'VALIDATORS_BALANCES_FETCHED' });
+              await Promise.resolve();
+
+              // Let time pass to allow the cycle to complete (3 slots)
+              vi.advanceTimersByTime(SLOT_DURATION * 3);
+              await Promise.resolve();
+
+              // Extract rewards states from transitions
+              const rewardsStates = stateTransitions
+                .filter(
+                  (state) =>
+                    typeof state === 'object' && state !== null && 'epochProcessing' in state,
+                )
+                .map((state) => state.epochProcessing.fetching.rewards)
+                .filter((state) => state !== undefined);
+
+              // Verify the cycle sequence: waitingForEpochToEnd > waitingForEpochEndDelaying > waitingForEpochToEnd
+              expect(rewardsStates).toContain('waitingForEpochToEnd');
+              expect(rewardsStates).toContain('waitingForEpochEndDelaying');
+
+              // Verify that the cycle occurred (both states are present)
+              const waitingForEpochToEndCount = rewardsStates.filter(
+                (state) => state === 'waitingForEpochToEnd',
+              ).length;
+              const waitingForEpochEndDelayingCount = rewardsStates.filter(
+                (state) => state === 'waitingForEpochEndDelaying',
+              ).length;
+
+              expect(waitingForEpochToEndCount).toBeGreaterThan(0);
+              expect(waitingForEpochEndDelayingCount).toBeGreaterThan(0);
+
+              // Verify that fetchAttestationsRewards was NOT called
+              expect(mockEpochActors.fetchAttestationsRewards).not.toHaveBeenCalled();
 
               actor.stop();
               subscription.unsubscribe();
