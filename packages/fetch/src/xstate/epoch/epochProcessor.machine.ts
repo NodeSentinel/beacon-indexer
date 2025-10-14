@@ -603,7 +603,7 @@ export const epochProcessorMachine = setup({
             rewards: {
               description: `Rewards can only be processed when: 
                   1. Validators have been fetched for the current epoch.
-                  2. The last slot of the epoch has been created in the beacon chain.`,
+                  2. The last slot of the epoch has been processed by the beacon chain.`,
               initial: 'waitingForValidatorsBalances',
               states: {
                 waitingForValidatorsBalances: {
