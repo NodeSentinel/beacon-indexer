@@ -164,7 +164,23 @@ export class EpochController extends EpochControllerHelpers {
           date,
           hour,
         );
-        await this.epochStorage.insertIntoEpochRewardsTemp(processedRewards);
+
+        // Transform ProcessedReward to EpochRewardsTempData format
+        const epochRewardsTempData = processedRewards.map((reward) => ({
+          validatorIndex: reward.validatorIndex,
+          hour: reward.hour,
+          date: new Date(reward.date),
+          head: BigInt(reward.head),
+          target: BigInt(reward.target),
+          source: BigInt(reward.source),
+          inactivity: BigInt(reward.inactivity),
+          missedHead: BigInt(reward.missedHead),
+          missedTarget: BigInt(reward.missedTarget),
+          missedSource: BigInt(reward.missedSource),
+          missedInactivity: BigInt(reward.missedInactivity),
+        }));
+
+        await this.epochStorage.insertIntoEpochRewardsTemp(epochRewardsTempData);
       }
     }
 

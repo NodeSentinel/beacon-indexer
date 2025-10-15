@@ -1,9 +1,8 @@
-import { PrismaClient, Prisma, Decimal } from '@beacon-indexer/db';
+import { PrismaClient, Prisma, Decimal, EpochRewardsTemp } from '@beacon-indexer/db';
 import chunk from 'lodash/chunk.js';
 import ms from 'ms';
 
 import { VALIDATOR_STATUS } from '@/src/services/consensus/constants.js';
-import { ProcessedReward } from '@/src/services/consensus/types.js';
 import { getEpochFromSlot } from '@/src/services/consensus/utils/misc.js';
 
 export class EpochStorage {
@@ -255,19 +254,11 @@ export class EpochStorage {
   /**
    * Insert attestation rewards batch into temp table
    */
-  async insertIntoEpochRewardsTemp(rewards: ProcessedReward[]) {
-    const values = rewards
-      .map(
-        (reward) =>
-          `(${reward.validatorIndex}, '${reward.date}', ${reward.hour}, ${reward.head}, ${reward.target}, ${reward.source}, ${reward.inactivity}, ${reward.missedHead}, ${reward.missedTarget}, ${reward.missedSource}, ${reward.missedInactivity})`,
-      )
-      .join(',');
-
-    await this.prisma.$executeRaw`
-      INSERT INTO "EpochRewardsTemp" 
-        ("validatorIndex", "date", "hour", "head", "target", "source", "inactivity", "missedHead", "missedTarget", "missedSource", "missedInactivity")
-      VALUES ${Prisma.raw(values)}
-    `;
+  async insertIntoEpochRewardsTemp(rewards: EpochRewardsTemp[]) {
+    await this.prisma.epochRewardsTemp.createMany({
+      data: rewards,
+      skipDuplicates: true,
+    });
   }
 
   /**
