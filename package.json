@@ -48,12 +48,13 @@
     "migrate:reset-initial": "node scripts/resetInitialMigration.js",
     "migrate:dev": "node scripts/setDbUrl.js pnpm --filter @beacon-indexer/db db:migrate",
     "migrate:deploy": "node scripts/setDbUrl.js pnpm --filter @beacon-indexer/db db:deploy",
-    "migrate:reset": "node scripts/setDbUrl.js pnpm --filter @beacon-indexer/db db:migrate -- --reset",
+    "migrate:reset": "node scripts/setDbUrl.js pnpm --filter @beacon-indexer/db db:reset",
     "db:prisma-generate": "pnpm --filter @beacon-indexer/db prisma:generate",
     "db:build": "pnpm --filter @beacon-indexer/db build",
     "db:generate": "pnpm db:prisma-generate && pnpm db:build",
     "db:studio": "node scripts/setDbUrl.js pnpm --filter @beacon-indexer/db db:studio",
     "db:prune": "node scripts/setDbUrl.js node scripts/cleanDatabase.js",
+    "db:push": "node scripts/setDbUrl.js pnpm --filter @beacon-indexer/db db:push",
     "prepare": "husky"
   },
   "dependencies": {

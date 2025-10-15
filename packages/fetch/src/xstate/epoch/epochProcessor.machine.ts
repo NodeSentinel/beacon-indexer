@@ -249,7 +249,7 @@ export const epochProcessorMachine = setup({
           type: 'parallel',
           states: {
             committees: {
-              description: 'Get epoch committees',
+              description: 'Get epoch committees, create the slots if they are not in the database',
               initial: 'checkingIfAlreadyProcessed',
               states: {
                 checkingIfAlreadyProcessed: {
@@ -276,7 +276,10 @@ export const epochProcessorMachine = setup({
                 fetching: {
                   invoke: {
                     src: 'fetchCommittees',
-                    input: ({ context }) => ({ epoch: context.epoch }),
+                    input: ({ context }) => ({
+                      epochController: context.services.epochController,
+                      epoch: context.epoch,
+                    }),
                     onDone: [
                       {
                         target: 'complete',

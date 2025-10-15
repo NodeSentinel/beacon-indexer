@@ -2,7 +2,6 @@ import { fromPromise } from 'xstate';
 
 import { getPrisma } from '@/src/lib/prisma.js';
 import { beacon_getValidators } from '@/src/services/consensus/_feed/endpoints.js';
-import { fetchCommittee } from '@/src/services/consensus/_feed/fetchCommittee.js';
 import { fetchSyncCommittees as _fetchSyncCommittees } from '@/src/services/consensus/_feed/fetchSyncCommittee.js';
 import { VALIDATOR_STATUS } from '@/src/services/consensus/constants.js';
 import { EpochController } from '@/src/services/consensus/controllers/epoch.js';
@@ -51,8 +50,10 @@ export const fetchAttestationsRewards = fromPromise(
 /**
  * Actor to fetch committees for an epoch
  */
-export const fetchCommittees = fromPromise(async ({ input }: { input: { epoch: number } }) =>
-  fetchCommittee(input.epoch),
+export const fetchCommittees = fromPromise(
+  async ({ input }: { input: { epochController: EpochController; epoch: number } }) => {
+    await input.epochController.fetchCommittees(input.epoch);
+  },
 );
 
 /**

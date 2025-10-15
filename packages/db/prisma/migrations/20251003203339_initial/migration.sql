@@ -18,7 +18,7 @@ CREATE TABLE "public"."Slot" (
     "blockNumber" INTEGER,
     "processed" BOOLEAN NOT NULL DEFAULT false,
     "attestationsProcessed" BOOLEAN NOT NULL DEFAULT false,
-    "committeeValidatorCounts" JSONB,
+    "committeesCountInSlot" JSONB,
     "blockAndSyncRewardsProcessed" BOOLEAN NOT NULL DEFAULT false,
     "executionRewardsProcessed" BOOLEAN NOT NULL DEFAULT false,
     "beaconBlockProcessed" BOOLEAN NOT NULL DEFAULT false,

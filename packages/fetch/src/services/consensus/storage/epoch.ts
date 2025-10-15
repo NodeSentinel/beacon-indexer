@@ -1,4 +1,4 @@
-import { PrismaClient, Prisma, Decimal, EpochRewardsTemp } from '@beacon-indexer/db';
+import { PrismaClient, Prisma, Decimal, EpochRewardsTemp, Committee } from '@beacon-indexer/db';
 import chunk from 'lodash/chunk.js';
 import ms from 'ms';
 
@@ -293,6 +293,48 @@ export class EpochStorage {
       },
       {
         timeout: ms('3m'),
+      },
+    );
+  }
+
+  /**
+   * Save committees and update slots with committee counts
+   */
+  async saveCommitteesData(
+    epoch: number,
+    slots: number[],
+    committees: Committee[],
+    committeesCountInSlot: Map<number, number[]>,
+  ) {
+    await this.prisma.$transaction(
+      async (tx) => {
+        await tx.$executeRaw`
+          INSERT INTO "Slot" (slot, "attestationsProcessed", "committeesCountInSlot")
+          SELECT 
+            unnest(${slots}::integer[]), 
+            false,
+            unnest(${slots.map((slot) => JSON.stringify(committeesCountInSlot.get(slot) || []))}::jsonb[])
+          ON CONFLICT (slot) DO UPDATE SET
+            "committeesCountInSlot" = EXCLUDED."committeesCountInSlot"
+        `;
+
+        // Insert committees in batches for better performance
+        const batchSize = 100000;
+        const batches = chunk(committees, batchSize);
+        for (const batch of batches) {
+          await tx.committee.createMany({
+            data: batch,
+          });
+        }
+
+        // Update epoch status
+        await tx.epoch.update({
+          where: { epoch },
+          data: { committeesFetched: true },
+        });
+      },
+      {
+        timeout: ms('5m'),
       },
     );
   }

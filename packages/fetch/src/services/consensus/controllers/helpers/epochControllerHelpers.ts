@@ -1,3 +1,6 @@
+import { Committee } from '@beacon-indexer/db';
+
+import { BeaconClient } from '@/src/services/consensus/beacon.js';
 import { IdealReward, TotalReward, ProcessedReward } from '@/src/services/consensus/types.js';
 
 export abstract class EpochControllerHelpers {
@@ -131,6 +134,67 @@ export abstract class EpochControllerHelpers {
       missedTarget: missedTarget.toString(),
       missedSource: missedSource.toString(),
       missedInactivity: missedInactivity.toString(),
+    };
+  }
+
+  /**
+   * Prepare committee data for storage
+   */
+  protected prepareCommitteeData(
+    committees: Awaited<ReturnType<BeaconClient['getCommittees']>>,
+    slotStartIndexing: number,
+  ) {
+    const newCommittees: Committee[] = [];
+    // Map to track committee counts per committee index per slot (for Slot table's committeesCountInSlot)
+    const committeesCountInSlot = new Map<number, number[]>();
+    // Set to collect unique slots
+    const newSlotsSet = new Set<number>();
+
+    committees.forEach((committee) => {
+      // Convert slot string to number
+      const slot = +committee.slot;
+
+      // Skip committees from slots before our indexing start point
+      if (slot < slotStartIndexing) {
+        return;
+      }
+
+      // Add this slot to our new slots set (automatically handles uniqueness)
+      newSlotsSet.add(slot);
+
+      // Initialize committee count array for this slot if it doesn't exist
+      if (!committeesCountInSlot.has(slot)) {
+        committeesCountInSlot.set(slot, []);
+      }
+
+      // Process each validator in this committee
+      committee.validators.forEach((validatorIndex, index) => {
+        // Create committee record for database insertion
+        newCommittees.push({
+          slot,
+          index: +committee.index,
+          aggregationBitsIndex: index,
+          validatorIndex: +validatorIndex,
+          attestationDelay: null,
+        });
+
+        // Count committees per committee index for the Slot table's committeesCountInSlot field
+        const committeeCountsInSlot = committeesCountInSlot.get(slot)!;
+        committeeCountsInSlot[+committee.index] =
+          (committeeCountsInSlot[+committee.index] || 0) + 1;
+      });
+    });
+
+    // Validate that we have data to process
+    if (newSlotsSet.size === 0 || newCommittees.length === 0) {
+      throw new Error('No new slots or committees to save');
+    }
+
+    // Return processed data for storage
+    return {
+      newSlots: Array.from(newSlotsSet),
+      newCommittees,
+      committeesCountInSlot,
     };
   }
 }

@@ -187,4 +187,26 @@ export class EpochController extends EpochControllerHelpers {
     // Process temp results and combine them in the main table
     await this.epochStorage.saveAttestationRewardsAndUpdateEpoch(epoch);
   }
+
+  /**
+   * Fetch committees for a specific epoch
+   */
+  async fetchCommittees(epoch: number) {
+    // Get committees from beacon chain
+    const committees = await this.beaconClient.getCommittees(epoch);
+
+    // Prepare data for storage
+    const { newSlots, newCommittees, committeesCountInSlot } = this.prepareCommitteeData(
+      committees,
+      this.beaconTime.getSlotStartIndexing(),
+    );
+
+    // Save to database
+    await this.epochStorage.saveCommitteesData(
+      epoch,
+      newSlots,
+      newCommittees,
+      committeesCountInSlot,
+    );
+  }
 }
