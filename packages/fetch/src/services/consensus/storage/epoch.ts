@@ -1,4 +1,10 @@
-import { PrismaClient } from '@beacon-indexer/db';
+import { PrismaClient, Prisma, Decimal } from '@beacon-indexer/db';
+import chunk from 'lodash/chunk.js';
+import ms from 'ms';
+
+import { VALIDATOR_STATUS } from '@/src/services/consensus/constants.js';
+import { ProcessedReward } from '@/src/services/consensus/types.js';
+import { getEpochFromSlot } from '@/src/services/consensus/utils/misc.js';
 
 export class EpochStorage {
   constructor(private readonly prisma: PrismaClient) {}
@@ -116,5 +122,187 @@ export class EpochStorage {
 
   async getEpochCount() {
     return this.prisma.epoch.count();
+  }
+
+  /**
+   * Get max validator ID from database
+   */
+  async getMaxValidatorId() {
+    const res = await this.prisma.validator.findFirst({
+      orderBy: { id: 'desc' },
+      select: { id: true },
+    });
+    return res?.id ?? 0;
+  }
+
+  /**
+   * Get final state validator IDs from database
+   */
+  async getFinalValidatorIds() {
+    const finalStateValidators = await this.prisma.validator.findMany({
+      where: {
+        status: {
+          in: [
+            VALIDATOR_STATUS.exited_unslashed,
+            VALIDATOR_STATUS.exited_slashed,
+            VALIDATOR_STATUS.withdrawal_done,
+          ],
+        },
+      },
+      select: { id: true },
+    });
+    return finalStateValidators.map((v) => v.id);
+  }
+
+  /**
+   * Get attesting validator IDs from database
+   */
+  async getAttestingValidatorsIds() {
+    const validators = await this.prisma.validator.findMany({
+      where: {
+        OR: [
+          {
+            status: {
+              in: [VALIDATOR_STATUS.active_ongoing, VALIDATOR_STATUS.active_exiting],
+            },
+          },
+          {
+            status: null,
+          },
+        ],
+      },
+      select: { id: true },
+    });
+    return validators.map((v) => v.id);
+  }
+
+  /**
+   * Get validator balances for specific validator IDs
+   */
+  async getValidatorsBalances(validatorIds: number[]) {
+    return this.prisma.validator.findMany({
+      where: {
+        id: { in: validatorIds },
+      },
+      select: { id: true, balance: true },
+    });
+  }
+
+  /**
+   * Save validator balances to database
+   */
+  async saveValidatorBalances(
+    validatorBalances: Array<{ index: string; balance: string }>,
+    slot: number,
+  ) {
+    try {
+      await this.prisma.$transaction(
+        async (tx) => {
+          // Create temporary table
+          await tx.$executeRaw`
+          CREATE TEMPORARY TABLE "TempValidator" (LIKE "Validator") ON COMMIT DROP
+        `;
+
+          const batches = chunk(validatorBalances, 12_000);
+          for (const batch of batches) {
+            await tx.$executeRaw`
+            INSERT INTO "TempValidator" (id, balance)
+            VALUES ${Prisma.join(
+              batch.map(
+                (data) =>
+                  Prisma.sql`(
+                    ${parseInt(data.index)}, 
+                    ${new Decimal(data.balance)}
+                  )`,
+              ),
+              ', ',
+            )}
+          `;
+          }
+
+          // Merge data from temporary table to main table
+          await tx.$executeRaw`
+            INSERT INTO "Validator" (id, balance)
+            SELECT id, balance
+            FROM "TempValidator"
+            ON CONFLICT (id) DO UPDATE SET
+              "balance" = EXCLUDED.balance
+          `;
+
+          // Update the epoch to mark balances as fetched
+          await tx.epoch.update({
+            where: { epoch: getEpochFromSlot(slot) },
+            data: { validatorsBalancesFetched: true },
+          });
+        },
+        {
+          timeout: ms('1m'),
+        },
+      );
+    } catch (error) {
+      console.error(`Error saving validator balances to database`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Truncate temp table for attestation rewards
+   */
+  async truncateAttestationRewardsTempTable() {
+    await this.prisma.$executeRaw`TRUNCATE TABLE "EpochRewardsTemp"`;
+  }
+
+  /**
+   * Insert attestation rewards batch into temp table
+   */
+  async insertIntoEpochRewardsTemp(rewards: ProcessedReward[]) {
+    const values = rewards
+      .map(
+        (reward) =>
+          `(${reward.validatorIndex}, '${reward.date}', ${reward.hour}, ${reward.head}, ${reward.target}, ${reward.source}, ${reward.inactivity}, ${reward.missedHead}, ${reward.missedTarget}, ${reward.missedSource}, ${reward.missedInactivity})`,
+      )
+      .join(',');
+
+    await this.prisma.$executeRaw`
+      INSERT INTO "EpochRewardsTemp" 
+        ("validatorIndex", "date", "hour", "head", "target", "source", "inactivity", "missedHead", "missedTarget", "missedSource", "missedInactivity")
+      VALUES ${Prisma.raw(values)}
+    `;
+  }
+
+  /**
+   * Process temp table and update epoch status for attestation rewards
+   */
+  async saveAttestationRewardsAndUpdateEpoch(epoch: number) {
+    await this.prisma.$transaction(
+      async (tx) => {
+        // Merge data from temporary table to main table
+        await tx.$executeRaw`
+          INSERT INTO "HourlyValidatorStats" 
+            ("validatorIndex", "date", "hour", "head", "target", "source", "inactivity", "missedHead", "missedTarget", "missedSource", "missedInactivity")
+          SELECT 
+            "validatorIndex", "date", "hour", "head", "target", "source", "inactivity", "missedHead", "missedTarget", "missedSource", "missedInactivity"
+          FROM "EpochRewardsTemp"
+          ON CONFLICT ("validatorIndex", "date", "hour") DO UPDATE SET
+            "head" = COALESCE("HourlyValidatorStats"."head", 0) + COALESCE(EXCLUDED."head", 0),
+            "target" = COALESCE("HourlyValidatorStats"."target", 0) + COALESCE(EXCLUDED."target", 0),
+            "source" = COALESCE("HourlyValidatorStats"."source", 0) + COALESCE(EXCLUDED."source", 0),
+            "inactivity" = COALESCE("HourlyValidatorStats"."inactivity", 0) + COALESCE(EXCLUDED."inactivity", 0),
+            "missedHead" = COALESCE("HourlyValidatorStats"."missedHead", 0) + COALESCE(EXCLUDED."missedHead", 0),
+            "missedTarget" = COALESCE("HourlyValidatorStats"."missedTarget", 0) + COALESCE(EXCLUDED."missedTarget", 0),
+            "missedSource" = COALESCE("HourlyValidatorStats"."missedSource", 0) + COALESCE(EXCLUDED."missedSource", 0),
+            "missedInactivity" = COALESCE("HourlyValidatorStats"."missedInactivity", 0) + COALESCE(EXCLUDED."missedInactivity", 0)
+        `;
+
+        // Update epoch status
+        await tx.epoch.update({
+          where: { epoch },
+          data: { rewardsFetched: true },
+        });
+      },
+      {
+        timeout: ms('3m'),
+      },
+    );
   }
 }

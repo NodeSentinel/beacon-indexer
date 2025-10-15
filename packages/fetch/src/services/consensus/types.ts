@@ -41,6 +41,47 @@ export type ValidatorStatus =
   | 'withdrawal_possible'
   | 'withdrawal_done';
 
+/**
+ * Ideal reward data for a specific effective balance
+ */
+export type IdealReward = {
+  effective_balance: string;
+  head: string;
+  target: string;
+  source: string;
+  inclusion_delay?: string;
+  inactivity?: string;
+};
+
+/**
+ * Total reward data for a specific validator
+ */
+export type TotalReward = {
+  validator_index: string;
+  head: string;
+  target: string;
+  source: string;
+  inclusion_delay?: string;
+  inactivity?: string;
+};
+
+/**
+ * Processed reward data for database storage
+ */
+export type ProcessedReward = {
+  validatorIndex: number;
+  date: string;
+  hour: number;
+  head: string;
+  target: string;
+  source: string;
+  inactivity: string;
+  missedHead: string;
+  missedTarget: string;
+  missedSource: string;
+  missedInactivity: string;
+};
+
 export type GetCommittees = {
   execution_optimistic: boolean;
   finalized: boolean;
@@ -199,22 +240,8 @@ export type AttestationRewards = {
   execution_optimistic: boolean;
   finalized?: boolean;
   data: {
-    ideal_rewards: {
-      effective_balance: string;
-      head: string;
-      target: string;
-      source: string;
-      inclusion_delay?: string;
-      inactivity?: string;
-    }[];
-    total_rewards: {
-      validator_index: string;
-      head: string;
-      target: string;
-      source: string;
-      inclusion_delay?: string;
-      inactivity?: string;
-    }[];
+    ideal_rewards: IdealReward[];
+    total_rewards: TotalReward[];
   };
 };
 

@@ -2053,9 +2053,14 @@ describe('epochProcessorMachine', () => {
               const step2 = getLastEpochProcessingState(stateTransitions);
               expect(step2!.epochProcessing.fetching.validatorsBalances).toBe('fetching');
 
-              // Verify that fetchValidatorsBalances was called with startSlot
+              // Verify that fetchValidatorsBalances was called with startSlot and epochController
               expect(mockEpochActors.fetchValidatorsBalances).toHaveBeenCalledWith(
-                expect.objectContaining({ input: { startSlot: 3200 } }), // 100 * 32 = 3200
+                expect.objectContaining({
+                  input: {
+                    startSlot: 3200,
+                    epochController: expect.any(Object),
+                  },
+                }), // 100 * 32 = 3200
               );
 
               // Resolve fetchValidatorsBalances to complete
@@ -2155,7 +2160,12 @@ describe('epochProcessorMachine', () => {
 
             // Verify that fetchValidatorsBalances was called
             expect(mockEpochActors.fetchValidatorsBalances).toHaveBeenCalledWith(
-              expect.objectContaining({ input: { startSlot: 3200 } }), // 100 * 32 = 3200
+              expect.objectContaining({
+                input: {
+                  startSlot: 3200,
+                  epochController: expect.any(Object),
+                },
+              }), // 100 * 32 = 3200
             );
 
             // Should go to epochProcessing with rewards in waitingForValidatorsBalances
@@ -2252,7 +2262,12 @@ describe('epochProcessorMachine', () => {
 
               // Verify that fetchAttestationsRewards was called
               expect(mockEpochActors.fetchAttestationsRewards).toHaveBeenCalledWith(
-                expect.objectContaining({ input: { epoch: 100 } }),
+                expect.objectContaining({
+                  input: {
+                    epoch: 100,
+                    epochController: expect.any(Object),
+                  },
+                }),
               );
 
               // Resolve fetchAttestationsRewards to complete

@@ -286,11 +286,13 @@ export const epochProcessorMachine = setup({
                 },
                 complete: {
                   type: 'final',
-                  entry: raise({ type: 'COMMITTEES_FETCHED' }),
-                  actions: pinoLog(
-                    ({ context }) => `Committees done for epoch ${context.epoch} `,
-                    'EpochProcessor:committees',
-                  ),
+                  entry: [
+                    raise({ type: 'COMMITTEES_FETCHED' }),
+                    pinoLog(
+                      ({ context }) => `Committees done for epoch ${context.epoch} `,
+                      'EpochProcessor:committees',
+                    ),
+                  ],
                 },
               },
             },
@@ -375,7 +377,7 @@ export const epochProcessorMachine = setup({
                 },
                 complete: {
                   type: 'final',
-                  actions: pinoLog(
+                  entry: pinoLog(
                     ({ context }) => `Sync committees done for epoch ${context.epoch} `,
                     'EpochProcessor:syncingCommittees',
                   ),
@@ -581,7 +583,10 @@ export const epochProcessorMachine = setup({
                   ),
                   invoke: {
                     src: 'fetchValidatorsBalances',
-                    input: ({ context }) => ({ startSlot: context.startSlot }),
+                    input: ({ context }) => ({
+                      epochController: context.services.epochController,
+                      startSlot: context.startSlot,
+                    }),
                     onDone: [
                       {
                         target: 'complete',
@@ -657,7 +662,10 @@ export const epochProcessorMachine = setup({
                 fetching: {
                   invoke: {
                     src: 'fetchAttestationsRewards',
-                    input: ({ context }) => ({ epoch: context.epoch }),
+                    input: ({ context }) => ({
+                      epochController: context.services.epochController,
+                      epoch: context.epoch,
+                    }),
                     onDone: [
                       {
                         target: 'complete',

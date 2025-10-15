@@ -2,10 +2,8 @@ import { fromPromise } from 'xstate';
 
 import { getPrisma } from '@/src/lib/prisma.js';
 import { beacon_getValidators } from '@/src/services/consensus/_feed/endpoints.js';
-import { fetchAttestationsRewards as _fetchAttestationsRewards } from '@/src/services/consensus/_feed/fetchAttestationsRewards.js';
 import { fetchCommittee } from '@/src/services/consensus/_feed/fetchCommittee.js';
 import { fetchSyncCommittees as _fetchSyncCommittees } from '@/src/services/consensus/_feed/fetchSyncCommittee.js';
-import { fetchValidatorsBalances as _fetchValidatorsBalances } from '@/src/services/consensus/_feed/fetchValidatorsBalances.js';
 import { VALIDATOR_STATUS } from '@/src/services/consensus/constants.js';
 import { EpochController } from '@/src/services/consensus/controllers/epoch.js';
 
@@ -39,14 +37,14 @@ export const markEpochAsProcessed = fromPromise(
 );
 
 export const fetchValidatorsBalances = fromPromise(
-  async ({ input }: { input: { startSlot: number } }) => {
-    await _fetchValidatorsBalances(input.startSlot);
+  async ({ input }: { input: { epochController: EpochController; startSlot: number } }) => {
+    await input.epochController.fetchValidatorsBalances(input.startSlot);
   },
 );
 
 export const fetchAttestationsRewards = fromPromise(
-  async ({ input }: { input: { epoch: number } }) => {
-    await _fetchAttestationsRewards(input.epoch);
+  async ({ input }: { input: { epochController: EpochController; epoch: number } }) => {
+    await input.epochController.fetchAttestationRewards(input.epoch);
   },
 );
 
