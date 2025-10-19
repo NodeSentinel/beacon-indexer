@@ -62,7 +62,7 @@ describe('Epoch Creation E2E Tests', () => {
       await epochController.createEpochsIfNeeded();
 
       // Verify epochs were created using controller
-      const createdEpochs = await epochController.getAllEpochs();
+      const createdEpochs = await epochController.getAllEpochs_e2e_only();
 
       expect(createdEpochs).toHaveLength(MAX_UNPROCESSED_EPOCHS);
 
@@ -121,7 +121,7 @@ describe('Epoch Creation E2E Tests', () => {
       expect(totalEpochs).toBe(MAX_UNPROCESSED_EPOCHS);
 
       // Verify all epochs are consecutive
-      const allEpochs = await epochController.getAllEpochs();
+      const allEpochs = await epochController.getAllEpochs_e2e_only();
 
       for (let i = 1; i < allEpochs.length; i++) {
         expect(allEpochs[i].epoch).toBe(allEpochs[i - 1].epoch + 1);
@@ -132,7 +132,7 @@ describe('Epoch Creation E2E Tests', () => {
       const epochsToCreate = [1000, 1001, 1002];
       await epochStorage.createEpochs(epochsToCreate);
 
-      const createdEpochs = await epochStorage.getAllEpochs();
+      const createdEpochs = await epochStorage.getAllEpochs_e2e_only();
       expect(createdEpochs).toHaveLength(3);
 
       // Verify epochs are stored correctly
@@ -158,7 +158,7 @@ describe('Epoch Creation E2E Tests', () => {
       await expect(epochStorage.createEpochs(epochs)).rejects.toThrow();
 
       // Should still have only 3 epochs (no duplicates were created)
-      const allEpochs = await epochStorage.getAllEpochs();
+      const allEpochs = await epochStorage.getAllEpochs_e2e_only();
       expect(allEpochs).toHaveLength(3);
       expect(allEpochs.map((e) => e.epoch)).toEqual([1000, 1001, 1002]);
     });
@@ -194,7 +194,7 @@ describe('Epoch Creation E2E Tests', () => {
       const epochsToCreate = [1000, 1001, 1002];
       await epochStorage.createEpochs(epochsToCreate);
 
-      const createdEpochs = await epochStorage.getAllEpochs();
+      const createdEpochs = await epochStorage.getAllEpochs_e2e_only();
       expect(createdEpochs).toHaveLength(3);
       expect(createdEpochs.map((e) => e.epoch)).toEqual([1000, 1001, 1002]);
     });

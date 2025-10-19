@@ -35,8 +35,14 @@ export class EpochController extends EpochControllerHelpers {
     await this.epochStorage.markEpochAsProcessed(epoch);
   }
 
-  async getAllEpochs() {
-    return this.epochStorage.getAllEpochs();
+  /**
+   * @internal
+   * @testonly
+   * Helper method for e2e tests only. Should not be used in production code.
+   * @returns All epochs from the database ordered by epoch number
+   */
+  async getAllEpochs_e2e_only() {
+    return this.epochStorage.getAllEpochs_e2e_only();
   }
 
   async getEpochCount() {

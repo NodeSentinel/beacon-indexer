@@ -45,6 +45,23 @@ export class EpochStorage {
     }
   }
 
+  /**
+   * @internal
+   * @testonly
+   * Helper method for e2e tests only. Should not be used in production code.
+   * @returns All epochs from the database ordered by epoch number
+   */
+  async getAllEpochs_e2e_only() {
+    // Runtime check to prevent usage in production
+    if (process.env.NODE_ENV === 'production') {
+      throw new Error('getAllEpochs() is only available in test environments');
+    }
+
+    return this.prisma.epoch.findMany({
+      orderBy: { epoch: 'asc' },
+    });
+  }
+
   async getMaxEpoch() {
     return await this.prisma.epoch.findFirst({
       orderBy: { epoch: 'desc' },
@@ -109,12 +126,6 @@ export class EpochStorage {
       data: {
         processed: true,
       },
-    });
-  }
-
-  async getAllEpochs() {
-    return this.prisma.epoch.findMany({
-      orderBy: { epoch: 'asc' },
     });
   }
 
@@ -184,6 +195,34 @@ export class EpochStorage {
       },
       select: { id: true, balance: true },
     });
+  }
+
+  /**
+   * Get pending validators for tracking
+   */
+  async getPendingValidators(): Promise<Array<{ id: number }>> {
+    return this.prisma.validator.findMany({
+      where: {
+        status: {
+          in: [VALIDATOR_STATUS.pending_initialized, VALIDATOR_STATUS.pending_queued],
+        },
+      },
+      select: { id: true },
+    });
+  }
+
+  /**
+   * Check if sync committee for a specific epoch is already fetched
+   */
+  async checkSyncCommitteeForEpoch(epoch: number): Promise<{ isFetched: boolean }> {
+    const syncCommittee = await this.prisma.syncCommittee.findFirst({
+      where: {
+        fromEpoch: { lte: epoch },
+        toEpoch: { gte: epoch },
+      },
+    });
+
+    return { isFetched: !!syncCommittee };
   }
 
   /**
@@ -380,20 +419,6 @@ export class EpochStorage {
   }
 
   /**
-   * Check if sync committee for a specific epoch is already fetched
-   */
-  async checkSyncCommitteeForEpoch(epoch: number): Promise<{ isFetched: boolean }> {
-    const syncCommittee = await this.prisma.syncCommittee.findFirst({
-      where: {
-        fromEpoch: { lte: epoch },
-        toEpoch: { gte: epoch },
-      },
-    });
-
-    return { isFetched: !!syncCommittee };
-  }
-
-  /**
    * Update the epoch's slotsFetched flag to true
    */
   async updateSlotsFetched(epoch: number): Promise<{ success: boolean }> {
@@ -415,20 +440,6 @@ export class EpochStorage {
     });
 
     return { success: true };
-  }
-
-  /**
-   * Get pending validators for tracking
-   */
-  async getPendingValidators(): Promise<Array<{ id: number }>> {
-    return this.prisma.validator.findMany({
-      where: {
-        status: {
-          in: [VALIDATOR_STATUS.pending_initialized, VALIDATOR_STATUS.pending_queued],
-        },
-      },
-      select: { id: true },
-    });
   }
 
   /**
