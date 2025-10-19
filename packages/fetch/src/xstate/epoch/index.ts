@@ -1,6 +1,5 @@
 import { createActor } from 'xstate';
 
-import { env } from '@/src/lib/env.js';
 import { EpochController } from '@/src/services/consensus/controllers/epoch.js';
 import { BeaconTime } from '@/src/services/consensus/utils/time.js';
 import { epochCreationMachine } from '@/src/xstate/epoch/epochCreator.machine.js';
@@ -35,7 +34,7 @@ export const getEpochOrchestratorActor = (
   const actor = createActor(epochOrchestratorMachine, {
     input: {
       slotDuration,
-      lookbackSlot: env.CONSENSUS_LOOKBACK_SLOT,
+      lookbackSlot: beaconTime.getSlotStartIndexing(),
       epochController,
       beaconTime,
     },
