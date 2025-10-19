@@ -209,4 +209,63 @@ export class EpochController extends EpochControllerHelpers {
       committeesCountInSlot,
     );
   }
+
+  /**
+   * Fetch sync committees for a specific epoch
+   */
+  async fetchSyncCommittees(epoch: number) {
+    // Get sync committee period start epoch
+    const periodStartEpoch = this.beaconTime.getSyncCommitteePeriodStartEpoch(epoch);
+
+    // Get sync committees from beacon chain
+    const syncCommitteeData = await this.beaconClient.getSyncCommittees(periodStartEpoch);
+
+    // Calculate the end epoch for this sync committee period
+    const toEpoch = periodStartEpoch + 256 - 1; // epochsPerSyncCommitteePeriod - 1
+
+    // Save to database
+    await this.epochStorage.saveSyncCommittees(epoch, periodStartEpoch, toEpoch, syncCommitteeData);
+  }
+
+  /**
+   * Check if sync committee for a specific epoch is already fetched
+   */
+  async checkSyncCommitteeForEpoch(epoch: number) {
+    return this.epochStorage.checkSyncCommitteeForEpoch(epoch);
+  }
+
+  /**
+   * Update the epoch's slotsFetched flag to true
+   */
+  async updateSlotsFetched(epoch: number) {
+    return this.epochStorage.updateSlotsFetched(epoch);
+  }
+
+  /**
+   * Update the epoch's syncCommitteesFetched flag to true
+   */
+  async updateSyncCommitteesFetched(epoch: number) {
+    return this.epochStorage.updateSyncCommitteesFetched(epoch);
+  }
+
+  /**
+   * Track transitioning validators
+   */
+  async trackTransitioningValidators() {
+    // Get pending validators from storage
+    const pendingValidators = await this.epochStorage.getPendingValidators();
+
+    if (pendingValidators.length === 0) {
+      return { success: true, processedCount: 0 };
+    }
+
+    // Get validator data from beacon chain
+    const validatorIds = pendingValidators.map((v) => String(v.id));
+    const validatorsData = await this.beaconClient.getValidators('head', validatorIds, null);
+
+    // Update validators in storage
+    await this.epochStorage.updateValidators(validatorsData);
+
+    return { success: true, processedCount: validatorsData.length };
+  }
 }

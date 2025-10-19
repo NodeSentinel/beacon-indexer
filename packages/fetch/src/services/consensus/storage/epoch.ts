@@ -1,4 +1,11 @@
-import { PrismaClient, Prisma, Decimal, EpochRewardsTemp, Committee } from '@beacon-indexer/db';
+import {
+  PrismaClient,
+  Prisma,
+  Decimal,
+  EpochRewardsTemp,
+  Committee,
+  SyncCommittee,
+} from '@beacon-indexer/db';
 import chunk from 'lodash/chunk.js';
 import ms from 'ms';
 
@@ -337,5 +344,131 @@ export class EpochStorage {
         timeout: ms('5m'),
       },
     );
+  }
+
+  /**
+   * Save sync committees and update epoch status
+   */
+  async saveSyncCommittees(
+    epoch: number,
+    fromEpoch: number,
+    toEpoch: number,
+    syncCommitteeData: {
+      validators: string[];
+      validator_aggregates: string[][];
+    },
+  ) {
+    await this.prisma.$transaction(
+      async (tx) => {
+        await tx.syncCommittee.upsert({
+          where: {
+            fromEpoch_toEpoch: {
+              fromEpoch,
+              toEpoch,
+            },
+          },
+          create: {
+            fromEpoch,
+            toEpoch,
+            validators: syncCommitteeData.validators,
+            validatorAggregates: syncCommitteeData.validator_aggregates,
+          },
+          update: {},
+        });
+
+        await tx.epoch.update({
+          where: { epoch },
+          data: { syncCommitteesFetched: true },
+        });
+      },
+      {
+        timeout: ms('1m'),
+      },
+    );
+  }
+
+  /**
+   * Check if sync committee for a specific epoch is already fetched
+   */
+  async checkSyncCommitteeForEpoch(epoch: number): Promise<{ isFetched: boolean }> {
+    const syncCommittee = await this.prisma.syncCommittee.findFirst({
+      where: {
+        fromEpoch: { lte: epoch },
+        toEpoch: { gte: epoch },
+      },
+    });
+
+    return { isFetched: !!syncCommittee };
+  }
+
+  /**
+   * Update the epoch's slotsFetched flag to true
+   */
+  async updateSlotsFetched(epoch: number): Promise<{ success: boolean }> {
+    await this.prisma.epoch.update({
+      where: { epoch },
+      data: { slotsFetched: true },
+    });
+
+    return { success: true };
+  }
+
+  /**
+   * Update the epoch's syncCommitteesFetched flag to true
+   */
+  async updateSyncCommitteesFetched(epoch: number): Promise<{ success: boolean }> {
+    await this.prisma.epoch.update({
+      where: { epoch },
+      data: { syncCommitteesFetched: true },
+    });
+
+    return { success: true };
+  }
+
+  /**
+   * Get pending validators for tracking
+   */
+  async getPendingValidators(): Promise<Array<{ id: number }>> {
+    return this.prisma.validator.findMany({
+      where: {
+        status: {
+          in: [VALIDATOR_STATUS.pending_initialized, VALIDATOR_STATUS.pending_queued],
+        },
+      },
+      select: { id: true },
+    });
+  }
+
+  /**
+   * Update validators with new data
+   */
+  async updateValidators(
+    validatorsData: Array<{
+      index: string;
+      status: string;
+      balance: string;
+      validator: {
+        withdrawal_credentials: string;
+        effective_balance: string;
+      };
+    }>,
+  ): Promise<void> {
+    await this.prisma.$transaction(async (tx) => {
+      for (const data of validatorsData) {
+        const withdrawalAddress = data.validator.withdrawal_credentials.startsWith('0x')
+          ? '0x' + data.validator.withdrawal_credentials.slice(-40)
+          : null;
+
+        await tx.validator.update({
+          where: { id: +data.index },
+          data: {
+            withdrawalAddress,
+            status: VALIDATOR_STATUS[data.status as keyof typeof VALIDATOR_STATUS],
+            balance: data.balance,
+            effectiveBalance: data.validator.effective_balance,
+          },
+        });
+      }
+    });
   }
 }

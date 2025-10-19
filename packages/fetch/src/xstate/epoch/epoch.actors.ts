@@ -1,12 +1,6 @@
 import { fromPromise } from 'xstate';
 
-import { getPrisma } from '@/src/lib/prisma.js';
-import { beacon_getValidators } from '@/src/services/consensus/_feed/endpoints.js';
-import { fetchSyncCommittees as _fetchSyncCommittees } from '@/src/services/consensus/_feed/fetchSyncCommittee.js';
-import { VALIDATOR_STATUS } from '@/src/services/consensus/constants.js';
 import { EpochController } from '@/src/services/consensus/controllers/epoch.js';
-
-const prisma = getPrisma();
 
 /**
  * Finds the minimum unprocessed epoch that needs processing
@@ -36,15 +30,13 @@ export const markEpochAsProcessed = fromPromise(
 );
 
 export const fetchValidatorsBalances = fromPromise(
-  async ({ input }: { input: { epochController: EpochController; startSlot: number } }) => {
-    await input.epochController.fetchValidatorsBalances(input.startSlot);
-  },
+  async ({ input }: { input: { epochController: EpochController; startSlot: number } }) =>
+    input.epochController.fetchValidatorsBalances(input.startSlot),
 );
 
 export const fetchAttestationsRewards = fromPromise(
-  async ({ input }: { input: { epochController: EpochController; epoch: number } }) => {
-    await input.epochController.fetchAttestationRewards(input.epoch);
-  },
+  async ({ input }: { input: { epochController: EpochController; epoch: number } }) =>
+    input.epochController.fetchAttestationRewards(input.epoch),
 );
 
 /**
@@ -59,65 +51,36 @@ export const fetchCommittees = fromPromise(
 /**
  * Actor to fetch sync committees for an epoch
  */
-export const fetchSyncCommittees = fromPromise(async ({ input }: { input: { epoch: number } }) =>
-  _fetchSyncCommittees(input.epoch),
+export const fetchSyncCommittees = fromPromise(
+  async ({ input }: { input: { epochController: EpochController; epoch: number } }) => {
+    await input.epochController.fetchSyncCommittees(input.epoch);
+  },
 );
 
 /**
  * Actor to check if sync committee for a specific epoch is already fetched
  */
 export const checkSyncCommitteeForEpochInDB = fromPromise(
-  async ({ input }: { input: { epoch: number } }) => {
-    try {
-      // Check if sync committee for this epoch is already fetched
-      const syncCommittee = await prisma.syncCommittee.findFirst({
-        where: {
-          fromEpoch: { lte: input.epoch },
-          toEpoch: { gte: input.epoch },
-        },
-      });
-
-      return { isFetched: !!syncCommittee };
-    } catch (error) {
-      console.error('Error checking sync committee status:', error);
-      throw error;
-    }
+  async ({ input }: { input: { epochController: EpochController; epoch: number } }) => {
+    return input.epochController.checkSyncCommitteeForEpoch(input.epoch);
   },
 );
 
 /**
  * Actor to update the epoch's slotsFetched flag to true
  */
-export const updateSlotsFetched = fromPromise(async ({ input }: { input: { epoch: number } }) => {
-  try {
-    await prisma.epoch.update({
-      where: { epoch: input.epoch },
-      data: { slotsFetched: true },
-    });
-
-    return { success: true };
-  } catch (error) {
-    console.error('Error updating slotsFetched:', error);
-    throw error;
-  }
-});
+export const updateSlotsFetched = fromPromise(
+  async ({ input }: { input: { epochController: EpochController; epoch: number } }) => {
+    return input.epochController.updateSlotsFetched(input.epoch);
+  },
+);
 
 /**
  * Actor to update the epoch's syncCommitteesFetched flag to true
  */
 export const updateSyncCommitteesFetched = fromPromise(
-  async ({ input }: { input: { epoch: number } }) => {
-    try {
-      await prisma.epoch.update({
-        where: { epoch: input.epoch },
-        data: { syncCommitteesFetched: true },
-      });
-
-      return { success: true };
-    } catch (error) {
-      console.error('Error updating syncCommitteesFetched:', error);
-      throw error;
-    }
+  async ({ input }: { input: { epochController: EpochController; epoch: number } }) => {
+    return input.epochController.updateSyncCommitteesFetched(input.epoch);
   },
 );
 
@@ -125,41 +88,8 @@ export const updateSyncCommitteesFetched = fromPromise(
  * Unified actor to track transitioning validators
  * Fetches pending validators from DB, gets their data from beacon chain, and updates them directly
  */
-export const trackingTransitioningValidators = fromPromise(async () => {
-  const pendingValidators = await prisma.validator.findMany({
-    where: {
-      status: {
-        in: [VALIDATOR_STATUS.pending_initialized, VALIDATOR_STATUS.pending_queued],
-      },
-    },
-    select: { id: true },
-  });
-
-  if (pendingValidators.length === 0) {
-    return { success: true, processedCount: 0 };
-  }
-
-  const validatorIds = pendingValidators.map((v) => String(v.id));
-  const validatorsData = await beacon_getValidators('head', validatorIds, null);
-
-  // Update validators directly in a transaction
-  await prisma.$transaction(async (tx) => {
-    for (const data of validatorsData) {
-      const withdrawalAddress = data.validator.withdrawal_credentials.startsWith('0x')
-        ? '0x' + data.validator.withdrawal_credentials.slice(-40)
-        : null;
-
-      await tx.validator.update({
-        where: { id: +data.index },
-        data: {
-          withdrawalAddress,
-          status: VALIDATOR_STATUS[data.status],
-          balance: data.balance,
-          effectiveBalance: data.validator.effective_balance,
-        },
-      });
-    }
-  });
-
-  return { success: true, processedCount: validatorsData.length };
-});
+export const trackingTransitioningValidators = fromPromise(
+  async ({ input }: { input: { epochController: EpochController } }) => {
+    return input.epochController.trackTransitioningValidators();
+  },
+);
