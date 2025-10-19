@@ -60,7 +60,7 @@ The beacon indexer follows a clean layered architecture pattern that separates c
 ```
 ┌─────────────────┐    ┌──────────────────┐    ┌─────────────────┐
 │      XState     │───▶│   Controllers    │───▶│    Storage      │
-│                 │    │  (Coordinators)  │    │   (Database)    │
+│ (State Machine) │    │  (Coordinators)  │    │   (Database)    │
 └─────────────────┘    └──────────────────┘    └─────────────────┘
                                 │                        │
                                 ▼                        ▼
