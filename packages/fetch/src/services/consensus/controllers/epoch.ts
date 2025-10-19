@@ -109,7 +109,8 @@ export class EpochController extends EpochControllerHelpers {
       }
 
       // Save all collected data to database
-      await this.epochStorage.saveValidatorBalances(allValidatorBalances, slot);
+      const epoch = this.beaconTime.getEpochFromSlot(slot);
+      await this.epochStorage.saveValidatorBalances(allValidatorBalances, epoch);
     } catch (error) {
       console.error(`Error fetching validator balances info`, error);
     }

@@ -1,16 +1,8 @@
-import {
-  PrismaClient,
-  Prisma,
-  Decimal,
-  EpochRewardsTemp,
-  Committee,
-  SyncCommittee,
-} from '@beacon-indexer/db';
+import { PrismaClient, Prisma, Decimal, EpochRewardsTemp, Committee } from '@beacon-indexer/db';
 import chunk from 'lodash/chunk.js';
 import ms from 'ms';
 
 import { VALIDATOR_STATUS } from '@/src/services/consensus/constants.js';
-import { getEpochFromSlot } from '@/src/services/consensus/utils/misc.js';
 
 export class EpochStorage {
   constructor(private readonly prisma: PrismaClient) {}
@@ -199,7 +191,7 @@ export class EpochStorage {
    */
   async saveValidatorBalances(
     validatorBalances: Array<{ index: string; balance: string }>,
-    slot: number,
+    epoch: number,
   ) {
     try {
       await this.prisma.$transaction(
@@ -237,7 +229,7 @@ export class EpochStorage {
 
           // Update the epoch to mark balances as fetched
           await tx.epoch.update({
-            where: { epoch: getEpochFromSlot(slot) },
+            where: { epoch },
             data: { validatorsBalancesFetched: true },
           });
         },
