@@ -329,18 +329,18 @@ export const checkAndGetCommitteeValidatorsAmounts = fromPromise(
       }
 
       // Get committee validator counts for all slots
-      const committeeValidatorCounts = await db_getSlotCommitteesValidatorsAmountsForSlots(
+      const committeesCountInSlot = await db_getSlotCommitteesValidatorsAmountsForSlots(
         uniqueSlots as number[],
       );
 
       // Check if all slots have validator counts
       const allSlotsHaveCounts = uniqueSlots.every((slot) => {
-        const counts = committeeValidatorCounts[slot as number];
+        const counts = committeesCountInSlot[slot as number];
         return counts && counts.length > 0;
       });
 
       return {
-        committeeValidatorCounts,
+        committeesCountInSlot,
         allSlotsHaveCounts,
         uniqueSlots,
       };

@@ -236,11 +236,13 @@ export const epochProcessorMachine = setup({
             },
             epochStarted: {
               type: 'final',
-              entry: raise({ type: 'EPOCH_STARTED' }),
-              actions: pinoLog(
-                ({ context }) => `Epoch ${context.epoch} started`,
-                'EpochProcessor:waitingForEpochToStart',
-              ),
+              entry: [
+                raise({ type: 'EPOCH_STARTED' }),
+                pinoLog(
+                  ({ context }) => `Epoch ${context.epoch} started`,
+                  'EpochProcessor:waitingForEpochToStart',
+                ),
+              ],
             },
           },
         },
@@ -249,7 +251,7 @@ export const epochProcessorMachine = setup({
           type: 'parallel',
           states: {
             committees: {
-              description: 'Get epoch committees',
+              description: 'Get epoch committees, create the slots if they are not in the database',
               initial: 'checkingIfAlreadyProcessed',
               states: {
                 checkingIfAlreadyProcessed: {
@@ -276,7 +278,10 @@ export const epochProcessorMachine = setup({
                 fetching: {
                   invoke: {
                     src: 'fetchCommittees',
-                    input: ({ context }) => ({ epoch: context.epoch }),
+                    input: ({ context }) => ({
+                      epochController: context.services.epochController,
+                      epoch: context.epoch,
+                    }),
                     onDone: [
                       {
                         target: 'complete',
@@ -286,11 +291,13 @@ export const epochProcessorMachine = setup({
                 },
                 complete: {
                   type: 'final',
-                  entry: raise({ type: 'COMMITTEES_FETCHED' }),
-                  actions: pinoLog(
-                    ({ context }) => `Committees done for epoch ${context.epoch} `,
-                    'EpochProcessor:committees',
-                  ),
+                  entry: [
+                    raise({ type: 'COMMITTEES_FETCHED' }),
+                    pinoLog(
+                      ({ context }) => `Committees done for epoch ${context.epoch} `,
+                      'EpochProcessor:committees',
+                    ),
+                  ],
                 },
               },
             },
@@ -326,7 +333,10 @@ export const epochProcessorMachine = setup({
                   ),
                   invoke: {
                     src: 'checkSyncCommitteeForEpochInDB',
-                    input: ({ context }) => ({ epoch: context.epoch }),
+                    input: ({ context }) => ({
+                      epochController: context.services.epochController,
+                      epoch: context.epoch,
+                    }),
                     onDone: [
                       {
                         guard: {
@@ -356,7 +366,10 @@ export const epochProcessorMachine = setup({
                 updatingSyncCommitteesFetched: {
                   invoke: {
                     src: 'updateSyncCommitteesFetched',
-                    input: ({ context }) => ({ epoch: context.epoch }),
+                    input: ({ context }) => ({
+                      epochController: context.services.epochController,
+                      epoch: context.epoch,
+                    }),
                     onDone: {
                       target: 'complete',
                     },
@@ -365,7 +378,10 @@ export const epochProcessorMachine = setup({
                 fetching: {
                   invoke: {
                     src: 'fetchSyncCommittees',
-                    input: ({ context }) => ({ epoch: context.epoch }),
+                    input: ({ context }) => ({
+                      epochController: context.services.epochController,
+                      epoch: context.epoch,
+                    }),
                     onDone: [
                       {
                         target: 'complete',
@@ -375,7 +391,7 @@ export const epochProcessorMachine = setup({
                 },
                 complete: {
                   type: 'final',
-                  actions: pinoLog(
+                  entry: pinoLog(
                     ({ context }) => `Sync committees done for epoch ${context.epoch} `,
                     'EpochProcessor:syncingCommittees',
                   ),
@@ -475,7 +491,10 @@ export const epochProcessorMachine = setup({
                   ),
                   invoke: {
                     src: 'updateSlotsFetched',
-                    input: ({ context }) => ({ epoch: context.epoch }),
+                    input: ({ context }) => ({
+                      epochController: context.services.epochController,
+                      epoch: context.epoch,
+                    }),
                     onDone: {
                       target: 'complete',
                     },
@@ -531,7 +550,9 @@ export const epochProcessorMachine = setup({
                   ),
                   invoke: {
                     src: 'trackingTransitioningValidators',
-                    input: ({ context }) => ({ epoch: context.epoch }),
+                    input: ({ context }) => ({
+                      epochController: context.services.epochController,
+                    }),
                     onDone: 'complete',
                   },
                 },
@@ -581,7 +602,10 @@ export const epochProcessorMachine = setup({
                   ),
                   invoke: {
                     src: 'fetchValidatorsBalances',
-                    input: ({ context }) => ({ startSlot: context.startSlot }),
+                    input: ({ context }) => ({
+                      epochController: context.services.epochController,
+                      startSlot: context.startSlot,
+                    }),
                     onDone: [
                       {
                         target: 'complete',
@@ -591,12 +615,14 @@ export const epochProcessorMachine = setup({
                   },
                 },
                 complete: {
-                  entry: raise({ type: 'VALIDATORS_BALANCES_FETCHED' }),
                   type: 'final',
-                  actions: pinoLog(
-                    ({ context }) => `Validators balances done for epoch ${context.epoch} `,
-                    'EpochProcessor:validatorsBalances',
-                  ),
+                  entry: [
+                    raise({ type: 'VALIDATORS_BALANCES_FETCHED' }),
+                    pinoLog(
+                      ({ context }) => `Validators balances done for epoch ${context.epoch} `,
+                      'EpochProcessor:validatorsBalances',
+                    ),
+                  ],
                 },
               },
             },
@@ -657,7 +683,10 @@ export const epochProcessorMachine = setup({
                 fetching: {
                   invoke: {
                     src: 'fetchAttestationsRewards',
-                    input: ({ context }) => ({ epoch: context.epoch }),
+                    input: ({ context }) => ({
+                      epochController: context.services.epochController,
+                      epoch: context.epoch,
+                    }),
                     onDone: [
                       {
                         target: 'complete',
@@ -667,7 +696,7 @@ export const epochProcessorMachine = setup({
                 },
                 complete: {
                   type: 'final',
-                  actions: pinoLog(
+                  entry: pinoLog(
                     ({ context }) => `Done for epoch ${context.epoch} `,
                     'EpochProcessor:rewards',
                   ),

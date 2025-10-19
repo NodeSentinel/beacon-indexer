@@ -53,6 +53,41 @@ The code is written in TypeScript and uses XState to orchestrate the data fetchi
 
 ## Architecture
 
+### System Architecture
+
+The beacon indexer follows a clean layered architecture pattern that separates concerns and ensures maintainability:
+
+```
+┌─────────────────┐    ┌──────────────────┐    ┌─────────────────┐
+│      XState     │───▶│   Controllers    │───▶│    Storage      │
+│                 │    │  (Coordinators)  │    │   (Database)    │
+└─────────────────┘    └──────────────────┘    └─────────────────┘
+                                │                        │
+                                ▼                        ▼
+                       ┌──────────────────┐    ┌─────────────────┐
+                       │   BeaconClient   │    │      API        │
+                       │  (External API)  │    │   (REST API)    │
+                       └──────────────────┘    └─────────────────┘
+                                                        │
+                                                        ▼
+                                               ┌─────────────────┐
+                                               │  Bot & Website  │
+                                               │   (Consumers)   │
+                                               └─────────────────┘
+```
+
+**XState Actors**: Orchestrate the data extraction workflow from the beacon chain, managing state transitions and coordinating between different processing stages.
+
+**Controllers**: Entity-specific controllers (Epoch, Slot, Validators) that fetch data from the beacon chain, process and transform it, and coordinate with storage layers when needed.
+
+**Storage**: Database layer responsible for all data persistence operations using Prisma ORM and PostgreSQL.
+
+**BeaconClient**: Handles all external API calls to the beacon chain, providing reliable data fetching with retry logic and fallback mechanisms.
+
+**API**: REST API layer that exposes the collected data through HTTP endpoints, consuming data from the storage layer and providing it to external consumers.
+
+**Bot & Website**: External consumers that utilize the API to provide real-time validator monitoring, alerts, and insights to users through Telegram bots and web interfaces.
+
 ### Packages
 
 - **`@beacon-indexer/db`**: Database layer with Prisma ORM and PostgreSQL

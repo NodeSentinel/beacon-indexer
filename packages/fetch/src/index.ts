@@ -45,7 +45,7 @@ async function main() {
   const validatorsController = new ValidatorsController(beaconClient, validatorsStorage);
 
   const epochStorage = new EpochStorage(prisma);
-  const epochController = new EpochController(beaconClient, epochStorage);
+  const epochController = new EpochController(beaconClient, epochStorage, beaconTime);
 
   // Start indexing the beacon chain
   await validatorsController.initValidators();

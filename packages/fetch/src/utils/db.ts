@@ -1,8 +1,5 @@
 import { Prisma, LastSummaryUpdate } from '@beacon-indexer/db';
-import memoizee from 'memoizee';
-import ms from 'ms';
 
-import { env } from '@/src/lib/env.js';
 import { getPrisma } from '@/src/lib/prisma.js';
 import { VALIDATOR_STATUS } from '@/src/services/consensus/constants.js';
 const prisma = getPrisma();
@@ -71,7 +68,7 @@ export async function db_getSlotCommitteesValidatorsAmountsForSlots(slotNumbers:
     },
     select: {
       slot: true,
-      committeeValidatorCounts: true,
+      committeesCountInSlot: true,
     },
     orderBy: {
       slot: 'desc',
@@ -80,7 +77,7 @@ export async function db_getSlotCommitteesValidatorsAmountsForSlots(slotNumbers:
 
   return slots.reduce(
     (acc, slot) => {
-      acc[slot.slot] = slot.committeeValidatorCounts as number[];
+      acc[slot.slot] = slot.committeesCountInSlot as number[];
       return acc;
     },
     {} as Record<number, number[]>,

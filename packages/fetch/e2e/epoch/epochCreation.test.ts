@@ -4,6 +4,7 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import { BeaconClient } from '@/src/services/consensus/beacon.js';
 import { EpochController } from '@/src/services/consensus/controllers/epoch.js';
 import { EpochStorage } from '@/src/services/consensus/storage/epoch.js';
+import { BeaconTime } from '@/src/services/consensus/utils/time.js';
 
 describe('Epoch Creation E2E Tests', () => {
   let prisma: PrismaClient;
@@ -33,6 +34,13 @@ describe('Epoch Creation E2E Tests', () => {
     epochController = new EpochController(
       { slotStartIndexing: 32000 } as BeaconClient, // Mock slot that represents epoch 1000
       epochStorage,
+      new BeaconTime({
+        genesisTimestamp: 1606824023,
+        slotDurationMs: 12000,
+        slotsPerEpoch: 32,
+        epochsPerSyncCommitteePeriod: 256,
+        slotStartIndexing: 32000,
+      }),
     );
 
     // Clean database before tests

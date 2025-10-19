@@ -112,13 +112,13 @@ async function saveCommittee(epoch: number, slots: number[], committees: Committ
     async (tx) => {
       // Single bulk INSERT with ON CONFLICT - equivalent to original performance
       await tx.$executeRaw`
-        INSERT INTO "Slot" (slot, "attestationsProcessed", "committeeValidatorCounts")
+        INSERT INTO "Slot" (slot, "attestationsProcessed", "committeesCountInSlot")
         SELECT 
           unnest(${slots}::integer[]), 
           false,
           unnest(${slots.map((slot) => JSON.stringify(validatorsInCommitteePerSlot.get(slot) || []))}::jsonb[])
         ON CONFLICT (slot) DO UPDATE SET
-          "committeeValidatorCounts" = EXCLUDED."committeeValidatorCounts"
+          "committeesCountInSlot" = EXCLUDED."committeesCountInSlot"
       `;
 
       // Insert committees in batches for better performance

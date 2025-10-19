@@ -45,7 +45,7 @@ export interface SlotProcessorContext {
     elConsolidations: string[];
   };
   syncCommittee: string[] | null;
-  committeeValidatorCounts?: Record<number, number[]>;
+  committeesCountInSlot?: Record<number, number[]>;
   slotDuration: number;
   lookbackSlot: number;
 }
@@ -296,8 +296,8 @@ export const slotProcessorMachine = setup({
                             target: 'processingAttestations',
                             actions: assign({
                               // slot -> validator indexes
-                              committeeValidatorCounts: ({ event }) =>
-                                event.output.committeeValidatorCounts,
+                              committeesCountInSlot: ({ event }) =>
+                                event.output.committeesCountInSlot,
                             }),
                           },
                           {
@@ -328,7 +328,7 @@ export const slotProcessorMachine = setup({
                           return {
                             slotNumber: context.slot,
                             attestations: _beaconBlockData.data.message.body.attestations ?? [],
-                            slotCommitteesValidatorsAmounts: context.committeeValidatorCounts ?? {},
+                            slotCommitteesValidatorsAmounts: context.committeesCountInSlot ?? {},
                           };
                         },
                         onDone: {

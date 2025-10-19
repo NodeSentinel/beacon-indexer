@@ -775,7 +775,9 @@ describe('epochProcessorMachine', () => {
 
             // Step 5: Verify fetchCommittees was called
             expect(mockEpochActors.fetchCommittees).toHaveBeenCalledWith(
-              expect.objectContaining({ input: { epoch: 100 } }),
+              expect.objectContaining({
+                input: { epochController: expect.any(Object), epoch: 100 },
+              }),
             );
 
             // Step 6: Wait for fetchCommittees to complete
@@ -792,7 +794,9 @@ describe('epochProcessorMachine', () => {
 
             // Step 9: Verify fetchCommittees was called with correct input
             expect(mockEpochActors.fetchCommittees).toHaveBeenCalledWith(
-              expect.objectContaining({ input: { epoch: 100 } }),
+              expect.objectContaining({
+                input: { epochController: expect.any(Object), epoch: 100 },
+              }),
             );
 
             actor.stop();
@@ -1093,7 +1097,9 @@ describe('epochProcessorMachine', () => {
 
                 // Verify that checkSyncCommitteeForEpochInDB was called
                 expect(mockEpochActors.checkSyncCommitteeForEpochInDB).toHaveBeenCalledWith(
-                  expect.objectContaining({ input: { epoch: 100 } }),
+                  expect.objectContaining({
+                    input: { epochController: expect.any(Object), epoch: 100 },
+                  }),
                 );
 
                 // Now resolve with isFetched: true (found in DB)
@@ -1108,7 +1114,9 @@ describe('epochProcessorMachine', () => {
 
                 // Verify that updateSyncCommitteesFetched was called
                 expect(mockEpochActors.updateSyncCommitteesFetched).toHaveBeenCalledWith(
-                  expect.objectContaining({ input: { epoch: 100 } }),
+                  expect.objectContaining({
+                    input: { epochController: expect.any(Object), epoch: 100 },
+                  }),
                 );
 
                 // Verify that fetchSyncCommittees was NOT called
@@ -1202,7 +1210,9 @@ describe('epochProcessorMachine', () => {
 
                 // Verify that checkSyncCommitteeForEpochInDB was called
                 expect(mockEpochActors.checkSyncCommitteeForEpochInDB).toHaveBeenCalledWith(
-                  expect.objectContaining({ input: { epoch: 100 } }),
+                  expect.objectContaining({
+                    input: { epochController: expect.any(Object), epoch: 100 },
+                  }),
                 );
                 checkSyncCommitteePromise.resolve({ isFetched: false });
                 await Promise.resolve();
@@ -1211,7 +1221,9 @@ describe('epochProcessorMachine', () => {
                 const step3 = getLastEpochProcessingState(stateTransitions);
                 expect(step3.epochProcessing.fetching.syncingCommittees).toBe('fetching');
                 expect(mockEpochActors.fetchSyncCommittees).toHaveBeenCalledWith(
-                  expect.objectContaining({ input: { epoch: 100 } }),
+                  expect.objectContaining({
+                    input: { epochController: expect.any(Object), epoch: 100 },
+                  }),
                 );
                 expect(mockEpochActors.updateSyncCommitteesFetched).not.toHaveBeenCalled();
 
@@ -1602,7 +1614,9 @@ describe('epochProcessorMachine', () => {
 
             // Verify that updateSlotsFetched was called
             expect(mockEpochActors.updateSlotsFetched).toHaveBeenCalledWith(
-              expect.objectContaining({ input: { epoch: 100 } }),
+              expect.objectContaining({
+                input: { epochController: expect.any(Object), epoch: 100 },
+              }),
             );
 
             // Resolve updateSlotsFetched
@@ -1829,7 +1843,7 @@ describe('epochProcessorMachine', () => {
 
               // Verify that trackingTransitioningValidators was called
               expect(mockEpochActors.trackingTransitioningValidators).toHaveBeenCalledWith(
-                expect.objectContaining({ input: { epoch: 100 } }),
+                expect.objectContaining({ input: { epochController: expect.any(Object) } }),
               );
 
               // Resolve trackingTransitioningValidators to complete
@@ -2053,9 +2067,14 @@ describe('epochProcessorMachine', () => {
               const step2 = getLastEpochProcessingState(stateTransitions);
               expect(step2!.epochProcessing.fetching.validatorsBalances).toBe('fetching');
 
-              // Verify that fetchValidatorsBalances was called with startSlot
+              // Verify that fetchValidatorsBalances was called with startSlot and epochController
               expect(mockEpochActors.fetchValidatorsBalances).toHaveBeenCalledWith(
-                expect.objectContaining({ input: { startSlot: 3200 } }), // 100 * 32 = 3200
+                expect.objectContaining({
+                  input: {
+                    startSlot: 3200,
+                    epochController: expect.any(Object),
+                  },
+                }), // 100 * 32 = 3200
               );
 
               // Resolve fetchValidatorsBalances to complete
@@ -2155,7 +2174,12 @@ describe('epochProcessorMachine', () => {
 
             // Verify that fetchValidatorsBalances was called
             expect(mockEpochActors.fetchValidatorsBalances).toHaveBeenCalledWith(
-              expect.objectContaining({ input: { startSlot: 3200 } }), // 100 * 32 = 3200
+              expect.objectContaining({
+                input: {
+                  startSlot: 3200,
+                  epochController: expect.any(Object),
+                },
+              }), // 100 * 32 = 3200
             );
 
             // Should go to epochProcessing with rewards in waitingForValidatorsBalances
@@ -2252,7 +2276,12 @@ describe('epochProcessorMachine', () => {
 
               // Verify that fetchAttestationsRewards was called
               expect(mockEpochActors.fetchAttestationsRewards).toHaveBeenCalledWith(
-                expect.objectContaining({ input: { epoch: 100 } }),
+                expect.objectContaining({
+                  input: {
+                    epoch: 100,
+                    epochController: expect.any(Object),
+                  },
+                }),
               );
 
               // Resolve fetchAttestationsRewards to complete
