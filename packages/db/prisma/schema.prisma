@@ -19,30 +19,6 @@ model Epoch {
     syncCommitteesFetched       Boolean @default(false)
 }
 
-model Slot {
-    slot        Int     @id
-    blockNumber Int?
-    processed   Boolean @default(false)
-
-    committee                    Committee[]
-    attestationsProcessed        Boolean     @default(false)
-    committeesCountInSlot        Json? // Stores the number of validators per committee index as an array: [350, 340, ...], required for attestation processing
-    blockAndSyncRewardsProcessed Boolean     @default(false)
-    executionRewardsProcessed    Boolean     @default(false)
-    beaconBlockProcessed         Boolean     @default(false)
-    // beacon block data extracted from the beacon block
-    withdrawalsRewards           Json? // ["validatorIndex:amount", "validatorIndex:amount", ...]
-    clDeposits                   Json?
-    clVoluntaryExits             Json?
-    elDeposits                   Json?
-    elWithdrawals                Json?
-    elConsolidations             Json?
-    //proposer_slashings
-    //attester_slashings
-
-    @@index([processed, slot])
-}
-
 model SyncCommittee {
     fromEpoch           Int
     toEpoch             Int
@@ -71,6 +47,30 @@ model Committee {
     @@index([validatorIndex, slot])
 }
 
+model Slot {
+    slot        Int     @id
+    blockNumber Int?
+    processed   Boolean @default(false)
+
+    committee                    Committee[]
+    attestationsProcessed        Boolean     @default(false)
+    committeesCountInSlot        Json? // Stores the number of validators per committee index as an array: [350, 340, ...], required for attestation processing
+    blockAndSyncRewardsProcessed Boolean     @default(false)
+    executionRewardsProcessed    Boolean     @default(false)
+    beaconBlockProcessed         Boolean     @default(false)
+    // beacon block data extracted from the beacon block
+    withdrawalsRewards           Json? // ["validatorIndex:amount", "validatorIndex:amount", ...]
+    clDeposits                   Json?
+    clVoluntaryExits             Json?
+    elDeposits                   Json?
+    elWithdrawals                Json?
+    elConsolidations             Json?
+    //proposer_slashings
+    //attester_slashings
+
+    @@index([processed, slot])
+}
+
 model Validator {
     id                Int      @id
     status            Int?
@@ -95,6 +95,9 @@ model ExecutionRewards {
 // Note: HourlyValidatorStats and HourlyBlockAndSyncRewards have been separated to avoid deadlocks.
 // both processes that update these tables are running in parallel.
 // one updates blockAndSyncRewards, the other updates attestations rewards.
+// TODO: unificar esta tabla con HourlyValidatorStats. Ahora que tenemos xstate podemos procesar
+// ambos rewards, guardar los datos en memoria y luego actualizar la tabla principal.
+// antes no se podia porque ambos procesos corrian en paralelo y se bloqueaban mutuamente.
 model HourlyValidatorStats {
     validatorIndex Int
     hour           Int // 0-23
@@ -143,9 +146,6 @@ model HourlyValidatorStats {
     @@index([date, hour])
 }
 
-// TODO: unificar esta tabla con HourlyValidatorStats. Ahora que tenemos xstate podemos procesar
-// ambos rewards, guardar los datos en memoria y luego actualizar la tabla principal.
-// antes no se podia porque ambos procesos corrian en paralelo y se bloqueaban mutuamente.
 model HourlyBlockAndSyncRewards {
     validatorIndex Int
     hour           Int // 0-23
@@ -236,6 +236,7 @@ model WithdrawalAddress {
 
 model FeeRewardAddress {
     address String @id
+    // TODO: rename to UserToFeeRewardAddress
     users   User[] @relation("FeeRewardAddressToUser")
 }
 
