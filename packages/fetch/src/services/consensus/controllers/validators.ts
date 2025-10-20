@@ -50,4 +50,66 @@ export class ValidatorsController {
       })),
     );
   }
+
+  /**
+   * Get max validator ID from database
+   */
+  async getMaxValidatorId() {
+    return this.validatorsStorage.getMaxValidatorId();
+  }
+
+  /**
+   * Get final state validator IDs from database
+   */
+  async getFinalValidatorIds() {
+    return this.validatorsStorage.getFinalValidatorIds();
+  }
+
+  /**
+   * Get attesting validator IDs from database
+   */
+  async getAttestingValidatorsIds() {
+    return this.validatorsStorage.getAttestingValidatorsIds();
+  }
+
+  /**
+   * Get validator balances for specific validator IDs
+   */
+  async getValidatorsBalances(validatorIds: number[]) {
+    return this.validatorsStorage.getValidatorsBalances(validatorIds);
+  }
+
+  /**
+   * Get pending validators for tracking
+   */
+  async getPendingValidators(): Promise<Array<{ id: number }>> {
+    return this.validatorsStorage.getPendingValidators();
+  }
+
+  /**
+   * Save validator balances to database
+   */
+  async saveValidatorBalances(
+    validatorBalances: Array<{ index: string; balance: string }>,
+    epoch: number,
+  ) {
+    return this.validatorsStorage.saveValidatorBalances(validatorBalances, epoch);
+  }
+
+  /**
+   * Update validators with new data
+   */
+  async updateValidators(
+    validatorsData: Array<{
+      index: string;
+      status: string;
+      balance: string;
+      validator: {
+        withdrawal_credentials: string;
+        effective_balance: string;
+      };
+    }>,
+  ): Promise<void> {
+    return this.validatorsStorage.updateValidators(validatorsData);
+  }
 }

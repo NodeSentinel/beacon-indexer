@@ -1,14 +1,17 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 
 import { EpochStorage } from './epoch.js';
+import { ValidatorsStorage } from './validators.js';
 
 describe('EpochStorage Validation Logic', () => {
   let epochStorage: EpochStorage;
 
   beforeEach(() => {
     vi.clearAllMocks();
+
+    const mockValidatorsStorage = {} as unknown as ValidatorsStorage;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    epochStorage = new EpochStorage({} as unknown as any);
+    epochStorage = new EpochStorage({} as unknown as any, mockValidatorsStorage);
   });
 
   describe('createEpochs validation', () => {

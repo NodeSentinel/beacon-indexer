@@ -4,6 +4,7 @@ import { EpochControllerHelpers } from './helpers/epochControllerHelpers.js';
 
 import { BeaconClient } from '@/src/services/consensus/beacon.js';
 import { EpochStorage } from '@/src/services/consensus/storage/epoch.js';
+import { ValidatorsStorage } from '@/src/services/consensus/storage/validators.js';
 import { BeaconTime } from '@/src/services/consensus/utils/time.js';
 import { convertToUTC } from '@/src/utils/date/index.js';
 
@@ -13,6 +14,7 @@ export class EpochController extends EpochControllerHelpers {
   constructor(
     private readonly beaconClient: BeaconClient,
     private readonly epochStorage: EpochStorage,
+    private readonly validatorsStorage: ValidatorsStorage,
     private readonly beaconTime: BeaconTime,
   ) {
     super();
@@ -81,13 +83,13 @@ export class EpochController extends EpochControllerHelpers {
   async fetchValidatorsBalances(slot: number) {
     try {
       // Get basic validator data from storage
-      const totalValidators = await this.epochStorage.getMaxValidatorId();
+      const totalValidators = await this.validatorsStorage.getMaxValidatorId();
       if (totalValidators == 0) {
         return;
       }
 
       // Get final state validators from storage
-      const finalStateValidatorsIds = await this.epochStorage.getFinalValidatorIds();
+      const finalStateValidatorsIds = await this.validatorsStorage.getFinalValidatorIds();
       const finalStateValidatorsSet = new Set(finalStateValidatorsIds);
 
       // Generate all validator IDs and filter out final state validators
@@ -116,7 +118,7 @@ export class EpochController extends EpochControllerHelpers {
 
       // Save all collected data to database
       const epoch = this.beaconTime.getEpochFromSlot(slot);
-      await this.epochStorage.saveValidatorBalances(allValidatorBalances, epoch);
+      await this.validatorsStorage.saveValidatorBalances(allValidatorBalances, epoch);
     } catch (error) {
       console.error(`Error fetching validator balances info`, error);
     }
@@ -134,7 +136,7 @@ export class EpochController extends EpochControllerHelpers {
     await this.epochStorage.truncateAttestationRewardsTempTable();
 
     // Get all attesting validators from storage
-    const allValidatorIds = await this.epochStorage.getAttestingValidatorsIds();
+    const allValidatorIds = await this.validatorsStorage.getAttestingValidatorsIds();
 
     // Get ideal rewards from storage
     let idealRewardsLookup: ReturnType<typeof this.createIdealRewardsLookup> | null = null;
@@ -145,7 +147,7 @@ export class EpochController extends EpochControllerHelpers {
     // Fetch rewards in batches and save in a temp table
     for (const batch of validatorBatches) {
       // Get effective balances for the validators in the batch from storage
-      const validatorsBalances = await this.epochStorage.getValidatorsBalances(batch);
+      const validatorsBalances = await this.validatorsStorage.getValidatorsBalances(batch);
       const validatorsBalancesMap = new Map(
         validatorsBalances.map((balance) => [
           balance.id.toString(),
@@ -260,7 +262,7 @@ export class EpochController extends EpochControllerHelpers {
    */
   async trackTransitioningValidators() {
     // Get pending validators from storage
-    const pendingValidators = await this.epochStorage.getPendingValidators();
+    const pendingValidators = await this.validatorsStorage.getPendingValidators();
 
     if (pendingValidators.length === 0) {
       return { success: true, processedCount: 0 };
@@ -271,7 +273,7 @@ export class EpochController extends EpochControllerHelpers {
     const validatorsData = await this.beaconClient.getValidators('head', validatorIds, null);
 
     // Update validators in storage
-    await this.epochStorage.updateValidators(validatorsData);
+    await this.validatorsStorage.updateValidators(validatorsData);
 
     return { success: true, processedCount: validatorsData.length };
   }
