@@ -136,6 +136,10 @@ export class EpochStorage {
     return this.prisma.epoch.count();
   }
 
+  async getEpochByNumber(epoch: number) {
+    return this.prisma.epoch.findUnique({ where: { epoch } });
+  }
+
   /**
    * Check if sync committee for a specific epoch is already fetched
    */

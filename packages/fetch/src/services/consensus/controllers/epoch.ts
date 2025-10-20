@@ -29,12 +29,12 @@ export class EpochController extends EpochControllerHelpers {
     return this.epochStorage.getMinEpochToProcess();
   }
 
-  async getUnprocessedCount() {
-    return this.epochStorage.getUnprocessedCount();
-  }
-
   async markEpochAsProcessed(epoch: number) {
     await this.epochStorage.markEpochAsProcessed(epoch);
+  }
+
+  async getUnprocessedCount() {
+    return this.epochStorage.getUnprocessedCount();
   }
 
   /**
@@ -49,6 +49,10 @@ export class EpochController extends EpochControllerHelpers {
 
   async getEpochCount() {
     return this.epochStorage.getEpochCount();
+  }
+
+  async getEpochByNumber(epoch: number) {
+    return this.epochStorage.getEpochByNumber(epoch);
   }
 
   // New method that handles the complete epoch creation logic internally
