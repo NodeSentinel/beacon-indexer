@@ -81,54 +81,6 @@ export class EpochController extends EpochControllerHelpers {
   }
 
   /**
-   * Fetch validator balances for a specific slot
-   * Coordinates between beacon client and storage
-   */
-  async fetchValidatorsBalances(slot: number) {
-    try {
-      // Get basic validator data from storage
-      const totalValidators = await this.validatorsStorage.getMaxValidatorId();
-      if (totalValidators == 0) {
-        return;
-      }
-
-      // Get final state validators from storage
-      const finalStateValidatorsIds = await this.validatorsStorage.getFinalValidatorIds();
-      const finalStateValidatorsSet = new Set(finalStateValidatorsIds);
-
-      // Generate all validator IDs and filter out final state validators
-      const allValidatorIds = Array.from({ length: totalValidators }, (_, i) => i).filter(
-        (id) => !finalStateValidatorsSet.has(id),
-      );
-
-      const batchSize = 1_000_000;
-
-      // Create chunks of batchSize
-      const batches = chunk(allValidatorIds, batchSize);
-      let allValidatorBalances: Array<{ index: string; balance: string }> = [];
-
-      for (const batchIds of batches) {
-        const batchResult = await this.beaconClient.getValidatorsBalances(
-          slot,
-          batchIds.map((id) => String(id)),
-        );
-
-        allValidatorBalances = [...allValidatorBalances, ...batchResult];
-
-        if (batchResult.length < batchSize) {
-          break;
-        }
-      }
-
-      // Save all collected data to database
-      const epoch = this.beaconTime.getEpochFromSlot(slot);
-      await this.validatorsStorage.saveValidatorBalances(allValidatorBalances, epoch);
-    } catch (error) {
-      console.error(`Error fetching validator balances info`, error);
-    }
-  }
-
-  /**
    * Fetch attestation rewards for a specific epoch
    * Coordinates between beacon client and storage
    */
@@ -259,26 +211,5 @@ export class EpochController extends EpochControllerHelpers {
    */
   async updateSyncCommitteesFetched(epoch: number) {
     return this.epochStorage.updateSyncCommitteesFetched(epoch);
-  }
-
-  /**
-   * Track transitioning validators
-   */
-  async trackTransitioningValidators() {
-    // Get pending validators from storage
-    const pendingValidators = await this.validatorsStorage.getPendingValidators();
-
-    if (pendingValidators.length === 0) {
-      return { success: true, processedCount: 0 };
-    }
-
-    // Get validator data from beacon chain
-    const validatorIds = pendingValidators.map((v) => String(v.id));
-    const validatorsData = await this.beaconClient.getValidators('head', validatorIds, null);
-
-    // Update validators in storage
-    await this.validatorsStorage.updateValidators(validatorsData);
-
-    return { success: true, processedCount: validatorsData.length };
   }
 }

@@ -1,4 +1,5 @@
 import { Decimal } from '@beacon-indexer/db';
+import chunk from 'lodash/chunk.js';
 
 import { BeaconClient } from '@/src/services/consensus/beacon.js';
 import { VALIDATOR_STATUS } from '@/src/services/consensus/constants.js';
@@ -111,5 +112,64 @@ export class ValidatorsController {
     }>,
   ): Promise<void> {
     return this.validatorsStorage.updateValidators(validatorsData);
+  }
+
+  /**
+   * Fetch validator balances for a specific slot and persist them.
+   * The caller must provide the epoch corresponding to the slot to avoid coupling with time utils.
+   */
+  async fetchValidatorsBalances(slot: number, epoch: number) {
+    try {
+      const totalValidators = await this.validatorsStorage.getMaxValidatorId();
+      if (totalValidators === 0) {
+        return;
+      }
+
+      const finalStateValidatorsIds = await this.validatorsStorage.getFinalValidatorIds();
+      const finalStateValidatorsSet = new Set(finalStateValidatorsIds);
+
+      const allValidatorIds = Array.from({ length: totalValidators }, (_, i) => i).filter(
+        (id) => !finalStateValidatorsSet.has(id),
+      );
+
+      const batchSize = 1_000_000;
+      const batches = chunk(allValidatorIds, batchSize);
+      let allValidatorBalances: Array<{ index: string; balance: string }> = [];
+
+      for (const batchIds of batches) {
+        const batchResult = await this.beaconClient.getValidatorsBalances(
+          slot,
+          batchIds.map((id) => String(id)),
+        );
+
+        allValidatorBalances = [...allValidatorBalances, ...batchResult];
+
+        if (batchResult.length < batchSize) {
+          break;
+        }
+      }
+
+      await this.validatorsStorage.saveValidatorBalances(allValidatorBalances, epoch);
+    } catch (error) {
+      console.error(`Error fetching validator balances info`, error);
+    }
+  }
+
+  /**
+   * Track transitioning validators (pending -> active/exited, etc.).
+   */
+  async trackTransitioningValidators() {
+    const pendingValidators = await this.validatorsStorage.getPendingValidators();
+
+    if (pendingValidators.length === 0) {
+      return { success: true, processedCount: 0 };
+    }
+
+    const validatorIds = pendingValidators.map((v) => String(v.id));
+    const validatorsData = await this.beaconClient.getValidators('head', validatorIds, null);
+
+    await this.validatorsStorage.updateValidators(validatorsData);
+
+    return { success: true, processedCount: validatorsData.length };
   }
 }

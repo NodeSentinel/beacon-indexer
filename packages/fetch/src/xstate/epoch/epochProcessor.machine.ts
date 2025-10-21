@@ -3,6 +3,7 @@ import { setup, assign, sendParent, stopChild, raise, ActorRefFrom } from 'xstat
 import { slotOrchestratorMachine, SlotsCompletedEvent } from '../slot/slotOrchestrator.machine.js';
 
 import { EpochController } from '@/src/services/consensus/controllers/epoch.js';
+import { ValidatorsController } from '@/src/services/consensus/controllers/validators.js';
 import { BeaconTime } from '@/src/services/consensus/utils/time.js';
 import {
   fetchAttestationsRewards,
@@ -39,6 +40,7 @@ export const epochProcessorMachine = setup({
       services: {
         beaconTime: BeaconTime;
         epochController: EpochController;
+        validatorsController?: ValidatorsController;
       };
       actors: {
         slotOrchestratorActor?: ActorRefFrom<typeof slotOrchestratorMachine> | null;
@@ -72,6 +74,7 @@ export const epochProcessorMachine = setup({
       services: {
         beaconTime: BeaconTime;
         epochController: EpochController;
+        validatorsController?: ValidatorsController;
       };
     };
   },
@@ -551,7 +554,7 @@ export const epochProcessorMachine = setup({
                   invoke: {
                     src: 'trackingTransitioningValidators',
                     input: ({ context }) => ({
-                      epochController: context.services.epochController,
+                      validatorsController: context.services.validatorsController,
                     }),
                     onDone: 'complete',
                   },
@@ -603,8 +606,9 @@ export const epochProcessorMachine = setup({
                   invoke: {
                     src: 'fetchValidatorsBalances',
                     input: ({ context }) => ({
-                      epochController: context.services.epochController,
+                      validatorsController: context.services.validatorsController,
                       startSlot: context.startSlot,
+                      epoch: context.epoch,
                     }),
                     onDone: [
                       {

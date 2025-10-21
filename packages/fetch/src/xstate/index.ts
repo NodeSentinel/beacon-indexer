@@ -1,6 +1,7 @@
+import { getCreateEpochActor, getEpochOrchestratorActor } from './epoch/index.js';
+
 import { EpochController } from '@/src/services/consensus/controllers/epoch.js';
 import { BeaconTime } from '@/src/services/consensus/utils/time.js';
-import { getCreateEpochActor, getEpochOrchestratorActor } from '@/src/xstate/epoch/index.js';
 
 export default function initXstateMachines(
   epochController: EpochController,

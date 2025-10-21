@@ -4,6 +4,7 @@ import { createActor, fromPromise, SnapshotFrom, setup } from 'xstate';
 
 import { createControllablePromise } from '@/src/__tests__/utils.js';
 import { EpochController } from '@/src/services/consensus/controllers/epoch.js';
+import { ValidatorsController } from '@/src/services/consensus/controllers/validators.js';
 import { BeaconTime } from '@/src/services/consensus/utils/time.js';
 import { epochProcessorMachine } from '@/src/xstate/epoch/epochProcessor.machine.js';
 
@@ -76,6 +77,11 @@ function getLastMachineState(stateTransitions: any[], subStatePath: string) {
 const mockEpochController = {
   markEpochAsProcessed: vi.fn().mockResolvedValue(undefined),
 } as unknown as EpochController;
+
+const mockValidatorsController = {
+  fetchValidatorsBalances: vi.fn().mockResolvedValue(undefined),
+  trackTransitioningValidators: vi.fn().mockResolvedValue(undefined),
+} as unknown as ValidatorsController;
 
 // Hoisted mock actors that can be modified per test
 const mockEpochActors = vi.hoisted(() => ({
@@ -208,6 +214,7 @@ describe('epochProcessorMachine', () => {
             services: {
               beaconTime: mockBeaconTime,
               epochController: mockEpochController,
+              validatorsController: mockValidatorsController,
             },
           },
         },
@@ -269,6 +276,7 @@ describe('epochProcessorMachine', () => {
             services: {
               beaconTime: mockBeaconTime,
               epochController: mockEpochController,
+              validatorsController: mockValidatorsController,
             },
           },
         },
@@ -1809,6 +1817,7 @@ describe('epochProcessorMachine', () => {
                     services: {
                       beaconTime: mockBeaconTime,
                       epochController: mockEpochController,
+                      validatorsController: mockValidatorsController,
                     },
                   },
                 },
@@ -1843,7 +1852,7 @@ describe('epochProcessorMachine', () => {
 
               // Verify that trackingTransitioningValidators was called
               expect(mockEpochActors.trackingTransitioningValidators).toHaveBeenCalledWith(
-                expect.objectContaining({ input: { epochController: expect.any(Object) } }),
+                expect.objectContaining({ input: { validatorsController: expect.any(Object) } }),
               );
 
               // Resolve trackingTransitioningValidators to complete
@@ -2035,6 +2044,7 @@ describe('epochProcessorMachine', () => {
                     services: {
                       beaconTime: mockBeaconTime,
                       epochController: mockEpochController,
+                      validatorsController: mockValidatorsController,
                     },
                   },
                 },
@@ -2067,12 +2077,13 @@ describe('epochProcessorMachine', () => {
               const step2 = getLastEpochProcessingState(stateTransitions);
               expect(step2!.epochProcessing.fetching.validatorsBalances).toBe('fetching');
 
-              // Verify that fetchValidatorsBalances was called with startSlot and epochController
+              // Verify that fetchValidatorsBalances was called with startSlot and validatorsController
               expect(mockEpochActors.fetchValidatorsBalances).toHaveBeenCalledWith(
                 expect.objectContaining({
                   input: {
                     startSlot: 3200,
-                    epochController: expect.any(Object),
+                    epoch: 100,
+                    validatorsController: expect.any(Object),
                   },
                 }), // 100 * 32 = 3200
               );
@@ -2139,6 +2150,7 @@ describe('epochProcessorMachine', () => {
                   services: {
                     beaconTime: mockBeaconTime,
                     epochController: mockEpochController,
+                    validatorsController: mockValidatorsController,
                   },
                 },
               },
@@ -2177,7 +2189,8 @@ describe('epochProcessorMachine', () => {
               expect.objectContaining({
                 input: {
                   startSlot: 3200,
-                  epochController: expect.any(Object),
+                  epoch: 100,
+                  validatorsController: expect.any(Object),
                 },
               }), // 100 * 32 = 3200
             );

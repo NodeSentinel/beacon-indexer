@@ -1,6 +1,7 @@
 import { fromPromise } from 'xstate';
 
 import { EpochController } from '@/src/services/consensus/controllers/epoch.js';
+import { ValidatorsController } from '@/src/services/consensus/controllers/validators.js';
 
 /**
  * Finds the minimum unprocessed epoch that needs processing
@@ -30,8 +31,15 @@ export const markEpochAsProcessed = fromPromise(
 );
 
 export const fetchValidatorsBalances = fromPromise(
-  async ({ input }: { input: { epochController: EpochController; startSlot: number } }) =>
-    input.epochController.fetchValidatorsBalances(input.startSlot),
+  async ({
+    input,
+  }: {
+    input: {
+      validatorsController?: ValidatorsController;
+      startSlot: number;
+      epoch: number;
+    };
+  }) => input.validatorsController?.fetchValidatorsBalances(input.startSlot, input.epoch),
 );
 
 export const fetchAttestationsRewards = fromPromise(
@@ -89,7 +97,7 @@ export const updateSyncCommitteesFetched = fromPromise(
  * Fetches pending validators from DB, gets their data from beacon chain, and updates them directly
  */
 export const trackingTransitioningValidators = fromPromise(
-  async ({ input }: { input: { epochController: EpochController } }) => {
-    return input.epochController.trackTransitioningValidators();
+  async ({ input }: { input: { validatorsController?: ValidatorsController } }) => {
+    return input.validatorsController?.trackTransitioningValidators();
   },
 );
