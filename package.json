@@ -42,7 +42,7 @@
     "type-check": "pnpm -r exec tsc --noEmit",
     "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md}\"",
     "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,json,md}\"",
-    "build": "pnpm --filter @beacon-indexer/db db:generate && pnpm --filter @beacon-indexer/db build && pnpm --filter fetch build",
+    "build": "pnpm --filter @beacon-indexer/db build && pnpm --filter fetch build",
     "dev:fetch": "node ./scripts/setDbUrl.js pnpm --filter fetch run dev",
     "migrate:create": "node scripts/setDbUrl.js pnpm --filter @beacon-indexer/db db:migrate -- --create-only",
     "migrate:reset-initial": "node scripts/resetInitialMigration.js",
