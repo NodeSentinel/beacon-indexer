@@ -1,4 +1,4 @@
-import { PrismaClient, EpochRewardsTemp, Committee } from '@beacon-indexer/db';
+import { PrismaClient, Committee, Prisma } from '@beacon-indexer/db';
 import chunk from 'lodash/chunk.js';
 import ms from 'ms';
 
@@ -76,7 +76,7 @@ export class EpochStorage {
     return this.prisma.epoch.count({
       where: {
         OR: [
-          { rewardsFetched: false },
+          { rewards_fetched: false },
           { validatorsBalancesFetched: false },
           { committeesFetched: false },
           { slotsFetched: false },
@@ -95,7 +95,8 @@ export class EpochStorage {
       epoch: epoch,
       processed: false,
       validatorsBalancesFetched: false,
-      rewardsFetched: false,
+      rewards_fetched: false,
+      rewards_summarized: false,
       committeesFetched: false,
       slotsFetched: false,
       syncCommitteesFetched: false,
@@ -155,54 +156,64 @@ export class EpochStorage {
   }
 
   /**
-   * Truncate temp table for attestation rewards
+   * Save epoch rewards and mark as fetched (atomic operation)
    */
-  async truncateAttestationRewardsTempTable() {
-    await this.prisma.$executeRaw`TRUNCATE TABLE "EpochRewardsTemp"`;
-  }
-
-  /**
-   * Insert attestation rewards batch into temp table
-   */
-  async insertIntoEpochRewardsTemp(rewards: EpochRewardsTemp[]) {
-    await this.prisma.epochRewardsTemp.createMany({
-      data: rewards,
-      skipDuplicates: true,
-    });
-  }
-
-  /**
-   * Process temp table and update epoch status for attestation rewards
-   */
-  async saveAttestationRewardsAndUpdateEpoch(epoch: number) {
+  async saveEpochRewardsAndMarkFetched(
+    epoch: number,
+    rewards: Prisma.epoch_rewardsCreateManyInput[],
+  ) {
     await this.prisma.$transaction(
       async (tx) => {
-        // Merge data from temporary table to main table
-        await tx.$executeRaw`
-          INSERT INTO "HourlyValidatorStats" 
-            ("validatorIndex", "date", "hour", "head", "target", "source", "inactivity", "missedHead", "missedTarget", "missedSource", "missedInactivity")
-          SELECT 
-            "validatorIndex", "date", "hour", "head", "target", "source", "inactivity", "missedHead", "missedTarget", "missedSource", "missedInactivity"
-          FROM "EpochRewardsTemp"
-          ON CONFLICT ("validatorIndex", "date", "hour") DO UPDATE SET
-            "head" = COALESCE("HourlyValidatorStats"."head", 0) + COALESCE(EXCLUDED."head", 0),
-            "target" = COALESCE("HourlyValidatorStats"."target", 0) + COALESCE(EXCLUDED."target", 0),
-            "source" = COALESCE("HourlyValidatorStats"."source", 0) + COALESCE(EXCLUDED."source", 0),
-            "inactivity" = COALESCE("HourlyValidatorStats"."inactivity", 0) + COALESCE(EXCLUDED."inactivity", 0),
-            "missedHead" = COALESCE("HourlyValidatorStats"."missedHead", 0) + COALESCE(EXCLUDED."missedHead", 0),
-            "missedTarget" = COALESCE("HourlyValidatorStats"."missedTarget", 0) + COALESCE(EXCLUDED."missedTarget", 0),
-            "missedSource" = COALESCE("HourlyValidatorStats"."missedSource", 0) + COALESCE(EXCLUDED."missedSource", 0),
-            "missedInactivity" = COALESCE("HourlyValidatorStats"."missedInactivity", 0) + COALESCE(EXCLUDED."missedInactivity", 0)
-        `;
+        // Save rewards to epoch_rewards table
+        await tx.epoch_rewards.createMany({
+          data: rewards,
+        });
 
-        // Update epoch status
+        // Mark epoch as rewards_fetched = true
         await tx.epoch.update({
           where: { epoch },
-          data: { rewardsFetched: true },
+          data: { rewards_fetched: true },
         });
       },
       {
         timeout: ms('3m'),
+      },
+    );
+  }
+
+  /**
+   * Summarize epoch rewards and mark as summarized (atomic operation)
+   */
+  async summarizeEpochRewardsAndMarkSummarized(epoch: number, datetime: Date) {
+    await this.prisma.$transaction(
+      async (tx) => {
+        // Aggregate epoch_rewards into hourly_validator_attestation_stats
+        await tx.$executeRaw`
+          INSERT INTO hourly_validator_attestation_stats 
+            (validator_index, datetime, attestation_rewards, missed_attestations, last_epoch_processed)
+          SELECT 
+            validator_index,
+            ${datetime}::timestamp as datetime,
+            COALESCE(SUM(head + target + source + inactivity), 0) as attestation_rewards,
+            COALESCE(SUM(CASE WHEN (missed_head > 0 OR missed_target > 0 OR missed_source > 0 OR missed_inactivity > 0) THEN 1 ELSE 0 END), 0) as missed_attestations,
+            ${epoch} as last_epoch_processed
+          FROM epoch_rewards 
+          WHERE epoch = ${epoch}
+          GROUP BY validator_index
+          ON CONFLICT (validator_index, datetime) DO UPDATE SET
+            attestation_rewards = hourly_validator_attestation_stats.attestation_rewards + EXCLUDED.attestation_rewards,
+            missed_attestations = hourly_validator_attestation_stats.missed_attestations + EXCLUDED.missed_attestations,
+            last_epoch_processed = EXCLUDED.last_epoch_processed
+        `;
+
+        // Mark epoch as rewards_summarized = true
+        await tx.epoch.update({
+          where: { epoch },
+          data: { rewards_summarized: true },
+        });
+      },
+      {
+        timeout: ms('1m'),
       },
     );
   }
@@ -312,5 +323,48 @@ export class EpochStorage {
     });
 
     return { success: true };
+  }
+
+  /**
+   * Get hourly validator attestation stats for specific validators and datetime
+   * @internal
+   * @testonly
+   * Helper method for e2e tests only. Should not be used in production code.
+   */
+  async getHourlyValidatorAttestationStats_e2e_only(validatorIndexes: number[], datetime: Date) {
+    return this.prisma.hourly_validator_attestation_stats.findMany({
+      where: {
+        validator_index: { in: validatorIndexes },
+        datetime: datetime,
+      },
+      orderBy: [{ validator_index: 'asc' }],
+    });
+  }
+
+  /**
+   * Get all hourly validator attestation stats for a specific datetime
+   * @internal
+   * @testonly
+   * Helper method for e2e tests only. Should not be used in production code.
+   */
+  async getAllHourlyValidatorAttestationStats_e2e_only(datetime: Date) {
+    return this.prisma.hourly_validator_attestation_stats.findMany({
+      where: {
+        datetime: datetime,
+      },
+      orderBy: [{ validator_index: 'asc' }],
+    });
+  }
+
+  /**
+   * Get the last processed epoch from hourly_validator_attestation_stats
+   */
+  async getLastProcessedEpoch(): Promise<number | null> {
+    const result = await this.prisma.hourly_validator_attestation_stats.findFirst({
+      orderBy: { last_epoch_processed: 'desc' },
+      select: { last_epoch_processed: true },
+    });
+
+    return result?.last_epoch_processed ?? null;
   }
 }

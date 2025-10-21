@@ -8,12 +8,25 @@ datasource db {
     url      = env("DATABASE_URL")
 }
 
+model Validator {
+    id                Int      @id
+    status            Int?
+    balance           Decimal  @db.Decimal(78, 0)
+    effectiveBalance  Decimal? @db.Decimal(78, 0)
+    withdrawalAddress String?
+    users             User[]   @relation("UserToValidator")
+
+    @@index([withdrawalAddress])
+    @@index([status])
+}
+
 model Epoch {
     epoch                       Int     @id
     processed                   Boolean @default(false)
     validatorsBalancesFetched   Boolean @default(false)
     validatorsActivationFetched Boolean @default(false)
-    rewardsFetched              Boolean @default(false)
+    rewards_fetched             Boolean @default(false)
+    rewards_summarized          Boolean @default(false)
     committeesFetched           Boolean @default(false)
     slotsFetched                Boolean @default(false)
     syncCommitteesFetched       Boolean @default(false)
@@ -71,16 +84,36 @@ model Slot {
     @@index([processed, slot])
 }
 
-model Validator {
-    id                Int      @id
-    status            Int?
-    balance           Decimal  @db.Decimal(78, 0)
-    effectiveBalance  Decimal? @db.Decimal(78, 0)
-    withdrawalAddress String?
-    users             User[]   @relation("UserToValidator")
+model epoch_rewards {
+    epoch           Int
+    validator_index Int
 
-    @@index([withdrawalAddress])
-    @@index([status])
+    head              BigInt?
+    target            BigInt?
+    source            BigInt?
+    inactivity        BigInt?
+    missed_head       BigInt?
+    missed_target     BigInt?
+    missed_source     BigInt?
+    missed_inactivity BigInt?
+
+    @@id([validator_index, epoch])
+}
+
+model slot_reward {
+    validator_index Int
+    slot            Int
+    reward          BigInt?
+
+    @@id([validator_index, slot])
+}
+
+model sync_committee_reward {
+    validator_index Int
+    slot            Int
+    reward          BigInt?
+
+    @@id([validator_index, slot])
 }
 
 model ExecutionRewards {
@@ -92,58 +125,16 @@ model ExecutionRewards {
     @@index([timestamp, address])
 }
 
-// Note: HourlyValidatorStats and HourlyBlockAndSyncRewards have been separated to avoid deadlocks.
-// both processes that update these tables are running in parallel.
-// one updates blockAndSyncRewards, the other updates attestations rewards.
-// TODO: unificar esta tabla con HourlyValidatorStats. Ahora que tenemos xstate podemos procesar
-// ambos rewards, guardar los datos en memoria y luego actualizar la tabla principal.
-// antes no se podia porque ambos procesos corrian en paralelo y se bloqueaban mutuamente.
-model HourlyValidatorStats {
-    validatorIndex Int
-    hour           Int // 0-23
-    date           DateTime @db.Date // dd-mm-yyyy
+model hourly_validator_attestation_stats {
+    validator_index      Int
+    datetime             DateTime @db.Timestamp // dd-mm-yyyy-hh:mm:ss
+    attestation_rewards  BigInt   @default(0)
+    missed_attestations  Int      @default(0)
+    missed_slots         Json? // Array of missed slots: [1020, 1021, .., 1040]
+    last_epoch_processed Int?
+    last_slot_processed  Int?
 
-    // TODO: refactor this table to be split in two:
-    // take the id of the first table to relate to the second table (with the json field)
-    // also, unify hour+date in a single field.
-
-    //table1
-    // id
-    // validatorIndex
-    // bucketTime
-    // totalRewards (positive - penalties)
-    // totalSlotsMissed
-
-    //table2
-    // id from table1
-    // slots: {
-    //     "slot": number, // slot
-    //     "h": string, // head
-    //     "t": string, // target
-    //     "s": string, // source
-    //     "i": string, // inactivity
-    //     "mH": string, // missed head
-    //     "mT": string, // missed target
-    //     "mS": string, // missed source
-    //     "mI": string, // missed inactivity
-    //     "d": number // delay
-    // }[]
-
-    head       BigInt?
-    target     BigInt?
-    source     BigInt?
-    inactivity BigInt?
-
-    missedHead       BigInt?
-    missedTarget     BigInt?
-    missedSource     BigInt?
-    missedInactivity BigInt?
-
-    attestationsMissed Int?
-    slotsMissed        Json? // Array of missed slots: [1020, 1021, .., 1040]
-
-    @@id([validatorIndex, date, hour])
-    @@index([date, hour])
+    @@id([validator_index, datetime])
 }
 
 model HourlyBlockAndSyncRewards {

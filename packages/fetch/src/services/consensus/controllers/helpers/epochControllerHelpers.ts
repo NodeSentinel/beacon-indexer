@@ -1,7 +1,7 @@
-import { Committee } from '@beacon-indexer/db';
+import { Committee, Prisma } from '@beacon-indexer/db';
 
 import { BeaconClient } from '@/src/services/consensus/beacon.js';
-import { IdealReward, TotalReward, ProcessedReward } from '@/src/services/consensus/types.js';
+import { IdealReward, TotalReward } from '@/src/services/consensus/types.js';
 
 export abstract class EpochControllerHelpers {
   /**
@@ -54,6 +54,7 @@ export abstract class EpochControllerHelpers {
     validatorBalance: string,
     idealRewardsLookup: Map<string, IdealReward>,
   ): IdealReward | null {
+    // TODO: unit-test this
     const _validatorBalance = BigInt(validatorBalance);
     const roundedBalance = (_validatorBalance / 1000000000n) * 1000000000n;
     return idealRewardsLookup.get(roundedBalance.toString()) || null;
@@ -68,73 +69,61 @@ export abstract class EpochControllerHelpers {
     idealRewardsLookup: Map<string, IdealReward>,
     date: string,
     hour: number,
-  ): ProcessedReward[] {
+    epoch: number,
+  ): Prisma.epoch_rewardsCreateManyInput[] {
     return rewards.map((validatorInfo) => {
       const balance = validatorsBalancesMap.get(validatorInfo.validator_index) || '0';
-      return this.formatValidatorReward(validatorInfo, balance, idealRewardsLookup, date, hour);
-    });
-  }
 
-  /**
-   * Format validator reward data
-   */
-  protected formatValidatorReward(
-    validatorInfo: TotalReward,
-    validatorBalance: string,
-    idealRewardsLookup: Map<string, IdealReward>,
-    date: string,
-    hour: number,
-  ): ProcessedReward {
-    if (validatorBalance === '0') {
+      // Process validator reward directly to database format
+      if (balance === '0') {
+        return {
+          validator_index: Number(validatorInfo.validator_index),
+          epoch: epoch,
+          head: 0n,
+          target: 0n,
+          source: 0n,
+          inactivity: 0n,
+          missed_head: 0n,
+          missed_target: 0n,
+          missed_source: 0n,
+          missed_inactivity: 0n,
+        };
+      }
+
+      const head = BigInt(validatorInfo.head || '0');
+      const target = BigInt(validatorInfo.target || '0');
+      const source = BigInt(validatorInfo.source || '0');
+      const inactivity = BigInt(validatorInfo.inactivity || '0');
+
+      // Find ideal rewards for this validator's balance
+      const idealReward = this.findIdealRewardsForBalance(balance, idealRewardsLookup);
+
+      let missedHead = 0n;
+      let missedTarget = 0n;
+      let missedSource = 0n;
+      let missedInactivity = 0n;
+
+      if (idealReward) {
+        // Calculate missed rewards (ideal - received)
+        missedHead = BigInt(idealReward.head || '0') - head;
+        missedTarget = BigInt(idealReward.target || '0') - target;
+        missedSource = BigInt(idealReward.source || '0') - source;
+        missedInactivity = BigInt(idealReward.inactivity || '0') - inactivity;
+      }
+
       return {
-        validatorIndex: Number(validatorInfo.validator_index),
-        date,
-        hour,
-        head: '0',
-        target: '0',
-        source: '0',
-        inactivity: '0',
-        missedHead: '0',
-        missedTarget: '0',
-        missedSource: '0',
-        missedInactivity: '0',
+        validator_index: Number(validatorInfo.validator_index),
+        epoch: epoch,
+        head: head,
+        target: target,
+        source: source,
+        inactivity: inactivity,
+        missed_head: missedHead,
+        missed_target: missedTarget,
+        missed_source: missedSource,
+        missed_inactivity: missedInactivity,
       };
-    }
-
-    const head = BigInt(validatorInfo.head || '0');
-    const target = BigInt(validatorInfo.target || '0');
-    const source = BigInt(validatorInfo.source || '0');
-    const inactivity = BigInt(validatorInfo.inactivity || '0');
-
-    // Find ideal rewards for this validator's balance
-    const idealReward = this.findIdealRewardsForBalance(validatorBalance, idealRewardsLookup);
-
-    let missedHead = 0n;
-    let missedTarget = 0n;
-    let missedSource = 0n;
-    let missedInactivity = 0n;
-
-    if (idealReward) {
-      // Calculate missed rewards (ideal - received)
-      missedHead = BigInt(idealReward.head || '0') - head;
-      missedTarget = BigInt(idealReward.target || '0') - target;
-      missedSource = BigInt(idealReward.source || '0') - source;
-      missedInactivity = BigInt(idealReward.inactivity || '0') - inactivity;
-    }
-
-    return {
-      validatorIndex: Number(validatorInfo.validator_index),
-      date,
-      hour,
-      head: head.toString(),
-      target: target.toString(),
-      source: source.toString(),
-      inactivity: inactivity.toString(),
-      missedHead: missedHead.toString(),
-      missedTarget: missedTarget.toString(),
-      missedSource: missedSource.toString(),
-      missedInactivity: missedInactivity.toString(),
-    };
+    });
   }
 
   /**

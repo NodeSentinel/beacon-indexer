@@ -1,3 +1,4 @@
+import { Prisma } from '@beacon-indexer/db';
 import chunk from 'lodash/chunk.js';
 
 import { EpochControllerHelpers } from './helpers/epochControllerHelpers.js';
@@ -20,6 +21,9 @@ export class EpochController extends EpochControllerHelpers {
     super();
   }
 
+  // TODO: getter to know if an epoch is already processed (all the flags are true)
+  // TODO: setter to set the last epoch processed, check all the flags are true
+
   async getMaxEpoch() {
     const result = await this.epochStorage.getMaxEpoch();
     return result?.epoch ?? null;
@@ -27,6 +31,10 @@ export class EpochController extends EpochControllerHelpers {
 
   async getMinEpochToProcess() {
     return this.epochStorage.getMinEpochToProcess();
+  }
+
+  getBeaconTime() {
+    return this.beaconTime;
   }
 
   async markEpochAsProcessed(epoch: number) {
@@ -37,13 +45,7 @@ export class EpochController extends EpochControllerHelpers {
     return this.epochStorage.getUnprocessedCount();
   }
 
-  /**
-   * @internal
-   * @testonly
-   * Helper method for e2e tests only. Should not be used in production code.
-   * @returns All epochs from the database ordered by epoch number
-   */
-  async getAllEpochs_e2e_only() {
+  async getAllEpochs() {
     return this.epochStorage.getAllEpochs_e2e_only();
   }
 
@@ -80,16 +82,9 @@ export class EpochController extends EpochControllerHelpers {
     }
   }
 
-  /**
-   * Fetch attestation rewards for a specific epoch
-   * Coordinates between beacon client and storage
-   */
-  async fetchAttestationRewards(epoch: number) {
+  async fetchEpochRewards(epoch: number) {
     const epochTimestamp = this.beaconTime.getTimestampFromEpochNumber(epoch);
     const { date, hour } = convertToUTC(epochTimestamp);
-
-    // Truncate temp table
-    await this.epochStorage.truncateAttestationRewardsTempTable();
 
     // Get all attesting validators from storage
     const allValidatorIds = await this.validatorsStorage.getAttestingValidatorsIds();
@@ -97,10 +92,10 @@ export class EpochController extends EpochControllerHelpers {
     // Get ideal rewards from storage
     let idealRewardsLookup: ReturnType<typeof this.createIdealRewardsLookup> | null = null;
 
-    // Split all validators in batches
-    const validatorBatches = chunk(allValidatorIds, 1000000);
+    const allProcessedRewards: Prisma.epoch_rewardsCreateManyInput[] = [];
 
-    // Fetch rewards in batches and save in a temp table
+    // Fetch rewards in batches and process them
+    const validatorBatches = chunk(allValidatorIds, 1000000);
     for (const batch of validatorBatches) {
       // Get effective balances for the validators in the batch from storage
       const validatorsBalances = await this.validatorsStorage.getValidatorsBalances(batch);
@@ -122,35 +117,73 @@ export class EpochController extends EpochControllerHelpers {
       // Process and save rewards in batches
       const rewardBatches = chunk(epochRewards.data.total_rewards, 12_000);
       for (const rewardBatch of rewardBatches) {
-        const processedRewards = this.processRewardBatch(
+        // Process reward batch: get validator balances, find ideal rewards by balance,
+        // calculate missed rewards (ideal - actual), and format directly for database storage
+        const epochRewardsData = this.processRewardBatch(
           rewardBatch,
           validatorsBalancesMap,
           idealRewardsLookup!,
           date,
           hour,
+          epoch,
         );
 
-        // Transform ProcessedReward to EpochRewardsTempData format
-        const epochRewardsTempData = processedRewards.map((reward) => ({
-          validatorIndex: reward.validatorIndex,
-          hour: reward.hour,
-          date: new Date(reward.date),
-          head: BigInt(reward.head),
-          target: BigInt(reward.target),
-          source: BigInt(reward.source),
-          inactivity: BigInt(reward.inactivity),
-          missedHead: BigInt(reward.missedHead),
-          missedTarget: BigInt(reward.missedTarget),
-          missedSource: BigInt(reward.missedSource),
-          missedInactivity: BigInt(reward.missedInactivity),
-        }));
-
-        await this.epochStorage.insertIntoEpochRewardsTemp(epochRewardsTempData);
+        allProcessedRewards.push(...epochRewardsData);
       }
     }
 
-    // Process temp results and combine them in the main table
-    await this.epochStorage.saveAttestationRewardsAndUpdateEpoch(epoch);
+    // Save all rewards and mark as fetched (atomic operation)
+    await this.epochStorage.saveEpochRewardsAndMarkFetched(epoch, allProcessedRewards);
+  }
+
+  /**
+   * Summarize epoch rewards into hourly validator attestation stats
+   */
+  async summarizeEpochRewardsHourly(epoch: number) {
+    // Check if already summarized
+    const epochData = await this.getEpochByNumber(epoch);
+    if (epochData?.rewards_summarized) {
+      return true; // Already processed
+    }
+
+    // Validate that epoch exists
+    if (!epochData) {
+      throw new Error(`Epoch ${epoch} not found`);
+    }
+
+    // Validate consecutive epoch processing for hourly_validator_attestation_stats
+    const lastProcessedEpoch = await this.epochStorage.getLastProcessedEpoch();
+    if (lastProcessedEpoch !== null) {
+      const expectedNextEpoch = lastProcessedEpoch + 1;
+      if (epoch !== expectedNextEpoch) {
+        throw new Error(
+          `Epoch ${epoch} is not consecutive. Expected next epoch: ${expectedNextEpoch}, but got: ${epoch}`,
+        );
+      }
+    }
+
+    // Calculate datetime using BeaconTime
+    const epochTimestamp = this.beaconTime.getTimestampFromEpochNumber(epoch);
+    const epochDate = new Date(epochTimestamp);
+    const datetime = new Date(
+      Date.UTC(
+        epochDate.getUTCFullYear(),
+        epochDate.getUTCMonth(),
+        epochDate.getUTCDate(),
+        epochDate.getUTCHours(),
+        0,
+        0,
+        0,
+      ),
+    );
+
+    console.log(
+      `Controller Debug: Epoch ${epoch} - Timestamp: ${epochTimestamp}, Date: ${epochDate.toISOString()}, Datetime: ${datetime.toISOString()}`,
+    );
+
+    // Summarize epoch rewards and mark as summarized (atomic operation)
+    await this.epochStorage.summarizeEpochRewardsAndMarkSummarized(epoch, datetime);
+    return false; // Just processed
   }
 
   /**
@@ -211,5 +244,24 @@ export class EpochController extends EpochControllerHelpers {
    */
   async updateSyncCommitteesFetched(epoch: number) {
     return this.epochStorage.updateSyncCommitteesFetched(epoch);
+  }
+
+  /**
+   * Get hourly validator attestation stats for specific validators and datetime
+   * @internal
+   */
+  async getHourlyValidatorAttestationStats(validatorIndexes: number[], datetime: Date) {
+    return this.epochStorage.getHourlyValidatorAttestationStats_e2e_only(
+      validatorIndexes,
+      datetime,
+    );
+  }
+
+  /**
+   * Get all hourly validator attestation stats for a specific datetime
+   * @internal
+   */
+  async getAllHourlyValidatorAttestationStats(datetime: Date) {
+    return this.epochStorage.getAllHourlyValidatorAttestationStats_e2e_only(datetime);
   }
 }

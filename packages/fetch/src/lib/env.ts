@@ -7,6 +7,11 @@ export const env = createEnv({
   clientPrefix: 'IF_NOT_PROVIDED_IT_FAILS',
   client: {},
   server: {
+    TZ: z
+      .string()
+      .default('UTC')
+      .transform(() => 'UTC'),
+
     DATABASE_URL: z.string().url(),
 
     LOG_OUTPUT: z.enum(['file', 'console']).optional(),

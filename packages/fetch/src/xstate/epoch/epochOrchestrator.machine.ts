@@ -127,7 +127,7 @@ export const epochOrchestratorMachine = setup({
                 epoch,
                 epochDBSnapshot: {
                   validatorsBalancesFetched: context.epochData.validatorsBalancesFetched,
-                  rewardsFetched: context.epochData.rewardsFetched,
+                  rewardsFetched: context.epochData.rewards_fetched,
                   committeesFetched: context.epochData.committeesFetched,
                   slotsFetched: context.epochData.slotsFetched,
                   syncCommitteesFetched: context.epochData.syncCommitteesFetched,

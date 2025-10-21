@@ -34,7 +34,7 @@ async function hasUnprocessedBeaconRewards(endSlot: number): Promise<boolean> {
     // We need at least one beacon reward epoch processed after the endSlot
     // because we will remove all the beacon rewards before the endSlot
     // and if the table is empty, fetching restarts from env.BEACON_LOOKBACK_EPOCH
-    where: { epoch: { gt: endEpoch }, rewardsFetched: true },
+    where: { epoch: { gt: endEpoch }, rewards_fetched: true },
   });
 
   return beaconRewards == null;

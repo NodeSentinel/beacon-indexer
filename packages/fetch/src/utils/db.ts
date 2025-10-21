@@ -46,7 +46,7 @@ export const db_getLastEpochWithCommittees = async () =>
 export const db_upsertEpoch = async (epoch: number) =>
   prisma.epoch.upsert({
     where: { epoch },
-    create: { epoch, rewardsFetched: false },
+    create: { epoch, rewards_fetched: false },
     update: {},
   });
 
@@ -204,7 +204,7 @@ export async function db_hasBeaconRewardsFetched(epoch: number): Promise<boolean
   const beaconRewards = await prisma.epoch.findUnique({
     where: {
       epoch,
-      rewardsFetched: true,
+      rewards_fetched: true,
     },
   });
   return beaconRewards !== null;
@@ -227,10 +227,10 @@ export async function db_hasBlockAndSyncRewardsFetched(slot: number): Promise<bo
  * Counts the number of unique hours available in HourlyValidatorStats after a specific date
  */
 export async function db_countRemainingHoursAfterDate(date: Date): Promise<number> {
-  const remainingHours = await prisma.hourlyValidatorStats.groupBy({
-    by: ['date', 'hour'],
+  const remainingHours = await prisma.hourly_validator_attestation_stats.groupBy({
+    by: ['datetime'],
     where: {
-      date: {
+      datetime: {
         gt: date,
       },
     },

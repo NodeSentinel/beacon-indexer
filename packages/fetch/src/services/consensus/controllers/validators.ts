@@ -1,9 +1,8 @@
-import { Decimal } from '@beacon-indexer/db';
 import chunk from 'lodash/chunk.js';
 
 import { BeaconClient } from '@/src/services/consensus/beacon.js';
-import { VALIDATOR_STATUS } from '@/src/services/consensus/constants.js';
 import { ValidatorsStorage } from '@/src/services/consensus/storage/validators.js';
+import { mapValidatorDataToDBEntity } from '@/src/services/consensus/utils/mappers/validatorMapper.js';
 
 export class ValidatorsController {
   constructor(
@@ -40,15 +39,7 @@ export class ValidatorsController {
     }
 
     await this.validatorsStorage.saveValidators(
-      allValidatorsData.map((data) => ({
-        id: +data.index,
-        withdrawalAddress: data.validator.withdrawal_credentials.startsWith('0x')
-          ? '0x' + data.validator.withdrawal_credentials.slice(-40)
-          : null,
-        status: VALIDATOR_STATUS[data.status],
-        balance: new Decimal(data.balance),
-        effectiveBalance: new Decimal(data.validator.effective_balance),
-      })),
+      allValidatorsData.map((data) => mapValidatorDataToDBEntity(data)),
     );
   }
 

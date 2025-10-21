@@ -44,7 +44,7 @@ export const fetchValidatorsBalances = fromPromise(
 
 export const fetchAttestationsRewards = fromPromise(
   async ({ input }: { input: { epochController: EpochController; epoch: number } }) =>
-    input.epochController.fetchAttestationRewards(input.epoch),
+    input.epochController.fetchEpochRewards(input.epoch),
 );
 
 /**

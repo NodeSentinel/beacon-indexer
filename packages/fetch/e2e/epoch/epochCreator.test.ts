@@ -66,7 +66,7 @@ describe('Epoch Creation E2E Tests', () => {
       await epochController.createEpochsIfNeeded();
 
       // Verify epochs were created using controller
-      const createdEpochs = await epochController.getAllEpochs_e2e_only();
+      const createdEpochs = await epochController.getAllEpochs();
 
       expect(createdEpochs).toHaveLength(MAX_UNPROCESSED_EPOCHS);
 
@@ -82,7 +82,7 @@ describe('Epoch Creation E2E Tests', () => {
       // Verify all epochs are unprocessed (all flags are false)
       createdEpochs.forEach((epoch) => {
         expect(epoch.validatorsBalancesFetched).toBe(false);
-        expect(epoch.rewardsFetched).toBe(false);
+        expect(epoch.rewards_fetched).toBe(false);
         expect(epoch.committeesFetched).toBe(false);
         expect(epoch.slotsFetched).toBe(false);
         expect(epoch.syncCommitteesFetched).toBe(false);
@@ -125,7 +125,7 @@ describe('Epoch Creation E2E Tests', () => {
       expect(totalEpochs).toBe(MAX_UNPROCESSED_EPOCHS);
 
       // Verify all epochs are consecutive
-      const allEpochs = await epochController.getAllEpochs_e2e_only();
+      const allEpochs = await epochController.getAllEpochs();
 
       for (let i = 1; i < allEpochs.length; i++) {
         expect(allEpochs[i].epoch).toBe(allEpochs[i - 1].epoch + 1);
@@ -146,7 +146,7 @@ describe('Epoch Creation E2E Tests', () => {
       createdEpochs.forEach((epoch) => {
         expect(epoch.processed).toBe(false);
         expect(epoch.validatorsBalancesFetched).toBe(false);
-        expect(epoch.rewardsFetched).toBe(false);
+        expect(epoch.rewards_fetched).toBe(false);
         expect(epoch.committeesFetched).toBe(false);
         expect(epoch.slotsFetched).toBe(false);
         expect(epoch.syncCommitteesFetched).toBe(false);
