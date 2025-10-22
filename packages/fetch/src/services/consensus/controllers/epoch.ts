@@ -7,7 +7,6 @@ import { BeaconClient } from '@/src/services/consensus/beacon.js';
 import { EpochStorage } from '@/src/services/consensus/storage/epoch.js';
 import { ValidatorsStorage } from '@/src/services/consensus/storage/validators.js';
 import { BeaconTime } from '@/src/services/consensus/utils/time.js';
-import { convertToUTC } from '@/src/utils/date/index.js';
 
 export class EpochController extends EpochControllerHelpers {
   static readonly maxUnprocessedEpochs: number = 5;
@@ -83,19 +82,16 @@ export class EpochController extends EpochControllerHelpers {
   }
 
   async fetchEpochRewards(epoch: number) {
-    const epochTimestamp = this.beaconTime.getTimestampFromEpochNumber(epoch);
-    const { date, hour } = convertToUTC(epochTimestamp);
-
     // Get all attesting validators from storage
-    const allValidatorIds = await this.validatorsStorage.getAttestingValidatorsIds();
+    const attestingValidatorsIds = await this.validatorsStorage.getAttestingValidatorsIds();
 
-    // Get ideal rewards from storage
+    // Create ideal rewards lookup, used to calculate missed rewards
     let idealRewardsLookup: ReturnType<typeof this.createIdealRewardsLookup> | null = null;
 
     const allProcessedRewards: Prisma.epoch_rewardsCreateManyInput[] = [];
 
     // Fetch rewards in batches and process them
-    const validatorBatches = chunk(allValidatorIds, 1000000);
+    const validatorBatches = chunk(attestingValidatorsIds, 1000000);
     for (const batch of validatorBatches) {
       // Get effective balances for the validators in the batch from storage
       const validatorsBalances = await this.validatorsStorage.getValidatorsBalances(batch);
@@ -110,26 +106,21 @@ export class EpochController extends EpochControllerHelpers {
       const epochRewards = await this.beaconClient.getAttestationRewards(epoch, batch);
 
       // Create ideal-rewards lookup if this is the first batch
+      // ideal-rewards is for the epoch, so we only need to do it once
       if (!idealRewardsLookup) {
         idealRewardsLookup = this.createIdealRewardsLookup(epochRewards.data.ideal_rewards);
       }
 
-      // Process and save rewards in batches
-      const rewardBatches = chunk(epochRewards.data.total_rewards, 12_000);
-      for (const rewardBatch of rewardBatches) {
-        // Process reward batch: get validator balances, find ideal rewards by balance,
-        // calculate missed rewards (ideal - actual), and format directly for database storage
-        const epochRewardsData = this.processRewardBatch(
-          rewardBatch,
-          validatorsBalancesMap,
-          idealRewardsLookup!,
-          date,
-          hour,
-          epoch,
-        );
+      // Process rewards: get validator balances, find ideal rewards by balance,
+      // calculate missed rewards (ideal - actual), and format for database storage
+      const epochRewardsData = this.processRewardBatch(
+        epochRewards.data.total_rewards,
+        validatorsBalancesMap,
+        idealRewardsLookup!,
+        epoch,
+      );
 
-        allProcessedRewards.push(...epochRewardsData);
-      }
+      allProcessedRewards.push(...epochRewardsData);
     }
 
     // Save all rewards and mark as fetched (atomic operation)

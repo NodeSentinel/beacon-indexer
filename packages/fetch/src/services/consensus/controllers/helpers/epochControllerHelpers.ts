@@ -62,13 +62,12 @@ export abstract class EpochControllerHelpers {
 
   /**
    * Process a batch of rewards and return formatted data
+   * TODO: unit-test this
    */
   protected processRewardBatch(
     rewards: TotalReward[],
     validatorsBalancesMap: Map<string, string>,
     idealRewardsLookup: Map<string, IdealReward>,
-    date: string,
-    hour: number,
     epoch: number,
   ): Prisma.epoch_rewardsCreateManyInput[] {
     return rewards.map((validatorInfo) => {
@@ -98,30 +97,30 @@ export abstract class EpochControllerHelpers {
       // Find ideal rewards for this validator's balance
       const idealReward = this.findIdealRewardsForBalance(balance, idealRewardsLookup);
 
-      let missedHead = 0n;
-      let missedTarget = 0n;
-      let missedSource = 0n;
-      let missedInactivity = 0n;
+      let missed_head = 0n;
+      let missed_target = 0n;
+      let missed_source = 0n;
+      let missed_inactivity = 0n;
 
       if (idealReward) {
         // Calculate missed rewards (ideal - received)
-        missedHead = BigInt(idealReward.head || '0') - head;
-        missedTarget = BigInt(idealReward.target || '0') - target;
-        missedSource = BigInt(idealReward.source || '0') - source;
-        missedInactivity = BigInt(idealReward.inactivity || '0') - inactivity;
+        missed_head = BigInt(idealReward.head || '0') - head;
+        missed_target = BigInt(idealReward.target || '0') - target;
+        missed_source = BigInt(idealReward.source || '0') - source;
+        missed_inactivity = BigInt(idealReward.inactivity || '0') - inactivity;
       }
 
       return {
         validator_index: Number(validatorInfo.validator_index),
-        epoch: epoch,
-        head: head,
-        target: target,
-        source: source,
-        inactivity: inactivity,
-        missed_head: missedHead,
-        missed_target: missedTarget,
-        missed_source: missedSource,
-        missed_inactivity: missedInactivity,
+        epoch,
+        head,
+        target,
+        source,
+        inactivity,
+        missed_head,
+        missed_target,
+        missed_source,
+        missed_inactivity,
       };
     });
   }

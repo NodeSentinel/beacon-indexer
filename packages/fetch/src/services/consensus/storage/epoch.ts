@@ -164,10 +164,13 @@ export class EpochStorage {
   ) {
     await this.prisma.$transaction(
       async (tx) => {
-        // Save rewards to epoch_rewards table
-        await tx.epoch_rewards.createMany({
-          data: rewards,
-        });
+        // Save rewards to epoch_rewards table in batches of 12k
+        const rewardBatches = chunk(rewards, 12_000);
+        for (const batch of rewardBatches) {
+          await tx.epoch_rewards.createMany({
+            data: batch,
+          });
+        }
 
         // Mark epoch as rewards_fetched = true
         await tx.epoch.update({
