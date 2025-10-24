@@ -82,7 +82,7 @@ describe('Epoch Creation E2E Tests', () => {
       // Verify all epochs are unprocessed (all flags are false)
       createdEpochs.forEach((epoch) => {
         expect(epoch.validatorsBalancesFetched).toBe(false);
-        expect(epoch.rewards_fetched).toBe(false);
+        expect(epoch.rewardsFetched).toBe(false);
         expect(epoch.committeesFetched).toBe(false);
         expect(epoch.slotsFetched).toBe(false);
         expect(epoch.syncCommitteesFetched).toBe(false);
@@ -136,7 +136,7 @@ describe('Epoch Creation E2E Tests', () => {
       const epochsToCreate = [1000, 1001, 1002];
       await epochStorage.createEpochs(epochsToCreate);
 
-      const createdEpochs = await epochStorage.getAllEpochs_e2e_only();
+      const createdEpochs = await epochStorage.getAllEpochs();
       expect(createdEpochs).toHaveLength(3);
 
       // Verify epochs are stored correctly
@@ -146,7 +146,7 @@ describe('Epoch Creation E2E Tests', () => {
       createdEpochs.forEach((epoch) => {
         expect(epoch.processed).toBe(false);
         expect(epoch.validatorsBalancesFetched).toBe(false);
-        expect(epoch.rewards_fetched).toBe(false);
+        expect(epoch.rewardsFetched).toBe(false);
         expect(epoch.committeesFetched).toBe(false);
         expect(epoch.slotsFetched).toBe(false);
         expect(epoch.syncCommitteesFetched).toBe(false);
@@ -162,7 +162,7 @@ describe('Epoch Creation E2E Tests', () => {
       await expect(epochStorage.createEpochs(epochs)).rejects.toThrow();
 
       // Should still have only 3 epochs (no duplicates were created)
-      const allEpochs = await epochStorage.getAllEpochs_e2e_only();
+      const allEpochs = await epochStorage.getAllEpochs();
       expect(allEpochs).toHaveLength(3);
       expect(allEpochs.map((e) => e.epoch)).toEqual([1000, 1001, 1002]);
     });
@@ -198,7 +198,7 @@ describe('Epoch Creation E2E Tests', () => {
       const epochsToCreate = [1000, 1001, 1002];
       await epochStorage.createEpochs(epochsToCreate);
 
-      const createdEpochs = await epochStorage.getAllEpochs_e2e_only();
+      const createdEpochs = await epochStorage.getAllEpochs();
       expect(createdEpochs).toHaveLength(3);
       expect(createdEpochs.map((e) => e.epoch)).toEqual([1000, 1001, 1002]);
     });

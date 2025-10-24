@@ -73,7 +73,11 @@ export class ValidatorsStorage {
         OR: [
           {
             status: {
-              in: [VALIDATOR_STATUS.active_ongoing, VALIDATOR_STATUS.active_exiting],
+              in: [
+                VALIDATOR_STATUS.active_ongoing,
+                VALIDATOR_STATUS.active_exiting,
+                VALIDATOR_STATUS.active_slashed,
+              ],
             },
           },
           {
@@ -194,8 +198,8 @@ export class ValidatorsStorage {
           data: {
             withdrawalAddress,
             status: VALIDATOR_STATUS[data.status as keyof typeof VALIDATOR_STATUS],
-            balance: data.balance,
-            effectiveBalance: data.validator.effective_balance,
+            balance: BigInt(data.balance),
+            effectiveBalance: BigInt(data.validator.effective_balance),
           },
         });
       }

@@ -14360,13 +14360,6 @@
         "target": "70470",
         "source": "37907",
         "inactivity": "0"
-      },
-      {
-        "validator_index": "549046",
-        "head": "0",
-        "target": "0",
-        "source": "0",
-        "inactivity": "0"
       }
     ]
   }

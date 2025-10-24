@@ -32,7 +32,7 @@ export function mapValidatorDataToDBEntity(
       ? '0x' + validatorData.validator.withdrawal_credentials.slice(-40)
       : null,
     status: VALIDATOR_STATUS[validatorData.status as keyof typeof VALIDATOR_STATUS],
-    balance: new Decimal(validatorData.balance),
-    effectiveBalance: new Decimal(validatorData.validator.effective_balance),
+    balance: BigInt(validatorData.balance),
+    effectiveBalance: BigInt(validatorData.validator.effective_balance),
   };
 }

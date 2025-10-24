@@ -1,4 +1,4 @@
-import { Committee, Prisma } from '@beacon-indexer/db';
+import { Committee } from '@beacon-indexer/db';
 
 import { BeaconClient } from '@/src/services/consensus/beacon.js';
 import { IdealReward, TotalReward } from '@/src/services/consensus/types.js';
@@ -62,33 +62,32 @@ export abstract class EpochControllerHelpers {
 
   /**
    * Process a batch of rewards and return formatted data
-   * TODO: unit-test this
+   *
+   * - Calculates clRewards and clMissedRewards for aggregation
+   * - Formats rewards string for HourlyValidatorData storage
+   * - Returns data ready for storage layer
+   *
+   * @param rewards - Array of total rewards from beacon chain
+   * @param validatorsBalancesMap - Map of validator balances for ideal reward calculation
+   * @param idealRewardsLookup - Lookup map for ideal rewards by balance
+   * @param epoch - The epoch number for the rewards string format
+   * @returns Array of processed reward data ready for storage
    */
-  protected processRewardBatch(
+  protected processEpochReward(
     rewards: TotalReward[],
     validatorsBalancesMap: Map<string, string>,
     idealRewardsLookup: Map<string, IdealReward>,
     epoch: number,
-  ): Prisma.epoch_rewardsCreateManyInput[] {
+  ): Array<{
+    validatorIndex: number;
+    clRewards: bigint;
+    clMissedRewards: bigint;
+    rewards: string; // Format: 'epoch:head:target:source:inactivity:missedHead:missedTarget:missedSource:missedInactivity'
+  }> {
     return rewards.map((validatorInfo) => {
       const balance = validatorsBalancesMap.get(validatorInfo.validator_index) || '0';
 
-      // Process validator reward directly to database format
-      if (balance === '0') {
-        return {
-          validator_index: Number(validatorInfo.validator_index),
-          epoch: epoch,
-          head: 0n,
-          target: 0n,
-          source: 0n,
-          inactivity: 0n,
-          missed_head: 0n,
-          missed_target: 0n,
-          missed_source: 0n,
-          missed_inactivity: 0n,
-        };
-      }
-
+      // Process validator reward data
       const head = BigInt(validatorInfo.head || '0');
       const target = BigInt(validatorInfo.target || '0');
       const source = BigInt(validatorInfo.source || '0');
@@ -97,30 +96,31 @@ export abstract class EpochControllerHelpers {
       // Find ideal rewards for this validator's balance
       const idealReward = this.findIdealRewardsForBalance(balance, idealRewardsLookup);
 
-      let missed_head = 0n;
-      let missed_target = 0n;
-      let missed_source = 0n;
-      let missed_inactivity = 0n;
+      let missedHead = 0n;
+      let missedTarget = 0n;
+      let missedSource = 0n;
+      let missedInactivity = 0n;
 
       if (idealReward) {
         // Calculate missed rewards (ideal - received)
-        missed_head = BigInt(idealReward.head || '0') - head;
-        missed_target = BigInt(idealReward.target || '0') - target;
-        missed_source = BigInt(idealReward.source || '0') - source;
-        missed_inactivity = BigInt(idealReward.inactivity || '0') - inactivity;
+        missedHead = BigInt(idealReward.head || '0') - head;
+        missedTarget = BigInt(idealReward.target || '0') - target;
+        missedSource = BigInt(idealReward.source || '0') - source;
+        missedInactivity = BigInt(idealReward.inactivity || '0') - inactivity;
       }
 
+      // Calculate aggregated values for storage
+      const clRewards = head + target + source + inactivity;
+      const clMissedRewards = missedHead + missedTarget + missedSource + missedInactivity;
+
+      // Format rewards string for HourlyValidatorData storage
+      const rewardsString = `${epoch}:${head}:${target}:${source}:${inactivity}:${missedHead}:${missedTarget}:${missedSource}:${missedInactivity}`;
+
       return {
-        validator_index: Number(validatorInfo.validator_index),
-        epoch,
-        head,
-        target,
-        source,
-        inactivity,
-        missed_head,
-        missed_target,
-        missed_source,
-        missed_inactivity,
+        validatorIndex: Number(validatorInfo.validator_index),
+        clRewards,
+        clMissedRewards,
+        rewards: rewardsString,
       };
     });
   }

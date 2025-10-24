@@ -124,7 +124,7 @@ async function processTmpTableAndUpdateEpoch(
   // Update epoch status
   await tx.epoch.update({
     where: { epoch },
-    data: { rewards_fetched: true },
+    data: { rewardsFetched: true },
   });
 }
 

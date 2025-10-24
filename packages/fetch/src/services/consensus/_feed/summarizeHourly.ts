@@ -16,14 +16,14 @@ import { updateLastSummaryUpdate } from '@/src/utils/db.js';
 const prisma = getPrisma();
 
 async function hasUnprocessedSlots(endSlot: number): Promise<boolean> {
-  const slot = await prisma.slot.findUnique({
+  const processingData = await prisma.slotProcessingData.findUnique({
     where: {
       slot: endSlot,
       attestationsProcessed: true,
       blockAndSyncRewardsProcessed: true,
     },
   });
-  return slot == null;
+  return processingData == null;
 }
 
 async function hasUnprocessedBeaconRewards(endSlot: number): Promise<boolean> {
@@ -34,7 +34,7 @@ async function hasUnprocessedBeaconRewards(endSlot: number): Promise<boolean> {
     // We need at least one beacon reward epoch processed after the endSlot
     // because we will remove all the beacon rewards before the endSlot
     // and if the table is empty, fetching restarts from env.BEACON_LOOKBACK_EPOCH
-    where: { epoch: { gt: endEpoch }, rewards_fetched: true },
+    where: { epoch: { gt: endEpoch }, rewardsFetched: true },
   });
 
   return beaconRewards == null;

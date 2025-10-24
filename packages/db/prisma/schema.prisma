@@ -9,227 +9,212 @@ datasource db {
 }
 
 model Validator {
-    id                Int      @id
-    status            Int?
-    balance           Decimal  @db.Decimal(78, 0)
-    effectiveBalance  Decimal? @db.Decimal(78, 0)
-    withdrawalAddress String?
-    users             User[]   @relation("UserToValidator")
+    id                Int     @id @map("id") @db.SmallInt
+    status            Int?    @map("status")
+    balance           BigInt  @map("balance")
+    effectiveBalance  BigInt? @map("effective_balance")
+    withdrawalAddress String? @map("withdrawal_address") @db.VarChar(42)
+    users             User[]  @relation("user_to_validator")
 
     @@index([withdrawalAddress])
     @@index([status])
+    @@map("validator")
 }
 
 model Epoch {
-    epoch                       Int     @id
-    processed                   Boolean @default(false)
-    validatorsBalancesFetched   Boolean @default(false)
-    validatorsActivationFetched Boolean @default(false)
-    rewards_fetched             Boolean @default(false)
-    rewards_summarized          Boolean @default(false)
-    committeesFetched           Boolean @default(false)
-    slotsFetched                Boolean @default(false)
-    syncCommitteesFetched       Boolean @default(false)
-}
+    epoch                       Int     @id @map("epoch") @db.SmallInt
+    slotsFetched                Boolean @default(false) @map("slots_fetched")
+    committeesFetched           Boolean @default(false) @map("committees_fetched")
+    syncCommitteesFetched       Boolean @default(false) @map("sync_committees_fetched")
+    processed                   Boolean @default(false) @map("processed")
+    // processing flags
+    validatorsBalancesFetched   Boolean @default(false) @map("validators_balances_fetched")
+    validatorsActivationFetched Boolean @default(false) @map("validators_activation_fetched")
+    rewardsFetched              Boolean @default(false) @map("rewards_fetched")
 
-model SyncCommittee {
-    fromEpoch           Int
-    toEpoch             Int
-    validators          Json // Array of validator indices as strings: ["1", "2", "3", ...]
-    validatorAggregates Json // Array of arrays of validator indices as strings: [["1", "2"], ["3", "4"], ...]
-
-    @@id([fromEpoch, toEpoch])
-    @@index([fromEpoch])
-    @@index([toEpoch])
-}
-
-// Committee is a list of validators that were assigned to a slot.
-// It hold at least the last 1h missed attestations.
-// Then it is summarized into HourlyValidatorStats.
-model Committee {
-    slot                 Int
-    index                Int // indicates what position in the epoch this slot is in
-    aggregationBitsIndex Int // indicates what position in the aggregation bits this validator was assigned to
-    validatorIndex       Int // TODO: should be a relation?
-    attestationDelay     Int?
-    slot_relation        Slot @relation(fields: [slot], references: [slot], onDelete: Cascade)
-
-    @@id([slot, index, aggregationBitsIndex])
-    @@index([slot, validatorIndex])
-    @@index([slot, attestationDelay])
-    @@index([validatorIndex, slot])
+    @@map("epoch")
 }
 
 model Slot {
-    slot        Int     @id
-    blockNumber Int?
-    processed   Boolean @default(false)
+    slot                  Int     @id @map("slot") @db.SmallInt
+    processed             Boolean @default(false) @map("processed")
+    committeesCountInSlot Json?   @map("committees_count_in_slot") // Stores the number of validators per committee index as an array: [350, 340, ...], required for attestation processing
 
-    committee                    Committee[]
-    attestationsProcessed        Boolean     @default(false)
-    committeesCountInSlot        Json? // Stores the number of validators per committee index as an array: [350, 340, ...], required for attestation processing
-    blockAndSyncRewardsProcessed Boolean     @default(false)
-    executionRewardsProcessed    Boolean     @default(false)
-    beaconBlockProcessed         Boolean     @default(false)
-    // beacon block data extracted from the beacon block
-    withdrawalsRewards           Json? // ["validatorIndex:amount", "validatorIndex:amount", ...]
-    clDeposits                   Json?
-    clVoluntaryExits             Json?
-    elDeposits                   Json?
-    elWithdrawals                Json?
-    elConsolidations             Json?
-    //proposer_slashings
-    //attester_slashings
+    processingData SlotProcessingData?
+    committees     Committee[]
 
+    @@index([slot])
     @@index([processed, slot])
+    @@map("slot")
 }
 
-model epoch_rewards {
-    epoch           Int
-    validator_index Int
+model SlotProcessingData {
+    slot                         Int     @id @map("slot") @db.SmallInt
+    attestationsProcessed        Boolean @default(false) @map("attestations_processed")
+    blockAndSyncRewardsProcessed Boolean @default(false) @map("block_and_sync_rewards_processed")
+    executionRewardsProcessed    Boolean @default(false) @map("execution_rewards_processed")
+    beaconBlockProcessed         Boolean @default(false) @map("beacon_block_processed")
+    withdrawalsRewards           Json?   @map("withdrawals_rewards") // { validator_index: amount }
+    clDeposits                   Json?   @map("cl_deposits")
+    clVoluntaryExits             Json?   @map("cl_voluntary_exits")
+    elDeposits                   Json?   @map("el_deposits")
+    elWithdrawals                Json?   @map("el_withdrawals")
+    elConsolidations             Json?   @map("el_consolidations")
+    proposerSlashings            Json?   @map("proposer_slashings")
+    attesterSlashings            Json?   @map("attester_slashings")
 
-    head              BigInt?
-    target            BigInt?
-    source            BigInt?
-    inactivity        BigInt?
-    missed_head       BigInt?
-    missed_target     BigInt?
-    missed_source     BigInt?
-    missed_inactivity BigInt?
+    slotRelation Slot @relation(fields: [slot], references: [slot])
 
-    @@id([validator_index, epoch])
+    @@map("slot_processing_data")
 }
 
-model slot_reward {
-    validator_index Int
-    slot            Int
-    reward          BigInt?
+// Committee is a list of validators that were assigned to a slot.
+// TODO: add partition table
+model Committee {
+    slot                 Int  @map("slot") @db.SmallInt
+    validatorIndex       Int  @map("validator_index") @db.SmallInt
+    index                Int  @map("index") @db.SmallInt // indicates what position in the epoch this slot is in
+    aggregationBitsIndex Int  @map("aggregation_bits_index") @db.SmallInt // indicates what position in the aggregation bits this validator was assigned to
+    attestationDelay     Int? @map("attestation_delay") @db.SmallInt // TODO: remove
 
-    @@id([validator_index, slot])
+    slotRelation Slot @relation(fields: [slot], references: [slot])
+
+    // TODO: ver si es optimo con la busqueda al marcar una attestation
+    @@id([slot, index, aggregationBitsIndex, validatorIndex])
+    @@map("committee")
 }
 
-model sync_committee_reward {
-    validator_index Int
-    slot            Int
-    reward          BigInt?
+model SyncCommittee {
+    fromEpoch           Int  @map("from_epoch") @db.SmallInt
+    toEpoch             Int  @map("to_epoch") @db.SmallInt
+    validators          Json // Array of validator indices as strings: ["1", "2", "3", ...]
+    validatorAggregates Json @map("validator_aggregates") // Array of arrays of validator indices as strings: [["1", "2"], ["3", "4"], ...]
 
-    @@id([validator_index, slot])
+    // TODO: check this index
+    @@id([fromEpoch, toEpoch])
+    @@map("sync_committee")
 }
 
-model ExecutionRewards {
-    address     String
-    timestamp   DateTime
-    amount      Decimal  @db.Decimal(78, 0)
-    blockNumber Int      @id
+model SyncCommitteeReward {
+    slot           Int     @map("slot") @db.SmallInt
+    validatorIndex Int     @map("validator_index") @db.SmallInt
+    reward         BigInt?
 
-    @@index([timestamp, address])
+    @@id([slot, validatorIndex])
+    @@map("sync_committee_reward")
 }
 
-model hourly_validator_attestation_stats {
-    validator_index      Int
-    datetime             DateTime @db.Timestamp // dd-mm-yyyy-hh:mm:ss
-    attestation_rewards  BigInt   @default(0)
-    missed_attestations  Int      @default(0)
-    missed_slots         Json? // Array of missed slots: [1020, 1021, .., 1040]
-    last_epoch_processed Int?
-    last_slot_processed  Int?
+model SlotBlockRewards {
+    slotNumber Int     @id @map("slot_number") @db.SmallInt
+    slotReward BigInt? @map("slot_reward")
 
-    @@id([validator_index, datetime])
+    blockNumber     Int     @map("block_number") @db.SmallInt
+    blockReward     BigInt? @map("block_reward")
+    proposerAddress String? @map("proposer_address") @db.VarChar(42)
+
+    @@map("slot_block_rewards")
 }
 
-model HourlyBlockAndSyncRewards {
-    validatorIndex Int
-    hour           Int // 0-23
-    date           DateTime @db.Date // dd-mm-yyyy
+//-------------------------------------
+// Aggregation tables
+//-------------------------------------
+model HourlyValidatorStats {
+    datetime          DateTime @map("datetime") @db.Timestamp // dd-mm-yyyy-hh
+    validatorIndex    Int      @map("validator_index") @db.SmallInt
+    attestationsCount Int?     @map("missed_attestations_count") @db.SmallInt
+    clRewards         BigInt?  @map("cl_rewards")
+    clMissedRewards   BigInt?  @map("cl_missed_rewards")
 
-    blockReward   BigInt? // Reward for proposing a block
-    syncCommittee BigInt? // Rewarded for participating in the sync committee
-
-    @@id([validatorIndex, date, hour])
-    @@index([date, hour])
+    @@id([datetime, validatorIndex])
+    @@map("hourly_validator_stats")
 }
 
-model EpochRewardsTemp {
-    validatorIndex Int
-    hour           Int // 0-23
-    date           DateTime @db.Date // dd-mm-yyyy
+model HourlyValidatorData {
+    datetime             DateTime @map("datetime") @db.Timestamp // dd-mm-yyyy-hh
+    validatorIndex       Int      @map("validator_index") @db.SmallInt
+    attestations         String   @default("") @map("attestations") @db.Text // 'slot:delay,slot:delay,...'
+    syncCommitteeRewards String   @default("") @map("sync_committee_rewards") @db.Text // 'slot:reward,slot:reward,...'
+    epochRewards         String   @default("") @map("epoch_rewards") @db.Text // 'epoch:head:target:source:inactivity:missedHead:missedTarget:missedSource:missedInactivity,...'
 
-    head       BigInt?
-    target     BigInt?
-    source     BigInt?
-    inactivity BigInt?
-
-    missedHead       BigInt?
-    missedTarget     BigInt?
-    missedSource     BigInt?
-    missedInactivity BigInt?
-
-    @@id([validatorIndex, date, hour])
+    @@id([datetime, validatorIndex])
+    @@map("hourly_validator_data")
 }
 
 model DailyValidatorStats {
-    validatorIndex Int
+    validatorIndex Int      @map("validator_index")
     date           DateTime @db.Date
 
-    head          BigInt?
-    target        BigInt?
-    source        BigInt?
-    inactivity    BigInt?
-    syncCommittee BigInt?
-    blockReward   BigInt?
+    head             BigInt? @map("head")
+    target           BigInt? @map("target")
+    source           BigInt? @map("source")
+    inactivity       BigInt? @map("inactivity")
+    syncCommittee    BigInt? @map("sync_committee")
+    blockReward      BigInt? @map("block_reward")
+    missedHead       BigInt? @map("missed_head")
+    missedTarget     BigInt? @map("missed_target")
+    missedSource     BigInt? @map("missed_source")
+    missedInactivity BigInt? @map("missed_inactivity")
 
-    missedHead       BigInt?
-    missedTarget     BigInt?
-    missedSource     BigInt?
-    missedInactivity BigInt?
-
-    attestationsMissed Int?
+    attestationsMissed Int? @map("attestations_missed")
 
     @@id([validatorIndex, date])
     @@index([date])
 }
 
 model LastSummaryUpdate {
-    id                    Int       @id @default(autoincrement())
-    hourlyValidatorStats  DateTime?
-    dailyValidatorStats   DateTime? @db.Date
-    weeklyValidatorStats  DateTime?
-    monthlyValidatorStats DateTime?
-    yearlyValidatorStats  DateTime?
+    id                    Int       @id @default(autoincrement()) @map("id")
+    hourlyValidatorStats  DateTime? @map("hourly_validator_stats")
+    dailyValidatorStats   DateTime? @map("daily_validator_stats") @db.Date
+    weeklyValidatorStats  DateTime? @map("weekly_validator_stats")
+    monthlyValidatorStats DateTime? @map("monthly_validator_stats")
+    yearlyValidatorStats  DateTime? @map("yearly_validator_stats")
+
+    @@map("last_summary_update")
 }
 
+//-------------------------------------
+// API
+//-------------------------------------
+
 model User {
-    id            BigInt    @id
-    loginId       String    @unique @default(nanoid())
-    userId        BigInt    @unique
-    chatId        BigInt    @unique
-    username      String    @unique
-    messageId     BigInt?
-    lastClaimed   DateTime?
-    hasBlockedBot Boolean   @default(false)
-    createdAt     DateTime  @default(now())
+    id                           BigInt              @id @map("id")
+    loginId                      String              @unique @default(nanoid()) @map("login_id")
+    userId                       BigInt              @unique @map("user_id")
+    chatId                       BigInt              @unique @map("chat_id")
+    username                     String              @unique @map("username")
+    messageId                    BigInt?             @map("message_id")
+    lastClaimed                  DateTime?           @map("last_claimed")
+    hasBlockedBot                Boolean             @default(false) @map("has_blocked_bot")
+    createdAt                    DateTime            @default(now()) @map("created_at")
+    performanceNotif             DateTime?           @map("performance_notif")
+    performanceThreshold         Int                 @default(90) @map("performance_threshold")
+    inactiveNotif                DateTime?           @map("inactive_notif")
+    inactiveOnMissedAttestations Int                 @default(3) @map("inactive_on_missed_attestations")
+    validators                   Validator[]         @relation("user_to_validator")
+    withdrawalAddresses          WithdrawalAddress[] @relation("user_to_withdrawal_address")
+    feeRewardAddresses           FeeRewardAddress[]  @relation("user_to_fee_reward_address")
 
-    performanceNotif     DateTime?
-    performanceThreshold Int       @default(90)
-
-    inactiveNotif                DateTime?
-    inactiveOnMissedAttestations Int       @default(3)
-
-    feeRewardAddresses  FeeRewardAddress[]  @relation("FeeRewardAddressToUser")
-    validators          Validator[]         @relation("UserToValidator")
-    withdrawalAddresses WithdrawalAddress[] @relation("UserToWithdrawalAddress")
+    @@map("user")
 }
 
 model WithdrawalAddress {
-    address String @id
-    users   User[] @relation("UserToWithdrawalAddress")
+    address String @id @map("address")
+    users   User[] @relation("user_to_withdrawal_address")
+
+    @@map("withdrawal_address")
 }
 
 model FeeRewardAddress {
-    address String @id
-    // TODO: rename to UserToFeeRewardAddress
-    users   User[] @relation("FeeRewardAddressToUser")
+    address String  @id @map("address")
+    users   User[]  @relation("user_to_fee_reward_address")
+    userId  BigInt? @map("user_id")
+
+    @@map("fee_reward_address")
 }
+
+//-------------------------------------
+// remove
+//-------------------------------------
 
 model ValidatorsStats {
     validatorId     Int
@@ -249,4 +234,25 @@ model ValidatorsStats {
     timestamp DateTime
 
     @@id([validatorId])
+}
+
+model HourlyBlockAndSyncRewards {
+    validatorIndex Int
+    hour           Int // 0-23
+    date           DateTime @db.Date // dd-mm-yyyy
+
+    blockReward   BigInt? // Reward for proposing a block
+    syncCommittee BigInt? // Rewarded for participating in the sync committee
+
+    @@id([validatorIndex, date, hour])
+    @@index([date, hour])
+}
+
+model ExecutionRewards {
+    address     String
+    timestamp   DateTime
+    amount      Decimal  @db.Decimal(78, 0)
+    blockNumber Int      @id
+
+    @@index([timestamp, address])
 }

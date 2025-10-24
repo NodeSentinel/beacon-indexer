@@ -4,6 +4,20 @@ import ms from 'ms';
 
 import { ValidatorsStorage } from './validators.js';
 
+/**
+ * EpochStorage - Database persistence layer for epoch-related operations
+ *
+ * This class handles all database operations for epochs, following the principle
+ * that storage classes should only contain persistence logic, not business logic.
+ * All business logic, data conversion, and processing happens in the controller layer.
+ *
+ * NEW EPOCH REWARDS STRATEGY:
+ * - processEpochRewardsAndAggregate() handles the complete rewards processing in a single atomic transaction
+ * - No longer uses EpochRewards table (removed from schema)
+ * - Directly stores epoch rewards in HourlyValidatorData.epochRewards using string format
+ * - Aggregates rewards into HourlyValidatorStats in the same transaction
+ * - rewardsAggregated flag is no longer needed
+ */
 export class EpochStorage {
   constructor(
     private readonly prisma: PrismaClient,
@@ -49,12 +63,9 @@ export class EpochStorage {
   }
 
   /**
-   * @internal
-   * @testonly
-   * Helper method for e2e tests only. Should not be used in production code.
    * @returns All epochs from the database ordered by epoch number
    */
-  async getAllEpochs_e2e_only() {
+  async getAllEpochs() {
     // Runtime check to prevent usage in production
     if (process.env.NODE_ENV === 'production') {
       throw new Error('getAllEpochs() is only available in test environments');
@@ -76,7 +87,7 @@ export class EpochStorage {
     return this.prisma.epoch.count({
       where: {
         OR: [
-          { rewards_fetched: false },
+          { rewardsFetched: false },
           { validatorsBalancesFetched: false },
           { committeesFetched: false },
           { slotsFetched: false },
@@ -91,12 +102,11 @@ export class EpochStorage {
 
     await this.validateNextEpoch(epochsToCreate);
 
-    const epochsData = epochsToCreate.map((epoch: number) => ({
+    const epochsData: Prisma.EpochCreateManyInput[] = epochsToCreate.map((epoch: number) => ({
       epoch: epoch,
       processed: false,
       validatorsBalancesFetched: false,
-      rewards_fetched: false,
-      rewards_summarized: false,
+      rewardsFetched: false,
       committeesFetched: false,
       slotsFetched: false,
       syncCommitteesFetched: false,
@@ -156,67 +166,70 @@ export class EpochStorage {
   }
 
   /**
-   * Save epoch rewards and mark as fetched (atomic operation)
+   * Process epoch rewards and aggregate them into hourly validator data in a single atomic transaction.
+   *
+   * @param epoch - The epoch number to process
+   * @param datetime - The datetime for the hourly aggregation
+   * @param processedRewards - Array of pre-processed reward data ready for storage
    */
-  async saveEpochRewardsAndMarkFetched(
+  async processEpochRewardsAndAggregate(
     epoch: number,
-    rewards: Prisma.epoch_rewardsCreateManyInput[],
+    datetime: Date,
+    processedRewards: Array<{
+      validatorIndex: number;
+      clRewards: bigint;
+      clMissedRewards: bigint;
+      rewards: string; // Format: 'epoch:head:target:source:inactivity:missedHead:missedTarget:missedSource:missedInactivity'
+    }>,
   ) {
     await this.prisma.$transaction(
       async (tx) => {
-        // Save rewards to epoch_rewards table in batches of 12k
-        const rewardBatches = chunk(rewards, 12_000);
-        for (const batch of rewardBatches) {
-          await tx.epoch_rewards.createMany({
-            data: batch,
-          });
+        // Process rewards in batches to avoid memory issues
+        const batchSize = 50_000;
+        const batches = chunk(processedRewards, batchSize);
+        for (const batch of batches) {
+          // Update HourlyValidatorData with pre-processed rewards string
+          for (const validator of batch) {
+            // Use raw SQL for proper string concatenation with CASE statement
+            await tx.$executeRaw`
+              INSERT INTO hourly_validator_data (datetime, validator_index, attestations, sync_committee_rewards, epoch_rewards)
+              VALUES (${datetime}::timestamp, ${validator.validatorIndex}, '', '', ${validator.rewards})
+              ON CONFLICT (datetime, validator_index) DO UPDATE SET
+                epoch_rewards = CASE
+                  WHEN hourly_validator_data.epoch_rewards = '' THEN ${validator.rewards}
+                  ELSE CONCAT(hourly_validator_data.epoch_rewards, ',', ${validator.rewards})
+                END
+            `;
+          }
         }
 
-        // Mark epoch as rewards_fetched = true
-        await tx.epoch.update({
-          where: { epoch },
-          data: { rewards_fetched: true },
-        });
-      },
-      {
-        timeout: ms('3m'),
-      },
-    );
-  }
+        // Aggregate rewards into HourlyValidatorStats using pre-calculated values
+        const valuesClause = processedRewards
+          .map((r) => `(${r.validatorIndex}, ${r.clRewards}, ${r.clMissedRewards})`)
+          .join(',');
 
-  /**
-   * Summarize epoch rewards and mark as summarized (atomic operation)
-   */
-  async summarizeEpochRewardsAndMarkSummarized(epoch: number, datetime: Date) {
-    await this.prisma.$transaction(
-      async (tx) => {
-        // Aggregate epoch_rewards into hourly_validator_attestation_stats
         await tx.$executeRaw`
-          INSERT INTO hourly_validator_attestation_stats 
-            (validator_index, datetime, attestation_rewards, missed_attestations, last_epoch_processed)
+          INSERT INTO hourly_validator_stats 
+            (datetime, validator_index, cl_rewards, cl_missed_rewards)
           SELECT 
-            validator_index,
             ${datetime}::timestamp as datetime,
-            COALESCE(SUM(head + target + source + inactivity), 0) as attestation_rewards,
-            COALESCE(SUM(CASE WHEN (missed_head > 0 OR missed_target > 0 OR missed_source > 0 OR missed_inactivity > 0) THEN 1 ELSE 0 END), 0) as missed_attestations,
-            ${epoch} as last_epoch_processed
-          FROM epoch_rewards 
-          WHERE epoch = ${epoch}
-          GROUP BY validator_index
-          ON CONFLICT (validator_index, datetime) DO UPDATE SET
-            attestation_rewards = hourly_validator_attestation_stats.attestation_rewards + EXCLUDED.attestation_rewards,
-            missed_attestations = hourly_validator_attestation_stats.missed_attestations + EXCLUDED.missed_attestations,
-            last_epoch_processed = EXCLUDED.last_epoch_processed
+            validator_index,
+            cl_rewards,
+            cl_missed_rewards
+          FROM (VALUES ${valuesClause}) AS rewards(validator_index, cl_rewards, cl_missed_rewards)
+          ON CONFLICT (datetime, validator_index) DO UPDATE SET
+            "cl_rewards" = EXCLUDED."cl_rewards",
+            "cl_missed_rewards" = EXCLUDED."cl_missed_rewards"
         `;
 
-        // Mark epoch as rewards_summarized = true
+        // Mark epoch as rewardsFetched = true (rewardsAggregated is no longer needed)
         await tx.epoch.update({
           where: { epoch },
-          data: { rewards_summarized: true },
+          data: { rewardsFetched: true },
         });
       },
       {
-        timeout: ms('1m'),
+        timeout: ms('2m'),
       },
     );
   }
@@ -233,13 +246,13 @@ export class EpochStorage {
     await this.prisma.$transaction(
       async (tx) => {
         await tx.$executeRaw`
-          INSERT INTO "Slot" (slot, "attestationsProcessed", "committeesCountInSlot")
+          INSERT INTO "Slot" (slot, processed, "committees_count_in_slot")
           SELECT 
             unnest(${slots}::integer[]), 
             false,
             unnest(${slots.map((slot) => JSON.stringify(committeesCountInSlot.get(slot) || []))}::jsonb[])
           ON CONFLICT (slot) DO UPDATE SET
-            "committeesCountInSlot" = EXCLUDED."committeesCountInSlot"
+            "committees_count_in_slot" = EXCLUDED."committees_count_in_slot"
         `;
 
         // Insert committees in batches for better performance
@@ -330,44 +343,39 @@ export class EpochStorage {
 
   /**
    * Get hourly validator attestation stats for specific validators and datetime
-   * @internal
-   * @testonly
-   * Helper method for e2e tests only. Should not be used in production code.
    */
-  async getHourlyValidatorAttestationStats_e2e_only(validatorIndexes: number[], datetime: Date) {
-    return this.prisma.hourly_validator_attestation_stats.findMany({
+  async getHourlyValidatorAttestationStats(validatorIndexes: number[], datetime: Date) {
+    return this.prisma.hourlyValidatorStats.findMany({
       where: {
-        validator_index: { in: validatorIndexes },
+        validatorIndex: { in: validatorIndexes },
         datetime: datetime,
       },
-      orderBy: [{ validator_index: 'asc' }],
+      orderBy: [{ validatorIndex: 'asc' }],
     });
   }
 
   /**
    * Get all hourly validator attestation stats for a specific datetime
-   * @internal
-   * @testonly
-   * Helper method for e2e tests only. Should not be used in production code.
    */
-  async getAllHourlyValidatorAttestationStats_e2e_only(datetime: Date) {
-    return this.prisma.hourly_validator_attestation_stats.findMany({
+  async getAllHourlyValidatorAttestationStats(datetime: Date) {
+    return this.prisma.hourlyValidatorStats.findMany({
       where: {
         datetime: datetime,
       },
-      orderBy: [{ validator_index: 'asc' }],
+      orderBy: [{ validatorIndex: 'asc' }],
     });
   }
 
   /**
-   * Get the last processed epoch from hourly_validator_attestation_stats
+   * Get the last processed epoch from hourlyValidatorStats
    */
   async getLastProcessedEpoch(): Promise<number | null> {
-    const result = await this.prisma.hourly_validator_attestation_stats.findFirst({
-      orderBy: { last_epoch_processed: 'desc' },
-      select: { last_epoch_processed: true },
+    const result = await this.prisma.epoch.findFirst({
+      orderBy: { epoch: 'desc' },
+      select: { epoch: true },
+      where: { processed: true },
     });
 
-    return result?.last_epoch_processed ?? null;
+    return result?.epoch ?? null;
   }
 }

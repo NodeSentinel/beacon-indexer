@@ -31,10 +31,28 @@ import {
 import { Block } from '@/src/services/consensus/types.js';
 import { pinoLog } from '@/src/xstate/pinoLog.js';
 
+interface SlotProcessingData {
+  slot: number;
+  attestationsProcessed: boolean;
+  committeesCountInSlot?: unknown;
+  blockAndSyncRewardsProcessed: boolean;
+  executionRewardsProcessed: boolean;
+  beaconBlockProcessed: boolean;
+  withdrawalsRewards?: unknown;
+  clDeposits?: unknown;
+  clVoluntaryExits?: unknown;
+  elDeposits?: unknown;
+  elWithdrawals?: unknown;
+  elConsolidations?: unknown;
+  proposer_slashings?: unknown;
+  attester_slashings?: unknown;
+}
+
 export interface SlotProcessorContext {
   epoch: number;
   slot: number;
   slotDb: Slot | null;
+  processingData: SlotProcessingData | null;
   beaconBlockData: {
     rawData: Block | 'SLOT MISSED' | null;
     withdrawalRewards: string[];
@@ -112,15 +130,17 @@ export const slotProcessorMachine = setup({
     isSlotMissed: ({ context }) => context.beaconBlockData?.rawData === 'SLOT MISSED',
     isSlotNotMissed: ({ context }) => context.beaconBlockData?.rawData !== 'SLOT MISSED',
     areExecutionRewardsProcessed: ({ context }) =>
-      context.slotDb?.executionRewardsProcessed === true,
+      context.processingData?.executionRewardsProcessed === true,
     areBlockAndSyncRewardsProcessed: ({ context }) =>
-      context.slotDb?.blockAndSyncRewardsProcessed === true,
+      context.processingData?.blockAndSyncRewardsProcessed === true,
     hasSyncCommittee: ({ event }) => event.output?.syncCommittee !== null,
-    areAttestationsProcessed: ({ context }) => context.slotDb?.attestationsProcessed === true,
+    areAttestationsProcessed: ({ context }) =>
+      context.processingData?.attestationsProcessed === true,
     isLookbackSlot: ({ context }) => context.slot === context.lookbackSlot,
     allSlotsHaveCounts: ({ event }) => event.output?.allSlotsHaveCounts === true,
     canProcessAttestations: ({ event }) => event.output?.canProcessAttestations === true,
-    isBeaconBlockAlreadyProcessed: ({ context }) => context.slotDb?.beaconBlockProcessed === true,
+    isBeaconBlockAlreadyProcessed: ({ context }) =>
+      context.processingData?.beaconBlockProcessed === true,
     hasBeaconBlockData: ({ context }) => context.beaconBlockData?.rawData !== null,
   },
   delays: {
@@ -133,6 +153,7 @@ export const slotProcessorMachine = setup({
     epoch: input.epoch,
     slot: input.slot,
     slotDb: null,
+    processingData: null,
     syncCommittee: null,
     beaconBlockData: {
       rawData: null,
@@ -159,6 +180,7 @@ export const slotProcessorMachine = setup({
           {
             actions: assign({
               slotDb: ({ event }) => event.output,
+              processingData: ({ event }) => event.output?.processingData || null,
             }),
             target: 'analyzingSlot',
           },

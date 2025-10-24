@@ -135,7 +135,7 @@ export async function removeProcessedHourlyStatsRecords(
   logger.info(`Removing processed HourlyStats and HourlyBlockAndSyncRewards for ${date}`);
 
   await Promise.all([
-    tx.hourly_validator_attestation_stats.deleteMany({
+    tx.hourlyValidatorStats.deleteMany({
       where: { datetime: { gte: date, lt: new Date(date.getTime() + 24 * 60 * 60 * 1000) } },
     }),
     tx.hourlyBlockAndSyncRewards.deleteMany({

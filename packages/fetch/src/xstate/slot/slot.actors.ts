@@ -109,6 +109,9 @@ export const getSlot = fromPromise(async ({ input }: { input: CheckSlotProcessed
     where: {
       slot: input.slot,
     },
+    include: {
+      processingData: true,
+    },
   }),
 );
 
@@ -143,7 +146,7 @@ export const fetchELRewards = fromPromise(
         data: blockInfo,
       });
 
-      await tx.slot.update({
+      await tx.slotProcessingData.update({
         where: {
           slot: input.slot,
         },
@@ -371,7 +374,7 @@ export const updateSlotProcessed = fromPromise(
  */
 export const updateAttestationsProcessed = fromPromise(
   async ({ input }: { input: CheckSlotProcessedInput }) =>
-    prisma.slot.update({
+    prisma.slotProcessingData.update({
       where: { slot: input.slot },
       data: { attestationsProcessed: true },
     }),
@@ -389,7 +392,7 @@ export const processWithdrawalsRewards = fromPromise(
       withdrawals: Block['data']['message']['body']['execution_payload']['withdrawals'];
     };
   }) =>
-    prisma.slot.update({
+    prisma.slotProcessingData.update({
       where: {
         slot: input.slot,
       },
@@ -424,7 +427,7 @@ export const processWithdrawalsRewardsData = fromPromise(
  */
 export const updateWithdrawalsProcessed = fromPromise(
   async ({ input }: { input: CheckSlotProcessedInput }) =>
-    prisma.slot.update({
+    prisma.slotProcessingData.update({
       where: { slot: input.slot },
       data: { withdrawalsRewards: [] }, // Empty array indicates processed but no withdrawals
     }),
@@ -543,7 +546,7 @@ export const updateSlotWithBeaconData = fromPromise(
     }
 
     // Update slot with processed status and beacon data
-    const updatedSlot = await prisma.slot.update({
+    const updatedSlot = await prisma.slotProcessingData.update({
       where: { slot },
       data: {
         withdrawalsRewards: beaconBlockData.withdrawalRewards || [],
