@@ -9,10 +9,9 @@ import validatorsData from './mocks/validators.json' with { type: 'json' };
 import { gnosisConfig } from '@/src/config/chain.js';
 import { BeaconClient } from '@/src/services/consensus/beacon.js';
 import { EpochController } from '@/src/services/consensus/controllers/epoch.js';
+import { ValidatorControllerHelpers } from '@/src/services/consensus/controllers/helpers/validatorControllerHelpers.js';
 import { EpochStorage } from '@/src/services/consensus/storage/epoch.js';
 import { ValidatorsStorage } from '@/src/services/consensus/storage/validators.js';
-import { AttestationRewards } from '@/src/services/consensus/types.js';
-import { mapValidatorDataToDBEntity } from '@/src/services/consensus/utils/mappers/validatorMapper.js';
 import { BeaconTime } from '@/src/services/consensus/utils/time.js';
 
 /**
@@ -127,6 +126,7 @@ describe('Epoch Processor E2E Tests', () => {
     beforeEach(async () => {
       // Clean up database
       await prisma.hourlyValidatorStats.deleteMany();
+      await prisma.hourlyValidatorData.deleteMany();
       await prisma.validator.deleteMany();
       await prisma.epoch.deleteMany();
 
@@ -150,190 +150,89 @@ describe('Epoch Processor E2E Tests', () => {
         }),
       );
 
-      // Save validators data to database using the mapper utility
-      const validators = validatorsData.data.map((v) => mapValidatorDataToDBEntity(v));
+      // Save validators data to database
+      const validators = validatorsData.data.map((v) =>
+        ValidatorControllerHelpers.mapValidatorDataToDBEntity(v),
+      );
       await validatorsStorage.saveValidators(validators);
 
       // Create epochs
       await epochStorage.createEpochs([1525790, 1525791, 1525792, 1525793]);
     });
 
-    it('should verify rewards and missed rewards calculation for both epochs 1525790 and 1525791', async () => {
+    it('should process both epochs and verify HourlyValidatorData and HourlyValidatorStats', async () => {
       // Process epoch 1525790
       mockBeaconClient.getAttestationRewards.mockResolvedValueOnce(rewardsAttestations1525790);
       await epochControllerWithMock.fetchEpochRewards(1525790);
+      const epoch1525790 = await epochControllerWithMock.getEpochByNumber(1525790);
+      expect(epoch1525790?.rewardsFetched).toBe(true);
 
       // Process epoch 1525791
       mockBeaconClient.getAttestationRewards.mockResolvedValueOnce(rewardsAttestations1525791);
       await epochControllerWithMock.fetchEpochRewards(1525791);
-
-      // Note: getEpochRewards method was removed with the new atomic processing strategy
-      // Rewards are now processed directly into HourlyValidatorData and HourlyValidatorStats
-
-      // Note: The detailed rewards validation was removed with the new atomic processing strategy
-      // Rewards are now processed directly into HourlyValidatorData and HourlyValidatorStats
-      // The validation logic would need to be updated to check these tables instead
-
-      // Verify that both epochs were marked as rewardsFetched
-      const epoch1525790 = await epochControllerWithMock.getEpochByNumber(1525790);
       const epoch1525791 = await epochControllerWithMock.getEpochByNumber(1525791);
-      expect(epoch1525790?.rewardsFetched).toBe(true);
       expect(epoch1525791?.rewardsFetched).toBe(true);
-    });
-  });
 
-  describe('summarizeEpochRewardsHourly', () => {
-    let mockBeaconClient: Pick<BeaconClient, 'slotStartIndexing'> & {
-      getAttestationRewards: ReturnType<typeof vi.fn>;
-    };
-    let epochControllerWithMock: EpochController;
+      // Expected datetime for both epochs (should be 2025-10-21T14:00:00.000Z)
+      const expectedDatetime = new Date('2025-10-21T14:00:00.000Z');
 
-    beforeEach(async () => {
-      // Clean up database
-      await prisma.hourlyValidatorStats.deleteMany();
-      await prisma.validator.deleteMany();
-      await prisma.epoch.deleteMany();
-
-      // Create mock beacon client
-      mockBeaconClient = {
-        slotStartIndexing: 32000,
-        getAttestationRewards: vi.fn(),
-      };
-
-      // Create epoch controller with mock
-      epochControllerWithMock = new EpochController(
-        mockBeaconClient as unknown as BeaconClient,
-        epochStorage,
-        validatorsStorage,
-        new BeaconTime({
-          genesisTimestamp: gnosisConfig.beacon.genesisTimestamp,
-          slotDurationMs: gnosisConfig.beacon.slotDuration,
-          slotsPerEpoch: gnosisConfig.beacon.slotsPerEpoch,
-          epochsPerSyncCommitteePeriod: gnosisConfig.beacon.epochsPerSyncCommitteePeriod,
-          slotStartIndexing: 32000,
-        }),
-      );
-
-      // Save validators data to database using the mapper utility
-      const validators = validatorsData.data.map((v) => mapValidatorDataToDBEntity(v));
-      await validatorsStorage.saveValidators(validators);
-
-      // Create epochs
-      await epochStorage.createEpochs([1525790, 1525791, 1525792, 1525793]);
-    });
-
-    it('should summarize epoch rewards into hourly validator attestation stats', async () => {
-      // Mock the beacon client response
-      mockBeaconClient.getAttestationRewards.mockResolvedValue(rewardsAttestations1525790);
-
-      // First, fetch attestation rewards
-      await epochControllerWithMock.fetchEpochRewards(1525790);
-
-      // Verify epoch was marked as fetched
-      const epochAfterFetch = await epochControllerWithMock.getEpochByNumber(1525790);
-      expect(epochAfterFetch?.rewardsFetched).toBe(true);
-      // Note: rewardsAggregated flag was removed with the new atomic processing strategy
-      // Aggregation now happens atomically in fetchEpochRewards()
-
-      // Get the timestamp for epoch 1525790 to check hourly stats
-      // Use the same logic as the controller to ensure consistency
-      const epochTimestamp = epochControllerWithMock
-        .getBeaconTime()
-        .getTimestampFromEpochNumber(1525790);
-      const epochDate = new Date(epochTimestamp);
-      const datetime = new Date(
-        Date.UTC(
-          epochDate.getUTCFullYear(),
-          epochDate.getUTCMonth(),
-          epochDate.getUTCDate(),
-          epochDate.getUTCHours(),
-          0,
-          0,
-          0,
-        ),
-      );
-
-      console.log(
-        `Test Debug: Epoch ${1525790} - Timestamp: ${epochTimestamp}, Date: ${epochDate.toISOString()}, Datetime: ${datetime.toISOString()}`,
-      );
-
-      // Get the summarized stats
+      // Fetch validators data and stas from  database
       const validatorIndexes = [549417, 549418, 549419];
-      const summarizedStats = await epochControllerWithMock.getHourlyValidatorAttestationStats(
-        validatorIndexes,
-        datetime,
+      const dbHourlyData = await prisma.hourlyValidatorData.findMany({
+        where: {
+          validatorIndex: { in: validatorIndexes },
+        },
+      });
+      const dbHourlyStats = await prisma.hourlyValidatorStats.findMany({
+        where: {
+          validatorIndex: { in: validatorIndexes },
+        },
+      });
+
+      // ===== VALIDATE HOURLY DATA =====
+      expect(dbHourlyData.length).toBeGreaterThan(0);
+
+      // Verify validator 549417
+      const data549417 = dbHourlyData.find((d) => d.validatorIndex === 549417);
+      expect(data549417!.datetime.toISOString()).toBe(expectedDatetime.toISOString());
+      expect(data549417!.epochRewards).toBe(
+        '1525790:87524:163524:87929:0:0:0:0:0,1525791:87314:163553:87978:0:0:0:0:0',
       );
 
-      // Verify that we have summarized stats
-      expect(summarizedStats.length).toBeGreaterThan(0);
-
-      // Verify that each validator has summarized stats
-      const validator549417Stats = summarizedStats.find(
-        (s: { validatorIndex: number }) => s.validatorIndex === 549417,
-      );
-      const validator549418Stats = summarizedStats.find(
-        (s: { validatorIndex: number }) => s.validatorIndex === 549418,
-      );
-      const validator549419Stats = summarizedStats.find(
-        (s: { validatorIndex: number }) => s.validatorIndex === 549419,
+      // Verify validator 549418
+      const data549418 = dbHourlyData.find((d) => d.validatorIndex === 549418);
+      expect(data549418!.datetime.toISOString()).toBe(expectedDatetime.toISOString());
+      expect(data549418!.epochRewards).toBe(
+        '1525790:87524:163524:87929:0:0:0:0:0,1525791:87314:163553:87978:0:0:0:0:0',
       );
 
-      expect(validator549417Stats).toBeDefined();
-      expect(validator549418Stats).toBeDefined();
-      expect(validator549419Stats).toBeDefined();
+      // Verify validator 549419
+      const data549419 = dbHourlyData.find((d) => d.validatorIndex === 549419);
+      expect(data549419!.datetime.toISOString()).toBe(expectedDatetime.toISOString());
+      expect(data549419!.epochRewards).toBe(
+        '1525790:37711:70458:37886:0:0:0:0:0,1525791:37621:70470:37907:0:0:0:0:0',
+      );
 
-      // Verify that clRewards are aggregated (should be > 0)
-      expect(Number(validator549417Stats?.clRewards?.toString())).toBeGreaterThan(0);
-      expect(Number(validator549418Stats?.clRewards?.toString())).toBeGreaterThan(0);
-      expect(Number(validator549419Stats?.clRewards?.toString())).toBeGreaterThan(0);
-    });
+      // ===== VALIDATE HOURLY STATS =====
+      expect(dbHourlyStats.length).toBeGreaterThan(0);
 
-    it('should allow processing the first epoch when no previous epochs exist', async () => {
-      // Clean up any existing data
-      await prisma.hourlyValidatorStats.deleteMany();
-      await prisma.epoch.deleteMany();
+      // Verify validator 549417 stats
+      const stats549417 = dbHourlyStats.find((s) => s.validatorIndex === 549417);
+      expect(stats549417!.datetime.toISOString()).toBe(expectedDatetime.toISOString());
+      // Verify validator 549417 rewards (87524+163524+87929+0) + (87314+163553+87978+0) = 338977 + 338845 = 677822
+      expect(Number(stats549417!.clRewards?.toString())).toBe(677822);
 
-      // Create only epoch 1525790
-      await epochStorage.createEpochs([1525790]);
+      // Verify validator 549418 stats
+      const stats549418 = dbHourlyStats.find((s) => s.validatorIndex === 549418);
+      expect(stats549418!.datetime.toISOString()).toBe(expectedDatetime.toISOString());
+      // Verify validator 549418 rewards (same as 549417)
+      expect(Number(stats549418!.clRewards?.toString())).toBe(677822);
 
-      // Process the first epoch (should work even without previous epochs)
-      mockBeaconClient.getAttestationRewards.mockResolvedValue(rewardsAttestations1525790);
-      await epochControllerWithMock.fetchEpochRewards(1525790);
-      // Note: aggregateEpochRewardsIntoHourlyValidatorStats was removed with the new atomic processing strategy
-      // Aggregation now happens atomically in fetchEpochRewards()
-
-      // Verify epoch was processed successfully
-      const epoch1525790 = await epochControllerWithMock.getEpochByNumber(1525790);
-      expect(epoch1525790?.rewardsFetched).toBe(true);
-    });
-
-    it('should validate consecutive epoch processing in hourlyValidatorStats', async () => {
-      // First, process epoch 1525790
-      mockBeaconClient.getAttestationRewards.mockResolvedValue(rewardsAttestations1525790);
-      await epochControllerWithMock.fetchEpochRewards(1525790);
-      // Note: aggregateEpochRewardsIntoHourlyValidatorStats was removed with the new atomic processing strategy
-      // Aggregation now happens atomically in fetchEpochRewards()
-
-      // Verify first epoch was processed successfully
-      const epoch1525790 = await epochControllerWithMock.getEpochByNumber(1525790);
-      expect(epoch1525790?.rewardsFetched).toBe(true);
-
-      // Now process epoch 1525791 (consecutive - should work)
-      mockBeaconClient.getAttestationRewards.mockResolvedValue(rewardsAttestations1525791);
-      await epochControllerWithMock.fetchEpochRewards(1525791);
-      // Note: aggregateEpochRewardsIntoHourlyValidatorStats was removed with the new atomic processing strategy
-      // Aggregation now happens atomically in fetchEpochRewards()
-
-      // Verify second epoch was processed successfully
-      const epoch1525791 = await epochControllerWithMock.getEpochByNumber(1525791);
-      expect(epoch1525791?.rewardsFetched).toBe(true);
-
-      // Now try to process epoch 1525793 (non-consecutive - should fail)
-      mockBeaconClient.getAttestationRewards.mockResolvedValue(rewardsAttestations1525790);
-      await epochControllerWithMock.fetchEpochRewards(1525793);
-
-      // Note: The consecutive epoch validation was removed with the new atomic processing strategy
-      // The new strategy processes rewards atomically without separate aggregation step
+      // Verify validator 549419 stats
+      const stats549419 = dbHourlyStats.find((s) => s.validatorIndex === 549419);
+      expect(stats549419!.datetime.toISOString()).toBe(expectedDatetime.toISOString());
+      // Verify validator 549419 rewards (37711+70458+37886+0) + (37621+70470+37907+0) = 146055 + 145998 = 292053
+      expect(Number(stats549419!.clRewards?.toString())).toBe(292053);
     });
   });
 });

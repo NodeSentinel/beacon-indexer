@@ -204,23 +204,32 @@ export class EpochStorage {
         }
 
         // Aggregate rewards into HourlyValidatorStats using pre-calculated values
-        const valuesClause = processedRewards
-          .map((r) => `(${r.validatorIndex}, ${r.clRewards}, ${r.clMissedRewards})`)
-          .join(',');
+        // Process in batches to avoid SQL parameter limits
+        const statsBatchSize = 1000;
+        const statsBatches = chunk(processedRewards, statsBatchSize);
 
-        await tx.$executeRaw`
-          INSERT INTO hourly_validator_stats 
-            (datetime, validator_index, cl_rewards, cl_missed_rewards)
-          SELECT 
-            ${datetime}::timestamp as datetime,
-            validator_index,
-            cl_rewards,
-            cl_missed_rewards
-          FROM (VALUES ${valuesClause}) AS rewards(validator_index, cl_rewards, cl_missed_rewards)
-          ON CONFLICT (datetime, validator_index) DO UPDATE SET
-            "cl_rewards" = EXCLUDED."cl_rewards",
-            "cl_missed_rewards" = EXCLUDED."cl_missed_rewards"
-        `;
+        for (const statsBatch of statsBatches) {
+          const valuesClause = statsBatch
+            .map(
+              (r) =>
+                `(${r.validatorIndex}, ${r.clRewards.toString()}, ${r.clMissedRewards.toString()})`,
+            )
+            .join(',');
+
+          await tx.$executeRawUnsafe(`
+            INSERT INTO hourly_validator_stats 
+              (datetime, validator_index, cl_rewards, cl_missed_rewards)
+            SELECT 
+              '${datetime.toISOString()}'::timestamp as datetime,
+              validator_index,
+              cl_rewards,
+              cl_missed_rewards
+            FROM (VALUES ${valuesClause}) AS rewards(validator_index, cl_rewards, cl_missed_rewards)
+            ON CONFLICT (datetime, validator_index) DO UPDATE SET
+              "cl_rewards" = hourly_validator_stats."cl_rewards" + EXCLUDED."cl_rewards",
+              "cl_missed_rewards" = hourly_validator_stats."cl_missed_rewards" + EXCLUDED."cl_missed_rewards"
+          `);
+        }
 
         // Mark epoch as rewardsFetched = true (rewardsAggregated is no longer needed)
         await tx.epoch.update({

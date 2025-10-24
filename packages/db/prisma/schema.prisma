@@ -9,7 +9,7 @@ datasource db {
 }
 
 model Validator {
-    id                Int     @id @map("id") @db.SmallInt
+    id                Int     @id @map("id")
     status            Int?    @map("status")
     balance           BigInt  @map("balance")
     effectiveBalance  BigInt? @map("effective_balance")
@@ -22,7 +22,7 @@ model Validator {
 }
 
 model Epoch {
-    epoch                       Int     @id @map("epoch") @db.SmallInt
+    epoch                       Int     @id @map("epoch")
     slotsFetched                Boolean @default(false) @map("slots_fetched")
     committeesFetched           Boolean @default(false) @map("committees_fetched")
     syncCommitteesFetched       Boolean @default(false) @map("sync_committees_fetched")
@@ -36,7 +36,7 @@ model Epoch {
 }
 
 model Slot {
-    slot                  Int     @id @map("slot") @db.SmallInt
+    slot                  Int     @id @map("slot")
     processed             Boolean @default(false) @map("processed")
     committeesCountInSlot Json?   @map("committees_count_in_slot") // Stores the number of validators per committee index as an array: [350, 340, ...], required for attestation processing
 
@@ -49,7 +49,7 @@ model Slot {
 }
 
 model SlotProcessingData {
-    slot                         Int     @id @map("slot") @db.SmallInt
+    slot                         Int     @id @map("slot")
     attestationsProcessed        Boolean @default(false) @map("attestations_processed")
     blockAndSyncRewardsProcessed Boolean @default(false) @map("block_and_sync_rewards_processed")
     executionRewardsProcessed    Boolean @default(false) @map("execution_rewards_processed")
@@ -71,8 +71,8 @@ model SlotProcessingData {
 // Committee is a list of validators that were assigned to a slot.
 // TODO: add partition table
 model Committee {
-    slot                 Int  @map("slot") @db.SmallInt
-    validatorIndex       Int  @map("validator_index") @db.SmallInt
+    slot                 Int  @map("slot")
+    validatorIndex       Int  @map("validator_index")
     index                Int  @map("index") @db.SmallInt // indicates what position in the epoch this slot is in
     aggregationBitsIndex Int  @map("aggregation_bits_index") @db.SmallInt // indicates what position in the aggregation bits this validator was assigned to
     attestationDelay     Int? @map("attestation_delay") @db.SmallInt // TODO: remove
@@ -85,8 +85,8 @@ model Committee {
 }
 
 model SyncCommittee {
-    fromEpoch           Int  @map("from_epoch") @db.SmallInt
-    toEpoch             Int  @map("to_epoch") @db.SmallInt
+    fromEpoch           Int  @map("from_epoch")
+    toEpoch             Int  @map("to_epoch")
     validators          Json // Array of validator indices as strings: ["1", "2", "3", ...]
     validatorAggregates Json @map("validator_aggregates") // Array of arrays of validator indices as strings: [["1", "2"], ["3", "4"], ...]
 
@@ -96,8 +96,8 @@ model SyncCommittee {
 }
 
 model SyncCommitteeReward {
-    slot           Int     @map("slot") @db.SmallInt
-    validatorIndex Int     @map("validator_index") @db.SmallInt
+    slot           Int     @map("slot")
+    validatorIndex Int     @map("validator_index")
     reward         BigInt?
 
     @@id([slot, validatorIndex])
@@ -105,10 +105,10 @@ model SyncCommitteeReward {
 }
 
 model SlotBlockRewards {
-    slotNumber Int     @id @map("slot_number") @db.SmallInt
+    slotNumber Int     @id @map("slot_number")
     slotReward BigInt? @map("slot_reward")
 
-    blockNumber     Int     @map("block_number") @db.SmallInt
+    blockNumber     Int     @map("block_number")
     blockReward     BigInt? @map("block_reward")
     proposerAddress String? @map("proposer_address") @db.VarChar(42)
 
@@ -120,7 +120,7 @@ model SlotBlockRewards {
 //-------------------------------------
 model HourlyValidatorStats {
     datetime          DateTime @map("datetime") @db.Timestamp // dd-mm-yyyy-hh
-    validatorIndex    Int      @map("validator_index") @db.SmallInt
+    validatorIndex    Int      @map("validator_index")
     attestationsCount Int?     @map("missed_attestations_count") @db.SmallInt
     clRewards         BigInt?  @map("cl_rewards")
     clMissedRewards   BigInt?  @map("cl_missed_rewards")
@@ -131,7 +131,7 @@ model HourlyValidatorStats {
 
 model HourlyValidatorData {
     datetime             DateTime @map("datetime") @db.Timestamp // dd-mm-yyyy-hh
-    validatorIndex       Int      @map("validator_index") @db.SmallInt
+    validatorIndex       Int      @map("validator_index")
     attestations         String   @default("") @map("attestations") @db.Text // 'slot:delay,slot:delay,...'
     syncCommitteeRewards String   @default("") @map("sync_committee_rewards") @db.Text // 'slot:reward,slot:reward,...'
     epochRewards         String   @default("") @map("epoch_rewards") @db.Text // 'epoch:head:target:source:inactivity:missedHead:missedTarget:missedSource:missedInactivity,...'

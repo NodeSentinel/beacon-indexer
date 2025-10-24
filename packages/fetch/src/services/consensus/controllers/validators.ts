@@ -1,8 +1,9 @@
 import chunk from 'lodash/chunk.js';
 
+import { ValidatorControllerHelpers } from './helpers/validatorControllerHelpers.js';
+
 import { BeaconClient } from '@/src/services/consensus/beacon.js';
 import { ValidatorsStorage } from '@/src/services/consensus/storage/validators.js';
-import { mapValidatorDataToDBEntity } from '@/src/services/consensus/utils/mappers/validatorMapper.js';
 
 export class ValidatorsController {
   constructor(
@@ -39,7 +40,7 @@ export class ValidatorsController {
     }
 
     await this.validatorsStorage.saveValidators(
-      allValidatorsData.map((data) => mapValidatorDataToDBEntity(data)),
+      allValidatorsData.map((data) => ValidatorControllerHelpers.mapValidatorDataToDBEntity(data)),
     );
   }
 
