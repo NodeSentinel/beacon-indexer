@@ -2,6 +2,7 @@ import { PrismaClient } from '@beacon-indexer/db';
 import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from 'vitest';
 
 // Import mock data
+import committeeData from './mocks/committee_1529347.json' with { type: 'json' };
 import rewardsAttestations1525790 from './mocks/rewardsAttestations_1525790.json' with { type: 'json' };
 import rewardsAttestations1525791 from './mocks/rewardsAttestations_1525791.json' with { type: 'json' };
 import validatorsData from './mocks/validators.json' with { type: 'json' };
@@ -12,6 +13,7 @@ import { EpochController } from '@/src/services/consensus/controllers/epoch.js';
 import { ValidatorControllerHelpers } from '@/src/services/consensus/controllers/helpers/validatorControllerHelpers.js';
 import { EpochStorage } from '@/src/services/consensus/storage/epoch.js';
 import { ValidatorsStorage } from '@/src/services/consensus/storage/validators.js';
+import { GetCommittees } from '@/src/services/consensus/types.js';
 import { BeaconTime } from '@/src/services/consensus/utils/time.js';
 
 /**
@@ -233,6 +235,151 @@ describe('Epoch Processor E2E Tests', () => {
       expect(stats549419!.datetime.toISOString()).toBe(expectedDatetime.toISOString());
       // Verify validator 549419 rewards (37711+70458+37886+0) + (37621+70470+37907+0) = 146055 + 145998 = 292053
       expect(Number(stats549419!.clRewards?.toString())).toBe(292053);
+    });
+  });
+
+  describe('fetchCommittees', () => {
+    let mockBeaconClient: Pick<BeaconClient, 'slotStartIndexing'> & {
+      getCommittees: ReturnType<typeof vi.fn>;
+    };
+    let epochControllerWithMock: EpochController;
+
+    beforeEach(async () => {
+      // Clean up database (order matters due to foreign key constraints)
+      await prisma.committee.deleteMany();
+      await prisma.slot.deleteMany();
+      await prisma.epoch.deleteMany();
+
+      // Create mock beacon client
+      mockBeaconClient = {
+        slotStartIndexing: 32000,
+        getCommittees: vi.fn(),
+      };
+
+      // Create epoch controller with mock
+      epochControllerWithMock = new EpochController(
+        mockBeaconClient as unknown as BeaconClient,
+        epochStorage,
+        validatorsStorage,
+        new BeaconTime({
+          genesisTimestamp: gnosisConfig.beacon.genesisTimestamp,
+          slotDurationMs: gnosisConfig.beacon.slotDuration,
+          slotsPerEpoch: gnosisConfig.beacon.slotsPerEpoch,
+          epochsPerSyncCommitteePeriod: gnosisConfig.beacon.epochsPerSyncCommitteePeriod,
+          slotStartIndexing: 32000,
+        }),
+      );
+
+      // Create epoch
+      await epochStorage.createEpochs([1529347]);
+    });
+
+    it('should throw error if committees already fetched', async () => {
+      // Mark epoch as committeesFetched using epochStorage
+      await epochStorage.updateCommitteesFetched(1529347);
+
+      // Should throw error
+      await expect(epochControllerWithMock.fetchCommittees(1529347)).rejects.toThrow(
+        'Committees for epoch 1529347 already fetched',
+      );
+    });
+
+    it('should process committees and verify complete flow', async () => {
+      // Use the existing GetCommittees type for better type safety
+      const committeeDataTyped = committeeData as GetCommittees;
+      mockBeaconClient.getCommittees.mockResolvedValueOnce(committeeDataTyped.data);
+
+      // Process committees
+      await epochControllerWithMock.fetchCommittees(1529347);
+
+      // ===== VERIFY EPOCH STATUS =====
+      const epoch = await epochControllerWithMock.getEpochByNumber(1529347);
+      expect(epoch?.committeesFetched).toBe(true);
+
+      // ===== VERIFY SPECIFIC VALIDATOR POSITIONS =====
+      // Validator 549417 should be in index 37, slot 24469567
+      const committees549417 = await epochStorage.getCommitteesBySlots([24469567]);
+      const committee549417 = committees549417.find(
+        (c) => c.index === 37 && c.validatorIndex === 549417,
+      );
+      expect(committee549417?.validatorIndex).toBe(549417);
+
+      // Validator 549418 should be in index 48, slot 24469564
+      const committees549418 = await epochStorage.getCommitteesBySlots([24469564]);
+      const committee549418 = committees549418.find(
+        (c) => c.index === 48 && c.validatorIndex === 549418,
+      );
+      expect(committee549418?.validatorIndex).toBe(549418);
+
+      // Validator 549419 should be in index 36, slot 24469564
+      const committees549419 = await epochStorage.getCommitteesBySlots([24469564]);
+      const committee549419 = committees549419.find(
+        (c) => c.index === 36 && c.validatorIndex === 549419,
+      );
+      expect(committee549419?.validatorIndex).toBe(549419);
+
+      // ===== VERIFY EPOCH SLOTS RANGE =====
+      const epochSlots = epochControllerWithMock.getBeaconTime().getEpochSlots(1529347);
+      const expectedStartSlot = epochSlots.startSlot;
+      const expectedEndSlot = epochSlots.endSlot;
+
+      // Calculate all slots for the epoch
+      const epochSlotsArray = [];
+      for (let slot = expectedStartSlot; slot <= expectedEndSlot; slot++) {
+        epochSlotsArray.push(slot);
+      }
+      expect(epochSlotsArray.length).toBe(expectedEndSlot - expectedStartSlot + 1);
+
+      // Get all committees for the epoch using the calculated slots
+      const committees = await epochStorage.getCommitteesBySlots(epochSlotsArray);
+
+      // Get unique slots from committees
+      const uniqueSlots = [...new Set(committees.map((c) => c.slot))].sort((a, b) => a - b);
+
+      // Verify all expected slots were created
+      expect(uniqueSlots.length).toBe(epochSlotsArray.length);
+      for (const expectedSlot of epochSlotsArray) {
+        expect(uniqueSlots).toContain(expectedSlot);
+      }
+
+      // Verify each committee has valid data
+      for (const committee of committees) {
+        expect(committee.validatorIndex).toBeGreaterThan(0);
+        expect(committee.slot).toBeGreaterThan(0);
+        expect(committee.index).toBeGreaterThanOrEqual(0);
+        expect(committee.index).toBeLessThan(64);
+        expect(committee.aggregationBitsIndex).toBeGreaterThanOrEqual(0);
+      }
+
+      // Verify total committees count: 64 indices × 16 slots = 1024 committees
+      // Each committee has multiple validators, so we need to count unique (slot, index) combinations
+      const uniqueCommittees = new Set(committees.map((c) => `${c.slot}-${c.index}`));
+      expect(uniqueCommittees.size).toBe(1024);
+
+      // Verify total validators count across all committees: 268434
+      expect(committees.length).toBe(268434);
+
+      // Verify each slot has 64 committees (indices 0-63)
+      for (const slot of uniqueSlots) {
+        const slotCommittees = committees.filter((c) => c.slot === slot);
+        const uniqueSlotCommittees = new Set(slotCommittees.map((c) => c.index));
+        expect(uniqueSlotCommittees.size).toBe(64);
+      }
+
+      const committee549417InList = committees.find(
+        (c) => c.slot === 24469567 && c.index === 37 && c.validatorIndex === 549417,
+      );
+      expect(committee549417InList).toBeTruthy();
+
+      const committee549418InList = committees.find(
+        (c) => c.slot === 24469564 && c.index === 48 && c.validatorIndex === 549418,
+      );
+      expect(committee549418InList).toBeTruthy();
+
+      const committee549419InList = committees.find(
+        (c) => c.slot === 24469564 && c.index === 36 && c.validatorIndex === 549419,
+      );
+      expect(committee549419InList).toBeTruthy();
     });
   });
 });

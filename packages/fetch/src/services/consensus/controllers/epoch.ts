@@ -180,6 +180,11 @@ export class EpochController extends EpochControllerHelpers {
    * Fetch committees for a specific epoch
    */
   async fetchCommittees(epoch: number) {
+    const epochDb = await this.epochStorage.getEpochByNumber(epoch);
+    if (epochDb?.committeesFetched) {
+      throw new Error(`Committees for epoch ${epoch} already fetched`);
+    }
+
     // Get committees from beacon chain
     const committees = await this.beaconClient.getCommittees(epoch);
 

@@ -255,7 +255,7 @@ export class EpochStorage {
     await this.prisma.$transaction(
       async (tx) => {
         await tx.$executeRaw`
-          INSERT INTO "Slot" (slot, processed, "committees_count_in_slot")
+          INSERT INTO "slot" (slot, processed, "committees_count_in_slot")
           SELECT 
             unnest(${slots}::integer[]), 
             false,
@@ -339,6 +339,18 @@ export class EpochStorage {
   }
 
   /**
+   * Update the epoch's committeesFetched flag to true
+   */
+  async updateCommitteesFetched(epoch: number): Promise<{ success: boolean }> {
+    await this.prisma.epoch.update({
+      where: { epoch },
+      data: { committeesFetched: true },
+    });
+
+    return { success: true };
+  }
+
+  /**
    * Update the epoch's syncCommitteesFetched flag to true
    */
   async updateSyncCommitteesFetched(epoch: number): Promise<{ success: boolean }> {
@@ -386,5 +398,17 @@ export class EpochStorage {
     });
 
     return result?.epoch ?? null;
+  }
+
+  /**
+   * Get all committees for specific slots
+   */
+  async getCommitteesBySlots(slots: number[]) {
+    return this.prisma.committee.findMany({
+      where: {
+        slot: { in: slots },
+      },
+      orderBy: [{ slot: 'asc' }, { index: 'asc' }, { aggregationBitsIndex: 'asc' }],
+    });
   }
 }
