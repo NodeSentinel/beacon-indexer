@@ -2,7 +2,7 @@ services:
   postgres:
     image: postgres:16
     platform: linux/arm64
-    container_name: db
+    container_name: beacon_db
     env_file:
       - .env
     ports:

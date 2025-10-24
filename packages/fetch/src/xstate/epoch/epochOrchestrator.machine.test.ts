@@ -267,15 +267,26 @@ describe.skip('epochOrchestratorMachine', () => {
       epoch: 100,
       processed: false,
       validatorsBalancesFetched: false,
+      validatorsActivationFetched: false,
       rewardsFetched: false,
+      rewardsAggregated: false,
       committeesFetched: false,
       slotsFetched: false,
       syncCommitteesFetched: false,
-      validatorsActivationFetched: false,
     };
 
     // Create a controllable promise for getMinEpochToProcess
-    const getMinEpochPromise = createControllablePromise<typeof mockEpochData | null>();
+    const getMinEpochPromise = createControllablePromise<{
+      epoch: number;
+      processed: boolean;
+      validatorsBalancesFetched: boolean;
+      validatorsActivationFetched: boolean;
+      rewardsFetched: boolean;
+      rewardsAggregated: boolean;
+      committeesFetched: boolean;
+      slotsFetched: boolean;
+      syncCommitteesFetched: boolean;
+    } | null>();
 
     vi.mocked(mockEpochController.getMinEpochToProcess).mockImplementation(
       () => getMinEpochPromise.promise,

@@ -136,7 +136,7 @@ export async function removeProcessedHourlyStatsRecords(
 
   await Promise.all([
     tx.hourlyValidatorStats.deleteMany({
-      where: { date },
+      where: { datetime: { gte: date, lt: new Date(date.getTime() + 24 * 60 * 60 * 1000) } },
     }),
     tx.hourlyBlockAndSyncRewards.deleteMany({
       where: { date },

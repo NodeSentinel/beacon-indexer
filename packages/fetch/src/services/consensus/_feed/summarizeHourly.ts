@@ -16,14 +16,14 @@ import { updateLastSummaryUpdate } from '@/src/utils/db.js';
 const prisma = getPrisma();
 
 async function hasUnprocessedSlots(endSlot: number): Promise<boolean> {
-  const slot = await prisma.slot.findUnique({
+  const processingData = await prisma.slotProcessingData.findUnique({
     where: {
       slot: endSlot,
       attestationsProcessed: true,
       blockAndSyncRewardsProcessed: true,
     },
   });
-  return slot == null;
+  return processingData == null;
 }
 
 async function hasUnprocessedBeaconRewards(endSlot: number): Promise<boolean> {

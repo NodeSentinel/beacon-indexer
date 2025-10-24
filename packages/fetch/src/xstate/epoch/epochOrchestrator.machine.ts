@@ -6,6 +6,7 @@ import { epochProcessorMachine } from './epochProcessor.machine.js';
 
 import type { CustomLogger } from '@/src/lib/pino.js';
 import { EpochController } from '@/src/services/consensus/controllers/epoch.js';
+import { ValidatorsController } from '@/src/services/consensus/controllers/validators.js';
 import { BeaconTime } from '@/src/services/consensus/utils/time.js';
 import { logActor } from '@/src/xstate/multiMachineLogger.js';
 import { pinoLog } from '@/src/xstate/pinoLog.js';
@@ -33,6 +34,7 @@ export const epochOrchestratorMachine = setup({
       lookbackSlot: number;
       epochController: EpochController;
       beaconTime: BeaconTime;
+      validatorsController?: ValidatorsController;
     };
     events: { type: 'EPOCH_COMPLETED'; machineId: string };
     input: {
@@ -40,6 +42,7 @@ export const epochOrchestratorMachine = setup({
       lookbackSlot: number;
       epochController: EpochController;
       beaconTime: BeaconTime;
+      validatorsController?: ValidatorsController;
     };
   },
   actors: {
@@ -65,6 +68,7 @@ export const epochOrchestratorMachine = setup({
     lookbackSlot: input.lookbackSlot,
     epochController: input.epochController,
     beaconTime: input.beaconTime,
+    validatorsController: input.validatorsController,
   }),
   states: {
     gettingMinEpoch: {
@@ -136,6 +140,7 @@ export const epochOrchestratorMachine = setup({
                 services: {
                   beaconTime: context.beaconTime,
                   epochController: context.epochController,
+                  validatorsController: context.validatorsController,
                 },
               },
             });

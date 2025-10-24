@@ -4,8 +4,9 @@ import { EpochControllerHelpers } from './helpers/epochControllerHelpers.js';
 
 import { BeaconClient } from '@/src/services/consensus/beacon.js';
 import { EpochStorage } from '@/src/services/consensus/storage/epoch.js';
+import { ValidatorsStorage } from '@/src/services/consensus/storage/validators.js';
 import { BeaconTime } from '@/src/services/consensus/utils/time.js';
-import { convertToUTC } from '@/src/utils/date/index.js';
+import { getUTCDatetimeRoundedToHour } from '@/src/utils/date/index.js';
 
 export class EpochController extends EpochControllerHelpers {
   static readonly maxUnprocessedEpochs: number = 5;
@@ -13,10 +14,40 @@ export class EpochController extends EpochControllerHelpers {
   constructor(
     private readonly beaconClient: BeaconClient,
     private readonly epochStorage: EpochStorage,
+    private readonly validatorsStorage: ValidatorsStorage,
     private readonly beaconTime: BeaconTime,
   ) {
     super();
   }
+
+  // TODO: getter to know if an epoch is already processed (all the flags are true)
+  // TODO: setter to set the last epoch processed, check all the flags are true
+
+  /**
+   * NEW EPOCH REWARDS PROCESSING STRATEGY
+   *
+   * The epoch rewards processing has been refactored to use a single atomic transaction approach:
+   *
+   * OLD STRATEGY (deprecated):
+   * 1. fetchEpochRewards() -> Save to EpochRewards table
+   * 2. aggregateEpochRewardsIntoHourlyValidatorStats() -> Aggregate from EpochRewards to HourlyValidatorStats
+   *
+   * NEW STRATEGY (current):
+   * 1. fetchEpochRewards() -> Process and aggregate directly in single atomic transaction
+   *    - Fetches rewards from beacon chain
+   *    - Calculates missed rewards using ideal rewards
+   *    - Stores epoch rewards in HourlyValidatorData.epochRewards using format:
+   *      'epoch:head:target:source:inactivity:missedHead:missedTarget:missedSource:missedInactivity,...'
+   *    - Aggregates rewards into HourlyValidatorStats for clRewards and clMissedRewards
+   *    - Marks epoch as rewardsFetched = true
+   *
+   * BENEFITS:
+   * - Single atomic transaction ensures data consistency
+   * - Eliminates intermediate EpochRewards table
+   * - Removes rewardsAggregated flag (no longer needed)
+   * - Better performance with fewer database operations
+   * - Simplified state management
+   */
 
   async getMaxEpoch() {
     const result = await this.epochStorage.getMaxEpoch();
@@ -27,12 +58,16 @@ export class EpochController extends EpochControllerHelpers {
     return this.epochStorage.getMinEpochToProcess();
   }
 
-  async getUnprocessedCount() {
-    return this.epochStorage.getUnprocessedCount();
+  getBeaconTime() {
+    return this.beaconTime;
   }
 
   async markEpochAsProcessed(epoch: number) {
     await this.epochStorage.markEpochAsProcessed(epoch);
+  }
+
+  async getUnprocessedCount() {
+    return this.epochStorage.getUnprocessedCount();
   }
 
   async getAllEpochs() {
@@ -41,6 +76,10 @@ export class EpochController extends EpochControllerHelpers {
 
   async getEpochCount() {
     return this.epochStorage.getEpochCount();
+  }
+
+  async getEpochByNumber(epoch: number) {
+    return this.epochStorage.getEpochByNumber(epoch);
   }
 
   // New method that handles the complete epoch creation logic internally
@@ -69,77 +108,38 @@ export class EpochController extends EpochControllerHelpers {
   }
 
   /**
-   * Fetch validator balances for a specific slot
-   * Coordinates between beacon client and storage
+   * Fetch and process epoch rewards in a single atomic transaction.
+   *
+   * 1. Fetches rewards from the beacon chain in batches
+   * 2. Processes and calculates missed rewards using ideal rewards
+   * 3. Directly aggregates rewards into HourlyValidatorData and HourlyValidatorStats
+   * 4. Marks epoch as rewardsFetched = true
+   *
+   * The old EpochRewards table is no longer used, and rewards are stored directly
+   * in HourlyValidatorData.epochRewards using the format:
+   * 'epoch:head:target:source:inactivity:missedHead:missedTarget:missedSource:missedInactivity'
+   * comma separated
    */
-  async fetchValidatorsBalances(slot: number) {
-    try {
-      // Get basic validator data from storage
-      const totalValidators = await this.epochStorage.getMaxValidatorId();
-      if (totalValidators == 0) {
-        return;
-      }
-
-      // Get final state validators from storage
-      const finalStateValidatorsIds = await this.epochStorage.getFinalValidatorIds();
-      const finalStateValidatorsSet = new Set(finalStateValidatorsIds);
-
-      // Generate all validator IDs and filter out final state validators
-      const allValidatorIds = Array.from({ length: totalValidators }, (_, i) => i).filter(
-        (id) => !finalStateValidatorsSet.has(id),
-      );
-
-      const batchSize = 1_000_000;
-
-      // Create chunks of batchSize
-      const batches = chunk(allValidatorIds, batchSize);
-      let allValidatorBalances: Array<{ index: string; balance: string }> = [];
-
-      for (const batchIds of batches) {
-        const batchResult = await this.beaconClient.getValidatorsBalances(
-          slot,
-          batchIds.map((id) => String(id)),
-        );
-
-        allValidatorBalances = [...allValidatorBalances, ...batchResult];
-
-        if (batchResult.length < batchSize) {
-          break;
-        }
-      }
-
-      // Save all collected data to database
-      const epoch = this.beaconTime.getEpochFromSlot(slot);
-      await this.epochStorage.saveValidatorBalances(allValidatorBalances, epoch);
-    } catch (error) {
-      console.error(`Error fetching validator balances info`, error);
-    }
-  }
-
-  /**
-   * Fetch attestation rewards for a specific epoch
-   * Coordinates between beacon client and storage
-   */
-  async fetchAttestationRewards(epoch: number) {
-    const epochTimestamp = this.beaconTime.getTimestampFromEpochNumber(epoch);
-    const { date, hour } = convertToUTC(epochTimestamp);
-
-    // Truncate temp table
-    await this.epochStorage.truncateAttestationRewardsTempTable();
-
+  async fetchEpochRewards(epoch: number) {
     // Get all attesting validators from storage
-    const allValidatorIds = await this.epochStorage.getAttestingValidatorsIds();
+    const attestingValidatorsIds = await this.validatorsStorage.getAttestingValidatorsIds();
 
-    // Get ideal rewards from storage
+    // Create ideal rewards lookup, used to calculate missed rewards
     let idealRewardsLookup: ReturnType<typeof this.createIdealRewardsLookup> | null = null;
 
-    // Split all validators in batches
-    const validatorBatches = chunk(allValidatorIds, 1000000);
+    const allProcessedRewards: Array<{
+      validatorIndex: number;
+      clRewards: bigint;
+      clMissedRewards: bigint;
+      rewards: string; // Format: 'epoch:head:target:source:inactivity:missedHead:missedTarget:missedSource:missedInactivity'
+    }> = [];
 
-    // Fetch rewards in batches and save in a temp table
+    // Fetch rewards in batches and process them
+    const validatorBatches = chunk(attestingValidatorsIds, 1000000);
     for (const batch of validatorBatches) {
-      // Get effective balances for the validators in the batch from storage
-      const validatorsBalances = await this.epochStorage.getValidatorsBalances(batch);
+      // Get effective balances for the validators
+      // used to calculate missed rewards based on ideal rewards
+      const validatorsBalances = await this.validatorsStorage.getValidatorsBalances(batch);
       const validatorsBalancesMap = new Map(
         validatorsBalances.map((balance) => [
           balance.id.toString(),
@@ -151,42 +151,29 @@ export class EpochController extends EpochControllerHelpers {
       const epochRewards = await this.beaconClient.getAttestationRewards(epoch, batch);
 
       // Create ideal-rewards lookup if this is the first batch
+      // ideal-rewards is for the epoch, so we only need to do it once
       if (!idealRewardsLookup) {
         idealRewardsLookup = this.createIdealRewardsLookup(epochRewards.data.ideal_rewards);
       }
 
-      // Process and save rewards in batches
-      const rewardBatches = chunk(epochRewards.data.total_rewards, 12_000);
-      for (const rewardBatch of rewardBatches) {
-        const processedRewards = this.processRewardBatch(
-          rewardBatch,
-          validatorsBalancesMap,
-          idealRewardsLookup!,
-          date,
-          hour,
-        );
+      // Process rewards: get validator balances, find ideal rewards by balance,
+      // calculate missed rewards (ideal - actual), and format for new storage strategy
+      const epochRewardsData = this.processEpochReward(
+        epochRewards.data.total_rewards,
+        validatorsBalancesMap,
+        idealRewardsLookup!,
+        epoch,
+      );
 
-        // Transform ProcessedReward to EpochRewardsTempData format
-        const epochRewardsTempData = processedRewards.map((reward) => ({
-          validatorIndex: reward.validatorIndex,
-          hour: reward.hour,
-          date: new Date(reward.date),
-          head: BigInt(reward.head),
-          target: BigInt(reward.target),
-          source: BigInt(reward.source),
-          inactivity: BigInt(reward.inactivity),
-          missedHead: BigInt(reward.missedHead),
-          missedTarget: BigInt(reward.missedTarget),
-          missedSource: BigInt(reward.missedSource),
-          missedInactivity: BigInt(reward.missedInactivity),
-        }));
-
-        await this.epochStorage.insertIntoEpochRewardsTemp(epochRewardsTempData);
-      }
+      allProcessedRewards.push(...epochRewardsData);
     }
 
-    // Process temp results and combine them in the main table
-    await this.epochStorage.saveAttestationRewardsAndUpdateEpoch(epoch);
+    // Calculate datetime for hourly aggregation using BeaconTime
+    const epochTimestamp = this.beaconTime.getTimestampFromEpochNumber(epoch);
+    const datetime = getUTCDatetimeRoundedToHour(epochTimestamp);
+
+    // Process and aggregate rewards in a single atomic transaction
+    await this.epochStorage.processEpochRewardsAndAggregate(epoch, datetime, allProcessedRewards);
   }
 
   /**
@@ -235,6 +222,9 @@ export class EpochController extends EpochControllerHelpers {
     return this.epochStorage.checkSyncCommitteeForEpoch(epoch);
   }
 
+  // From here on
+  // TODO: do we really need this? Should this be part of another atomic transaction?
+
   /**
    * Update the epoch's slotsFetched flag to true
    */
@@ -250,23 +240,18 @@ export class EpochController extends EpochControllerHelpers {
   }
 
   /**
-   * Track transitioning validators
+   * Get hourly validator attestation stats for specific validators and datetime
+   * @internal
    */
-  async trackTransitioningValidators() {
-    // Get pending validators from storage
-    const pendingValidators = await this.epochStorage.getPendingValidators();
+  async getHourlyValidatorAttestationStats(validatorIndexes: number[], datetime: Date) {
+    return this.epochStorage.getHourlyValidatorAttestationStats(validatorIndexes, datetime);
+  }
 
-    if (pendingValidators.length === 0) {
-      return { success: true, processedCount: 0 };
-    }
-
-    // Get validator data from beacon chain
-    const validatorIds = pendingValidators.map((v) => String(v.id));
-    const validatorsData = await this.beaconClient.getValidators('head', validatorIds, null);
-
-    // Update validators in storage
-    await this.epochStorage.updateValidators(validatorsData);
-
-    return { success: true, processedCount: validatorsData.length };
+  /**
+   * Get all hourly validator attestation stats for a specific datetime
+   * @internal
+   */
+  async getAllHourlyValidatorAttestationStats(datetime: Date) {
+    return this.epochStorage.getAllHourlyValidatorAttestationStats(datetime);
   }
 }

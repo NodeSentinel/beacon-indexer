@@ -156,10 +156,14 @@ async function persistToDB(attestations: CommitteeUpdate[], slotNumber: number):
       // Execute all queries in parallel
       await Promise.all(queries.map((query) => tx.$executeRaw(query)));
 
-      // Update slot
-      await tx.slot.update({
+      // Update slot processing data
+      await tx.slotProcessingData.upsert({
         where: { slot: slotNumber },
-        data: { attestationsProcessed: true },
+        update: { attestationsProcessed: true },
+        create: {
+          slot: slotNumber,
+          attestationsProcessed: true,
+        },
       });
     },
     { timeout: ms('1m') },

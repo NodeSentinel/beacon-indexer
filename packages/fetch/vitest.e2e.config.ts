@@ -15,6 +15,13 @@ export default defineConfig({
     disableConsoleIntercept: true,
     include: ['e2e/**/*.test.ts'], // Include all e2e test files
     exclude: ['e2e/**/mocks/**'], // Exclude mocks
+    // Run e2e tests in a single worker to avoid cross-file DB interference
+    pool: 'threads',
+    poolOptions: {
+      threads: {
+        singleThread: true,
+      },
+    },
   },
   resolve: {
     alias: {

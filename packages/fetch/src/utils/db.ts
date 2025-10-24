@@ -6,7 +6,7 @@ const prisma = getPrisma();
 
 export const db_getLastSlotWithAttestations = async () =>
   await prisma.slot.findFirst({
-    where: { attestationsProcessed: true },
+    where: { processingData: { attestationsProcessed: true } },
     orderBy: { slot: 'desc' },
     select: { slot: true },
   });
@@ -14,7 +14,11 @@ export const db_getLastSlotWithAttestations = async () =>
 export const db_getSlotByNumber = async (slot: number) =>
   prisma.slot.findFirst({
     where: { slot },
-    select: { slot: true, attestationsProcessed: true, committee: true },
+    select: {
+      slot: true,
+      processingData: { select: { attestationsProcessed: true } },
+      committees: true,
+    },
   });
 
 export const db_hasEpochCommittees = async (epoch: number) => {
@@ -26,7 +30,7 @@ export const db_hasEpochCommittees = async (epoch: number) => {
 
 export const db_getLastSlotWithSyncRewards = async () =>
   await prisma.slot.findFirst({
-    where: { blockAndSyncRewardsProcessed: true },
+    where: { processingData: { blockAndSyncRewardsProcessed: true } },
     orderBy: { slot: 'desc' },
     select: { slot: true },
   });
@@ -69,6 +73,7 @@ export async function db_getSlotCommitteesValidatorsAmountsForSlots(slotNumbers:
     select: {
       slot: true,
       committeesCountInSlot: true,
+      processingData: true,
     },
     orderBy: {
       slot: 'desc',
@@ -217,7 +222,9 @@ export async function db_hasBlockAndSyncRewardsFetched(slot: number): Promise<bo
   const slotData = await prisma.slot.findFirst({
     where: {
       slot,
-      blockAndSyncRewardsProcessed: true,
+      processingData: {
+        blockAndSyncRewardsProcessed: true,
+      },
     },
   });
   return slotData !== null;
@@ -228,9 +235,9 @@ export async function db_hasBlockAndSyncRewardsFetched(slot: number): Promise<bo
  */
 export async function db_countRemainingHoursAfterDate(date: Date): Promise<number> {
   const remainingHours = await prisma.hourlyValidatorStats.groupBy({
-    by: ['date', 'hour'],
+    by: ['datetime'],
     where: {
-      date: {
+      datetime: {
         gt: date,
       },
     },
