@@ -77,6 +77,7 @@ export class BeaconTime {
    * @param epoch The epoch to find the sync committee period start for
    * @returns The start epoch of the sync committee period
    */
+  // TODO: add unit tests
   getSyncCommitteePeriodStartEpoch(epoch: number): number {
     return (
       Math.floor(epoch / this.epochsPerSyncCommitteePeriod) * this.epochsPerSyncCommitteePeriod

@@ -5,6 +5,7 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from 'vites
 import committeeData from './mocks/committee_1529347.json' with { type: 'json' };
 import rewardsAttestations1525790 from './mocks/rewardsAttestations_1525790.json' with { type: 'json' };
 import rewardsAttestations1525791 from './mocks/rewardsAttestations_1525791.json' with { type: 'json' };
+import syncCommitteeData from './mocks/syncCommittee_1529347.json' with { type: 'json' };
 import validatorsData from './mocks/validators.json' with { type: 'json' };
 
 import { gnosisConfig } from '@/src/config/chain.js';
@@ -191,7 +192,6 @@ describe('Epoch Processor E2E Tests', () => {
         },
       });
 
-      // ===== VALIDATE HOURLY DATA =====
       expect(dbHourlyData.length).toBeGreaterThan(0);
 
       // Verify validator 549417
@@ -215,7 +215,6 @@ describe('Epoch Processor E2E Tests', () => {
         '1525790:37711:70458:37886:0:0:0:0:0,1525791:37621:70470:37907:0:0:0:0:0',
       );
 
-      // ===== VALIDATE HOURLY STATS =====
       expect(dbHourlyStats.length).toBeGreaterThan(0);
 
       // Verify validator 549417 stats
@@ -292,7 +291,6 @@ describe('Epoch Processor E2E Tests', () => {
       // Process committees
       await epochControllerWithMock.fetchCommittees(1529347);
 
-      // ===== VERIFY EPOCH STATUS =====
       const epoch = await epochControllerWithMock.getEpochByNumber(1529347);
       expect(epoch?.committeesFetched).toBe(true);
 
@@ -380,6 +378,102 @@ describe('Epoch Processor E2E Tests', () => {
         (c) => c.slot === 24469564 && c.index === 36 && c.validatorIndex === 549419,
       );
       expect(committee549419InList).toBeTruthy();
+    });
+  });
+
+  describe('fetchSyncCommittees', () => {
+    let mockBeaconClient: Pick<BeaconClient, 'slotStartIndexing'> & {
+      getSyncCommittees: ReturnType<typeof vi.fn>;
+    };
+    let epochControllerWithMock: EpochController;
+
+    beforeEach(async () => {
+      // Clean up database (order matters due to foreign key constraints)
+      await prisma.syncCommittee.deleteMany();
+      await prisma.epoch.deleteMany();
+
+      // Create mock beacon client
+      mockBeaconClient = {
+        slotStartIndexing: 32000,
+        getSyncCommittees: vi.fn(),
+      };
+
+      // Create epoch controller with mock
+      epochControllerWithMock = new EpochController(
+        mockBeaconClient as unknown as BeaconClient,
+        epochStorage,
+        validatorsStorage,
+        new BeaconTime({
+          genesisTimestamp: gnosisConfig.beacon.genesisTimestamp,
+          slotDurationMs: gnosisConfig.beacon.slotDuration,
+          slotsPerEpoch: gnosisConfig.beacon.slotsPerEpoch,
+          epochsPerSyncCommitteePeriod: gnosisConfig.beacon.epochsPerSyncCommitteePeriod,
+          slotStartIndexing: 32000,
+        }),
+      );
+
+      // Create epoch
+      await epochStorage.createEpochs([1529347]);
+    });
+
+    it('should throw error if sync committees already fetched', async () => {
+      await epochStorage.updateSyncCommitteesFetched(1529347);
+      await expect(epochControllerWithMock.fetchSyncCommittees(1529347)).rejects.toThrow();
+    });
+
+    it('should process sync committees and verify complete flow', async () => {
+      // Mock the sync committee data response
+      mockBeaconClient.getSyncCommittees.mockResolvedValueOnce(syncCommitteeData.data);
+
+      // Process sync committees
+      await epochControllerWithMock.fetchSyncCommittees(1529347);
+
+      const epoch = await epochControllerWithMock.getEpochByNumber(1529347);
+      expect(epoch?.syncCommitteesFetched).toBe(true);
+
+      const syncCommittees = await prisma.syncCommittee.findMany();
+      const syncCommittee = syncCommittees[0];
+
+      // Get the sync committee for this epoch period
+      expect(syncCommittee.validators).toBeDefined();
+      expect(syncCommittee.validatorAggregates).toBeDefined();
+      expect(Array.isArray(syncCommittee.validators)).toBe(true);
+      expect(Array.isArray(syncCommittee.validatorAggregates)).toBe(true);
+
+      // Verify the sync committee
+      const validators = syncCommittee.validators as string[];
+      expect(validators.length).toBe(512);
+      expect(validators).toContain('488331');
+      expect(validators).toContain('230784');
+      expect(validators).toContain('548264');
+      expect(validators).toContain('310388');
+
+      const validatorAggregates = syncCommittee.validatorAggregates as string[][];
+      expect(validatorAggregates.length).toBe(4);
+
+      // Verify validator aggregates structure and first validators match JSON
+      expect(validatorAggregates[0][0]).toBe('488331');
+      expect(validatorAggregates[1][0]).toBe('470386');
+      expect(validatorAggregates[2][0]).toBe('239224');
+      expect(validatorAggregates[3][0]).toBe('542886');
+
+      for (const aggregate of validatorAggregates) {
+        expect(Array.isArray(aggregate)).toBe(true);
+        expect(aggregate.length).toBeGreaterThan(0);
+        // Each aggregate should contain validator IDs as strings
+        for (const validatorId of aggregate) {
+          expect(typeof validatorId).toBe('string');
+          expect(validatorId).toMatch(/^\d+$/); // Should be numeric string
+        }
+      }
+
+      // Verify epoch range is correct (sync committee period covers 256 epochs)
+      expect(syncCommittee.fromEpoch).toBe(1529344);
+      expect(syncCommittee.toEpoch).toBe(1529599);
+
+      // Verify that checkSyncCommitteeForEpoch returns true
+      const checkResult = await epochControllerWithMock.checkSyncCommitteeForEpoch(1529347);
+      expect(checkResult.isFetched).toBe(true);
     });
   });
 });

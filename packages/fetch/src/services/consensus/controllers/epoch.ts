@@ -207,15 +207,21 @@ export class EpochController extends EpochControllerHelpers {
    * Fetch sync committees for a specific epoch
    */
   async fetchSyncCommittees(epoch: number) {
+    const result = await this.checkSyncCommitteeForEpoch(epoch);
+    if (result.isFetched) {
+      throw new Error(`Sync committees for epoch ${epoch} already fetched`);
+    }
+
     // Get sync committee period start epoch
     const periodStartEpoch = this.beaconTime.getSyncCommitteePeriodStartEpoch(epoch);
+    console.log('periodStartEpoch', periodStartEpoch);
 
     // Get sync committees from beacon chain
     const syncCommitteeData = await this.beaconClient.getSyncCommittees(periodStartEpoch);
 
     // Calculate the end epoch for this sync committee period
     const toEpoch = periodStartEpoch + 256 - 1; // epochsPerSyncCommitteePeriod - 1
-
+    console.log('toEpoch', toEpoch);
     // Save to database
     await this.epochStorage.saveSyncCommittees(epoch, periodStartEpoch, toEpoch, syncCommitteeData);
   }
@@ -227,11 +233,9 @@ export class EpochController extends EpochControllerHelpers {
     return this.epochStorage.checkSyncCommitteeForEpoch(epoch);
   }
 
-  // From here on
-  // TODO: do we really need this? Should this be part of another atomic transaction?
-
   /**
    * Update the epoch's slotsFetched flag to true
+   * This flag represents that all the slots for the epoch have been processed
    */
   async updateSlotsFetched(epoch: number) {
     return this.epochStorage.updateSlotsFetched(epoch);
@@ -239,24 +243,12 @@ export class EpochController extends EpochControllerHelpers {
 
   /**
    * Update the epoch's syncCommitteesFetched flag to true
+   * Sync committees are fetched in batches of 256 epochs
+   * We fetch sync committees only the first time, and when we do the flag is updated
+   * But when the sync committees are fetched, we need to update the flag to true
+   * So the guards that check if all the epoch steps have been processed can work
    */
   async updateSyncCommitteesFetched(epoch: number) {
     return this.epochStorage.updateSyncCommitteesFetched(epoch);
-  }
-
-  /**
-   * Get hourly validator attestation stats for specific validators and datetime
-   * @internal
-   */
-  async getHourlyValidatorAttestationStats(validatorIndexes: number[], datetime: Date) {
-    return this.epochStorage.getHourlyValidatorAttestationStats(validatorIndexes, datetime);
-  }
-
-  /**
-   * Get all hourly validator attestation stats for a specific datetime
-   * @internal
-   */
-  async getAllHourlyValidatorAttestationStats(datetime: Date) {
-    return this.epochStorage.getAllHourlyValidatorAttestationStats(datetime);
   }
 }

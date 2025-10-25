@@ -328,6 +328,7 @@ export const epochProcessorMachine = setup({
                     ],
                   },
                 },
+                // TODO: remove this, we can simplify it by doing it on the controller.
                 checkingInDB: {
                   entry: pinoLog(
                     ({ context }) =>
