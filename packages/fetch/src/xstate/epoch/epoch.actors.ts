@@ -70,7 +70,7 @@ export const fetchSyncCommittees = fromPromise(
  */
 export const checkSyncCommitteeForEpochInDB = fromPromise(
   async ({ input }: { input: { epochController: EpochController; epoch: number } }) => {
-    return input.epochController.checkSyncCommitteeForEpoch(input.epoch);
+    return input.epochController.isSyncCommitteeForEpochInDB(input.epoch);
   },
 );
 

@@ -5,7 +5,8 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from 'vites
 import committeeData from './mocks/committee_1529347.json' with { type: 'json' };
 import rewardsAttestations1525790 from './mocks/rewardsAttestations_1525790.json' with { type: 'json' };
 import rewardsAttestations1525791 from './mocks/rewardsAttestations_1525791.json' with { type: 'json' };
-import syncCommitteeData from './mocks/syncCommittee_1529347.json' with { type: 'json' };
+import syncCommittee1529346 from './mocks/syncCommittee_1529347.json' with { type: 'json' };
+import syncCommittee1529347 from './mocks/syncCommittee_1529347.json' with { type: 'json' };
 import validatorsData from './mocks/validators.json' with { type: 'json' };
 
 import { gnosisConfig } from '@/src/config/chain.js';
@@ -412,18 +413,29 @@ describe('Epoch Processor E2E Tests', () => {
         }),
       );
 
-      // Create epoch
-      await epochStorage.createEpochs([1529347]);
+      // Create epochs for both 1529346 and 1529347 (same sync committee period)
+      await epochStorage.createEpochs([1529346, 1529347]);
     });
 
-    it('should throw error if sync committees already fetched', async () => {
-      await epochStorage.updateSyncCommitteesFetched(1529347);
-      await expect(epochControllerWithMock.fetchSyncCommittees(1529347)).rejects.toThrow();
+    it('should not call getSyncCommittees when sync committees already fetched for the same period', async () => {
+      mockBeaconClient.getSyncCommittees.mockResolvedValueOnce(syncCommittee1529346.data);
+      await epochControllerWithMock.fetchSyncCommittees(1529346);
+      expect(mockBeaconClient.getSyncCommittees).toHaveBeenCalledTimes(1);
+
+      // Reset the mock to track subsequent calls
+      mockBeaconClient.getSyncCommittees.mockClear();
+
+      // Now fetch sync committees for epoch 1529347 (same sync committee period)
+      // This should NOT call getSyncCommittees because sync committees are already fetched for this period
+      await epochControllerWithMock.fetchSyncCommittees(1529347);
+      expect(mockBeaconClient.getSyncCommittees).not.toHaveBeenCalled();
+      const epoch = await epochControllerWithMock.getEpochByNumber(1529347);
+      expect(epoch?.syncCommitteesFetched).toBe(true);
     });
 
     it('should process sync committees and verify complete flow', async () => {
       // Mock the sync committee data response
-      mockBeaconClient.getSyncCommittees.mockResolvedValueOnce(syncCommitteeData.data);
+      mockBeaconClient.getSyncCommittees.mockResolvedValueOnce(syncCommittee1529347.data);
 
       // Process sync committees
       await epochControllerWithMock.fetchSyncCommittees(1529347);
@@ -472,7 +484,7 @@ describe('Epoch Processor E2E Tests', () => {
       expect(syncCommittee.toEpoch).toBe(1529599);
 
       // Verify that checkSyncCommitteeForEpoch returns true
-      const checkResult = await epochControllerWithMock.checkSyncCommitteeForEpoch(1529347);
+      const checkResult = await epochControllerWithMock.isSyncCommitteeForEpochInDB(1529347);
       expect(checkResult.isFetched).toBe(true);
     });
   });

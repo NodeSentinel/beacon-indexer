@@ -204,12 +204,20 @@ export class EpochController extends EpochControllerHelpers {
   }
 
   /**
+   * Check if sync committee for a specific epoch is already fetched
+   */
+  async isSyncCommitteeForEpochInDB(epoch: number) {
+    return this.epochStorage.isSyncCommitteeForEpochInDB(epoch);
+  }
+
+  /**
    * Fetch sync committees for a specific epoch
    */
   async fetchSyncCommittees(epoch: number) {
-    const result = await this.checkSyncCommitteeForEpoch(epoch);
+    const result = await this.isSyncCommitteeForEpochInDB(epoch);
     if (result.isFetched) {
-      throw new Error(`Sync committees for epoch ${epoch} already fetched`);
+      this.epochStorage.updateSyncCommitteesFetched(epoch);
+      return;
     }
 
     // Get sync committee period start epoch
@@ -224,13 +232,6 @@ export class EpochController extends EpochControllerHelpers {
     console.log('toEpoch', toEpoch);
     // Save to database
     await this.epochStorage.saveSyncCommittees(epoch, periodStartEpoch, toEpoch, syncCommitteeData);
-  }
-
-  /**
-   * Check if sync committee for a specific epoch is already fetched
-   */
-  async checkSyncCommitteeForEpoch(epoch: number) {
-    return this.epochStorage.checkSyncCommitteeForEpoch(epoch);
   }
 
   /**

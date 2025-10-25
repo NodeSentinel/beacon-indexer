@@ -154,7 +154,7 @@ export class EpochStorage {
   /**
    * Check if sync committee for a specific epoch is already fetched
    */
-  async checkSyncCommitteeForEpoch(epoch: number): Promise<{ isFetched: boolean }> {
+  async isSyncCommitteeForEpochInDB(epoch: number): Promise<{ isFetched: boolean }> {
     const syncCommittee = await this.prisma.syncCommittee.findFirst({
       where: {
         fromEpoch: { lte: epoch },
