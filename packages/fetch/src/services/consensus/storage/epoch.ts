@@ -226,8 +226,8 @@ export class EpochStorage {
               cl_missed_rewards
             FROM (VALUES ${valuesClause}) AS rewards(validator_index, cl_rewards, cl_missed_rewards)
             ON CONFLICT (datetime, validator_index) DO UPDATE SET
-              "cl_rewards" = hourly_validator_stats."cl_rewards" + EXCLUDED."cl_rewards",
-              "cl_missed_rewards" = hourly_validator_stats."cl_missed_rewards" + EXCLUDED."cl_missed_rewards"
+              cl_rewards = hourly_validator_stats.cl_rewards + EXCLUDED.cl_rewards,
+              cl_missed_rewards = hourly_validator_stats.cl_missed_rewards + EXCLUDED.cl_missed_rewards
           `);
         }
 
