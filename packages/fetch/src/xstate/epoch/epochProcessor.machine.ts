@@ -328,7 +328,7 @@ export const epochProcessorMachine = setup({
                     ],
                   },
                 },
-                // TODO: remove this, we can simplify it by doing it on the controller.
+                // TODO: epoch controller now handles the logic when the syncCommittee is already fetched, so we can remove this.
                 checkingInDB: {
                   entry: pinoLog(
                     ({ context }) =>
