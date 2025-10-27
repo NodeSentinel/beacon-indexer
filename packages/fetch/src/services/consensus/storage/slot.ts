@@ -27,6 +27,51 @@ export class SlotStorage {
   }
 
   /**
+   * Check if sync committee data exists for a given slot
+   */
+  async isSyncCommitteeFetchedForSlot(slot: number) {
+    const res = await this.prisma.slotProcessingData.findFirst({
+      where: { slot: slot },
+      select: {
+        syncRewardsProcessed: true,
+      },
+    });
+
+    return res?.syncRewardsProcessed === true;
+  }
+
+  /**
+   * Check if block rewards data exists for a given slot
+   */
+  async isBlockRewardsFetchedForSlot(slot: number) {
+    const res = await this.prisma.slotProcessingData.findFirst({
+      where: { slot: slot },
+      select: { blockRewardsProcessed: true },
+    });
+
+    return res?.blockRewardsProcessed === true;
+  }
+
+  /**
+   * Create slot processing data
+   */
+  async createSlotProcessingData(data: Prisma.SlotProcessingDataUncheckedCreateInput) {
+    return this.prisma.slotProcessingData.create({
+      data,
+    });
+  }
+
+  /**
+   * Update slot processing data
+   */
+  async updateSlotProcessingData(slot: number, data: Prisma.SlotProcessingDataUpdateInput) {
+    return this.prisma.slotProcessingData.update({
+      where: { slot },
+      data,
+    });
+  }
+
+  /**
    * Update slot processed status
    */
   async updateSlotProcessed(slot: number) {
@@ -56,10 +101,14 @@ export class SlotStorage {
   async updateBlockAndSyncRewardsProcessed(slot: number) {
     return this.prisma.slotProcessingData.upsert({
       where: { slot },
-      update: { blockAndSyncRewardsProcessed: true },
+      update: {
+        syncRewardsProcessed: true,
+        blockRewardsProcessed: true,
+      },
       create: {
         slot,
-        blockAndSyncRewardsProcessed: true,
+        syncRewardsProcessed: true,
+        blockRewardsProcessed: true,
       },
     });
   }
@@ -83,14 +132,15 @@ export class SlotStorage {
    */
   async updateSlotWithBeaconData(
     slot: number,
-    data: {
-      withdrawalsRewards?: string[];
-      clDeposits?: string[];
-      clVoluntaryExits?: string[];
-      elDeposits?: string[];
-      elWithdrawals?: string[];
-      elConsolidations?: string[];
-    },
+    data: Pick<
+      Prisma.SlotProcessingDataUpdateInput,
+      | 'withdrawalsRewards'
+      | 'clDeposits'
+      | 'clVoluntaryExits'
+      | 'elDeposits'
+      | 'elWithdrawals'
+      | 'elConsolidations'
+    >,
   ) {
     return this.prisma.slotProcessingData.update({
       where: { slot },
@@ -108,14 +158,9 @@ export class SlotStorage {
   /**
    * Save execution rewards to database
    */
-  async saveExecutionRewards(blockInfo: {
-    address: string;
-    timestamp: string;
-    amount: string;
-    blockNumber: number;
-  }) {
+  async saveExecutionRewards(data: Prisma.ExecutionRewardsUncheckedCreateInput) {
     return this.prisma.executionRewards.create({
-      data: blockInfo,
+      data,
     });
   }
 
@@ -299,7 +344,8 @@ export class SlotStorage {
       where: {
         slot: slot,
         attestationsProcessed: true,
-        blockAndSyncRewardsProcessed: true,
+        syncRewardsProcessed: true,
+        blockRewardsProcessed: true,
       },
     });
     return processingData !== null;
@@ -374,7 +420,7 @@ export class SlotStorage {
   async saveValidatorBalances(
     validatorBalances: Array<{ index: string; balance: string }>,
     slot: number,
-  ) {
+  ): Promise<void> {
     await this.prisma.$transaction(
       async (tx) => {
         // Update validator balances
@@ -399,5 +445,217 @@ export class SlotStorage {
         timeout: ms('2m'),
       },
     );
+  }
+
+  /**
+   * Process sync committee rewards and aggregate them into hourly validator data
+   * Following the same pattern as epoch rewards processing
+   */
+  async processSyncCommitteeRewardsAndAggregate(
+    slot: number,
+    datetime: Date,
+    processedRewards: Array<{
+      validatorIndex: number;
+      syncCommitteeReward: bigint;
+      rewards: string; // Format: 'slot:reward'
+    }>,
+  ): Promise<void> {
+    await this.prisma.$transaction(
+      async (tx) => {
+        // Process rewards in batches to avoid memory issues
+        const batchSize = 50_000;
+        const batches = chunk(processedRewards, batchSize);
+        for (const batch of batches) {
+          // Update HourlyValidatorData with pre-processed rewards string
+          for (const processedReward of batch) {
+            // Use raw SQL for proper string concatenation with CASE statement
+            await tx.$executeRaw`
+              INSERT INTO hourly_validator_data (datetime, validator_index, attestations, sync_committee_rewards, proposed_blocks_rewards, epoch_rewards)
+              VALUES (${datetime}::timestamp, ${processedReward.validatorIndex}, '', ${processedReward.rewards}, '', '')
+              ON CONFLICT (datetime, validator_index) DO UPDATE SET
+                sync_committee_rewards = CASE
+                  WHEN hourly_validator_data.sync_committee_rewards = '' THEN ${processedReward.rewards}
+                  ELSE CONCAT(hourly_validator_data.sync_committee_rewards, ',', ${processedReward.rewards})
+                END
+            `;
+          }
+        }
+
+        // Aggregate rewards into HourlyValidatorStats using pre-calculated values
+        // Process in batches to avoid SQL parameter limits
+        const statsBatchSize = 5_000;
+        const statsBatches = chunk(processedRewards, statsBatchSize);
+
+        for (const statsBatch of statsBatches) {
+          const valuesClause = statsBatch
+            .map((r) => `(${r.validatorIndex}, ${r.syncCommitteeReward.toString()}, 0)`)
+            .join(',');
+
+          await tx.$executeRawUnsafe(`
+            INSERT INTO hourly_validator_stats 
+              (datetime, validator_index, cl_rewards, cl_missed_rewards)
+            SELECT 
+              '${datetime.toISOString()}'::timestamp as datetime,
+              validator_index,
+              cl_rewards,
+              cl_missed_rewards
+            FROM (VALUES ${valuesClause}) AS rewards(validator_index, cl_rewards, cl_missed_rewards)
+            ON CONFLICT (datetime, validator_index) DO UPDATE SET
+              cl_rewards = hourly_validator_stats.cl_rewards + EXCLUDED.cl_rewards
+          `);
+        }
+
+        // mark slot as processed
+        await tx.slotProcessingData.upsert({
+          where: { slot },
+          update: { syncRewardsProcessed: true },
+          create: {
+            slot,
+            syncRewardsProcessed: true,
+          },
+        });
+      },
+      {
+        timeout: ms('10s'),
+      },
+    );
+  }
+
+  /**
+   * Process block rewards and aggregate them into hourly validator data
+   * Following the same pattern as epoch rewards processing
+   */
+  async processBlockRewardsAndAggregate(
+    slot: number,
+    proposerIndex: number,
+    datetime: Date,
+    blockReward: bigint,
+  ) {
+    await this.prisma.$transaction(async (tx) => {
+      // Update HourlyValidatorData with block reward
+      const rewardsString = `${slot}:${blockReward.toString()}`;
+      await tx.$executeRaw`
+          INSERT INTO hourly_validator_data (datetime, validator_index, attestations, sync_committee_rewards, proposed_blocks_rewards, epoch_rewards)
+          VALUES (${datetime}::timestamp, ${proposerIndex}, '', '', ${rewardsString}, '')
+          ON CONFLICT (datetime, validator_index) DO UPDATE SET
+            proposed_blocks_rewards = CASE
+              WHEN hourly_validator_data.proposed_blocks_rewards = '' THEN ${rewardsString}
+              ELSE CONCAT(hourly_validator_data.proposed_blocks_rewards, ',', ${rewardsString})
+            END
+        `;
+
+      // Aggregate rewards into HourlyValidatorStats
+      await tx.$executeRaw`
+          INSERT INTO hourly_validator_stats 
+            (datetime, validator_index, cl_rewards, cl_missed_rewards)
+          VALUES (${datetime}::timestamp, ${proposerIndex}, ${blockReward}, 0)
+          ON CONFLICT (datetime, validator_index) DO UPDATE SET
+            cl_rewards = hourly_validator_stats.cl_rewards + ${blockReward}
+        `;
+
+      // Mark slot as block rewards processed
+      await tx.slotProcessingData.update({
+        where: { slot },
+        data: { blockRewardsProcessed: true },
+      });
+
+      // Update slot with proposer information
+      await tx.slot.update({
+        where: { slot },
+        data: { proposedBy: proposerIndex },
+      });
+    });
+  }
+
+  /**
+   * Get hourly validator data for specific validators and datetime
+   */
+  async getHourlyValidatorData(validatorIndexes: number[], datetime: Date) {
+    return this.prisma.hourlyValidatorData.findMany({
+      where: {
+        validatorIndex: { in: validatorIndexes },
+        datetime,
+      },
+      orderBy: [{ validatorIndex: 'asc' }],
+    });
+  }
+
+  /**
+   * Get hourly validator stats for specific validators and datetime
+   */
+  async getHourlyValidatorStats(validatorIndexes: number[], datetime: Date) {
+    return this.prisma.hourlyValidatorStats.findMany({
+      where: {
+        validatorIndex: { in: validatorIndexes },
+        datetime,
+      },
+      orderBy: [{ validatorIndex: 'asc' }],
+    });
+  }
+
+  /**
+   * Get a single hourly validator data record
+   */
+  async getHourlyValidatorDataForValidator(validatorIndex: number, datetime: Date) {
+    return this.prisma.hourlyValidatorData.findFirst({
+      where: {
+        validatorIndex,
+        datetime,
+      },
+    });
+  }
+
+  /**
+   * Get a single hourly validator stats record
+   */
+  async getHourlyValidatorStatsForValidator(validatorIndex: number, datetime: Date) {
+    return this.prisma.hourlyValidatorStats.findFirst({
+      where: {
+        validatorIndex,
+        datetime,
+      },
+    });
+  }
+
+  /**
+   * Test helper: Create initial hourly validator data for testing
+   */
+  async createTestHourlyValidatorData(data: Prisma.HourlyValidatorDataCreateInput) {
+    return this.prisma.hourlyValidatorData.upsert({
+      where: {
+        datetime_validatorIndex: {
+          datetime: data.datetime,
+          validatorIndex: data.validatorIndex,
+        },
+      },
+      update: {},
+      create: data,
+    });
+  }
+
+  /**
+   * Test helper: Create initial hourly validator stats for testing
+   */
+  async createTestHourlyValidatorStats(data: Prisma.HourlyValidatorStatsCreateInput) {
+    return this.prisma.hourlyValidatorStats.upsert({
+      where: {
+        datetime_validatorIndex: {
+          datetime: data.datetime,
+          validatorIndex: data.validatorIndex,
+        },
+      },
+      update: {},
+      create: data,
+    });
+  }
+
+  /**
+   * Test helper: Create slots for testing
+   */
+  async createTestSlots(data: Prisma.SlotCreateInput[]) {
+    return this.prisma.slot.createMany({
+      data: data,
+      skipDuplicates: true,
+    });
   }
 }

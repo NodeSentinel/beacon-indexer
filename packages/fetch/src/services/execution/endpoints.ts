@@ -25,12 +25,7 @@ export async function getBlock(blockNumber: number): Promise<BlockResponse | nul
         const blockInfo = response.data;
         const minerReward = blockInfo.rewards.find((r) => r.type === 'Miner Reward');
 
-        if (
-          !blockInfo.miner ||
-          !blockInfo.miner.hash ||
-          !minerReward ||
-          new Decimal(minerReward.reward).eq(0)
-        ) {
+        if (!blockInfo.miner || !blockInfo.miner.hash || !minerReward) {
           throw new Error(`Unexpected block response: ${JSON.stringify(blockInfo)}`);
         }
 

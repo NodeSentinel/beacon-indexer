@@ -30,7 +30,11 @@ export const db_hasEpochCommittees = async (epoch: number) => {
 
 export const db_getLastSlotWithSyncRewards = async () =>
   await prisma.slot.findFirst({
-    where: { processingData: { blockAndSyncRewardsProcessed: true } },
+    where: {
+      processingData: {
+        AND: [{ blockRewardsProcessed: true }, { syncRewardsProcessed: true }],
+      },
+    },
     orderBy: { slot: 'desc' },
     select: { slot: true },
   });
@@ -223,7 +227,7 @@ export async function db_hasBlockAndSyncRewardsFetched(slot: number): Promise<bo
     where: {
       slot,
       processingData: {
-        blockAndSyncRewardsProcessed: true,
+        AND: [{ blockRewardsProcessed: true }, { syncRewardsProcessed: true }],
       },
     },
   });

@@ -247,6 +247,7 @@ describe('Epoch Processor E2E Tests', () => {
     beforeEach(async () => {
       // Clean up database (order matters due to foreign key constraints)
       await prisma.committee.deleteMany();
+      await prisma.slotProcessingData.deleteMany();
       await prisma.slot.deleteMany();
       await prisma.epoch.deleteMany();
 
@@ -273,6 +274,8 @@ describe('Epoch Processor E2E Tests', () => {
       // Create epoch
       await epochStorage.createEpochs([1529347]);
     });
+
+    // TODO: missing test to check the slot creation
 
     it('should throw error if committees already fetched', async () => {
       // Mark epoch as committeesFetched using epochStorage

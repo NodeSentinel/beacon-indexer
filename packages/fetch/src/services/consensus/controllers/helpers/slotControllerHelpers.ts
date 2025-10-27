@@ -1,3 +1,5 @@
+import type { SyncCommitteeRewards, BlockRewards } from '@/src/services/consensus/types.js';
+
 /**
  * SlotControllerHelpers - Helper methods for slot processing
  *
@@ -100,32 +102,6 @@ export class SlotControllerHelpers {
   }
 
   /**
-   * Prepare sync committee rewards data for storage
-   */
-  protected prepareSyncRewards(syncRewardsData: any[], hour: number, date: string) {
-    return syncRewardsData.map((syncReward) => ({
-      validatorIndex: Number(syncReward.validator_index),
-      date: new Date(date),
-      hour: hour,
-      syncCommittee: BigInt(syncReward.reward),
-    }));
-  }
-
-  /**
-   * Prepare block rewards data for storage
-   */
-  protected prepareBlockRewards(blockRewards: 'SLOT MISSED' | any, hour: number, date: string) {
-    if (blockRewards === 'SLOT MISSED') return null;
-
-    return {
-      validatorIndex: Number(blockRewards.data.proposer_index),
-      date: new Date(date),
-      hour: hour,
-      blockReward: BigInt(blockRewards.data.total),
-    };
-  }
-
-  /**
    * Calculate total sync rewards from rewards data
    */
   protected calculateTotalSyncRewards(syncRewardsData: any[]): number {
@@ -135,7 +111,9 @@ export class SlotControllerHelpers {
   /**
    * Format withdrawal rewards for storage
    */
-  protected formatWithdrawalRewards(withdrawals: any[]): string[] {
+  protected formatWithdrawalRewards(
+    withdrawals: Array<{ validator_index: string; amount: string }>,
+  ): string[] {
     return withdrawals.map((withdrawal) => `${withdrawal.validator_index}:${withdrawal.amount}`);
   }
 
@@ -207,5 +185,50 @@ export class SlotControllerHelpers {
       aggregationBitsIndex: committee.aggregationBitsIndex,
       attestationDelay: committee.attestationDelay,
     }));
+  }
+
+  /**
+   * Prepare sync committee rewards for processing
+   * Following the same pattern as epoch rewards
+   */
+  protected prepareSyncCommitteeRewards(
+    syncCommitteeRewards: SyncCommitteeRewards | 'SLOT MISSED',
+    slot: number,
+  ): Array<{
+    validatorIndex: number;
+    syncCommitteeReward: bigint;
+    rewards: string;
+  }> {
+    if (
+      syncCommitteeRewards === 'SLOT MISSED' ||
+      !syncCommitteeRewards.data ||
+      syncCommitteeRewards.data.length === 0
+    ) {
+      return [];
+    }
+
+    return syncCommitteeRewards.data.map((reward) => ({
+      validatorIndex: Number(reward.validator_index),
+      syncCommitteeReward: BigInt(reward.reward),
+      rewards: `${slot}:${reward.reward}`,
+    }));
+  }
+
+  /**
+   * Prepare block rewards for processing
+   * Following the same pattern as epoch rewards
+   */
+  protected prepareBlockRewards(blockRewards: BlockRewards | 'SLOT MISSED'): {
+    proposerIndex: number;
+    blockReward: bigint;
+  } | null {
+    if (blockRewards === 'SLOT MISSED' || !blockRewards.data) {
+      return null;
+    }
+
+    return {
+      proposerIndex: Number(blockRewards.data.proposer_index),
+      blockReward: BigInt(blockRewards.data.total),
+    };
   }
 }
