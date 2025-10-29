@@ -105,7 +105,7 @@ export class ValidatorsStorage {
   /**
    * Get pending validators for tracking
    */
-  async getPendingValidators(): Promise<Array<{ id: number }>> {
+  async getPendingValidators() {
     return this.prisma.validator.findMany({
       where: {
         status: {

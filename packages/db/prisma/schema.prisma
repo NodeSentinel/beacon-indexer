@@ -22,15 +22,16 @@ model Validator {
 }
 
 model Epoch {
-    epoch                       Int     @id @map("epoch")
-    slotsFetched                Boolean @default(false) @map("slots_fetched")
-    committeesFetched           Boolean @default(false) @map("committees_fetched")
-    syncCommitteesFetched       Boolean @default(false) @map("sync_committees_fetched")
-    processed                   Boolean @default(false) @map("processed")
+    epoch                          Int     @id @map("epoch")
+    slotsFetched                   Boolean @default(false) @map("slots_fetched")
+    committeesFetched              Boolean @default(false) @map("committees_fetched")
+    syncCommitteesFetched          Boolean @default(false) @map("sync_committees_fetched")
+    processed                      Boolean @default(false) @map("processed")
     // processing flags
-    validatorsBalancesFetched   Boolean @default(false) @map("validators_balances_fetched")
-    validatorsActivationFetched Boolean @default(false) @map("validators_activation_fetched")
-    rewardsFetched              Boolean @default(false) @map("rewards_fetched")
+    validatorProposerDutiesFetched Boolean @default(false) @map("validator_proposer_duties_fetched")
+    validatorsBalancesFetched      Boolean @default(false) @map("validators_balances_fetched")
+    validatorsActivationFetched    Boolean @default(false) @map("validators_activation_fetched")
+    rewardsFetched                 Boolean @default(false) @map("rewards_fetched")
 
     @@map("epoch")
 }
@@ -39,7 +40,7 @@ model Slot {
     slot                  Int     @id @map("slot")
     processed             Boolean @default(false) @map("processed")
     committeesCountInSlot Json?   @map("committees_count_in_slot") // Stores the number of validators per committee index as an array: [350, 340, ...], required for attestation processing
-    proposedBy            Int?    @map("proposed_by") // validator index that proposed the slot
+    proposer              Int?    @map("proposer") // validator index that proposed the slot
 
     processingData SlotProcessingData?
 

@@ -269,7 +269,7 @@ describe.skip('epochOrchestratorMachine', () => {
       validatorsBalancesFetched: false,
       validatorsActivationFetched: false,
       rewardsFetched: false,
-      rewardsAggregated: false,
+      validatorProposerDutiesFetched: false,
       committeesFetched: false,
       slotsFetched: false,
       syncCommitteesFetched: false,
@@ -282,7 +282,7 @@ describe.skip('epochOrchestratorMachine', () => {
       validatorsBalancesFetched: boolean;
       validatorsActivationFetched: boolean;
       rewardsFetched: boolean;
-      rewardsAggregated: boolean;
+      validatorProposerDutiesFetched: boolean;
       committeesFetched: boolean;
       slotsFetched: boolean;
       syncCommitteesFetched: boolean;

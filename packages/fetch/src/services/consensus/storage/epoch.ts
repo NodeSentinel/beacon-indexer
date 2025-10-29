@@ -62,41 +62,6 @@ export class EpochStorage {
     }
   }
 
-  /**
-   * @returns All epochs from the database ordered by epoch number
-   */
-  async getAllEpochs() {
-    // Runtime check to prevent usage in production
-    if (process.env.NODE_ENV === 'production') {
-      throw new Error('getAllEpochs() is only available in test environments');
-    }
-
-    return this.prisma.epoch.findMany({
-      orderBy: { epoch: 'asc' },
-    });
-  }
-
-  async getMaxEpoch() {
-    return await this.prisma.epoch.findFirst({
-      orderBy: { epoch: 'desc' },
-      select: { epoch: true },
-    });
-  }
-
-  async getUnprocessedCount() {
-    return this.prisma.epoch.count({
-      where: {
-        OR: [
-          { rewardsFetched: false },
-          { validatorsBalancesFetched: false },
-          { committeesFetched: false },
-          { slotsFetched: false },
-          { syncCommitteesFetched: false },
-        ],
-      },
-    });
-  }
-
   async createEpochs(epochsToCreate: number[]) {
     this.validateConsecutiveEpochs(epochsToCreate);
 
@@ -163,6 +128,15 @@ export class EpochStorage {
     });
 
     return { isFetched: !!syncCommittee };
+  }
+
+  async isValidatorProposerDutiesFetched(epoch: number) {
+    const epochData = await this.prisma.epoch.findUnique({
+      where: { epoch },
+      select: { validatorProposerDutiesFetched: true },
+    });
+
+    return Boolean(epochData?.validatorProposerDutiesFetched);
   }
 
   /**
@@ -238,6 +212,27 @@ export class EpochStorage {
         timeout: ms('2m'),
       },
     );
+  }
+
+  async saveValidatorProposerDuties(
+    epoch: number,
+    validatorProposerDuties: { slot: number; validatorIndex: number }[],
+  ) {
+    await this.prisma.$transaction(async (tx) => {
+      await tx.$executeRaw`
+      INSERT INTO "slot" (slot, proposer)
+      SELECT 
+        unnest(${validatorProposerDuties.map((duty) => duty.slot)}::integer[]), 
+        unnest(${validatorProposerDuties.map((duty) => duty.validatorIndex)}::integer[])
+      ON CONFLICT (slot) DO UPDATE SET
+        "proposer" = EXCLUDED."proposer"
+    `;
+
+      await tx.epoch.update({
+        where: { epoch },
+        data: { validatorProposerDutiesFetched: true },
+      });
+    });
   }
 
   /**
@@ -435,6 +430,58 @@ export class EpochStorage {
         slot: { in: slots },
       },
       orderBy: [{ slot: 'asc' }, { index: 'asc' }, { aggregationBitsIndex: 'asc' }],
+    });
+  }
+
+  /**
+   * @returns All epochs from the database ordered by epoch number
+   */
+  async getAllEpochs() {
+    // Runtime check to prevent usage in production
+    if (process.env.NODE_ENV === 'production') {
+      throw new Error('getAllEpochs() is only available in test environments');
+    }
+
+    return this.prisma.epoch.findMany({
+      orderBy: { epoch: 'asc' },
+    });
+  }
+
+  async getMaxEpoch() {
+    return await this.prisma.epoch.findFirst({
+      orderBy: { epoch: 'desc' },
+      select: { epoch: true },
+    });
+  }
+
+  async getUnprocessedCount() {
+    return this.prisma.epoch.count({
+      where: {
+        OR: [
+          { rewardsFetched: false },
+          { validatorsBalancesFetched: false },
+          { validatorProposerDutiesFetched: false },
+          { committeesFetched: false },
+          { slotsFetched: false },
+          { syncCommitteesFetched: false },
+        ],
+      },
+    });
+  }
+
+  /**
+   * Get slots with proposers for specific slot numbers
+   */
+  async getSlotsBySlotNumbers(slots: number[]) {
+    return this.prisma.slot.findMany({
+      where: {
+        slot: { in: slots },
+      },
+      select: {
+        slot: true,
+        proposer: true,
+      },
+      orderBy: [{ slot: 'asc' }],
     });
   }
 }

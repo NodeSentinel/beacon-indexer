@@ -556,7 +556,7 @@ export class SlotStorage {
       // Update slot with proposer information
       await tx.slot.update({
         where: { slot },
-        data: { proposedBy: proposerIndex },
+        data: { proposer: proposerIndex },
       });
     });
   }

@@ -193,6 +193,27 @@ export class EpochController extends EpochControllerHelpers {
     return this.epochStorage.isSyncCommitteeForEpochInDB(epoch);
   }
 
+  async processValidatorProposerDuties(epoch: number) {
+    // if already fetched, return
+    const isValidatorProposerDutiesFetched =
+      await this.epochStorage.isValidatorProposerDutiesFetched(epoch);
+    if (isValidatorProposerDutiesFetched) {
+      return;
+    }
+
+    // fetch validator proposer duties from beacon chain
+    const validatorProposerDuties = await this.beaconClient.getValidatorProposerDuties(epoch);
+
+    // save validator proposer duties to database
+    await this.epochStorage.saveValidatorProposerDuties(
+      epoch,
+      validatorProposerDuties.map((duty) => ({
+        validatorIndex: Number(duty.validator_index),
+        slot: Number(duty.slot),
+      })),
+    );
+  }
+
   /**
    * Fetch sync committees for a specific epoch
    */
