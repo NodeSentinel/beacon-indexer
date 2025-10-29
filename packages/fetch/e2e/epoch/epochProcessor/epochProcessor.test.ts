@@ -646,86 +646,43 @@ describe('Epoch Processor E2E Tests', () => {
     });
 
     it('should return early if validator proposer duties already fetched', async () => {
-      // Clear any previous mock calls
-      mockBeaconClient.getValidatorProposerDuties.mockClear();
-
-      // Mark epoch as validatorProposerDutiesFetched
-      await prisma.epoch.update({
-        where: { epoch: 1534614 },
-        data: { validatorProposerDutiesFetched: true },
-      });
-
-      // Should not call getValidatorProposerDuties and return early without error
+      // First run: process and set the flag
+      mockBeaconClient.getValidatorProposerDuties.mockResolvedValueOnce(
+        validatorProposerDuties1534614.data,
+      );
       await epochControllerWithMock.processValidatorProposerDuties(1534614);
 
-      // Verify getValidatorProposerDuties was not called
-      expect(mockBeaconClient.getValidatorProposerDuties).not.toHaveBeenCalled();
+      // Second run: should return early without calling the beacon client again
+      mockBeaconClient.getValidatorProposerDuties.mockClear();
+      await epochControllerWithMock.processValidatorProposerDuties(1534614);
 
-      // Verify epoch flag remains true
+      expect(mockBeaconClient.getValidatorProposerDuties).not.toHaveBeenCalled();
       const epoch = await epochControllerWithMock.getEpochByNumber(1534614);
       expect(epoch?.validatorProposerDutiesFetched).toBe(true);
     });
 
-    describe('with processed validator proposer duties data', () => {
-      beforeAll(async () => {
-        // Clean up database
-        await prisma.slotProcessingData.deleteMany();
-        await prisma.slot.deleteMany();
-        await prisma.epoch.deleteMany();
+    it('should set epoch flag and persist proposer duties', async () => {
+      mockBeaconClient.getValidatorProposerDuties.mockResolvedValueOnce(
+        validatorProposerDuties1534614.data,
+      );
 
-        // Create mock beacon client
-        const mockBeaconClient = {
-          slotStartIndexing: 32000,
-          getValidatorProposerDuties: vi.fn(),
-        };
+      await epochControllerWithMock.processValidatorProposerDuties(1534614);
 
-        // Create epoch controller with mock
-        const epochControllerWithMock = new EpochController(
-          mockBeaconClient as unknown as BeaconClient,
-          epochStorage,
-          validatorsStorage,
-          new BeaconTime({
-            genesisTimestamp: gnosisConfig.beacon.genesisTimestamp,
-            slotDurationMs: gnosisConfig.beacon.slotDuration,
-            slotsPerEpoch: gnosisConfig.beacon.slotsPerEpoch,
-            epochsPerSyncCommitteePeriod: gnosisConfig.beacon.epochsPerSyncCommitteePeriod,
-            slotStartIndexing: 32000,
-          }),
-        );
+      const epoch = await epochControllerWithMock.getEpochByNumber(1534614);
+      expect(epoch?.validatorProposerDutiesFetched).toBe(true);
 
-        // Create epoch
-        await epochStorage.createEpochs([1534614]);
+      const mockSlots = validatorProposerDuties1534614.data.map((duty) => Number(duty.slot));
+      const dbSlots = await epochStorage.getSlotsBySlotNumbers(mockSlots);
 
-        // Process validator proposer duties once
-        mockBeaconClient.getValidatorProposerDuties.mockResolvedValueOnce(
-          validatorProposerDuties1534614.data,
-        );
-        await epochControllerWithMock.processValidatorProposerDuties(1534614);
-      });
+      expect(dbSlots.length).toBe(validatorProposerDuties1534614.data.length);
 
-      it('should verify epoch flag is set', async () => {
-        const epoch = await epochController.getEpochByNumber(1534614);
-        expect(epoch?.validatorProposerDutiesFetched).toBe(true);
-      });
-
-      it('should verify all proposer duties are correctly stored from mock data', async () => {
-        // Get all slots from mock
-        const mockSlots = validatorProposerDuties1534614.data.map((duty) => Number(duty.slot));
-        const dbSlots = await epochStorage.getSlotsBySlotNumbers(mockSlots);
-
-        // Verify count matches
-        expect(dbSlots.length).toBe(validatorProposerDuties1534614.data.length);
-
-        // Verify all proposer duties match exactly
-        for (const mockDuty of validatorProposerDuties1534614.data) {
-          const slotNumber = Number(mockDuty.slot);
-          const validatorIndex = Number(mockDuty.validator_index);
-
-          const dbSlot = dbSlots.find((s) => s.slot === slotNumber);
-          expect(dbSlot).toBeDefined();
-          expect(dbSlot!.proposer).toBe(validatorIndex);
-        }
-      });
+      for (const mockDuty of validatorProposerDuties1534614.data) {
+        const slotNumber = Number(mockDuty.slot);
+        const validatorIndex = Number(mockDuty.validator_index);
+        const dbSlot = dbSlots.find((s) => s.slot === slotNumber);
+        expect(dbSlot).toBeDefined();
+        expect(dbSlot!.proposer).toBe(validatorIndex);
+      }
     });
   });
 });
