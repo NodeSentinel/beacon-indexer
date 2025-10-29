@@ -460,6 +460,7 @@ export class EpochStorage {
         OR: [
           { rewardsFetched: false },
           { validatorsBalancesFetched: false },
+          { validatorProposerDutiesFetched: false },
           { committeesFetched: false },
           { slotsFetched: false },
           { syncCommitteesFetched: false },
