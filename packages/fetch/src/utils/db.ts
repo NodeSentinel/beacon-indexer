@@ -17,7 +17,7 @@ export const db_getSlotByNumber = async (slot: number) =>
     select: {
       slot: true,
       processingData: { select: { attestationsProcessed: true } },
-      committees: true,
+      //committees: true,
     },
   });
 

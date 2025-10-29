@@ -23,32 +23,6 @@ export class EpochController extends EpochControllerHelpers {
   // TODO: getter to know if an epoch is already processed (all the flags are true)
   // TODO: setter to set the last epoch processed, check all the flags are true
 
-  /**
-   * NEW EPOCH REWARDS PROCESSING STRATEGY
-   *
-   * The epoch rewards processing has been refactored to use a single atomic transaction approach:
-   *
-   * OLD STRATEGY (deprecated):
-   * 1. fetchEpochRewards() -> Save to EpochRewards table
-   * 2. aggregateEpochRewardsIntoHourlyValidatorStats() -> Aggregate from EpochRewards to HourlyValidatorStats
-   *
-   * NEW STRATEGY (current):
-   * 1. fetchEpochRewards() -> Process and aggregate directly in single atomic transaction
-   *    - Fetches rewards from beacon chain
-   *    - Calculates missed rewards using ideal rewards
-   *    - Stores epoch rewards in HourlyValidatorData.epochRewards using format:
-   *      'epoch:head:target:source:inactivity:missedHead:missedTarget:missedSource:missedInactivity,...'
-   *    - Aggregates rewards into HourlyValidatorStats for clRewards and clMissedRewards
-   *    - Marks epoch as rewardsFetched = true
-   *
-   * BENEFITS:
-   * - Single atomic transaction ensures data consistency
-   * - Eliminates intermediate EpochRewards table
-   * - Removes rewardsAggregated flag (no longer needed)
-   * - Better performance with fewer database operations
-   * - Simplified state management
-   */
-
   async getMaxEpoch() {
     const result = await this.epochStorage.getMaxEpoch();
     return result?.epoch ?? null;
@@ -194,12 +168,21 @@ export class EpochController extends EpochControllerHelpers {
       this.beaconTime.getSlotStartIndexing(),
     );
 
+    // Calculate slot timestamps for HourlyValidatorData updates
+    const slotTimestamps = new Map<number, Date>();
+    for (const slot of newSlots) {
+      const slotTimestamp = this.beaconTime.getTimestampFromSlotNumber(slot);
+      const datetime = getUTCDatetimeRoundedToHour(slotTimestamp);
+      slotTimestamps.set(slot, datetime);
+    }
+
     // Save to database
     await this.epochStorage.saveCommitteesData(
       epoch,
       newSlots,
       newCommittees,
       committeesCountInSlot,
+      slotTimestamps,
     );
   }
 

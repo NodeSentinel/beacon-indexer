@@ -42,7 +42,6 @@ model Slot {
     proposedBy            Int?    @map("proposed_by") // validator index that proposed the slot
 
     processingData SlotProcessingData?
-    committees     Committee[]
 
     @@index([slot])
     @@index([processed, slot])
@@ -74,15 +73,13 @@ model SlotProcessingData {
 // TODO: add partition table
 model Committee {
     slot                 Int  @map("slot")
-    validatorIndex       Int  @map("validator_index")
     index                Int  @map("index") @db.SmallInt // indicates what position in the epoch this slot is in
+    validatorIndex       Int  @map("validator_index")
     aggregationBitsIndex Int  @map("aggregation_bits_index") @db.SmallInt // indicates what position in the aggregation bits this validator was assigned to
     attestationDelay     Int? @map("attestation_delay") @db.SmallInt
 
-    slotRelation Slot @relation(fields: [slot], references: [slot])
-
-    // TODO: ver si es optimo con la busqueda al marcar una attestation
-    @@id([slot, index, aggregationBitsIndex, validatorIndex])
+    // Optimized for query pattern: slot + index + validatorIndex -> aggregationBitsIndex
+    @@id([slot, index, validatorIndex])
     @@map("committee")
 }
 
@@ -123,6 +120,10 @@ model HourlyValidatorStats {
 model HourlyValidatorData {
     datetime              DateTime @map("datetime") @db.Timestamp // dd-mm-yyyy-hh
     validatorIndex        Int      @map("validator_index")
+    // for all the String field, values always end with a comma
+    // this is to improve performance of the database while concatenating values
+    // when fetched, be sure to remove the last comma
+    slots                 String   @default("") @map("slots") @db.Text // 'slot1,slot2,slot3,...'
     attestations          String   @default("") @map("attestations") @db.Text // 'slot:delay,slot:delay,...'
     syncCommitteeRewards  String   @default("") @map("sync_committee_rewards") @db.Text // 'slot:reward,slot:reward,...'
     proposedBlocksRewards String   @default("") @map("proposed_blocks_rewards") @db.Text // 'slot:reward,slot:reward,...'
@@ -130,38 +131,6 @@ model HourlyValidatorData {
 
     @@id([datetime, validatorIndex])
     @@map("hourly_validator_data")
-}
-
-model DailyValidatorStats {
-    validatorIndex Int      @map("validator_index")
-    date           DateTime @db.Date
-
-    head             BigInt? @map("head")
-    target           BigInt? @map("target")
-    source           BigInt? @map("source")
-    inactivity       BigInt? @map("inactivity")
-    syncCommittee    BigInt? @map("sync_committee")
-    blockReward      BigInt? @map("block_reward")
-    missedHead       BigInt? @map("missed_head")
-    missedTarget     BigInt? @map("missed_target")
-    missedSource     BigInt? @map("missed_source")
-    missedInactivity BigInt? @map("missed_inactivity")
-
-    attestationsMissed Int? @map("attestations_missed")
-
-    @@id([validatorIndex, date])
-    @@index([date])
-}
-
-model LastSummaryUpdate {
-    id                    Int       @id @default(autoincrement()) @map("id")
-    hourlyValidatorStats  DateTime? @map("hourly_validator_stats")
-    dailyValidatorStats   DateTime? @map("daily_validator_stats") @db.Date
-    weeklyValidatorStats  DateTime? @map("weekly_validator_stats")
-    monthlyValidatorStats DateTime? @map("monthly_validator_stats")
-    yearlyValidatorStats  DateTime? @map("yearly_validator_stats")
-
-    @@map("last_summary_update")
 }
 
 //-------------------------------------
@@ -207,6 +176,38 @@ model FeeRewardAddress {
 //-------------------------------------
 // remove
 //-------------------------------------
+
+model DailyValidatorStats {
+    validatorIndex Int      @map("validator_index")
+    date           DateTime @db.Date
+
+    head             BigInt? @map("head")
+    target           BigInt? @map("target")
+    source           BigInt? @map("source")
+    inactivity       BigInt? @map("inactivity")
+    syncCommittee    BigInt? @map("sync_committee")
+    blockReward      BigInt? @map("block_reward")
+    missedHead       BigInt? @map("missed_head")
+    missedTarget     BigInt? @map("missed_target")
+    missedSource     BigInt? @map("missed_source")
+    missedInactivity BigInt? @map("missed_inactivity")
+
+    attestationsMissed Int? @map("attestations_missed")
+
+    @@id([validatorIndex, date])
+    @@index([date])
+}
+
+model LastSummaryUpdate {
+    id                    Int       @id @default(autoincrement()) @map("id")
+    hourlyValidatorStats  DateTime? @map("hourly_validator_stats")
+    dailyValidatorStats   DateTime? @map("daily_validator_stats") @db.Date
+    weeklyValidatorStats  DateTime? @map("weekly_validator_stats")
+    monthlyValidatorStats DateTime? @map("monthly_validator_stats")
+    yearlyValidatorStats  DateTime? @map("yearly_validator_stats")
+
+    @@map("last_summary_update")
+}
 
 model ValidatorsStats {
     validatorId     Int

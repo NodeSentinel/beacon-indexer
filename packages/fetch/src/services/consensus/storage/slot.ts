@@ -471,12 +471,9 @@ export class SlotStorage {
             // Use raw SQL for proper string concatenation with CASE statement
             await tx.$executeRaw`
               INSERT INTO hourly_validator_data (datetime, validator_index, attestations, sync_committee_rewards, proposed_blocks_rewards, epoch_rewards)
-              VALUES (${datetime}::timestamp, ${processedReward.validatorIndex}, '', ${processedReward.rewards}, '', '')
+              VALUES (${datetime}::timestamp, ${processedReward.validatorIndex}, '', CONCAT(${processedReward.rewards}, ','), '', '')
               ON CONFLICT (datetime, validator_index) DO UPDATE SET
-                sync_committee_rewards = CASE
-                  WHEN hourly_validator_data.sync_committee_rewards = '' THEN ${processedReward.rewards}
-                  ELSE CONCAT(hourly_validator_data.sync_committee_rewards, ',', ${processedReward.rewards})
-                END
+                sync_committee_rewards = CONCAT(hourly_validator_data.sync_committee_rewards, EXCLUDED.sync_committee_rewards)
             `;
           }
         }
@@ -536,12 +533,9 @@ export class SlotStorage {
       const rewardsString = `${slot}:${blockReward.toString()}`;
       await tx.$executeRaw`
           INSERT INTO hourly_validator_data (datetime, validator_index, attestations, sync_committee_rewards, proposed_blocks_rewards, epoch_rewards)
-          VALUES (${datetime}::timestamp, ${proposerIndex}, '', '', ${rewardsString}, '')
+          VALUES (${datetime}::timestamp, ${proposerIndex}, '', '', CONCAT(${rewardsString}, ','), '')
           ON CONFLICT (datetime, validator_index) DO UPDATE SET
-            proposed_blocks_rewards = CASE
-              WHEN hourly_validator_data.proposed_blocks_rewards = '' THEN ${rewardsString}
-              ELSE CONCAT(hourly_validator_data.proposed_blocks_rewards, ',', ${rewardsString})
-            END
+            proposed_blocks_rewards = CONCAT(hourly_validator_data.proposed_blocks_rewards, EXCLUDED.proposed_blocks_rewards)
         `;
 
       // Aggregate rewards into HourlyValidatorStats

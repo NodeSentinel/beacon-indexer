@@ -212,8 +212,8 @@ describe('Slot Processor E2E Tests', () => {
       );
       expect(hourlyData458175).toBeDefined();
       // Validator 458175 appears in both slots with reward 10437 each
-      // Expected format: '24497230:10437,24497231:10437'
-      expect(hourlyData458175?.syncCommitteeRewards).toBe('24497230:10437,24497231:10437');
+      // Expected format: '24497230:10437,24497231:10437,' (with trailing comma)
+      expect(hourlyData458175?.syncCommitteeRewards).toBe('24497230:10437,24497231:10437,');
 
       const hourlyStats458175 = await slotStorage.getHourlyValidatorStatsForValidator(
         458175,
@@ -232,7 +232,7 @@ describe('Slot Processor E2E Tests', () => {
       );
       expect(hourlyData272088).toBeDefined();
       // Validator 272088 appears in both slots with reward 10437 each
-      expect(hourlyData272088?.syncCommitteeRewards).toBe('24497230:10437,24497231:10437');
+      expect(hourlyData272088?.syncCommitteeRewards).toBe('24497230:10437,24497231:10437,');
 
       const hourlyStats272088 = await slotStorage.getHourlyValidatorStatsForValidator(
         272088,
@@ -391,7 +391,7 @@ describe('Slot Processor E2E Tests', () => {
         datetime24519343,
       );
       expect(hourlyData536011).toBeDefined();
-      expect(hourlyData536011?.proposedBlocksRewards).toBe('24519343:20546222');
+      expect(hourlyData536011?.proposedBlocksRewards).toBe('24519343:20546222,');
 
       const hourlyStats536011 = await slotStorage.getHourlyValidatorStatsForValidator(
         536011,
@@ -409,7 +409,7 @@ describe('Slot Processor E2E Tests', () => {
         datetime24519344,
       );
       expect(hourlyData550617).toBeDefined();
-      expect(hourlyData550617?.proposedBlocksRewards).toBe('24519344:20990521');
+      expect(hourlyData550617?.proposedBlocksRewards).toBe('24519344:20990521,');
 
       const hourlyStats550617 = await slotStorage.getHourlyValidatorStatsForValidator(
         550617,
