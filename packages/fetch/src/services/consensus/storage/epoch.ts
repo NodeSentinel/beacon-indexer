@@ -193,12 +193,9 @@ export class EpochStorage {
             // Use raw SQL for proper string concatenation with CASE statement
             await tx.$executeRaw`
               INSERT INTO hourly_validator_data (datetime, validator_index, attestations, sync_committee_rewards, epoch_rewards)
-              VALUES (${datetime}::timestamp, ${validator.validatorIndex}, '', '', ${validator.rewards})
+              VALUES (${datetime}::timestamp, ${validator.validatorIndex}, '', '', CONCAT(${validator.rewards}, ','))
               ON CONFLICT (datetime, validator_index) DO UPDATE SET
-                epoch_rewards = CASE
-                  WHEN hourly_validator_data.epoch_rewards = '' THEN ${validator.rewards}
-                  ELSE CONCAT(hourly_validator_data.epoch_rewards, ',', ${validator.rewards})
-                END
+                epoch_rewards = CONCAT(hourly_validator_data.epoch_rewards, EXCLUDED.epoch_rewards)
             `;
           }
         }
@@ -226,8 +223,8 @@ export class EpochStorage {
               cl_missed_rewards
             FROM (VALUES ${valuesClause}) AS rewards(validator_index, cl_rewards, cl_missed_rewards)
             ON CONFLICT (datetime, validator_index) DO UPDATE SET
-              "cl_rewards" = hourly_validator_stats."cl_rewards" + EXCLUDED."cl_rewards",
-              "cl_missed_rewards" = hourly_validator_stats."cl_missed_rewards" + EXCLUDED."cl_missed_rewards"
+              cl_rewards = hourly_validator_stats.cl_rewards + EXCLUDED.cl_rewards,
+              cl_missed_rewards = hourly_validator_stats.cl_missed_rewards + EXCLUDED.cl_missed_rewards
           `);
         }
 
@@ -251,6 +248,7 @@ export class EpochStorage {
     slots: number[],
     committees: Committee[],
     committeesCountInSlot: Map<number, number[]>,
+    slotTimestamps: Map<number, Date>,
   ) {
     await this.prisma.$transaction(
       async (tx) => {
@@ -272,6 +270,34 @@ export class EpochStorage {
             data: batch,
           });
         }
+
+        // Create a VALUES clause with slot-timestamp mappings for the SQL query
+        const slotTimestampValues = slots
+          .map((slot) => {
+            const timestamp = slotTimestamps.get(slot);
+            if (!timestamp) {
+              throw new Error(`Missing timestamp for slot ${slot}`);
+            }
+            return `(${slot}, '${timestamp.toISOString()}'::timestamp)`;
+          })
+          .join(',');
+
+        // Update HourlyValidatorData.slots
+        await tx.$executeRawUnsafe(`
+          INSERT INTO hourly_validator_data (datetime, validator_index, slots, attestations, sync_committee_rewards, proposed_blocks_rewards, epoch_rewards)
+          SELECT 
+            st.datetime,
+            c.validator_index,
+            CONCAT(c.slot::text, ',') as slots,
+            '' as attestations,
+            '' as sync_committee_rewards,
+            '' as proposed_blocks_rewards,
+            '' as epoch_rewards
+          FROM committee c
+          JOIN (VALUES ${slotTimestampValues}) AS st(slot, datetime) ON c.slot = st.slot
+          ON CONFLICT (datetime, validator_index) DO UPDATE SET
+            slots = CONCAT(hourly_validator_data.slots, EXCLUDED.slots)
+        `);
 
         // Update epoch status
         await tx.epoch.update({

@@ -35,7 +35,8 @@ interface SlotProcessingData {
   slot: number;
   attestationsProcessed: boolean;
   committeesCountInSlot?: unknown;
-  blockAndSyncRewardsProcessed: boolean;
+  blockRewardsProcessed: boolean;
+  syncRewardsProcessed: boolean;
   executionRewardsProcessed: boolean;
   beaconBlockProcessed: boolean;
   withdrawalsRewards?: unknown;
@@ -132,7 +133,8 @@ export const slotProcessorMachine = setup({
     areExecutionRewardsProcessed: ({ context }) =>
       context.processingData?.executionRewardsProcessed === true,
     areBlockAndSyncRewardsProcessed: ({ context }) =>
-      context.processingData?.blockAndSyncRewardsProcessed === true,
+      context.processingData?.blockRewardsProcessed === true &&
+      context.processingData?.syncRewardsProcessed === true,
     hasSyncCommittee: ({ event }) => event.output?.syncCommittee !== null,
     areAttestationsProcessed: ({ context }) =>
       context.processingData?.attestationsProcessed === true,
