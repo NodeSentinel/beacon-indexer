@@ -63,46 +63,39 @@ export class SlotController extends SlotControllerHelpers {
   /**
    * Check and get committee validator amounts for attestations
    */
-  async checkAndGetCommitteeValidatorsAmounts(slot: number, beaconBlockData: Block) {
-    try {
-      // Get unique slots from attestations in beacon block data
-      const attestations = beaconBlockData.data.message.body.attestations || [];
-      const uniqueSlots = [...new Set(attestations.map((att) => parseInt(att.data.slot)))].filter(
-        (slot: unknown): slot is number =>
-          typeof slot === 'number' && slot >= this.beaconTime.getSlotStartIndexing(),
-      );
+  // async checkAndGetCommitteeValidatorsAmounts(slot: number, beaconBlockData: Block) {
+  //   try {
+  //     // Get unique slots from attestations in beacon block data
+  //     const attestations = beaconBlockData.data.message.body.attestations || [];
+  //     const uniqueSlots = [...new Set(attestations.map((att) => parseInt(att.data.slot)))].filter(
+  //       (slot: unknown): slot is number =>
+  //         typeof slot === 'number' && slot >= this.beaconTime.getSlotStartIndexing(),
+  //     );
 
-      if (uniqueSlots.length === 0) {
-        throw new Error('No attestations found');
-      }
+  //     if (uniqueSlots.length === 0) {
+  //       throw new Error('No attestations found');
+  //     }
 
-      // Get committee validator counts for all slots
-      const committeesCountInSlot =
-        await this.slotStorage.getSlotCommitteesValidatorsAmountsForSlots(uniqueSlots as number[]);
+  //     // Get committee validator counts for all slots
+  //     const committeesCountInSlot =
+  //       await this.slotStorage.getSlotCommitteesValidatorsAmountsForSlots(uniqueSlots as number[]);
 
-      // Check if all slots have validator counts
-      const allSlotsHaveCounts = uniqueSlots.every((slot) => {
-        const counts = committeesCountInSlot[slot as number];
-        return counts && counts.length > 0;
-      });
+  //     // Check if all slots have validator counts
+  //     const allSlotsHaveCounts = uniqueSlots.every((slot) => {
+  //       const counts = committeesCountInSlot[slot as number];
+  //       return counts && counts.length > 0;
+  //     });
 
-      return {
-        committeesCountInSlot,
-        allSlotsHaveCounts,
-        uniqueSlots,
-      };
-    } catch (error) {
-      console.error('Error checking committee validator amounts:', error);
-      throw error;
-    }
-  }
-
-  /**
-   * Fetch beacon block data from the beacon chain
-   */
-  async fetchBeaconBlock(slot: number) {
-    return this.beaconClient.getBlock(slot);
-  }
+  //     return {
+  //       committeesCountInSlot,
+  //       allSlotsHaveCounts,
+  //       uniqueSlots,
+  //     };
+  //   } catch (error) {
+  //     console.error('Error checking committee validator amounts:', error);
+  //     throw error;
+  //   }
+  // }
 
   /**
    * Fetch and process execution layer rewards
@@ -207,6 +200,13 @@ export class SlotController extends SlotControllerHelpers {
         });
       }
     }
+  }
+
+  /**
+   * Fetch beacon block data from the beacon chain
+   */
+  async fetchBeaconBlock(slot: number) {
+    return this.beaconClient.getBlock(slot);
   }
 
   /**

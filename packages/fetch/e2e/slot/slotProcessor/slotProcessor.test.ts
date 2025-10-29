@@ -373,7 +373,7 @@ describe('Slot Processor E2E Tests', () => {
       // Verify slot processing data was updated
       const slotData24519343 = await slotStorage.getSlot(24519343);
       expect(slotData24519343?.processingData?.blockRewardsProcessed).toBe(true);
-      expect(slotData24519343?.proposedBy).toBe(536011);
+      expect(slotData24519343?.proposer).toBe(536011);
 
       // Process slot 24519344
       mockBeaconClient.getBlockRewards.mockResolvedValueOnce(blockRewards24519344);
@@ -381,7 +381,7 @@ describe('Slot Processor E2E Tests', () => {
 
       const slotData24519344 = await slotStorage.getSlot(24519344);
       expect(slotData24519344?.processingData?.blockRewardsProcessed).toBe(true);
-      expect(slotData24519344?.proposedBy).toBe(550617);
+      expect(slotData24519344?.proposer).toBe(550617);
 
       // ------------------------------------------------------------
       // Validator 536011 (Proposer slot 24519343)

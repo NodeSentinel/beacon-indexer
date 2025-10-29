@@ -13,6 +13,7 @@ import {
   SyncCommitteeRewards,
   GetSyncCommittees,
   Block,
+  ValidatorProposerDuties,
 } from '@/src/services/consensus/types.js';
 import { getEpochSlots } from '@/src/services/consensus/utils/misc.js';
 import { ReliableRequestClient } from '@/src/services/consensus/utils/reliableRequestClient.js';
@@ -207,6 +208,15 @@ export class BeaconClient extends ReliableRequestClient {
         validatorIds.map((id) => id.toString()),
       );
       return res.data;
+    }, 'full');
+  }
+
+  async getValidatorProposerDuties(epoch: number): Promise<ValidatorProposerDuties['data']> {
+    return this.makeReliableRequest(async (url) => {
+      const res = await this.axiosInstance.get<ValidatorProposerDuties>(
+        `${url}/eth/v1/validator/duties/proposer/${epoch}`,
+      );
+      return res.data.data;
     }, 'full');
   }
 

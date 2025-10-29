@@ -245,6 +245,16 @@ export type AttestationRewards = {
   };
 };
 
+export type ValidatorProposerDuties = {
+  dependent_root: string;
+  execution_optimistic: boolean;
+  data: {
+    pubkey: string;
+    validator_index: string;
+    slot: string;
+  }[];
+};
+
 export type BlockRewards = {
   execution_optimistic: boolean;
   finalized: boolean;
