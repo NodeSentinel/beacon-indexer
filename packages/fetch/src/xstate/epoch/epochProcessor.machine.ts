@@ -3,6 +3,7 @@ import { setup, assign, sendParent, stopChild, raise, ActorRefFrom } from 'xstat
 import { slotOrchestratorMachine, SlotsCompletedEvent } from '../slot/slotOrchestrator.machine.js';
 
 import { EpochController } from '@/src/services/consensus/controllers/epoch.js';
+import { SlotController } from '@/src/services/consensus/controllers/slot.js';
 import { ValidatorsController } from '@/src/services/consensus/controllers/validators.js';
 import { BeaconTime } from '@/src/services/consensus/utils/time.js';
 import {
@@ -41,6 +42,7 @@ export const epochProcessorMachine = setup({
         beaconTime: BeaconTime;
         epochController: EpochController;
         validatorsController?: ValidatorsController;
+        slotController: SlotController;
       };
       actors: {
         slotOrchestratorActor?: ActorRefFrom<typeof slotOrchestratorMachine> | null;
@@ -75,6 +77,7 @@ export const epochProcessorMachine = setup({
         beaconTime: BeaconTime;
         epochController: EpochController;
         validatorsController?: ValidatorsController;
+        slotController: SlotController;
       };
     };
   },
@@ -461,6 +464,7 @@ export const epochProcessorMachine = setup({
                               epoch: context.epoch,
                               lookbackSlot: context.config.lookbackSlot,
                               slotDuration: context.config.slotDuration,
+                              slotController: context.services.slotController,
                             },
                           });
 

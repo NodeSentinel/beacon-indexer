@@ -39,8 +39,10 @@ model Epoch {
 model Slot {
     slot                  Int     @id @map("slot")
     processed             Boolean @default(false) @map("processed")
-    committeesCountInSlot Json?   @map("committees_count_in_slot") // Stores the number of validators per committee index as an array: [350, 340, ...], required for attestation processing
-    proposer              Int?    @map("proposer") // validator index that proposed the slot
+    // Stores the number of validators per committee index as an array: [350, 340, ...], required for attestation processing
+    committeesCountInSlot Json?   @map("committees_count_in_slot")
+    // validator index that proposed the slot
+    proposer              Int?    @map("proposer")
 
     processingData SlotProcessingData?
 

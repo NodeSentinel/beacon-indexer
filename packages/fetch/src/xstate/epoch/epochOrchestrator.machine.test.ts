@@ -3,6 +3,7 @@ import { createActor, createMachine, sendParent } from 'xstate';
 
 import { createControllablePromise } from '@/src/__tests__/utils.js';
 import { EpochController } from '@/src/services/consensus/controllers/epoch.js';
+import { SlotController } from '@/src/services/consensus/controllers/slot.js';
 // eslint-disable-next-line import/order
 import { BeaconTime } from '@/src/services/consensus/utils/time.js';
 
@@ -25,6 +26,9 @@ const mockBeaconTime = new BeaconTime({
   epochsPerSyncCommitteePeriod: 256, // 256 epochs per sync committee period
   slotStartIndexing: 32,
 });
+
+// Minimal SlotController mock for tests
+const mockSlotController = {} as unknown as SlotController;
 
 // Mock the logging functions - simple mocks that do nothing
 const mockLogActor = vi.fn();
@@ -94,6 +98,7 @@ describe.skip('epochOrchestratorMachine', () => {
         lookbackSlot: 32,
         epochController: mockEpochController,
         beaconTime: mockBeaconTime,
+        slotController: mockSlotController,
       },
     });
 
@@ -146,6 +151,7 @@ describe.skip('epochOrchestratorMachine', () => {
         lookbackSlot: 32,
         epochController: mockEpochController,
         beaconTime: mockBeaconTime,
+        slotController: mockSlotController,
       },
       inspect: (inspectionEvent) => {
         if (inspectionEvent.type === '@xstate.microstep') {
@@ -209,6 +215,7 @@ describe.skip('epochOrchestratorMachine', () => {
         lookbackSlot: 32,
         epochController: mockEpochController,
         beaconTime: mockBeaconTime,
+        slotController: mockSlotController,
       },
     });
 
@@ -300,6 +307,7 @@ describe.skip('epochOrchestratorMachine', () => {
         lookbackSlot: 32,
         epochController: mockEpochController,
         beaconTime: mockBeaconTime,
+        slotController: mockSlotController,
       },
       inspect: (inspectionEvent) => {
         if (inspectionEvent.type === '@xstate.microstep') {

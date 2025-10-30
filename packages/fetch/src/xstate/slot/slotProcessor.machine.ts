@@ -28,6 +28,7 @@ import {
   updateSlotWithBeaconData,
 } from './slot.actors.js';
 
+import { SlotController } from '@/src/services/consensus/controllers/slot.js';
 import { Block } from '@/src/services/consensus/types.js';
 import { pinoLog } from '@/src/xstate/pinoLog.js';
 
@@ -54,6 +55,7 @@ export interface SlotProcessorContext {
   slot: number;
   slotDb: Slot | null;
   processingData: SlotProcessingData | null;
+  slotController: SlotController;
   beaconBlockData: {
     rawData: Block | 'SLOT MISSED' | null;
     withdrawalRewards: string[];
@@ -74,6 +76,7 @@ export interface SlotProcessorInput {
   slot: number;
   slotDuration: number;
   lookbackSlot: number;
+  slotController: SlotController;
 }
 
 /**
@@ -156,6 +159,7 @@ export const slotProcessorMachine = setup({
     slot: input.slot,
     slotDb: null,
     processingData: null,
+    slotController: input.slotController,
     syncCommittee: null,
     beaconBlockData: {
       rawData: null,

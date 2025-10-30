@@ -5,8 +5,10 @@ import { env, chainConfig } from '@/src/lib/env.js';
 import createLogger from '@/src/lib/pino.js';
 import { BeaconClient } from '@/src/services/consensus/beacon.js';
 import { EpochController } from '@/src/services/consensus/controllers/epoch.js';
+import { SlotController } from '@/src/services/consensus/controllers/slot.js';
 import { ValidatorsController } from '@/src/services/consensus/controllers/validators.js';
 import { EpochStorage } from '@/src/services/consensus/storage/epoch.js';
+import { SlotStorage } from '@/src/services/consensus/storage/slot.js';
 import { ValidatorsStorage } from '@/src/services/consensus/storage/validators.js';
 import { BeaconTime } from '@/src/services/consensus/utils/time.js';
 import initXstateMachines from '@/src/xstate/index.js';
@@ -45,17 +47,24 @@ async function main() {
   const validatorsController = new ValidatorsController(beaconClient, validatorsStorage);
 
   const epochStorage = new EpochStorage(prisma, validatorsStorage);
+  const slotStorage = new SlotStorage(prisma);
   const epochController = new EpochController(
     beaconClient,
     epochStorage,
     validatorsStorage,
     beaconTime,
   );
+  const slotController = new SlotController(slotStorage, epochStorage, beaconClient, beaconTime);
 
   // Start indexing the beacon chain
   await validatorsController.initValidators();
 
-  await initXstateMachines(epochController, beaconTime, chainConfig.beacon.slotDuration);
+  await initXstateMachines(
+    epochController,
+    beaconTime,
+    chainConfig.beacon.slotDuration,
+    slotController,
+  );
 
   // Handle graceful shutdown
   process.on('SIGINT', () => {

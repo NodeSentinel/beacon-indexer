@@ -1,5 +1,6 @@
 import { setup, assign, stopChild, sendParent, ActorRefFrom } from 'xstate';
 
+import { SlotController } from '@/src/services/consensus/controllers/slot.js';
 import { getEpochSlots } from '@/src/services/consensus/utils/misc.js';
 import { logActor, logRemoveMachine } from '@/src/xstate/multiMachineLogger.js';
 import { pinoLog } from '@/src/xstate/pinoLog.js';
@@ -14,12 +15,14 @@ export interface SlotOrchestratorContext {
   slotActor: ActorRefFrom<typeof slotProcessorMachine> | null;
   lookbackSlot: number;
   slotDuration: number;
+  slotController: SlotController;
 }
 
 export interface SlotOrchestratorInput {
   epoch: number;
   lookbackSlot: number;
   slotDuration: number;
+  slotController: SlotController;
 }
 
 // Extract the SLOTS_COMPLETED event type for reuse in other machines
@@ -72,6 +75,7 @@ export const slotOrchestratorMachine = setup({
             slot: context.currentSlot,
             slotDuration: context.slotDuration,
             lookbackSlot: context.lookbackSlot,
+            slotController: context.slotController,
           },
         });
 
@@ -105,6 +109,7 @@ export const slotOrchestratorMachine = setup({
       slotActor: null,
       lookbackSlot: input.lookbackSlot,
       slotDuration: input.slotDuration,
+      slotController: input.slotController,
     };
   },
   states: {

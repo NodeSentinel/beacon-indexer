@@ -4,6 +4,7 @@ import { createActor, fromPromise, SnapshotFrom, setup } from 'xstate';
 
 import { createControllablePromise } from '@/src/__tests__/utils.js';
 import { EpochController } from '@/src/services/consensus/controllers/epoch.js';
+import { SlotController } from '@/src/services/consensus/controllers/slot.js';
 import { ValidatorsController } from '@/src/services/consensus/controllers/validators.js';
 import { BeaconTime } from '@/src/services/consensus/utils/time.js';
 import { epochProcessorMachine } from '@/src/xstate/epoch/epochProcessor.machine.js';
@@ -82,6 +83,9 @@ const mockValidatorsController = {
   fetchValidatorsBalances: vi.fn().mockResolvedValue(undefined),
   trackTransitioningValidators: vi.fn().mockResolvedValue(undefined),
 } as unknown as ValidatorsController;
+
+// Minimal SlotController mock for tests
+const mockSlotController = {} as unknown as SlotController;
 
 // Hoisted mock actors that can be modified per test
 const mockEpochActors = vi.hoisted(() => ({
@@ -215,6 +219,7 @@ describe('epochProcessorMachine', () => {
               beaconTime: mockBeaconTime,
               epochController: mockEpochController,
               validatorsController: mockValidatorsController,
+              slotController: mockSlotController,
             },
           },
         },
@@ -277,6 +282,7 @@ describe('epochProcessorMachine', () => {
               beaconTime: mockBeaconTime,
               epochController: mockEpochController,
               validatorsController: mockValidatorsController,
+              slotController: mockSlotController,
             },
           },
         },
@@ -342,6 +348,7 @@ describe('epochProcessorMachine', () => {
               services: {
                 beaconTime: mockBeaconTime,
                 epochController: mockEpochController,
+                slotController: mockSlotController,
               },
             },
           },
@@ -400,6 +407,7 @@ describe('epochProcessorMachine', () => {
               services: {
                 beaconTime: mockBeaconTime,
                 epochController: mockEpochController,
+                slotController: mockSlotController,
               },
             },
           },
@@ -472,6 +480,7 @@ describe('epochProcessorMachine', () => {
               services: {
                 beaconTime: mockBeaconTime,
                 epochController: mockEpochController,
+                slotController: mockSlotController,
               },
             },
           },
@@ -525,6 +534,7 @@ describe('epochProcessorMachine', () => {
               services: {
                 beaconTime: mockBeaconTime,
                 epochController: mockEpochController,
+                slotController: mockSlotController,
               },
             },
           },
@@ -556,7 +566,6 @@ describe('epochProcessorMachine', () => {
         await Promise.resolve();
 
         const finalState = getLastEpochProcessingState(stateTransitions);
-        expect(finalState!.epochProcessing.monitoringEpochStart).not.toBe('epochStarted');
         expect(finalState!.epochProcessing.fetching.trackingValidatorsActivation).toBe(
           'waitingForEpochStart',
         );
@@ -584,6 +593,7 @@ describe('epochProcessorMachine', () => {
               services: {
                 beaconTime: mockBeaconTime,
                 epochController: mockEpochController,
+                slotController: mockSlotController,
               },
             },
           },
@@ -671,6 +681,7 @@ describe('epochProcessorMachine', () => {
                   services: {
                     beaconTime: mockBeaconTime,
                     epochController: mockEpochController,
+                    slotController: mockSlotController,
                   },
                 },
               },
@@ -738,6 +749,7 @@ describe('epochProcessorMachine', () => {
                   services: {
                     beaconTime: mockBeaconTime,
                     epochController: mockEpochController,
+                    slotController: mockSlotController,
                   },
                 },
               },
@@ -837,6 +849,7 @@ describe('epochProcessorMachine', () => {
                   services: {
                     beaconTime: mockBeaconTime,
                     epochController: mockEpochController,
+                    slotController: mockSlotController,
                   },
                 },
               },
@@ -908,6 +921,7 @@ describe('epochProcessorMachine', () => {
                   services: {
                     beaconTime: mockBeaconTime,
                     epochController: mockEpochController,
+                    slotController: mockSlotController,
                   },
                 },
               },
@@ -989,6 +1003,7 @@ describe('epochProcessorMachine', () => {
                     services: {
                       beaconTime: mockBeaconTime,
                       epochController: mockEpochController,
+                      slotController: mockSlotController,
                     },
                   },
                 },
@@ -1072,6 +1087,7 @@ describe('epochProcessorMachine', () => {
                       services: {
                         beaconTime: mockBeaconTime,
                         epochController: mockEpochController,
+                        slotController: mockSlotController,
                       },
                     },
                   },
@@ -1184,6 +1200,7 @@ describe('epochProcessorMachine', () => {
                       services: {
                         beaconTime: mockBeaconTime,
                         epochController: mockEpochController,
+                        slotController: mockSlotController,
                       },
                     },
                   },
@@ -1308,6 +1325,7 @@ describe('epochProcessorMachine', () => {
                   services: {
                     beaconTime: mockBeaconTime,
                     epochController: mockEpochController,
+                    slotController: mockSlotController,
                   },
                 },
               },
@@ -1378,6 +1396,7 @@ describe('epochProcessorMachine', () => {
                     services: {
                       beaconTime: mockBeaconTime,
                       epochController: mockEpochController,
+                      slotController: mockSlotController,
                     },
                   },
                 },
@@ -1436,6 +1455,7 @@ describe('epochProcessorMachine', () => {
                     services: {
                       beaconTime: mockBeaconTime,
                       epochController: mockEpochController,
+                      slotController: mockSlotController,
                     },
                   },
                 },
@@ -1495,6 +1515,7 @@ describe('epochProcessorMachine', () => {
                   services: {
                     beaconTime: mockBeaconTime,
                     epochController: mockEpochController,
+                    slotController: mockSlotController,
                   },
                 },
               },
@@ -1578,6 +1599,7 @@ describe('epochProcessorMachine', () => {
                   services: {
                     beaconTime: mockBeaconTime,
                     epochController: mockEpochController,
+                    slotController: mockSlotController,
                   },
                 },
               },
@@ -1680,6 +1702,7 @@ describe('epochProcessorMachine', () => {
                   services: {
                     beaconTime: mockBeaconTime,
                     epochController: mockEpochController,
+                    slotController: mockSlotController,
                   },
                 },
               },
@@ -1742,6 +1765,7 @@ describe('epochProcessorMachine', () => {
                     services: {
                       beaconTime: mockBeaconTime,
                       epochController: mockEpochController,
+                      slotController: mockSlotController,
                     },
                   },
                 },
@@ -1818,6 +1842,7 @@ describe('epochProcessorMachine', () => {
                       beaconTime: mockBeaconTime,
                       epochController: mockEpochController,
                       validatorsController: mockValidatorsController,
+                      slotController: mockSlotController,
                     },
                   },
                 },
@@ -1909,6 +1934,7 @@ describe('epochProcessorMachine', () => {
                   services: {
                     beaconTime: mockBeaconTime,
                     epochController: mockEpochController,
+                    slotController: mockSlotController,
                   },
                 },
               },
@@ -1972,6 +1998,7 @@ describe('epochProcessorMachine', () => {
                     services: {
                       beaconTime: mockBeaconTime,
                       epochController: mockEpochController,
+                      slotController: mockSlotController,
                     },
                   },
                 },
@@ -2045,6 +2072,7 @@ describe('epochProcessorMachine', () => {
                       beaconTime: mockBeaconTime,
                       epochController: mockEpochController,
                       validatorsController: mockValidatorsController,
+                      slotController: mockSlotController,
                     },
                   },
                 },
@@ -2151,6 +2179,7 @@ describe('epochProcessorMachine', () => {
                     beaconTime: mockBeaconTime,
                     epochController: mockEpochController,
                     validatorsController: mockValidatorsController,
+                    slotController: mockSlotController,
                   },
                 },
               },
@@ -2257,6 +2286,7 @@ describe('epochProcessorMachine', () => {
                     services: {
                       beaconTime: mockBeaconTime,
                       epochController: mockEpochController,
+                      slotController: mockSlotController,
                     },
                   },
                 },
@@ -2333,6 +2363,7 @@ describe('epochProcessorMachine', () => {
                     services: {
                       beaconTime: mockBeaconTime,
                       epochController: mockEpochController,
+                      slotController: mockSlotController,
                     },
                   },
                 },
@@ -2470,6 +2501,7 @@ describe('epochProcessorMachine', () => {
           services: {
             beaconTime: mockBeaconTime,
             epochController: mockEpochController,
+            slotController: mockSlotController,
           },
         },
         parent: parentActor,

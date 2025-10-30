@@ -36,10 +36,6 @@ export class EpochController extends EpochControllerHelpers {
     return this.beaconTime;
   }
 
-  async markEpochAsProcessed(epoch: number) {
-    await this.epochStorage.markEpochAsProcessed(epoch);
-  }
-
   async getUnprocessedCount() {
     return this.epochStorage.getUnprocessedCount();
   }
@@ -54,6 +50,13 @@ export class EpochController extends EpochControllerHelpers {
 
   async getEpochByNumber(epoch: number) {
     return this.epochStorage.getEpochByNumber(epoch);
+  }
+
+  /**
+   * Check if sync committee for a specific epoch is already fetched
+   */
+  async isSyncCommitteeForEpochInDB(epoch: number) {
+    return this.epochStorage.isSyncCommitteeForEpochInDB(epoch);
   }
 
   // New method that handles the complete epoch creation logic internally
@@ -186,13 +189,6 @@ export class EpochController extends EpochControllerHelpers {
     );
   }
 
-  /**
-   * Check if sync committee for a specific epoch is already fetched
-   */
-  async isSyncCommitteeForEpochInDB(epoch: number) {
-    return this.epochStorage.isSyncCommitteeForEpochInDB(epoch);
-  }
-
   async processValidatorProposerDuties(epoch: number) {
     // if already fetched, return
     const isValidatorProposerDutiesFetched =
@@ -255,5 +251,9 @@ export class EpochController extends EpochControllerHelpers {
    */
   async updateSyncCommitteesFetched(epoch: number) {
     return this.epochStorage.updateSyncCommitteesFetched(epoch);
+  }
+
+  async markEpochAsProcessed(epoch: number) {
+    await this.epochStorage.markEpochAsProcessed(epoch);
   }
 }
