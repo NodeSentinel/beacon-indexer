@@ -369,31 +369,28 @@ export class SlotStorage {
   }
 
   /**
-   * Get committee validator amounts for specific slots
+   * Return committee sizes per slot
+   *
+   * For each input slot, returns a map `{ slot: number[] }` where the index in the
+   * array equals the `committeeIndex` for that slot. That is, `array[0]` is the size
+   * of slot.index 0, `array[1]` is the size of slot.index 1, and so on. The value at
+   * each position is the number of validators in that committee.
+   * Example: `{ 12345: [350, 349, ...] }` means slot 12345 has committee 0 with 350
+   * validators, committee 1 with 349 validators, etc.
    */
-  async getSlotCommitteesValidatorsAmountsForSlots(slots: number[]) {
-    const committees = await this.prisma.committee.findMany({
-      where: {
-        slot: { in: slots },
-      },
-      select: {
-        slot: true,
-        index: true,
-        aggregationBitsIndex: true,
-      },
-      orderBy: [{ slot: 'asc' }, { index: 'asc' }, { aggregationBitsIndex: 'asc' }],
+  async getCommitteeSizesForSlots(slots: number[]): Promise<Record<number, number[]>> {
+    // group by slot and index to count validators
+    const grouped = await this.prisma.committee.groupBy({
+      where: { slot: { in: slots } },
+      by: ['slot', 'index'],
+      _count: { validatorIndex: true },
     });
 
-    // Group by slot and calculate validator amounts
+    // for each slot, place the count at its committee index position
     const result: Record<number, number[]> = {};
-    for (const committee of committees) {
-      if (!result[committee.slot]) {
-        result[committee.slot] = [];
-      }
-      if (!result[committee.slot][committee.index]) {
-        result[committee.slot][committee.index] = 0;
-      }
-      result[committee.slot][committee.index]++;
+    for (const row of grouped) {
+      if (!result[row.slot]) result[row.slot] = [];
+      result[row.slot][row.index] = row._count.validatorIndex;
     }
 
     return result;

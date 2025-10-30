@@ -184,7 +184,7 @@ describe('epochProcessorMachine', () => {
       slotDurationMs: SLOT_DURATION,
       slotsPerEpoch: SLOTS_PER_EPOCH,
       epochsPerSyncCommitteePeriod: EPOCHS_PER_SYNC_COMMITTEE_PERIOD,
-      slotStartIndexing: SLOT_START_INDEXING,
+      lookbackSlot: SLOT_START_INDEXING,
     });
 
     beforeEach(() => {
@@ -315,7 +315,7 @@ describe('epochProcessorMachine', () => {
         slotDurationMs: SLOT_DURATION,
         slotsPerEpoch: SLOTS_PER_EPOCH,
         epochsPerSyncCommitteePeriod: EPOCHS_PER_SYNC_COMMITTEE_PERIOD,
-        slotStartIndexing: SLOT_START_INDEXING,
+        lookbackSlot: SLOT_START_INDEXING,
       });
 
       beforeEach(() => {
@@ -642,7 +642,7 @@ describe('epochProcessorMachine', () => {
           slotDurationMs: SLOT_DURATION,
           slotsPerEpoch: SLOTS_PER_EPOCH,
           epochsPerSyncCommitteePeriod: EPOCHS_PER_SYNC_COMMITTEE_PERIOD,
-          slotStartIndexing: SLOT_START_INDEXING,
+          lookbackSlot: SLOT_START_INDEXING,
         });
 
         beforeEach(() => {
@@ -965,7 +965,7 @@ describe('epochProcessorMachine', () => {
           slotDurationMs: SLOT_DURATION,
           slotsPerEpoch: SLOTS_PER_EPOCH,
           epochsPerSyncCommitteePeriod: EPOCHS_PER_SYNC_COMMITTEE_PERIOD,
-          slotStartIndexing: SLOT_START_INDEXING,
+          lookbackSlot: SLOT_START_INDEXING,
         });
 
         beforeEach(() => {
@@ -1274,7 +1274,7 @@ describe('epochProcessorMachine', () => {
           slotDurationMs: SLOT_DURATION,
           slotsPerEpoch: SLOTS_PER_EPOCH,
           epochsPerSyncCommitteePeriod: EPOCHS_PER_SYNC_COMMITTEE_PERIOD,
-          slotStartIndexing: SLOT_START_INDEXING,
+          lookbackSlot: SLOT_START_INDEXING,
         });
 
         beforeEach(() => {
@@ -1294,7 +1294,7 @@ describe('epochProcessorMachine', () => {
               slotDurationMs: SLOT_DURATION,
               slotsPerEpoch: SLOTS_PER_EPOCH,
               epochsPerSyncCommitteePeriod: EPOCHS_PER_SYNC_COMMITTEE_PERIOD,
-              slotStartIndexing: SLOT_START_INDEXING,
+              lookbackSlot: SLOT_START_INDEXING,
             });
 
             // Mock needsCommitteesFetch to return true so committees will be fetched
@@ -1669,7 +1669,7 @@ describe('epochProcessorMachine', () => {
           slotDurationMs: SLOT_DURATION,
           slotsPerEpoch: SLOTS_PER_EPOCH,
           epochsPerSyncCommitteePeriod: EPOCHS_PER_SYNC_COMMITTEE_PERIOD,
-          slotStartIndexing: SLOT_START_INDEXING,
+          lookbackSlot: SLOT_START_INDEXING,
         });
 
         beforeEach(() => {
@@ -1901,7 +1901,7 @@ describe('epochProcessorMachine', () => {
           slotDurationMs: SLOT_DURATION,
           slotsPerEpoch: SLOTS_PER_EPOCH,
           epochsPerSyncCommitteePeriod: EPOCHS_PER_SYNC_COMMITTEE_PERIOD,
-          slotStartIndexing: SLOT_START_INDEXING,
+          lookbackSlot: SLOT_START_INDEXING,
         });
 
         beforeEach(() => {
@@ -2137,7 +2137,7 @@ describe('epochProcessorMachine', () => {
           slotDurationMs: SLOT_DURATION,
           slotsPerEpoch: SLOTS_PER_EPOCH,
           epochsPerSyncCommitteePeriod: EPOCHS_PER_SYNC_COMMITTEE_PERIOD,
-          slotStartIndexing: SLOT_START_INDEXING,
+          lookbackSlot: SLOT_START_INDEXING,
         });
 
         beforeEach(() => {
@@ -2429,7 +2429,7 @@ describe('epochProcessorMachine', () => {
       slotDurationMs: SLOT_DURATION,
       slotsPerEpoch: SLOTS_PER_EPOCH,
       epochsPerSyncCommitteePeriod: EPOCHS_PER_SYNC_COMMITTEE_PERIOD,
-      slotStartIndexing: SLOT_START_INDEXING,
+      lookbackSlot: SLOT_START_INDEXING,
     });
 
     beforeEach(() => {

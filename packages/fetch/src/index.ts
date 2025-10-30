@@ -40,7 +40,7 @@ async function main() {
     slotDurationMs: chainConfig.beacon.slotDuration,
     slotsPerEpoch: chainConfig.beacon.slotsPerEpoch,
     epochsPerSyncCommitteePeriod: chainConfig.beacon.epochsPerSyncCommitteePeriod,
-    slotStartIndexing: env.CONSENSUS_LOOKBACK_SLOT,
+    lookbackSlot: env.CONSENSUS_LOOKBACK_SLOT,
   });
 
   const validatorsStorage = new ValidatorsStorage(prisma);

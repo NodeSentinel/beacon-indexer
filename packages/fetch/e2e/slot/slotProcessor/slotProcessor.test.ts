@@ -49,7 +49,7 @@ describe('Slot Processor E2E Tests', () => {
       slotDurationMs: gnosisConfig.beacon.slotDuration,
       slotsPerEpoch: gnosisConfig.beacon.slotsPerEpoch,
       epochsPerSyncCommitteePeriod: gnosisConfig.beacon.epochsPerSyncCommitteePeriod,
-      slotStartIndexing: 32000,
+      lookbackSlot: 32000,
     });
 
     await prisma.committee.deleteMany();
@@ -92,7 +92,7 @@ describe('Slot Processor E2E Tests', () => {
           slotDurationMs: gnosisConfig.beacon.slotDuration,
           slotsPerEpoch: gnosisConfig.beacon.slotsPerEpoch,
           epochsPerSyncCommitteePeriod: gnosisConfig.beacon.epochsPerSyncCommitteePeriod,
-          slotStartIndexing: 32000,
+          lookbackSlot: 32000,
         }),
       );
 
@@ -275,7 +275,7 @@ describe('Slot Processor E2E Tests', () => {
           slotDurationMs: gnosisConfig.beacon.slotDuration,
           slotsPerEpoch: gnosisConfig.beacon.slotsPerEpoch,
           epochsPerSyncCommitteePeriod: gnosisConfig.beacon.epochsPerSyncCommitteePeriod,
-          slotStartIndexing: 32000,
+          lookbackSlot: 32000,
         }),
       );
 

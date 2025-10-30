@@ -168,7 +168,7 @@ export class EpochController extends EpochControllerHelpers {
     // Prepare data for storage
     const { newSlots, newCommittees, committeesCountInSlot } = this.prepareCommitteeData(
       committees,
-      this.beaconTime.getSlotStartIndexing(),
+      this.beaconTime.getLookbackSlot(),
     );
 
     // Calculate slot timestamps for HourlyValidatorData updates

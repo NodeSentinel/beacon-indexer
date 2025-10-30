@@ -7,20 +7,20 @@ export class BeaconTime {
   private readonly slotDurationMs: number;
   private readonly slotsPerEpoch: number;
   private readonly epochsPerSyncCommitteePeriod: number;
-  private readonly slotStartIndexing: number;
+  private readonly lookbackSlot: number;
 
   constructor(config: {
     genesisTimestamp: number;
     slotDurationMs: number;
     slotsPerEpoch: number;
     epochsPerSyncCommitteePeriod: number;
-    slotStartIndexing: number;
+    lookbackSlot: number;
   }) {
     this.genesisTimestamp = config.genesisTimestamp;
     this.slotDurationMs = config.slotDurationMs;
     this.slotsPerEpoch = config.slotsPerEpoch;
     this.epochsPerSyncCommitteePeriod = config.epochsPerSyncCommitteePeriod;
-    this.slotStartIndexing = config.slotStartIndexing;
+    this.lookbackSlot = config.lookbackSlot;
   }
 
   /**
@@ -106,7 +106,7 @@ export class BeaconTime {
    * Get the oldest lookback slot for indexing
    * @returns The slot start indexing value
    */
-  getSlotStartIndexing(): number {
-    return this.slotStartIndexing;
+  getLookbackSlot(): number {
+    return this.lookbackSlot;
   }
 }

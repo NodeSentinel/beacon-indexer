@@ -73,40 +73,51 @@ export class SlotController extends SlotControllerHelpers {
   }
 
   /**
-   * Check and get committee validator amounts for attestations
+   * Return the committee sizes for each slot in the beacon block data
+   *
+   * From the Beacon block data, collect unique `slot` values present in
+   * `attestations`, filter out old slots using `this.beaconTime.getLookbackSlot()`,
+   * then retrieve committee sizes for those slots from storage.
+   *
+   * Returns `Record<number, number[]>` where each key is a slot number and the value
+   * is an array where each index equals the `committeeIndex` for that slot. That is,
+   * `array[0]` is the size of slot.index 0, `array[1]` is the size of slot.index 1,
+   * and so on. The value at each position is the number of validators in that committee.
+   * Example: `{ 12345: [350, 349, ...] }` means slot 12345 has committee 0 with 350
+   * validators, committee 1 with 349 validators, etc.
    */
-  async checkAndGetCommitteeValidatorsAmounts(slot: number, beaconBlockData: Block) {
-    try {
-      // Get unique slots from attestations in beacon block data
-      const attestations = beaconBlockData.data.message.body.attestations || [];
-      const uniqueSlots = [...new Set(attestations.map((att) => parseInt(att.data.slot)))].filter(
-        (slot: unknown): slot is number =>
-          typeof slot === 'number' && slot >= this.beaconTime.getSlotStartIndexing(),
-      );
+  async getCommitteeSizesForAttestations(beaconBlockData: Block) {
+    const attestations = beaconBlockData.data.message.body.attestations || [];
 
-      if (uniqueSlots.length === 0) {
-        throw new Error('No attestations found');
-      }
+    // get unique slots from attestations
+    let uniqueSlots = [...new Set(attestations.map((att) => Number(att.data.slot)))];
 
-      // Get committee validator counts for all slots
-      const committeesCountInSlot =
-        await this.slotStorage.getSlotCommitteesValidatorsAmountsForSlots(uniqueSlots as number[]);
+    // filter out slots that are older than the lookback slot
+    uniqueSlots = uniqueSlots.filter(
+      (slot: unknown): slot is number =>
+        typeof slot === 'number' && slot >= this.beaconTime.getLookbackSlot(),
+    );
 
-      // Check if all slots have validator counts
-      const allSlotsHaveCounts = uniqueSlots.every((slot) => {
-        const counts = committeesCountInSlot[slot as number];
-        return counts && counts.length > 0;
-      });
-
-      return {
-        committeesCountInSlot,
-        allSlotsHaveCounts,
-        uniqueSlots,
-      };
-    } catch (error) {
-      console.error('Error checking committee validator amounts:', error);
-      throw error;
+    if (uniqueSlots.length === 0) {
+      throw new Error('No attestations found');
     }
+
+    const committeesCountInSlot = await this.slotStorage.getCommitteeSizesForSlots(
+      uniqueSlots as number[],
+    );
+
+    const allSlotsHaveCounts = uniqueSlots.every((slot) => {
+      const counts = committeesCountInSlot[slot as number];
+      return counts && counts.length > 0;
+    });
+
+    if (!allSlotsHaveCounts) {
+      throw new Error(
+        `Not all slots have committee sizes for beacon block ${beaconBlockData.data.message.slot}`,
+      );
+    }
+
+    return committeesCountInSlot;
   }
 
   /**
@@ -225,7 +236,7 @@ export class SlotController extends SlotControllerHelpers {
     // Filter out attestations that are older than the oldest lookback slot
     const filteredAttestations = this.filterAttestationsByLookbackSlot(
       attestations,
-      this.beaconTime.getSlotStartIndexing(),
+      this.beaconTime.getLookbackSlot(),
     );
 
     // Process each attestation and calculate delays

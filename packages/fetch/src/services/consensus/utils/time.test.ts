@@ -66,7 +66,7 @@ describe('BeaconTime', () => {
       slotDurationMs: ethereumConfig.beacon.slotDuration,
       slotsPerEpoch: ethereumConfig.beacon.slotsPerEpoch,
       epochsPerSyncCommitteePeriod: ethereumConfig.beacon.epochsPerSyncCommitteePeriod,
-      slotStartIndexing: 32,
+      lookbackSlot: 32,
     });
 
     test('should convert slot to timestamp correctly', () => {
@@ -165,7 +165,7 @@ describe('BeaconTime', () => {
       slotDurationMs: gnosisConfig.beacon.slotDuration,
       slotsPerEpoch: gnosisConfig.beacon.slotsPerEpoch,
       epochsPerSyncCommitteePeriod: gnosisConfig.beacon.epochsPerSyncCommitteePeriod,
-      slotStartIndexing: 32,
+      lookbackSlot: 32,
     });
 
     test('should convert slot to timestamp correctly', () => {
@@ -264,7 +264,7 @@ describe('BeaconTime', () => {
       slotDurationMs: 12000,
       slotsPerEpoch: 32,
       epochsPerSyncCommitteePeriod: 256,
-      slotStartIndexing: 32,
+      lookbackSlot: 32,
     });
 
     test('should handle genesis timestamp', () => {

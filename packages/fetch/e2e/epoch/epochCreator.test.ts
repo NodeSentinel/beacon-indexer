@@ -43,7 +43,7 @@ describe('Epoch Creation E2E Tests', () => {
         slotDurationMs: 12000,
         slotsPerEpoch: 32,
         epochsPerSyncCommitteePeriod: 256,
-        slotStartIndexing: 32000,
+        lookbackSlot: 32000,
       }),
     );
 
