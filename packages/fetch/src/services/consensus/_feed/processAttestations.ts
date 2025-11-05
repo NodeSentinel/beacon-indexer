@@ -5,8 +5,8 @@ import ms from 'ms';
 import { getPrisma } from '@/src/lib/prisma.js';
 import { Attestation } from '@/src/services/consensus/types.js';
 import {
-  convertBitsToString,
-  convertBitsToStringForCommitteeBits,
+  convertVariableBitsToString,
+  convertFixedBitsToString,
   convertHexStringToByteArray,
 } from '@/src/services/consensus/utils/bitlist.js';
 import { getOldestLookbackSlot } from '@/src/services/consensus/utils/misc.js';
@@ -69,13 +69,13 @@ async function processAttestation(
 
   // aggregation_bits come in a hexadecimal format. we convert it to a binary string.
   // each bit represents if the validator on a committee attested or not. First bit represents the first validator in the committee.
-  const aggregationBits = convertBitsToString(
+  const aggregationBits = convertVariableBitsToString(
     convertHexStringToByteArray(attestation.aggregation_bits),
   );
 
   // committee_bits also comes in a hexadecimal format. we convert it to a binary string.
   // each bit represents if the bits bring data for a committee or not.
-  const committeeBits = convertBitsToStringForCommitteeBits(
+  const committeeBits = convertFixedBitsToString(
     convertHexStringToByteArray(attestation.committee_bits),
   );
 
@@ -157,12 +157,12 @@ async function persistToDB(attestations: CommitteeUpdate[], slotNumber: number):
       await Promise.all(queries.map((query) => tx.$executeRaw(query)));
 
       // Update slot processing data
-      await tx.slotProcessingData.upsert({
+      await tx.slot.upsert({
         where: { slot: slotNumber },
-        update: { attestationsProcessed: true },
+        update: { attestationsFetched: true },
         create: {
           slot: slotNumber,
-          attestationsProcessed: true,
+          attestationsFetched: true,
         },
       });
     },

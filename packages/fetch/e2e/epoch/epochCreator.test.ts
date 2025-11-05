@@ -84,7 +84,7 @@ describe('Epoch Creation E2E Tests', () => {
         expect(epoch.validatorsBalancesFetched).toBe(false);
         expect(epoch.rewardsFetched).toBe(false);
         expect(epoch.committeesFetched).toBe(false);
-        expect(epoch.slotsFetched).toBe(false);
+        expect(epoch.allSlotsProcessed).toBe(false);
         expect(epoch.syncCommitteesFetched).toBe(false);
       });
     });
@@ -148,7 +148,7 @@ describe('Epoch Creation E2E Tests', () => {
         expect(epoch.validatorsBalancesFetched).toBe(false);
         expect(epoch.rewardsFetched).toBe(false);
         expect(epoch.committeesFetched).toBe(false);
-        expect(epoch.slotsFetched).toBe(false);
+        expect(epoch.allSlotsProcessed).toBe(false);
         expect(epoch.syncCommitteesFetched).toBe(false);
       });
     });

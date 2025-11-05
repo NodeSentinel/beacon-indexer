@@ -53,7 +53,7 @@ describe('Slot Processor E2E Tests', () => {
     });
 
     await prisma.committee.deleteMany();
-    await prisma.slotProcessingData.deleteMany();
+    await prisma.slotProcessedData.deleteMany();
     await prisma.slot.deleteMany();
   });
 
@@ -69,12 +69,12 @@ describe('Slot Processor E2E Tests', () => {
 
     beforeEach(async () => {
       // Clean up database
-      await prisma.hourlyValidatorStats.deleteMany();
-      await prisma.hourlyValidatorData.deleteMany();
-      await prisma.committee.deleteMany();
-      await prisma.slotProcessingData.deleteMany();
-      await prisma.slot.deleteMany();
       await prisma.validator.deleteMany();
+      await prisma.slot.deleteMany();
+      await prisma.slotProcessedData.deleteMany();
+      await prisma.committee.deleteMany();
+      await prisma.hourlyValidatorStats.deleteMany();
+      await prisma.syncCommitteeRewards.deleteMany();
 
       // Create mock beacon client
       mockBeaconClient = {
@@ -109,15 +109,12 @@ describe('Slot Processor E2E Tests', () => {
       ]);
     });
 
-    it('should skip processing if sync committee rewards already processed', async () => {
+    it('should skip processing if sync committee rewards already fetched', async () => {
       // mock beaconClient.getSyncCommitteeRewards
       mockBeaconClient.getSyncCommitteeRewards.mockResolvedValueOnce(rewardsSyncCommittee24497230);
 
-      // Pre-create slot with syncRewardsProcessed = true
-      await slotStorage.createSlotProcessingData({
-        slot: 24497230,
-        syncRewardsProcessed: true,
-      });
+      // Pre-create slot with syncRewardsFetched = true
+      await slotStorage.updateSlotFlags(24497230, { syncRewardsFetched: true });
 
       // Try to process (should skip due to existing flag)
       await slotControllerWithMock.fetchSyncCommitteeRewards(24497230, ['mocked', 'list']);
@@ -134,43 +131,34 @@ describe('Slot Processor E2E Tests', () => {
         mockMissedSyncCommitteeRewards,
       );
 
+      // Spy on processSyncCommitteeRewardsAndAggregate to verify it's NOT called for missed slots
+      const processSpy = vi.spyOn(slotStorage, 'processSyncCommitteeRewardsAndAggregate');
+
       // Process slot 24497230
       await slotControllerWithMock.fetchSyncCommitteeRewards(24497230, ['mocked', 'list']);
 
-      // Verify slot processing data was updated (even for missed slots)
-      const slot = await slotStorage.getSlot(24497230);
-      expect(slot?.processingData?.syncRewardsProcessed).toBe(true);
+      // Verify slot flag was updated (even for missed slots)
+      const slot = await slotStorage.getSlotWithoutProcessedData(24497230);
+      expect(slot?.syncRewardsFetched).toBe(true);
+
+      // Verify processSyncCommitteeRewardsAndAggregate was NOT called for missed slot
+      expect(processSpy).not.toHaveBeenCalled();
+
+      processSpy.mockRestore();
     });
 
-    it('should process sync committee rewards and verify HourlyValidatorData and HourlyValidatorStats', async () => {
+    it('should process sync committee rewards and verify syncCommitteeRewards table and HourlyValidatorStats', async () => {
       // Calculate datetime for slots (both should be in the same hour)
       const slot24497230Timestamp = beaconTime.getTimestampFromSlotNumber(24497230);
       const datetime24497230 = getUTCDatetimeRoundedToHour(slot24497230Timestamp);
 
       // Initialize existing values for multiple validators to test aggregation
-      await slotStorage.createTestHourlyValidatorData({
-        datetime: datetime24497230,
-        validatorIndex: 458175,
-        attestations: '',
-        syncCommitteeRewards: '',
-        proposedBlocksRewards: '',
-        epochRewards: '',
-      });
       await slotStorage.createTestHourlyValidatorStats({
         datetime: datetime24497230,
         validatorIndex: 458175,
         clRewards: BigInt(10000),
         clMissedRewards: BigInt(0),
         attestationsCount: null,
-      });
-
-      await slotStorage.createTestHourlyValidatorData({
-        datetime: datetime24497230,
-        validatorIndex: 272088,
-        attestations: '',
-        syncCommitteeRewards: '',
-        proposedBlocksRewards: '',
-        epochRewards: '',
       });
       await slotStorage.createTestHourlyValidatorStats({
         datetime: datetime24497230,
@@ -180,40 +168,38 @@ describe('Slot Processor E2E Tests', () => {
         attestationsCount: null,
       });
 
-      // Create slot processing data for both slots
-      await slotStorage.createSlotProcessingData({
-        slot: 24497230,
-      });
-      await slotStorage.createSlotProcessingData({
-        slot: 24497231,
-      });
-
       // Process slot 24497230
       mockBeaconClient.getSyncCommitteeRewards.mockResolvedValueOnce(rewardsSyncCommittee24497230);
       await slotControllerWithMock.fetchSyncCommitteeRewards(24497230, ['mocked', 'list']);
 
-      // Verify slot processing data was updated
-      const slotData24497230 = await slotStorage.getSlot(24497230);
-      expect(slotData24497230?.processingData?.syncRewardsProcessed).toBe(true);
+      // Verify slot flag was updated
+      const slotData24497230 = await slotStorage.getSlotWithoutProcessedData(24497230);
+      expect(slotData24497230?.syncRewardsFetched).toBe(true);
 
       // Process slot 24497231
       mockBeaconClient.getSyncCommitteeRewards.mockResolvedValueOnce(rewardsSyncCommittee24497231);
       await slotControllerWithMock.fetchSyncCommitteeRewards(24497231, ['mocked', 'list']);
 
-      const slotData24497231 = await slotStorage.getSlot(24497231);
-      expect(slotData24497231?.processingData?.syncRewardsProcessed).toBe(true);
+      const slotData24497231 = await slotStorage.getSlotWithoutProcessedData(24497231);
+      expect(slotData24497231?.syncRewardsFetched).toBe(true);
 
       // ------------------------------------------------------------
       // Validator 458175
       // ------------------------------------------------------------
-      const hourlyData458175 = await slotStorage.getHourlyValidatorDataForValidator(
+      // Get sync committee rewards from syncCommitteeRewards table
+      const syncRewards458175 = await slotStorage.getSyncCommitteeRewardsForValidatorInSlots(
         458175,
-        datetime24497230,
+        [24497230, 24497231],
       );
-      expect(hourlyData458175).toBeDefined();
+      expect(syncRewards458175).toBeDefined();
+      expect(syncRewards458175.length).toBe(2);
       // Validator 458175 appears in both slots with reward 10437 each
-      // Expected format: '24497230:10437,24497231:10437,' (with trailing comma)
-      expect(hourlyData458175?.syncCommitteeRewards).toBe('24497230:10437,24497231:10437,');
+      expect(
+        syncRewards458175.find((r) => r.slot === 24497230)?.syncCommitteeReward.toString(),
+      ).toBe('10437');
+      expect(
+        syncRewards458175.find((r) => r.slot === 24497231)?.syncCommitteeReward.toString(),
+      ).toBe('10437');
 
       const hourlyStats458175 = await slotStorage.getHourlyValidatorStatsForValidator(
         458175,
@@ -226,13 +212,20 @@ describe('Slot Processor E2E Tests', () => {
       // ------------------------------------------------------------
       // Validator 272088
       // ------------------------------------------------------------
-      const hourlyData272088 = await slotStorage.getHourlyValidatorDataForValidator(
+      // Get sync committee rewards from syncCommitteeRewards table
+      const syncRewards272088 = await slotStorage.getSyncCommitteeRewardsForValidatorInSlots(
         272088,
-        datetime24497230,
+        [24497230, 24497231],
       );
-      expect(hourlyData272088).toBeDefined();
+      expect(syncRewards272088).toBeDefined();
+      expect(syncRewards272088.length).toBe(2);
       // Validator 272088 appears in both slots with reward 10437 each
-      expect(hourlyData272088?.syncCommitteeRewards).toBe('24497230:10437,24497231:10437,');
+      expect(
+        syncRewards272088.find((r) => r.slot === 24497230)?.syncCommitteeReward.toString(),
+      ).toBe('10437');
+      expect(
+        syncRewards272088.find((r) => r.slot === 24497231)?.syncCommitteeReward.toString(),
+      ).toBe('10437');
 
       const hourlyStats272088 = await slotStorage.getHourlyValidatorStatsForValidator(
         272088,
@@ -253,9 +246,8 @@ describe('Slot Processor E2E Tests', () => {
     beforeEach(async () => {
       // Clean up database
       await prisma.hourlyValidatorStats.deleteMany();
-      await prisma.hourlyValidatorData.deleteMany();
       await prisma.committee.deleteMany();
-      await prisma.slotProcessingData.deleteMany();
+      await prisma.slotProcessedData.deleteMany();
       await prisma.slot.deleteMany();
       await prisma.validator.deleteMany();
 
@@ -294,12 +286,9 @@ describe('Slot Processor E2E Tests', () => {
       ]);
     });
 
-    it('should skip processing if block rewards already processed', async () => {
-      // Pre-create slot with blockRewardsProcessed = true
-      await slotStorage.createSlotProcessingData({
-        slot: 24497230,
-        blockRewardsProcessed: true,
-      });
+    it('should skip processing if block rewards already fetched', async () => {
+      // Pre-create slot with blockRewardsFetched = true
+      await slotStorage.updateSlotFlags(24497230, { blockRewardsFetched: true });
 
       mockBeaconClient.getBlockRewards.mockResolvedValueOnce({});
 
@@ -314,25 +303,28 @@ describe('Slot Processor E2E Tests', () => {
       // Create slot for missed block test
       await slotStorage.createTestSlots([{ slot: 24519345, processed: false }]);
 
-      // Create slot processing data
-      await slotStorage.createSlotProcessingData({
-        slot: 24519345,
-      });
-
       // Mock block rewards for missed slot
       const mockMissedBlockRewards = 'SLOT MISSED';
 
       mockBeaconClient.getBlockRewards.mockResolvedValueOnce(mockMissedBlockRewards);
 
+      // Spy on processBlockRewardsAndAggregate to verify it's NOT called for missed blocks
+      const processSpy = vi.spyOn(slotStorage, 'processBlockRewardsAndAggregate');
+
       // Process slot 24519345
       await slotControllerWithMock.fetchBlockRewards(24519345);
 
-      // Verify slot processing data was updated (even for missed blocks)
-      const slot = await slotStorage.getSlot(24519345);
-      expect(slot?.processingData?.blockRewardsProcessed).toBe(true);
+      // Verify slot flag was updated (even for missed blocks)
+      const slot = await slotStorage.getSlotWithoutProcessedData(24519345);
+      expect(slot?.blockRewardsFetched).toBe(true);
+
+      // Verify processBlockRewardsAndAggregate was NOT called for missed block
+      expect(processSpy).not.toHaveBeenCalled();
+
+      processSpy.mockRestore();
     });
 
-    it('should process block rewards and verify HourlyValidatorData and HourlyValidatorStats', async () => {
+    it('should process block rewards and verify Slot table and HourlyValidatorStats', async () => {
       // Calculate datetime for slots
       const slot24519343Timestamp = beaconTime.getTimestampFromSlotNumber(24519343);
       const datetime24519343 = getUTCDatetimeRoundedToHour(slot24519343Timestamp);
@@ -340,14 +332,6 @@ describe('Slot Processor E2E Tests', () => {
       const datetime24519344 = getUTCDatetimeRoundedToHour(slot24519344Timestamp);
 
       // Initialize existing values for validator 536011 to test aggregation
-      await slotStorage.createTestHourlyValidatorData({
-        datetime: datetime24519343,
-        validatorIndex: 536011,
-        attestations: '',
-        syncCommitteeRewards: '',
-        proposedBlocksRewards: '',
-        epochRewards: '',
-      });
       await slotStorage.createTestHourlyValidatorStats({
         datetime: datetime24519343,
         validatorIndex: 536011,
@@ -358,40 +342,35 @@ describe('Slot Processor E2E Tests', () => {
 
       // For validator 550617, no initial values (starts from scratch)
 
-      // Create slot processing data for both slots
-      await slotStorage.createSlotProcessingData({
-        slot: 24519343,
-      });
-      await slotStorage.createSlotProcessingData({
-        slot: 24519344,
-      });
-
       // Process slot 24519343
       mockBeaconClient.getBlockRewards.mockResolvedValueOnce(blockRewards24519343);
       await slotControllerWithMock.fetchBlockRewards(24519343);
 
-      // Verify slot processing data was updated
-      const slotData24519343 = await slotStorage.getSlot(24519343);
-      expect(slotData24519343?.processingData?.blockRewardsProcessed).toBe(true);
-      expect(slotData24519343?.proposer).toBe(536011);
+      // Verify slot flag and proposer were updated
+      const slotData24519343 = await slotStorage.getSlotWithoutProcessedData(24519343);
+      expect(slotData24519343?.blockRewardsFetched).toBe(true);
+      expect(slotData24519343?.proposerIndex).toBe(536011);
+      // Verify consensus reward is stored in Slot
+      expect(slotData24519343?.consensusReward?.toString()).toBe('20546222');
 
       // Process slot 24519344
       mockBeaconClient.getBlockRewards.mockResolvedValueOnce(blockRewards24519344);
       await slotControllerWithMock.fetchBlockRewards(24519344);
 
-      const slotData24519344 = await slotStorage.getSlot(24519344);
-      expect(slotData24519344?.processingData?.blockRewardsProcessed).toBe(true);
-      expect(slotData24519344?.proposer).toBe(550617);
+      const slotData24519344 = await slotStorage.getSlotWithoutProcessedData(24519344);
+      expect(slotData24519344?.blockRewardsFetched).toBe(true);
+      expect(slotData24519344?.proposerIndex).toBe(550617);
+      // Verify consensus reward is stored in Slot
+      expect(slotData24519344?.consensusReward?.toString()).toBe('20990521');
 
       // ------------------------------------------------------------
       // Validator 536011 (Proposer slot 24519343)
       // ------------------------------------------------------------
-      const hourlyData536011 = await slotStorage.getHourlyValidatorDataForValidator(
-        536011,
-        datetime24519343,
-      );
-      expect(hourlyData536011).toBeDefined();
-      expect(hourlyData536011?.proposedBlocksRewards).toBe('24519343:20546222,');
+      // Get slot directly by slot number
+      const slot536011 = await slotStorage.getSlotWithoutProcessedData(24519343);
+      expect(slot536011).toBeDefined();
+      expect(slot536011?.proposerIndex).toBe(536011);
+      expect(slot536011?.consensusReward?.toString()).toBe('20546222');
 
       const hourlyStats536011 = await slotStorage.getHourlyValidatorStatsForValidator(
         536011,
@@ -404,12 +383,11 @@ describe('Slot Processor E2E Tests', () => {
       // ------------------------------------------------------------
       // Validator 550617 (Proposer slot 24519344)
       // ------------------------------------------------------------
-      const hourlyData550617 = await slotStorage.getHourlyValidatorDataForValidator(
-        550617,
-        datetime24519344,
-      );
-      expect(hourlyData550617).toBeDefined();
-      expect(hourlyData550617?.proposedBlocksRewards).toBe('24519344:20990521,');
+      // Get slot directly by slot number
+      const slot550617 = await slotStorage.getSlotWithoutProcessedData(24519344);
+      expect(slot550617).toBeDefined();
+      expect(slot550617?.proposerIndex).toBe(550617);
+      expect(slot550617?.consensusReward?.toString()).toBe('20990521');
 
       const hourlyStats550617 = await slotStorage.getHourlyValidatorStatsForValidator(
         550617,

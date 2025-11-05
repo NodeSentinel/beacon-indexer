@@ -141,17 +141,17 @@ export const fetchBlockAndSyncRewards = async (
         });
       }
 
-      // Update slot processing data status
-      await tx.slotProcessingData.upsert({
+      // Update slot flags for block and sync rewards
+      await tx.slot.upsert({
         where: { slot },
         update: {
-          blockRewardsProcessed: true,
-          syncRewardsProcessed: true,
+          blockRewardsFetched: true,
+          syncRewardsFetched: true,
         },
         create: {
           slot,
-          blockRewardsProcessed: true,
-          syncRewardsProcessed: true,
+          blockRewardsFetched: true,
+          syncRewardsFetched: true,
         },
       });
     },

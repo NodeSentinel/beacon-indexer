@@ -131,7 +131,6 @@ describe('Epoch Processor E2E Tests', () => {
     beforeEach(async () => {
       // Clean up database
       await prisma.hourlyValidatorStats.deleteMany();
-      await prisma.hourlyValidatorData.deleteMany();
       await prisma.validator.deleteMany();
       await prisma.epoch.deleteMany();
 
@@ -181,11 +180,13 @@ describe('Epoch Processor E2E Tests', () => {
       // Expected datetime for both epochs (should be 2025-10-21T14:00:00.000Z)
       const expectedDatetime = new Date('2025-10-21T14:00:00.000Z');
 
-      // Fetch validators data and stas from  database
+      // Fetch validators data and stats from database
       const validatorIndexes = [549417, 549418, 549419];
-      const dbHourlyData = await prisma.hourlyValidatorData.findMany({
+      // Epoch rewards are now stored in epochRewards table
+      const dbEpochRewards = await prisma.epochRewards.findMany({
         where: {
           validatorIndex: { in: validatorIndexes },
+          epoch: { in: [1525790, 1525791] },
         },
       });
       const dbHourlyStats = await prisma.hourlyValidatorStats.findMany({
@@ -194,28 +195,37 @@ describe('Epoch Processor E2E Tests', () => {
         },
       });
 
-      expect(dbHourlyData.length).toBeGreaterThan(0);
+      expect(dbEpochRewards.length).toBeGreaterThan(0);
 
-      // Verify validator 549417
-      const data549417 = dbHourlyData.find((d) => d.validatorIndex === 549417);
-      expect(data549417!.datetime.toISOString()).toBe(expectedDatetime.toISOString());
-      expect(data549417!.epochRewards).toBe(
-        '1525790:87524:163524:87929:0:0:0:0:0,1525791:87314:163553:87978:0:0:0:0:0,',
-      );
+      // Verify validator 549417 - epoch rewards stored in epochRewards table
+      const rewards549417 = dbEpochRewards.filter((r) => r.validatorIndex === 549417);
+      expect(rewards549417.length).toBe(2); // Should have rewards for both epochs
+      const epoch1525790Reward549417 = rewards549417.find((r) => r.epoch === 1525790);
+      const epoch1525791Reward549417 = rewards549417.find((r) => r.epoch === 1525791);
+      expect(epoch1525790Reward549417).toBeDefined();
+      expect(epoch1525791Reward549417).toBeDefined();
+      // Verify specific values: 87524:163524:87929:0
+      expect(epoch1525790Reward549417!.head.toString()).toBe('87524');
+      expect(epoch1525790Reward549417!.target.toString()).toBe('163524');
+      expect(epoch1525790Reward549417!.source.toString()).toBe('87929');
 
-      // Verify validator 549418
-      const data549418 = dbHourlyData.find((d) => d.validatorIndex === 549418);
-      expect(data549418!.datetime.toISOString()).toBe(expectedDatetime.toISOString());
-      expect(data549418!.epochRewards).toBe(
-        '1525790:87524:163524:87929:0:0:0:0:0,1525791:87314:163553:87978:0:0:0:0:0,',
-      );
+      // Verify validator 549418 - same rewards as 549417
+      const rewards549418 = dbEpochRewards.filter((r) => r.validatorIndex === 549418);
+      expect(rewards549418.length).toBe(2);
+      const epoch1525790Reward549418 = rewards549418.find((r) => r.epoch === 1525790);
+      expect(epoch1525790Reward549418!.head.toString()).toBe('87524');
+      expect(epoch1525790Reward549418!.target.toString()).toBe('163524');
+      expect(epoch1525790Reward549418!.source.toString()).toBe('87929');
 
       // Verify validator 549419
-      const data549419 = dbHourlyData.find((d) => d.validatorIndex === 549419);
-      expect(data549419!.datetime.toISOString()).toBe(expectedDatetime.toISOString());
-      expect(data549419!.epochRewards).toBe(
-        '1525790:37711:70458:37886:0:0:0:0:0,1525791:37621:70470:37907:0:0:0:0:0,',
-      );
+      const rewards549419 = dbEpochRewards.filter((r) => r.validatorIndex === 549419);
+      expect(rewards549419.length).toBe(2);
+      const epoch1525790Reward549419 = rewards549419.find((r) => r.epoch === 1525790);
+      const epoch1525791Reward549419 = rewards549419.find((r) => r.epoch === 1525791);
+      // Verify specific values: 37711:70458:37886:0 for epoch 1525790
+      expect(epoch1525790Reward549419!.head.toString()).toBe('37711');
+      expect(epoch1525790Reward549419!.target.toString()).toBe('70458');
+      expect(epoch1525790Reward549419!.source.toString()).toBe('37886');
 
       expect(dbHourlyStats.length).toBeGreaterThan(0);
 
@@ -248,9 +258,8 @@ describe('Epoch Processor E2E Tests', () => {
 
       beforeEach(async () => {
         // Clean up database (order matters due to foreign key constraints)
-        await prisma.hourlyValidatorData.deleteMany();
         await prisma.committee.deleteMany();
-        await prisma.slotProcessingData.deleteMany();
+        await prisma.slotProcessedData.deleteMany();
         await prisma.slot.deleteMany();
         await prisma.epoch.deleteMany();
 
@@ -293,9 +302,8 @@ describe('Epoch Processor E2E Tests', () => {
       beforeAll(async () => {
         // This runs once before all tests in this describe block
         // Clean up database (order matters due to foreign key constraints)
-        await prisma.hourlyValidatorData.deleteMany();
         await prisma.committee.deleteMany();
-        await prisma.slotProcessingData.deleteMany();
+        await prisma.slotProcessedData.deleteMany();
         await prisma.slot.deleteMany();
         await prisma.epoch.deleteMany();
 
@@ -481,22 +489,18 @@ describe('Epoch Processor E2E Tests', () => {
           },
         ];
 
-        // Verify each validator has the correct slot in HourlyValidatorData
+        // Verify each validator has the correct slot in Committee table
         for (const testValidator of testValidators) {
-          const hourlyData = await prisma.hourlyValidatorData.findFirst({
+          const committee = await prisma.committee.findFirst({
             where: {
               validatorIndex: testValidator.validatorIndex,
-              datetime: testValidator.expectedDatetime,
+              slot: testValidator.expectedSlot,
             },
           });
 
-          expect(hourlyData).toBeTruthy();
-          expect(hourlyData!.datetime.toISOString()).toBe(
-            testValidator.expectedDatetime.toISOString(),
-          );
-
-          // Verify the slot is correctly stored with comma at the end
-          expect(hourlyData!.slots).toBe(`${testValidator.expectedSlot},`);
+          expect(committee).toBeTruthy();
+          expect(committee!.slot).toBe(testValidator.expectedSlot);
+          expect(committee!.validatorIndex).toBe(testValidator.validatorIndex);
         }
       });
     });
@@ -617,7 +621,7 @@ describe('Epoch Processor E2E Tests', () => {
 
     beforeEach(async () => {
       // Clean up database
-      await prisma.slotProcessingData.deleteMany();
+      await prisma.slotProcessedData.deleteMany();
       await prisma.slot.deleteMany();
       await prisma.epoch.deleteMany();
 
@@ -681,7 +685,7 @@ describe('Epoch Processor E2E Tests', () => {
         const validatorIndex = Number(mockDuty.validator_index);
         const dbSlot = dbSlots.find((s) => s.slot === slotNumber);
         expect(dbSlot).toBeDefined();
-        expect(dbSlot!.proposer).toBe(validatorIndex);
+        expect(dbSlot!.proposerIndex).toBe(validatorIndex);
       }
     });
   });

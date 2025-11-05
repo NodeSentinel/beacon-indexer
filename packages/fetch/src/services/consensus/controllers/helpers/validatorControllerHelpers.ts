@@ -22,6 +22,7 @@ export abstract class ValidatorControllerHelpers {
       status: VALIDATOR_STATUS[validatorData.status as keyof typeof VALIDATOR_STATUS],
       balance: BigInt(validatorData.balance),
       effectiveBalance: BigInt(validatorData.validator.effective_balance),
+      pubkey: null,
     };
   }
 }

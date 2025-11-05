@@ -1,4 +1,43 @@
-import type { SyncCommitteeRewards, BlockRewards } from '@/src/services/consensus/types.js';
+import type {
+  SyncCommitteeRewards,
+  BlockRewards,
+  Attestation,
+} from '@/src/services/consensus/types.js';
+import {
+  convertVariableBitsToString,
+  convertFixedBitsToString,
+  convertHexStringToByteArray,
+} from '@/src/services/consensus/utils/bitlist.js';
+
+/**
+ * Committee update interface for attestation processing
+ */
+interface CommitteeUpdate {
+  slot: number;
+  index: number;
+  aggregationBitsIndex: number;
+  attestationDelay: number;
+  // validatorIndex is not included here as it matches the old implementation
+  // It can be calculated later if needed
+}
+
+/**
+ * Sync reward data item interface
+ */
+interface SyncRewardDataItem {
+  reward: string | number;
+  validator_index?: string;
+}
+
+/**
+ * Committee data interface for formatting
+ */
+interface CommitteeDataItem {
+  slot: number;
+  index: number;
+  aggregationBitsIndex: number;
+  attestationDelay: number;
+}
 
 /**
  * SlotControllerHelpers - Helper methods for slot processing
@@ -41,46 +80,76 @@ export class SlotControllerHelpers {
    */
   protected processAttestation(
     slotNumber: number,
-    attestation: any,
+    attestation: Attestation,
     slotCommitteesValidatorsAmounts: Record<number, number[]>,
-  ) {
-    const attestationSlot = parseInt(attestation.data.slot);
-    const committeeIndex = parseInt(attestation.data.index);
-    const aggregationBits = attestation.aggregation_bits;
-    const committeeBits = aggregationBits.split('').map((bit: string) => bit === '1');
+  ): CommitteeUpdate[] {
+    const slotFromAttestations = Number(attestation.data.slot);
 
-    const updates = [];
-    const attestationDelay = slotNumber - attestationSlot;
+    // aggregation_bits come in a hexadecimal format. we convert it to a binary string.
+    // each bit represents if the validator on a committee attested or not.
+    // First bit represents the first validator in the committee.
+    const aggregationBits = convertVariableBitsToString(
+      convertHexStringToByteArray(attestation.aggregation_bits),
+    );
 
+    // committee_bits also comes in a hexadecimal format. we convert it to a binary string.
+    // each bit represents if the bits bring data for a committee or not.
+    const committeeBits = convertFixedBitsToString(
+      convertHexStringToByteArray(attestation.committee_bits),
+    );
+
+    // we need to know how many validators are in the committee for the slot.
+    // so we can extract the correct bits from the aggregation_bits.
+    const slotCommitteeValidatorsAmount = slotCommitteesValidatorsAmounts[slotFromAttestations];
+    if (!slotCommitteeValidatorsAmount) {
+      throw new Error(`No validator count found for slot ${slotFromAttestations}`);
+    }
+
+    const attestationsWithDelays: CommitteeUpdate[] = [];
+
+    // Process each committee
+    // Note: aggregation_bits only contains bits from committees that participate
+    // (those with '1' in committee_bits). We iterate through all committee bits,
+    // but only advance aggregationBitsOffset when we process a participating committee.
+    let aggregationBitsOffset = 0;
     for (let committeeBit = 0; committeeBit < committeeBits.length; committeeBit++) {
-      if (committeeBits[committeeBit]) {
-        const validatorIndex = this.calculateValidatorIndex(
-          attestationSlot,
-          committeeIndex,
-          committeeBit,
-          slotCommitteesValidatorsAmounts,
-        );
+      // Skip committees that didn't contribute to aggregation_bits
+      if (committeeBits[committeeBit] === '0') {
+        continue;
+      }
 
-        if (validatorIndex !== null) {
-          updates.push({
-            slot: attestationSlot,
-            index: committeeIndex,
-            aggregationBitsIndex: committeeBit,
-            attestationDelay,
-            validatorIndex,
+      const validatorsInCommittee = slotCommitteeValidatorsAmount[committeeBit];
+
+      // Get the section of aggregation_bits for this committee
+      const committeeAggregationBits = aggregationBits.slice(
+        aggregationBitsOffset,
+        aggregationBitsOffset + validatorsInCommittee,
+      );
+
+      // Process each validator's attestation in this committee
+      for (let i = 0; i < committeeAggregationBits.length; i++) {
+        if (committeeAggregationBits[i] === '1') {
+          attestationsWithDelays.push({
+            slot: slotFromAttestations,
+            index: committeeBit,
+            aggregationBitsIndex: i,
+            attestationDelay: slotNumber - slotFromAttestations - 1,
           });
         }
       }
+
+      // Advance the offset after processing this committee
+      aggregationBitsOffset += validatorsInCommittee;
     }
 
-    return updates;
+    return attestationsWithDelays;
   }
 
   /**
    * Remove duplicate attestations and keep the one with minimum delay
    */
-  protected deduplicateAttestations(attestations: any[]) {
-    const uniqueAttestations = new Map<string, any>();
+  protected deduplicateAttestations(attestations: CommitteeUpdate[]): CommitteeUpdate[] {
+    const uniqueAttestations = new Map<string, CommitteeUpdate>();
 
     for (const attestation of attestations) {
       const key = `${attestation.slot}-${attestation.index}-${attestation.aggregationBitsIndex}`;
@@ -95,16 +164,9 @@ export class SlotControllerHelpers {
   }
 
   /**
-   * Filter attestations by oldest lookback slot
-   */
-  protected filterAttestationsByLookbackSlot(attestations: any[], oldestLookbackSlot: number) {
-    return attestations.filter((attestation) => +attestation.data.slot >= oldestLookbackSlot);
-  }
-
-  /**
    * Calculate total sync rewards from rewards data
    */
-  protected calculateTotalSyncRewards(syncRewardsData: any[]): number {
+  protected calculateTotalSyncRewards(syncRewardsData: SyncRewardDataItem[]): number {
     return syncRewardsData.reduce((sum, reward) => sum + Number(reward.reward), 0);
   }
 
@@ -178,7 +240,12 @@ export class SlotControllerHelpers {
   /**
    * Format committee data for storage
    */
-  protected formatCommitteeData(committees: any[]) {
+  protected formatCommitteeData(committees: CommitteeDataItem[]): Array<{
+    slot: number;
+    index: number;
+    aggregationBitsIndex: number;
+    attestationDelay: number;
+  }> {
     return committees.map((committee) => ({
       slot: committee.slot,
       index: committee.index,
