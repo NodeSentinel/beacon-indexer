@@ -10,23 +10,23 @@ function startOfUtcDay(d: Dateish) {
 }
 
 /**
- * GlobalStatsController - capa de negocio para métricas diarias globales
- * Recibe storage por inyección, como el resto de controllers.
+ * GlobalStatsController - business layer for daily global metrics
+ * Receives storage via injection, like the other controllers.
  */
 export class GlobalStatsController {
   constructor(private readonly storage: GlobalStatsStorage) {}
 
   /**
-   * Agrega y persiste:
+   * Aggregates and persists:
    *  - Active validators (pending_queued, active_ongoing, active_exiting)
-   *  - Average balances sobre active_ongoing
+   *  - Average balances over active_ongoing
    *
-   * Devuelve un snapshot consolidado del día.
+   * Returns a consolidated snapshot of the day.
    */
   async runDailyAggregation(when: Dateish = new Date()) {
     const dayUtc = startOfUtcDay(when);
 
-    // 1) Conteos por estado
+    // 1) Counts by status
     const [pendingQueued, activeOngoing, activeExiting] = await Promise.all([
       this.storage.countValidatorsByStatus(VALIDATOR_STATUS.pending_queued),
       this.storage.countValidatorsByStatus(VALIDATOR_STATUS.active_ongoing),
@@ -39,14 +39,14 @@ export class GlobalStatsController {
       activeExiting,
     });
 
-    // 2) Promedios sobre activos en curso
+    // 2) Averages over ongoing-active validators
     const averages = await this.storage.computeAverages({
       status: VALIDATOR_STATUS.active_ongoing,
     });
 
     await this.storage.upsertDailyAverageBalances(dayUtc, averages);
 
-    // 3) Snapshot (útil para logs/tests)
+    // 3) Snapshot (useful for logs/tests)
     return {
       date: dayUtc,
       activeValidators: { pendingQueued, activeOngoing, activeExiting },

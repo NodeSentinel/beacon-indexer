@@ -264,7 +264,7 @@ model BeaconDailyActiveValidators {
 }
 
 /// Global daily average balances for *active ongoing* validators (gwei)
-/// NOTE: Guardamos en BigInt (entero) redondeando hacia abajo.
+/// NOTE: We store as a BigInt (integer), rounding down.
 model BeaconDailyAverageBalances {
   date             DateTime @id @db.Date
   balance          BigInt?  @map("balance")            // avg(balance) en gwei

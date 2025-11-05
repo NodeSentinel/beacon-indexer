@@ -4,8 +4,8 @@ import { GlobalStatsController } from '../controllers/globalStats.js';
 import { GlobalStatsStorage } from '../storage/globalStats.js';
 
 /**
- * ÚNICO trigger exportado para disparar la agregación diaria.
- * Mantiene el patrón de dependencias (prisma -> storage -> controller).
+ * Single exported trigger to fire the daily aggregation.
+ * Keeps the dependency pattern (prisma -> storage -> controller).
  */
 export async function triggerBeaconDailyAggregation(when: Date = new Date()) {
   const prisma = new PrismaClient();

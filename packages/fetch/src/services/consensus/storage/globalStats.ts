@@ -12,8 +12,8 @@ export type DailyAverages = {
 };
 
 /**
- * GlobalStatsStorage - capa de persistencia para métricas globales diarias
- * Solo lógica de acceso a datos; nada de negocio.
+ * GlobalStatsStorage - persistence layer for daily global metrics
+ * Data-access logic only; no business logic.
  */
 export class GlobalStatsStorage {
   constructor(private readonly prisma: PrismaClient) {}
@@ -23,7 +23,7 @@ export class GlobalStatsStorage {
   }
 
   /**
-   * Suma y cuenta validadores con `where`, y devuelve promedios (floor) como bigint.
+   * Sums and counts validators with `where`, and returns averages (floored) as bigint.
    */
   async computeAverages(where: Prisma.ValidatorWhereInput): Promise<DailyAverages> {
     const agg = await this.prisma.validator.aggregate({
