@@ -133,7 +133,7 @@ export const epochOrchestratorMachine = setup({
                   validatorsBalancesFetched: context.epochData.validatorsBalancesFetched,
                   rewardsFetched: context.epochData.rewardsFetched,
                   committeesFetched: context.epochData.committeesFetched,
-                  slotsFetched: context.epochData.slotsFetched,
+                  slotsFetched: context.epochData.allSlotsProcessed,
                   syncCommitteesFetched: context.epochData.syncCommitteesFetched,
                   validatorsActivationFetched: context.epochData.validatorsActivationFetched,
                 },

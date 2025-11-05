@@ -73,7 +73,6 @@ export class EpochStorage {
       validatorsBalancesFetched: false,
       rewardsFetched: false,
       committeesFetched: false,
-      slotsFetched: false,
       syncCommitteesFetched: false,
     }));
 
@@ -159,18 +158,54 @@ export class EpochStorage {
     await this.prisma.$transaction(
       async (tx) => {
         // Process rewards in batches to avoid memory issues
+        // Note: epoch rewards are now stored in epochRewards table, not hourly_validator_data
+        // The rewards string format needs to be parsed to extract individual values
         const batchSize = 50_000;
         const batches = chunk(processedRewards, batchSize);
         for (const batch of batches) {
-          // Update HourlyValidatorData with pre-processed rewards string
+          // Save epoch rewards to epochRewards table
           for (const validator of batch) {
-            // Use raw SQL for proper string concatenation with CASE statement
-            await tx.$executeRaw`
-              INSERT INTO hourly_validator_data (datetime, validator_index, attestations, sync_committee_rewards, epoch_rewards)
-              VALUES (${datetime}::timestamp, ${validator.validatorIndex}, '', '', CONCAT(${validator.rewards}, ','))
-              ON CONFLICT (datetime, validator_index) DO UPDATE SET
-                epoch_rewards = CONCAT(hourly_validator_data.epoch_rewards, EXCLUDED.epoch_rewards)
-            `;
+            // Parse rewards string: 'epoch:head:target:source:inactivity:missedHead:missedTarget:missedSource:missedInactivity'
+            const rewardsParts = validator.rewards.split(':');
+            const head = BigInt(rewardsParts[1] || '0');
+            const target = BigInt(rewardsParts[2] || '0');
+            const source = BigInt(rewardsParts[3] || '0');
+            const inactivity = BigInt(rewardsParts[4] || '0');
+            const missedHead = BigInt(rewardsParts[5] || '0');
+            const missedTarget = BigInt(rewardsParts[6] || '0');
+            const missedSource = BigInt(rewardsParts[7] || '0');
+            const missedInactivity = BigInt(rewardsParts[8] || '0');
+
+            await tx.epochRewards.upsert({
+              where: {
+                epoch_validatorIndex: {
+                  epoch,
+                  validatorIndex: validator.validatorIndex,
+                },
+              },
+              create: {
+                epoch,
+                validatorIndex: validator.validatorIndex,
+                head,
+                target,
+                source,
+                inactivity,
+                missedHead,
+                missedTarget,
+                missedSource,
+                missedInactivity,
+              },
+              update: {
+                head,
+                target,
+                source,
+                inactivity,
+                missedHead,
+                missedTarget,
+                missedSource,
+                missedInactivity,
+              },
+            });
           }
         }
 
@@ -220,12 +255,12 @@ export class EpochStorage {
   ) {
     await this.prisma.$transaction(async (tx) => {
       await tx.$executeRaw`
-      INSERT INTO "slot" (slot, proposer)
+      INSERT INTO "slot" (slot, proposer_index)
       SELECT 
         unnest(${validatorProposerDuties.map((duty) => duty.slot)}::integer[]), 
         unnest(${validatorProposerDuties.map((duty) => duty.validatorIndex)}::integer[])
       ON CONFLICT (slot) DO UPDATE SET
-        "proposer" = EXCLUDED."proposer"
+        proposer_index = EXCLUDED.proposer_index
     `;
 
       await tx.epoch.update({
@@ -277,22 +312,9 @@ export class EpochStorage {
           })
           .join(',');
 
-        // Update HourlyValidatorData.slots
-        await tx.$executeRawUnsafe(`
-          INSERT INTO hourly_validator_data (datetime, validator_index, slots, attestations, sync_committee_rewards, proposed_blocks_rewards, epoch_rewards)
-          SELECT 
-            st.datetime,
-            c.validator_index,
-            CONCAT(c.slot::text, ',') as slots,
-            '' as attestations,
-            '' as sync_committee_rewards,
-            '' as proposed_blocks_rewards,
-            '' as epoch_rewards
-          FROM committee c
-          JOIN (VALUES ${slotTimestampValues}) AS st(slot, datetime) ON c.slot = st.slot
-          ON CONFLICT (datetime, validator_index) DO UPDATE SET
-            slots = CONCAT(hourly_validator_data.slots, EXCLUDED.slots)
-        `);
+        // Note: slots information is now stored in Committee table
+        // The slot field already exists in Committee, so no additional storage needed
+        // This was previously storing in hourly_validator_data which no longer exists
 
         // Update epoch status
         await tx.epoch.update({
@@ -318,42 +340,30 @@ export class EpochStorage {
       validator_aggregates: string[][];
     },
   ) {
-    await this.prisma.$transaction(
-      async (tx) => {
-        await tx.syncCommittee.upsert({
-          where: {
-            fromEpoch_toEpoch: {
-              fromEpoch,
-              toEpoch,
-            },
-          },
-          create: {
-            fromEpoch,
-            toEpoch,
-            validators: syncCommitteeData.validators,
-            validatorAggregates: syncCommitteeData.validator_aggregates,
-          },
-          update: {},
-        });
+    await this.prisma.$transaction(async (tx) => {
+      await tx.syncCommittee.create({
+        data: {
+          fromEpoch,
+          toEpoch,
+          validators: syncCommitteeData.validators,
+          validatorAggregates: syncCommitteeData.validator_aggregates,
+        },
+      });
 
-        await tx.epoch.update({
-          where: { epoch },
-          data: { syncCommitteesFetched: true },
-        });
-      },
-      {
-        timeout: ms('1m'),
-      },
-    );
+      await tx.epoch.update({
+        where: { epoch },
+        data: { syncCommitteesFetched: true },
+      });
+    });
   }
 
   /**
-   * Update the epoch's slotsFetched flag to true
+   * Update the epoch's allSlotsProcessed flag to true
    */
-  async updateSlotsFetched(epoch: number): Promise<{ success: boolean }> {
+  async setAllSlotsProcessed(epoch: number): Promise<{ success: boolean }> {
     await this.prisma.epoch.update({
       where: { epoch },
-      data: { slotsFetched: true },
+      data: { allSlotsProcessed: true },
     });
 
     return { success: true };
@@ -457,14 +467,7 @@ export class EpochStorage {
   async getUnprocessedCount() {
     return this.prisma.epoch.count({
       where: {
-        OR: [
-          { rewardsFetched: false },
-          { validatorsBalancesFetched: false },
-          { validatorProposerDutiesFetched: false },
-          { committeesFetched: false },
-          { slotsFetched: false },
-          { syncCommitteesFetched: false },
-        ],
+        processed: false,
       },
     });
   }
@@ -477,11 +480,6 @@ export class EpochStorage {
       where: {
         slot: { in: slots },
       },
-      select: {
-        slot: true,
-        proposer: true,
-      },
-      orderBy: [{ slot: 'asc' }],
     });
   }
 }

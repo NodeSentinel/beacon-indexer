@@ -73,54 +73,6 @@ export class SlotController extends SlotControllerHelpers {
   }
 
   /**
-   * Return the committee sizes for each slot in the beacon block data
-   *
-   * From the Beacon block data, collect unique `slot` values present in
-   * `attestations`, filter out old slots using `this.beaconTime.getLookbackSlot()`,
-   * then retrieve committee sizes for those slots from storage.
-   *
-   * Returns `Record<number, number[]>` where each key is a slot number and the value
-   * is an array where each index equals the `committeeIndex` for that slot. That is,
-   * `array[0]` is the size of slot.index 0, `array[1]` is the size of slot.index 1,
-   * and so on. The value at each position is the number of validators in that committee.
-   * Example: `{ 12345: [350, 349, ...] }` means slot 12345 has committee 0 with 350
-   * validators, committee 1 with 349 validators, etc.
-   */
-  async getCommitteeSizesForAttestations(beaconBlockData: Block) {
-    const attestations = beaconBlockData.data.message.body.attestations || [];
-
-    // get unique slots from attestations
-    let uniqueSlots = [...new Set(attestations.map((att) => Number(att.data.slot)))];
-
-    // filter out slots that are older than the lookback slot
-    uniqueSlots = uniqueSlots.filter(
-      (slot: unknown): slot is number =>
-        typeof slot === 'number' && slot >= this.beaconTime.getLookbackSlot(),
-    );
-
-    if (uniqueSlots.length === 0) {
-      throw new Error('No attestations found');
-    }
-
-    const committeesCountInSlot = await this.slotStorage.getCommitteeSizesForSlots(
-      uniqueSlots as number[],
-    );
-
-    const allSlotsHaveCounts = uniqueSlots.every((slot) => {
-      const counts = committeesCountInSlot[slot as number];
-      return counts && counts.length > 0;
-    });
-
-    if (!allSlotsHaveCounts) {
-      throw new Error(
-        `Not all slots have committee sizes for beacon block ${beaconBlockData.data.message.slot}`,
-      );
-    }
-
-    return committeesCountInSlot;
-  }
-
-  /**
    * Fetch and process execution layer rewards
    * TODO: Implement using fetch/src/services/execution/endpoints.ts
    * And move to block controller in service/execution
@@ -174,20 +126,13 @@ export class SlotController extends SlotControllerHelpers {
         processedRewards,
       );
     } else {
-      // Mark slot as processed even if no rewards (slot missed or no sync committee)
-      try {
-        await this.slotStorage.updateSlotProcessingData(slot, { syncRewardsProcessed: true });
-      } catch {
-        await this.slotStorage.createSlotProcessingData({
-          slot,
-          syncRewardsProcessed: true,
-        });
-      }
+      await this.slotStorage.updateSlotFlags(slot, { syncRewardsFetched: true });
     }
   }
 
   /**
    * Fetch and process block rewards for a slot
+   * These rewards are for the proposer of the block
    */
   async fetchBlockRewards(slot: number) {
     const isBlockRewardsFetched = await this.isBlockRewardsFetchedForSlot(slot);
@@ -213,56 +158,97 @@ export class SlotController extends SlotControllerHelpers {
         blockRewardData.blockReward,
       );
     } else {
-      // Mark slot as processed even if no block rewards (slot missed)
-      try {
-        await this.slotStorage.updateSlotProcessingData(slot, { blockRewardsProcessed: true });
-      } catch {
-        await this.slotStorage.createSlotProcessingData({
-          slot,
-          blockRewardsProcessed: true,
-        });
-      }
+      await this.slotStorage.updateSlotFlags(slot, { blockRewardsFetched: true });
     }
+  }
+
+  /**
+   * Return the committee sizes for each slot in the beacon block data
+   *
+   * From the Beacon block data, collect unique `slot` values present in
+   * `attestations`, filter out old slots using `this.beaconTime.getLookbackSlot()`,
+   * then retrieve committee sizes for those slots from storage.
+   *
+   * Returns `Record<number, number[]>` where each key is a slot number and the value
+   * is an array where each index equals the `committeeIndex` for that slot. That is,
+   * `array[0]` is the size of slot.index 0, `array[1]` is the size of slot.index 1,
+   * and so on. The value at each position is the number of validators in that committee.
+   * Example: `{ 12345: [350, 349, ...] }` means slot 12345 has committee 0 with 350
+   * validators, committee 1 with 349 validators, etc.
+   */
+  private async getCommitteeSizesForAttestations(slotNumber: number, attestations: Attestation[]) {
+    // get unique slots from attestations and filter out slots that are older than the lookback slot
+    let uniqueSlots = [...new Set(attestations.map((att) => Number(att.data.slot)))];
+    uniqueSlots = uniqueSlots.filter((slot) => slot >= this.beaconTime.getLookbackSlot());
+
+    if (uniqueSlots.length === 0) {
+      throw new Error(`No attestations found for slot ${slotNumber}`);
+    }
+
+    const committeesCountInSlot = await this.slotStorage.getCommitteeSizesForSlots(uniqueSlots);
+
+    // check if all slots have committee sizes
+    const allSlotsHaveCounts = uniqueSlots.every((slot) =>
+      Boolean(committeesCountInSlot[slot]?.length),
+    );
+    if (!allSlotsHaveCounts) {
+      throw new Error(`Not all slots have committee sizes for beacon block ${slotNumber}`);
+    }
+
+    return committeesCountInSlot;
   }
 
   /**
    * Process attestations for a slot
    */
-  async processAttestations(
-    slotNumber: number,
-    attestations: Attestation[],
-    slotCommitteesValidatorsAmounts: Record<number, number[]>,
-  ) {
+  private async processAttestations(slotNumber: number, attestations: Attestation[]) {
+    // check if attestations are already processed
+    const areAttestationsProcessed =
+      await this.slotStorage.areAttestationsProcessedForSlot(slotNumber);
+    if (areAttestationsProcessed) {
+      return;
+    }
+
     // Filter out attestations that are older than the oldest lookback slot
-    const filteredAttestations = this.filterAttestationsByLookbackSlot(
-      attestations,
-      this.beaconTime.getLookbackSlot(),
+    const filteredAttestations = attestations.filter(
+      (attestation) => +attestation.data.slot >= this.beaconTime.getLookbackSlot(),
+    );
+
+    // get committee sizes for attestations
+    const committeesCountInSlot = await this.getCommitteeSizesForAttestations(
+      slotNumber,
+      filteredAttestations,
     );
 
     // Process each attestation and calculate delays
     const processedAttestations = [];
     for (const attestation of filteredAttestations) {
-      const updates = this.processAttestation(
-        slotNumber,
-        attestation,
-        slotCommitteesValidatorsAmounts,
-      );
+      const updates = this.processAttestation(slotNumber, attestation, committeesCountInSlot);
       processedAttestations.push(...updates);
     }
 
     // Remove duplicates and keep the one with minimum delay
     const deduplicatedAttestations = this.deduplicateAttestations(processedAttestations);
 
-    // Update committee table with attestation delays
-    await this.slotStorage.updateCommitteeAttestationDelays(deduplicatedAttestations);
+    // Update hourly validator data/stats with attestation delays
+    await this.slotStorage.saveSlotAttestations(deduplicatedAttestations, slotNumber);
+  }
 
-    return {
-      slot: slotNumber,
-      attestations: deduplicatedAttestations.map((att) => ({
-        validatorIndex: att.validatorIndex,
-        committeeIndex: att.index,
-      })),
-    };
+  async fetchBlock(slot: number) {
+    const beaconBlock = await this.beaconClient.getBlock(slot);
+
+    if (beaconBlock === 'SLOT MISSED') {
+      await this.slotStorage.updateSlotProcessed(slot);
+      return;
+    }
+
+    const tasks: Promise<void>[] = [];
+    tasks.push(this.processAttestations(slot, beaconBlock.data.message.body.attestations));
+
+    await Promise.allSettled(tasks);
+    // start calling other functions to process the block
+
+    return beaconBlock;
   }
 
   /**

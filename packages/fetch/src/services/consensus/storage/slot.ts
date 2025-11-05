@@ -21,7 +21,18 @@ export class SlotStorage {
         slot: slot,
       },
       include: {
-        processingData: true,
+        slotProcessedData: true,
+      },
+    });
+  }
+
+  /**
+   * Get slot by number without processing data
+   */
+  async getSlotWithoutProcessedData(slot: number) {
+    return this.prisma.slot.findFirst({
+      where: {
+        slot: slot,
       },
     });
   }
@@ -30,42 +41,217 @@ export class SlotStorage {
    * Check if sync committee data exists for a given slot
    */
   async isSyncCommitteeFetchedForSlot(slot: number) {
-    const res = await this.prisma.slotProcessingData.findFirst({
+    const res = await this.prisma.slot.findFirst({
       where: { slot: slot },
       select: {
-        syncRewardsProcessed: true,
+        syncRewardsFetched: true,
       },
     });
 
-    return res?.syncRewardsProcessed === true;
+    return res?.syncRewardsFetched === true;
   }
 
   /**
    * Check if block rewards data exists for a given slot
    */
   async isBlockRewardsFetchedForSlot(slot: number) {
-    const res = await this.prisma.slotProcessingData.findFirst({
+    const res = await this.prisma.slot.findFirst({
       where: { slot: slot },
-      select: { blockRewardsProcessed: true },
+      select: { blockRewardsFetched: true },
     });
 
-    return res?.blockRewardsProcessed === true;
+    return res?.blockRewardsFetched === true;
+  }
+
+  async areAttestationsProcessedForSlot(slot: number) {
+    const res = await this.prisma.slot.findFirst({
+      where: { slot: slot },
+      select: { attestationsFetched: true },
+    });
+
+    return res?.attestationsFetched === true;
   }
 
   /**
-   * Create slot processing data
+   * Get hourly validator data for specific validators and datetime
    */
-  async createSlotProcessingData(data: Prisma.SlotProcessingDataUncheckedCreateInput) {
-    return this.prisma.slotProcessingData.create({
-      data,
+  async getHourlyValidatorData(validatorIndexes: number[], datetime: Date) {
+    return this.prisma.hourlyValidatorStats.findMany({
+      where: {
+        validatorIndex: { in: validatorIndexes },
+        datetime,
+      },
+      orderBy: [{ validatorIndex: 'asc' }],
+    });
+  }
+
+  /**
+   * Get hourly validator stats for specific validators and datetime
+   */
+  async getHourlyValidatorStats(validatorIndexes: number[], datetime: Date) {
+    return this.prisma.hourlyValidatorStats.findMany({
+      where: {
+        validatorIndex: { in: validatorIndexes },
+        datetime,
+      },
+      orderBy: [{ validatorIndex: 'asc' }],
+    });
+  }
+
+  /**
+   * Get a single hourly validator data record
+   */
+  async getHourlyValidatorDataForValidator(validatorIndex: number, datetime: Date) {
+    return this.prisma.hourlyValidatorStats.findFirst({
+      where: {
+        validatorIndex,
+        datetime,
+      },
+    });
+  }
+
+  /**
+   * Get a single hourly validator stats record
+   */
+  async getHourlyValidatorStatsForValidator(validatorIndex: number, datetime: Date) {
+    return this.prisma.hourlyValidatorStats.findFirst({
+      where: {
+        validatorIndex,
+        datetime,
+      },
+    });
+  }
+
+  /**
+   * Find the first unprocessed slot in a range
+   */
+  async findMinUnprocessedSlotInEpoch(startSlot: number, endSlot: number) {
+    const unprocessedSlot = await this.prisma.slot.findFirst({
+      where: {
+        slot: {
+          gte: startSlot,
+          lte: endSlot,
+        },
+        processed: false,
+      },
+      orderBy: {
+        slot: 'asc',
+      },
+      select: {
+        slot: true,
+      },
+    });
+
+    return unprocessedSlot?.slot ?? null;
+  }
+
+  /**
+   * Check if slot has all required processing completed
+   */
+  async isSlotFullyProcessed(slot: number) {
+    const processingData = await this.prisma.slot.findUnique({
+      where: {
+        slot: slot,
+        attestationsFetched: true,
+        syncRewardsFetched: true,
+        blockRewardsFetched: true,
+      },
+    });
+    return processingData !== null;
+  }
+
+  /**
+   * Get sync committee validators for an epoch
+   */
+  async getSyncCommitteeValidators(epoch: number) {
+    const syncCommittee = await this.prisma.syncCommittee.findFirst({
+      where: {
+        fromEpoch: { lte: epoch },
+        toEpoch: { gte: epoch },
+      },
+      select: {
+        validators: true,
+      },
+    });
+
+    return syncCommittee?.validators ?? [];
+  }
+
+  /**
+   * Return committee sizes per slot
+   *
+   * For each input slot, returns a map `{ slot: number[] }` where the index in the
+   * array equals the `committeeIndex` for that slot. That is, `array[0]` is the size
+   * of slot.index 0, `array[1]` is the size of slot.index 1, and so on. The value at
+   * each position is the number of validators in that committee.
+   * Example: `{ 12345: [350, 349, ...] }` means slot 12345 has committee 0 with 350
+   * validators, committee 1 with 349 validators, etc.
+   */
+  async getCommitteeSizesForSlots(slots: number[]): Promise<Record<number, number[]>> {
+    if (slots.length === 0) {
+      return {};
+    }
+
+    const slotData = await this.prisma.slot.findMany({
+      where: {
+        slot: { in: slots },
+      },
+      select: {
+        slot: true,
+        committeesCountInSlot: true,
+      },
+    });
+
+    // Build result map from pre-calculated data
+    const result: Record<number, number[]> = {};
+    for (const slot of slotData) {
+      if (slot.committeesCountInSlot) {
+        result[slot.slot] = slot.committeesCountInSlot as number[];
+      }
+    }
+
+    return result;
+  }
+
+  /**
+   * Get validator balances for specific validators
+   */
+  async getValidatorsBalances(validatorIndexes: number[]) {
+    return this.prisma.validator.findMany({
+      where: {
+        id: { in: validatorIndexes },
+      },
+      select: {
+        id: true,
+        balance: true,
+      },
     });
   }
 
   /**
    * Update slot processing data
    */
-  async updateSlotProcessingData(slot: number, data: Prisma.SlotProcessingDataUpdateInput) {
-    return this.prisma.slotProcessingData.update({
+  async updateSlotProcessedData(slot: number, data: Prisma.SlotProcessedDataUpdateInput) {
+    return this.prisma.slotProcessedData.update({
+      where: { slot },
+      data,
+    });
+  }
+
+  /**
+   * Generic update for slot flags
+   */
+  async updateSlotFlags(
+    slot: number,
+    data: Pick<
+      Prisma.SlotUpdateInput,
+      | 'attestationsFetched'
+      | 'syncRewardsFetched'
+      | 'blockRewardsFetched'
+      | 'executionRewardsFetched'
+    >,
+  ) {
+    return this.prisma.slot.update({
       where: { slot },
       data,
     });
@@ -89,9 +275,9 @@ export class SlotStorage {
    * Update attestations processed status
    */
   async updateAttestationsProcessed(slot: number) {
-    return this.prisma.slotProcessingData.update({
+    return this.prisma.slot.update({
       where: { slot: slot },
-      data: { attestationsProcessed: true },
+      data: { attestationsFetched: true },
     });
   }
 
@@ -99,16 +285,16 @@ export class SlotStorage {
    * Update block and sync rewards processed status
    */
   async updateBlockAndSyncRewardsProcessed(slot: number) {
-    return this.prisma.slotProcessingData.upsert({
+    return this.prisma.slot.upsert({
       where: { slot },
       update: {
-        syncRewardsProcessed: true,
-        blockRewardsProcessed: true,
+        syncRewardsFetched: true,
+        blockRewardsFetched: true,
       },
       create: {
         slot,
-        syncRewardsProcessed: true,
-        blockRewardsProcessed: true,
+        syncRewardsFetched: true,
+        blockRewardsFetched: true,
       },
     });
   }
@@ -117,12 +303,12 @@ export class SlotStorage {
    * Update execution rewards processed status
    */
   async updateExecutionRewardsProcessed(slot: number) {
-    return this.prisma.slotProcessingData.update({
+    return this.prisma.slot.update({
       where: {
         slot: slot,
       },
       data: {
-        executionRewardsProcessed: true,
+        executionRewardsFetched: true,
       },
     });
   }
@@ -133,7 +319,7 @@ export class SlotStorage {
   async updateSlotWithBeaconData(
     slot: number,
     data: Pick<
-      Prisma.SlotProcessingDataUpdateInput,
+      Prisma.SlotProcessedDataUpdateInput,
       | 'withdrawalsRewards'
       | 'clDeposits'
       | 'clVoluntaryExits'
@@ -142,7 +328,7 @@ export class SlotStorage {
       | 'elConsolidations'
     >,
   ) {
-    return this.prisma.slotProcessingData.update({
+    return this.prisma.slotProcessedData.update({
       where: { slot },
       data: {
         withdrawalsRewards: data.withdrawalsRewards || [],
@@ -153,6 +339,56 @@ export class SlotStorage {
         elConsolidations: data.elConsolidations || [],
       },
     });
+  }
+
+  async saveSlotAttestations(
+    attestations: Prisma.CommitteeUpdateInput[],
+    slotNumber: number,
+  ): Promise<void> {
+    await this.prisma.$transaction(
+      async (tx) => {
+        const queries: Prisma.Sql[] = [];
+
+        // Process updates
+        if (attestations.length > 0) {
+          const updateChunks = chunk(attestations, 20_000);
+          for (const batchUpdates of updateChunks) {
+            const updateQuery = Prisma.sql`
+            UPDATE "Committee" c
+            SET "attestationDelay" = v.delay
+            FROM (VALUES
+              ${Prisma.join(
+                batchUpdates.map(
+                  (u) =>
+                    Prisma.sql`(${u.slot}, ${u.index}, ${u.aggregationBitsIndex}, ${u.attestationDelay})`,
+                ),
+              )}
+            ) AS v(slot, index, "aggregationBitsIndex", delay)
+            WHERE c.slot = v.slot 
+              AND c.index = v.index 
+              AND c."aggregationBitsIndex" = v."aggregationBitsIndex"
+              AND (c."attestationDelay" IS NULL OR c."attestationDelay" > v.delay);
+          `;
+            queries.push(updateQuery);
+          }
+        }
+
+        for (const query of queries) {
+          await tx.$executeRaw(query);
+        }
+
+        // Update slot processing data
+        await tx.slot.upsert({
+          where: { slot: slotNumber },
+          update: { attestationsFetched: true },
+          create: {
+            slot: slotNumber,
+            attestationsFetched: true,
+          },
+        });
+      },
+      { timeout: ms('1m') },
+    );
   }
 
   /**
@@ -283,12 +519,12 @@ export class SlotStorage {
         // Update slot processing data for the first slot in the batch
         if (updates.length > 0) {
           const firstSlot = updates[0].slot;
-          await tx.slotProcessingData.upsert({
+          await tx.slot.upsert({
             where: { slot: firstSlot },
-            update: { attestationsProcessed: true },
+            update: { attestationsFetched: true },
             create: {
               slot: firstSlot,
-              attestationsProcessed: true,
+              attestationsFetched: true,
             },
           });
         }
@@ -314,104 +550,6 @@ export class SlotStorage {
   }
 
   /**
-   * Find the first unprocessed slot in a range
-   */
-  async findMinUnprocessedSlotInEpoch(startSlot: number, endSlot: number) {
-    const unprocessedSlot = await this.prisma.slot.findFirst({
-      where: {
-        slot: {
-          gte: startSlot,
-          lte: endSlot,
-        },
-        processed: false,
-      },
-      orderBy: {
-        slot: 'asc',
-      },
-      select: {
-        slot: true,
-      },
-    });
-
-    return unprocessedSlot?.slot ?? null;
-  }
-
-  /**
-   * Check if slot has all required processing completed
-   */
-  async isSlotFullyProcessed(slot: number) {
-    const processingData = await this.prisma.slotProcessingData.findUnique({
-      where: {
-        slot: slot,
-        attestationsProcessed: true,
-        syncRewardsProcessed: true,
-        blockRewardsProcessed: true,
-      },
-    });
-    return processingData !== null;
-  }
-
-  /**
-   * Get sync committee validators for an epoch
-   */
-  async getSyncCommitteeValidators(epoch: number) {
-    const syncCommittee = await this.prisma.syncCommittee.findFirst({
-      where: {
-        fromEpoch: { lte: epoch },
-        toEpoch: { gte: epoch },
-      },
-      select: {
-        validators: true,
-      },
-    });
-
-    return syncCommittee?.validators ?? [];
-  }
-
-  /**
-   * Return committee sizes per slot
-   *
-   * For each input slot, returns a map `{ slot: number[] }` where the index in the
-   * array equals the `committeeIndex` for that slot. That is, `array[0]` is the size
-   * of slot.index 0, `array[1]` is the size of slot.index 1, and so on. The value at
-   * each position is the number of validators in that committee.
-   * Example: `{ 12345: [350, 349, ...] }` means slot 12345 has committee 0 with 350
-   * validators, committee 1 with 349 validators, etc.
-   */
-  async getCommitteeSizesForSlots(slots: number[]): Promise<Record<number, number[]>> {
-    // group by slot and index to count validators
-    const grouped = await this.prisma.committee.groupBy({
-      where: { slot: { in: slots } },
-      by: ['slot', 'index'],
-      _count: { validatorIndex: true },
-    });
-
-    // for each slot, place the count at its committee index position
-    const result: Record<number, number[]> = {};
-    for (const row of grouped) {
-      if (!result[row.slot]) result[row.slot] = [];
-      result[row.slot][row.index] = row._count.validatorIndex;
-    }
-
-    return result;
-  }
-
-  /**
-   * Get validator balances for specific validators
-   */
-  async getValidatorsBalances(validatorIndexes: number[]) {
-    return this.prisma.validator.findMany({
-      where: {
-        id: { in: validatorIndexes },
-      },
-      select: {
-        id: true,
-        balance: true,
-      },
-    });
-  }
-
-  /**
    * Save validator balances to database
    */
   async saveValidatorBalances(
@@ -429,12 +567,12 @@ export class SlotStorage {
         }
 
         // Update slot processing data
-        await tx.slotProcessingData.upsert({
+        await tx.slot.upsert({
           where: { slot },
-          update: { attestationsProcessed: true },
+          update: { attestationsFetched: true },
           create: {
             slot,
-            attestationsProcessed: true,
+            attestationsFetched: true,
           },
         });
       },
@@ -459,19 +597,28 @@ export class SlotStorage {
   ): Promise<void> {
     await this.prisma.$transaction(
       async (tx) => {
+        // Save sync committee rewards to syncCommitteeRewards table
         // Process rewards in batches to avoid memory issues
         const batchSize = 50_000;
         const batches = chunk(processedRewards, batchSize);
         for (const batch of batches) {
-          // Update HourlyValidatorData with pre-processed rewards string
           for (const processedReward of batch) {
-            // Use raw SQL for proper string concatenation with CASE statement
-            await tx.$executeRaw`
-              INSERT INTO hourly_validator_data (datetime, validator_index, attestations, sync_committee_rewards, proposed_blocks_rewards, epoch_rewards)
-              VALUES (${datetime}::timestamp, ${processedReward.validatorIndex}, '', CONCAT(${processedReward.rewards}, ','), '', '')
-              ON CONFLICT (datetime, validator_index) DO UPDATE SET
-                sync_committee_rewards = CONCAT(hourly_validator_data.sync_committee_rewards, EXCLUDED.sync_committee_rewards)
-            `;
+            await tx.syncCommitteeRewards.upsert({
+              where: {
+                slot_validatorIndex: {
+                  slot,
+                  validatorIndex: processedReward.validatorIndex,
+                },
+              },
+              create: {
+                slot,
+                validatorIndex: processedReward.validatorIndex,
+                syncCommitteeReward: processedReward.syncCommitteeReward,
+              },
+              update: {
+                syncCommitteeReward: processedReward.syncCommitteeReward,
+              },
+            });
           }
         }
 
@@ -500,12 +647,12 @@ export class SlotStorage {
         }
 
         // mark slot as processed
-        await tx.slotProcessingData.upsert({
+        await tx.slot.upsert({
           where: { slot },
-          update: { syncRewardsProcessed: true },
+          update: { syncRewardsFetched: true },
           create: {
             slot,
-            syncRewardsProcessed: true,
+            syncRewardsFetched: true,
           },
         });
       },
@@ -526,14 +673,15 @@ export class SlotStorage {
     blockReward: bigint,
   ) {
     await this.prisma.$transaction(async (tx) => {
-      // Update HourlyValidatorData with block reward
-      const rewardsString = `${slot}:${blockReward.toString()}`;
-      await tx.$executeRaw`
-          INSERT INTO hourly_validator_data (datetime, validator_index, attestations, sync_committee_rewards, proposed_blocks_rewards, epoch_rewards)
-          VALUES (${datetime}::timestamp, ${proposerIndex}, '', '', CONCAT(${rewardsString}, ','), '')
-          ON CONFLICT (datetime, validator_index) DO UPDATE SET
-            proposed_blocks_rewards = CONCAT(hourly_validator_data.proposed_blocks_rewards, EXCLUDED.proposed_blocks_rewards)
-        `;
+      // Save block reward to Slot table (consensusReward and proposerIndex)
+      await tx.slot.update({
+        where: { slot },
+        data: {
+          proposerIndex,
+          consensusReward: blockReward,
+          blockRewardsFetched: true,
+        },
+      });
 
       // Aggregate rewards into HourlyValidatorStats
       await tx.$executeRaw`
@@ -543,86 +691,24 @@ export class SlotStorage {
           ON CONFLICT (datetime, validator_index) DO UPDATE SET
             cl_rewards = hourly_validator_stats.cl_rewards + ${blockReward}
         `;
-
-      // Mark slot as block rewards processed
-      await tx.slotProcessingData.update({
-        where: { slot },
-        data: { blockRewardsProcessed: true },
-      });
-
-      // Update slot with proposer information
-      await tx.slot.update({
-        where: { slot },
-        data: { proposer: proposerIndex },
-      });
-    });
-  }
-
-  /**
-   * Get hourly validator data for specific validators and datetime
-   */
-  async getHourlyValidatorData(validatorIndexes: number[], datetime: Date) {
-    return this.prisma.hourlyValidatorData.findMany({
-      where: {
-        validatorIndex: { in: validatorIndexes },
-        datetime,
-      },
-      orderBy: [{ validatorIndex: 'asc' }],
-    });
-  }
-
-  /**
-   * Get hourly validator stats for specific validators and datetime
-   */
-  async getHourlyValidatorStats(validatorIndexes: number[], datetime: Date) {
-    return this.prisma.hourlyValidatorStats.findMany({
-      where: {
-        validatorIndex: { in: validatorIndexes },
-        datetime,
-      },
-      orderBy: [{ validatorIndex: 'asc' }],
-    });
-  }
-
-  /**
-   * Get a single hourly validator data record
-   */
-  async getHourlyValidatorDataForValidator(validatorIndex: number, datetime: Date) {
-    return this.prisma.hourlyValidatorData.findFirst({
-      where: {
-        validatorIndex,
-        datetime,
-      },
-    });
-  }
-
-  /**
-   * Get a single hourly validator stats record
-   */
-  async getHourlyValidatorStatsForValidator(validatorIndex: number, datetime: Date) {
-    return this.prisma.hourlyValidatorStats.findFirst({
-      where: {
-        validatorIndex,
-        datetime,
-      },
     });
   }
 
   /**
    * Test helper: Create initial hourly validator data for testing
    */
-  async createTestHourlyValidatorData(data: Prisma.HourlyValidatorDataCreateInput) {
-    return this.prisma.hourlyValidatorData.upsert({
-      where: {
-        datetime_validatorIndex: {
-          datetime: data.datetime,
-          validatorIndex: data.validatorIndex,
-        },
-      },
-      update: {},
-      create: data,
-    });
-  }
+  // async createTestHourlyValidatorData(data: Prisma.HourlyValidatorDataCreateInput) {
+  //   return this.prisma.hourlyValidatorData.upsert({
+  //     where: {
+  //       datetime_validatorIndex: {
+  //         datetime: data.datetime,
+  //         validatorIndex: data.validatorIndex,
+  //       },
+  //     },
+  //     update: {},
+  //     create: data,
+  //   });
+  // }
 
   /**
    * Test helper: Create initial hourly validator stats for testing
@@ -647,6 +733,64 @@ export class SlotStorage {
     return this.prisma.slot.createMany({
       data: data,
       skipDuplicates: true,
+    });
+  }
+
+  /**
+   * Get sync committee rewards for a validator in a specific datetime (hour)
+   * Returns all rewards for the validator in that hour
+   */
+  async getSyncCommitteeRewardsForValidator(validatorIndex: number, datetime: Date) {
+    // Extract hour from datetime
+    const hour = datetime.getUTCHours();
+    const date = new Date(
+      Date.UTC(datetime.getUTCFullYear(), datetime.getUTCMonth(), datetime.getUTCDate()),
+    );
+
+    // Get all slots in that hour by checking slot timestamps
+    // We need to find slots that fall within the hour window
+    const startOfHour = new Date(datetime);
+    startOfHour.setUTCMinutes(0);
+    startOfHour.setUTCSeconds(0);
+    startOfHour.setUTCMilliseconds(0);
+    const endOfHour = new Date(startOfHour);
+    endOfHour.setUTCHours(endOfHour.getUTCHours() + 1);
+
+    // Get all sync committee rewards for this validator in slots within the hour
+    // Note: This requires calculating which slots fall in the hour based on genesis timestamp
+    // For now, we'll query by getting all rewards for the validator and filtering by slot
+    // This is a simplified approach - in production you'd calculate slot ranges from datetime
+    return this.prisma.syncCommitteeRewards.findMany({
+      where: {
+        validatorIndex,
+        // Note: We would need slot timestamps to filter properly by hour
+        // This is a placeholder - actual implementation would need slot time calculation
+      },
+      orderBy: {
+        slot: 'asc',
+      },
+    });
+  }
+
+  /**
+   * Get sync committee rewards for a validator in slots within a datetime range
+   * This is a helper method that takes slot numbers directly
+   */
+  async getSyncCommitteeRewardsForValidatorInSlots(validatorIndex: number, slots: number[]) {
+    if (slots.length === 0) {
+      return [];
+    }
+
+    return this.prisma.syncCommitteeRewards.findMany({
+      where: {
+        validatorIndex,
+        slot: {
+          in: slots,
+        },
+      },
+      orderBy: {
+        slot: 'asc',
+      },
     });
   }
 }

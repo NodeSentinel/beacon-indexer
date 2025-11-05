@@ -278,7 +278,7 @@ describe.skip('epochOrchestratorMachine', () => {
       rewardsFetched: false,
       validatorProposerDutiesFetched: false,
       committeesFetched: false,
-      slotsFetched: false,
+      allSlotsProcessed: false,
       syncCommitteesFetched: false,
     };
 
@@ -291,7 +291,7 @@ describe.skip('epochOrchestratorMachine', () => {
       rewardsFetched: boolean;
       validatorProposerDutiesFetched: boolean;
       committeesFetched: boolean;
-      slotsFetched: boolean;
+      allSlotsProcessed: boolean;
       syncCommitteesFetched: boolean;
     } | null>();
 

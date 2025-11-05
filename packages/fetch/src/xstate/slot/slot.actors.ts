@@ -110,7 +110,7 @@ export const getSlot = fromPromise(async ({ input }: { input: CheckSlotProcessed
       slot: input.slot,
     },
     include: {
-      processingData: true,
+      slotProcessedData: true,
     },
   }),
 );
@@ -146,12 +146,12 @@ export const fetchELRewards = fromPromise(
         data: blockInfo,
       });
 
-      await tx.slotProcessingData.update({
+      await tx.slot.update({
         where: {
           slot: input.slot,
         },
         data: {
-          executionRewardsProcessed: true,
+          executionRewardsFetched: true,
         },
       });
     });
@@ -374,9 +374,9 @@ export const updateSlotProcessed = fromPromise(
  */
 export const updateAttestationsProcessed = fromPromise(
   async ({ input }: { input: CheckSlotProcessedInput }) =>
-    prisma.slotProcessingData.update({
+    prisma.slot.update({
       where: { slot: input.slot },
-      data: { attestationsProcessed: true },
+      data: { attestationsFetched: true },
     }),
 );
 
@@ -392,7 +392,7 @@ export const processWithdrawalsRewards = fromPromise(
       withdrawals: Block['data']['message']['body']['execution_payload']['withdrawals'];
     };
   }) =>
-    prisma.slotProcessingData.update({
+    prisma.slotProcessedData.update({
       where: {
         slot: input.slot,
       },
@@ -427,7 +427,7 @@ export const processWithdrawalsRewardsData = fromPromise(
  */
 export const updateWithdrawalsProcessed = fromPromise(
   async ({ input }: { input: CheckSlotProcessedInput }) =>
-    prisma.slotProcessingData.update({
+    prisma.slotProcessedData.update({
       where: { slot: input.slot },
       data: { withdrawalsRewards: [] }, // Empty array indicates processed but no withdrawals
     }),
@@ -546,7 +546,7 @@ export const updateSlotWithBeaconData = fromPromise(
     }
 
     // Update slot with processed status and beacon data
-    const updatedSlot = await prisma.slotProcessingData.update({
+    const updatedSlot = await prisma.slotProcessedData.update({
       where: { slot },
       data: {
         withdrawalsRewards: beaconBlockData.withdrawalRewards || [],

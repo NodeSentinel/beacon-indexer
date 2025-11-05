@@ -51,6 +51,11 @@ export abstract class ReliableRequestClient {
 
   /**
    * Call API endpoint with specified retries and error handling
+   * TODO: if 404 and near head, minTimeout should start in a half of slot time.
+   * if error is not 429 (rate limit), think about it, perhaps 2s is enough.
+   * if error if another, keep trying.
+   * think about retries, it should be big enough but limit the backoff to not than 1m.
+   * if there are many failed attempts, we need to notify the admin about it.
    */
   protected async callAPI<T>(
     callEndpoint: (url: string) => Promise<T>,

@@ -61,12 +61,11 @@ export class BeaconClient extends ReliableRequestClient {
   /**
    * Handle slot-related errors, return handled value or throw if cannot handle
    */
+  // TODO: change this logic, we should relay on 404 vs other errors codes.
+  // 404 should retry if we are close to the head.
   private handleSlotError(error: unknown): 'SLOT MISSED' | undefined {
     const axiosError = error as AxiosError<{ message: string }>;
-    if (
-      axiosError.response?.status === 404 &&
-      axiosError.response?.data.message.includes('NOT_FOUND: beacon block')
-    ) {
+    if (axiosError.response?.status === 404) {
       return 'SLOT MISSED';
     }
     // If we can't handle this error, throw it to trigger retry
@@ -246,24 +245,20 @@ export class BeaconClient extends ReliableRequestClient {
   /**
    * Get sync committee rewards for specific validators in a slot (memoized)
    */
-  getSyncCommitteeRewards = memoizee(
-    async (slot: number, validatorIds: string[]): Promise<SyncCommitteeRewards | 'SLOT MISSED'> => {
-      return this.makeReliableRequest<SyncCommitteeRewards | 'SLOT MISSED'>(
-        async (url) => {
-          const res = await this.axiosInstance.post<SyncCommitteeRewards>(
-            `${url}/eth/v1/beacon/rewards/sync_committee/${slot}`,
-            validatorIds,
-          );
-          return res.data;
-        },
-        this.isIndexerDelayed({ value: slot, type: 'slot' }) ? 'full' : 'archive',
-        (error) => this.handleSlotError(error),
-      );
-    },
-    {
-      promise: true,
-      maxAge: ms('10m'),
-      primitive: true,
-    },
-  );
+  getSyncCommitteeRewards = async (
+    slot: number,
+    validatorIds: string[],
+  ): Promise<SyncCommitteeRewards | 'SLOT MISSED'> => {
+    return this.makeReliableRequest<SyncCommitteeRewards | 'SLOT MISSED'>(
+      async (url) => {
+        const res = await this.axiosInstance.post<SyncCommitteeRewards>(
+          `${url}/eth/v1/beacon/rewards/sync_committee/${slot}`,
+          validatorIds,
+        );
+        return res.data;
+      },
+      this.isIndexerDelayed({ value: slot, type: 'slot' }) ? 'full' : 'archive',
+      (error) => this.handleSlotError(error),
+    );
+  };
 }

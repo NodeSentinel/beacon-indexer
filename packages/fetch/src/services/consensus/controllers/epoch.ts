@@ -222,7 +222,6 @@ export class EpochController extends EpochControllerHelpers {
 
     // Get sync committee period start epoch
     const periodStartEpoch = this.beaconTime.getSyncCommitteePeriodStartEpoch(epoch);
-    console.log('periodStartEpoch', periodStartEpoch);
 
     // Get sync committees from beacon chain
     const syncCommitteeData = await this.beaconClient.getSyncCommittees(periodStartEpoch);
@@ -239,7 +238,7 @@ export class EpochController extends EpochControllerHelpers {
    * This flag represents that all the slots for the epoch have been processed
    */
   async updateSlotsFetched(epoch: number) {
-    return this.epochStorage.updateSlotsFetched(epoch);
+    return this.epochStorage.setAllSlotsProcessed(epoch);
   }
 
   /**

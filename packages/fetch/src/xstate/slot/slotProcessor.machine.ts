@@ -186,7 +186,18 @@ export const slotProcessorMachine = setup({
           {
             actions: assign({
               slotDb: ({ event }) => event.output,
-              processingData: ({ event }) => event.output?.processingData || null,
+              processingData: ({ event }) => {
+                const slot = event.output;
+                if (!slot) return null;
+                return {
+                  slot: slot.slot,
+                  attestationsProcessed: slot.attestationsFetched || false,
+                  blockRewardsProcessed: slot.blockRewardsFetched || false,
+                  syncRewardsProcessed: slot.syncRewardsFetched || false,
+                  executionRewardsProcessed: slot.executionRewardsFetched || false,
+                  beaconBlockProcessed: false,
+                };
+              },
             }),
             target: 'analyzingSlot',
           },
