@@ -245,7 +245,7 @@ export class SlotController extends SlotControllerHelpers {
     const tasks: Promise<void>[] = [];
     tasks.push(this.processAttestations(slot, beaconBlock.data.message.body.attestations));
 
-    await Promise.allSettled(tasks);
+    await Promise.all(tasks);
     // start calling other functions to process the block
 
     return beaconBlock;

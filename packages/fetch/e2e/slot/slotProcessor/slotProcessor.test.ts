@@ -4,6 +4,8 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from 'vites
 // Import mock data
 import validatorsData from '../../epoch/epochProcessor/mocks/validators.json' with { type: 'json' };
 
+import blockData24672001 from './mocks/block_ 24672001.json' with { type: 'json' };
+import committeeData1542000 from './mocks/committee_ 1542000.json' with { type: 'json' };
 import rewardsSyncCommittee24497230 from './mocks/rewardsSyncCommittee_24497230.json' with { type: 'json' };
 import rewardsSyncCommittee24497231 from './mocks/rewardsSyncCommittee_24497231.json' with { type: 'json' };
 import blockRewards24519343 from './mocks/slotRewards_ 24519343.json' with { type: 'json' };
@@ -11,11 +13,13 @@ import blockRewards24519344 from './mocks/slotRewards_ 24519344.json' with { typ
 
 import { gnosisConfig } from '@/src/config/chain.js';
 import { BeaconClient } from '@/src/services/consensus/beacon.js';
+import { EpochController } from '@/src/services/consensus/controllers/epoch.js';
 import { ValidatorControllerHelpers } from '@/src/services/consensus/controllers/helpers/validatorControllerHelpers.js';
 import { SlotController } from '@/src/services/consensus/controllers/slot.js';
 import { EpochStorage } from '@/src/services/consensus/storage/epoch.js';
 import { SlotStorage } from '@/src/services/consensus/storage/slot.js';
 import { ValidatorsStorage } from '@/src/services/consensus/storage/validators.js';
+import { GetCommittees, Block } from '@/src/services/consensus/types.js';
 import { BeaconTime } from '@/src/services/consensus/utils/time.js';
 import { getUTCDatetimeRoundedToHour } from '@/src/utils/date/index.js';
 
@@ -396,6 +400,192 @@ describe('Slot Processor E2E Tests', () => {
       expect(hourlyStats550617).toBeDefined();
       // No initial value, should be exactly the block reward
       expect(hourlyStats550617?.clRewards?.toString()).toBe('20990521');
+    });
+  });
+
+  describe('fetchAttestations', () => {
+    let mockBeaconClient: Pick<BeaconClient, 'slotStartIndexing'> & {
+      getBlock: ReturnType<typeof vi.fn>;
+      getCommittees: ReturnType<typeof vi.fn>;
+    };
+    let slotControllerWithMock: SlotController;
+    let epochControllerWithMock: EpochController;
+    let epochStorage: EpochStorage;
+    const lookbackSlot = 24672000;
+    const slot24672000 = 24672000;
+    const slot24672001 = 24672001; // Attestations for slot 24672000 come at slot 24672001 (n+1 pattern)
+    const epoch1542000 = 1542000;
+
+    // Validators that missed slot 24672000
+    const missedValidators = [272515, 98804, 421623, 62759] as const;
+    // Validators that attested on time for slot 24672000
+    const attestedOnTimeValidators = [398596, 471558, 497750] as const;
+
+    beforeEach(async () => {
+      // Clean up database
+      await prisma.committee.deleteMany();
+      await prisma.slotProcessedData.deleteMany();
+      await prisma.slot.deleteMany();
+      await prisma.validator.deleteMany();
+      await prisma.epoch.deleteMany();
+
+      // Create mock beacon client
+      mockBeaconClient = {
+        slotStartIndexing: lookbackSlot,
+        getBlock: vi.fn(),
+        getCommittees: vi.fn(),
+      };
+
+      // Create epoch storage
+      epochStorage = new EpochStorage(prisma, validatorsStorage);
+
+      // Create beacon time with lookbackSlot set to 24672000
+      const beaconTimeWithLookback = new BeaconTime({
+        genesisTimestamp: gnosisConfig.beacon.genesisTimestamp,
+        slotDurationMs: gnosisConfig.beacon.slotDuration,
+        slotsPerEpoch: gnosisConfig.beacon.slotsPerEpoch,
+        epochsPerSyncCommitteePeriod: gnosisConfig.beacon.epochsPerSyncCommitteePeriod,
+        lookbackSlot: lookbackSlot,
+      });
+
+      // Create epoch controller with mock
+      epochControllerWithMock = new EpochController(
+        mockBeaconClient as unknown as BeaconClient,
+        epochStorage,
+        validatorsStorage,
+        beaconTimeWithLookback,
+      );
+
+      // Create slot controller with mock
+      slotControllerWithMock = new SlotController(
+        slotStorage,
+        epochStorage,
+        mockBeaconClient as unknown as BeaconClient,
+        beaconTimeWithLookback,
+      );
+
+      // Save validators data to database
+      const validators = validatorsData.data.map((v) =>
+        ValidatorControllerHelpers.mapValidatorDataToDBEntity(v),
+      );
+      await validatorsStorage.saveValidators(validators);
+
+      // Create epoch 1542000
+      await epochStorage.createEpochs([epoch1542000]);
+
+      // Load committees for epoch 1542000
+      const committeeDataTyped = committeeData1542000 as GetCommittees;
+      mockBeaconClient.getCommittees.mockResolvedValueOnce(committeeDataTyped.data);
+      await epochControllerWithMock.fetchCommittees(epoch1542000);
+
+      // Create slot 24672001 (where attestations come from)
+      await slotStorage.createTestSlots([{ slot: slot24672001, processed: false }]);
+    });
+
+    it('should skip processing if attestations already fetched', async () => {
+      // Pre-create slot with attestationsFetched = true
+      await slotStorage.updateSlotFlags(slot24672001, { attestationsFetched: true });
+
+      // Mock block data (even though it won't be processed)
+      const blockData = blockData24672001 as Block;
+      mockBeaconClient.getBlock.mockResolvedValueOnce(blockData);
+
+      // Spy on saveSlotAttestations to verify it's NOT called
+      const saveSpy = vi.spyOn(slotStorage, 'saveSlotAttestations');
+
+      // Try to process (should skip due to existing flag)
+      await slotControllerWithMock.fetchBlock(slot24672001);
+
+      // Verify saveSlotAttestations was NOT called (processAttestations checks the flag)
+      expect(saveSpy).not.toHaveBeenCalled();
+
+      saveSpy.mockRestore();
+    });
+
+    it('should handle missed blocks', async () => {
+      // Create slot for missed block test
+      await slotStorage.createTestSlots([{ slot: 24672002, processed: false }]);
+
+      // Mock block for missed slot
+      const mockMissedBlock = 'SLOT MISSED';
+
+      mockBeaconClient.getBlock.mockResolvedValueOnce(mockMissedBlock);
+
+      // Spy on saveSlotAttestations to verify it's NOT called for missed blocks
+      const processSpy = vi.spyOn(slotStorage, 'saveSlotAttestations');
+
+      // Process slot 24672002
+      await slotControllerWithMock.fetchBlock(24672002);
+
+      // Verify slot flag was updated (even for missed blocks)
+      const slot = await slotStorage.getSlotWithoutProcessedData(24672002);
+      expect(slot?.processed).toBe(true);
+
+      // Verify processAttestations was NOT called for missed block
+      expect(processSpy).not.toHaveBeenCalled();
+
+      processSpy.mockRestore();
+    });
+
+    it('should process attestations and verify attestation delays for missed and on-time validators', async () => {
+      // Verify slot 24672001 exists before processing
+      const slotDataBefore = await slotStorage.getSlotWithoutProcessedData(slot24672001);
+      expect(slotDataBefore).toBeDefined();
+
+      // Verify slot 24672000 exists and has committeesCountInSlot (needed for attestation processing)
+      const slot24672000Data = await slotStorage.getSlotWithoutProcessedData(slot24672000);
+      expect(slot24672000Data).toBeDefined();
+      expect(slot24672000Data?.committeesCountInSlot).toBeDefined();
+      expect(Array.isArray(slot24672000Data?.committeesCountInSlot)).toBe(true);
+      expect((slot24672000Data?.committeesCountInSlot as number[]).length).toBeGreaterThan(0);
+
+      // Use block data directly from mock file
+      const blockData = blockData24672001 as Block;
+      mockBeaconClient.getBlock.mockResolvedValueOnce(blockData);
+
+      // Process slot 24672001 (attestations for slot 24672000)
+      // Note: fetchBlock uses Promise.allSettled, so errors are silently caught
+      // We need to verify the processing completed successfully by checking the flag
+      const result = await slotControllerWithMock.fetchBlock(slot24672001);
+      expect(result).toBeDefined();
+      expect(result).not.toBe('SLOT MISSED');
+
+      // Verify slot flag was updated (this confirms saveSlotAttestations was called)
+      const slotData = await slotStorage.getSlotWithoutProcessedData(slot24672001);
+      expect(slotData).toBeDefined();
+      if (!slotData?.attestationsFetched) {
+        // If flag is not set, processAttestations likely failed silently
+        // Check if there are any attestations in the block to process
+        const attestations = (result as Block).data.message.body.attestations;
+        expect(attestations.length).toBeGreaterThan(0);
+        // If attestations exist but flag is not set, there was an error
+        throw new Error(
+          'attestationsFetched flag was not set after processing. This indicates processAttestations failed silently.',
+        );
+      }
+      expect(slotData.attestationsFetched).toBe(true);
+
+      // Get committees for slot 24672000 to verify attestation delays
+      const committees = await epochStorage.getCommitteesBySlots([slot24672000]);
+
+      // Filter committees for all validators we're testing (attested and missed) - single filter
+      const allValidatorsToTest = [
+        ...(attestedOnTimeValidators as readonly number[]),
+        ...(missedValidators as readonly number[]),
+      ];
+      const relevantCommittees = committees.filter((c) =>
+        allValidatorsToTest.includes(c.validatorIndex),
+      );
+
+      // Verify delays: attested validators have delay = 0, missed validators have delay = null
+      expect(relevantCommittees.length).toBeGreaterThan(0);
+      for (const committee of relevantCommittees) {
+        if ((attestedOnTimeValidators as readonly number[]).includes(committee.validatorIndex)) {
+          expect(committee.attestationDelay).toBe(0);
+        } else if ((missedValidators as readonly number[]).includes(committee.validatorIndex)) {
+          expect(committee.attestationDelay).toBeNull();
+        }
+      }
     });
   });
 });

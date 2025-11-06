@@ -278,7 +278,6 @@ export class EpochStorage {
     slots: number[],
     committees: Committee[],
     committeesCountInSlot: Map<number, number[]>,
-    slotTimestamps: Map<number, Date>,
   ) {
     await this.prisma.$transaction(
       async (tx) => {
@@ -292,25 +291,44 @@ export class EpochStorage {
             "committees_count_in_slot" = EXCLUDED."committees_count_in_slot"
         `;
 
-        // Insert committees in batches for better performance
-        const batchSize = 100000;
+        // Insert committees using temporary table for better performance
+        await tx.$executeRaw`
+          CREATE TEMPORARY TABLE tmp_committee (LIKE "committee") ON COMMIT DROP;
+        `;
+
+        // PostgreSQL limit: 32,767 bind variables per prepared statement
+        // With 5 columns per row, max batch size = 32,767 / 5 ≈ 6,500 rows
+        const batchSize = 6_500;
         const batches = chunk(committees, batchSize);
         for (const batch of batches) {
-          await tx.committee.createMany({
-            data: batch,
-          });
+          await tx.$executeRaw`
+            INSERT INTO tmp_committee (slot, index, "aggregation_bits_index", "validator_index", "attestation_delay")
+            VALUES ${Prisma.join(
+              batch.map(
+                (c) =>
+                  Prisma.sql`(${c.slot}, ${c.index}, ${c.aggregationBitsIndex}, ${c.validatorIndex}, ${c.attestationDelay})`,
+              ),
+            )}
+          `;
         }
 
+        // Copy all data from temporary table to Committee table in one operation
+        await tx.$executeRaw`
+          INSERT INTO "committee" (slot, index, "aggregation_bits_index", "validator_index", "attestation_delay")
+          SELECT slot, index, "aggregation_bits_index", "validator_index", "attestation_delay"
+          FROM tmp_committee;
+        `;
+
         // Create a VALUES clause with slot-timestamp mappings for the SQL query
-        const slotTimestampValues = slots
-          .map((slot) => {
-            const timestamp = slotTimestamps.get(slot);
-            if (!timestamp) {
-              throw new Error(`Missing timestamp for slot ${slot}`);
-            }
-            return `(${slot}, '${timestamp.toISOString()}'::timestamp)`;
-          })
-          .join(',');
+        // const slotTimestampValues = slots
+        //   .map((slot) => {
+        //     const timestamp = slotTimestamps.get(slot);
+        //     if (!timestamp) {
+        //       throw new Error(`Missing timestamp for slot ${slot}`);
+        //     }
+        //     return `(${slot}, '${timestamp.toISOString()}'::timestamp)`;
+        //   })
+        //   .join(',');
 
         // Note: slots information is now stored in Committee table
         // The slot field already exists in Committee, so no additional storage needed
