@@ -26,7 +26,7 @@ export async function cleanupCommittee(logger: CustomLogger) {
     logger.info(`Deleting slots lower than ${maxSlot}`);
 
     if (maxSlot) {
-      const result = await prisma.$executeRaw`DELETE FROM "Committee" WHERE slot < ${maxSlot}`;
+      const result = await prisma.$executeRaw`DELETE FROM "committee" WHERE slot < ${maxSlot}`;
       totalDeleted += result;
     }
 

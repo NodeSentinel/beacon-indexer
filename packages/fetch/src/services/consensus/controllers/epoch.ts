@@ -172,12 +172,12 @@ export class EpochController extends EpochControllerHelpers {
     );
 
     // Calculate slot timestamps for HourlyValidatorData updates
-    const slotTimestamps = new Map<number, Date>();
-    for (const slot of newSlots) {
-      const slotTimestamp = this.beaconTime.getTimestampFromSlotNumber(slot);
-      const datetime = getUTCDatetimeRoundedToHour(slotTimestamp);
-      slotTimestamps.set(slot, datetime);
-    }
+    // const slotTimestamps = new Map<number, Date>();
+    // for (const slot of newSlots) {
+    //   const slotTimestamp = this.beaconTime.getTimestampFromSlotNumber(slot);
+    //   const datetime = getUTCDatetimeRoundedToHour(slotTimestamp);
+    //   slotTimestamps.set(slot, datetime);
+    // }
 
     // Save to database
     await this.epochStorage.saveCommitteesData(
@@ -185,7 +185,6 @@ export class EpochController extends EpochControllerHelpers {
       newSlots,
       newCommittees,
       committeesCountInSlot,
-      slotTimestamps,
     );
   }
 
@@ -228,7 +227,6 @@ export class EpochController extends EpochControllerHelpers {
 
     // Calculate the end epoch for this sync committee period
     const toEpoch = periodStartEpoch + 256 - 1; // epochsPerSyncCommitteePeriod - 1
-    console.log('toEpoch', toEpoch);
     // Save to database
     await this.epochStorage.saveSyncCommittees(epoch, periodStartEpoch, toEpoch, syncCommitteeData);
   }

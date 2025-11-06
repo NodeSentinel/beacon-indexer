@@ -55,7 +55,7 @@ async function updateValidatorStatusTask(logger: CustomLogger) {
           c."validatorIndex",
           c.slot
         FROM user_validators uv
-        INNER JOIN "Committee" c ON c."validatorIndex" = uv.validator_id
+        INNER JOIN "committee" c ON c."validatorIndex" = uv.validator_id
         WHERE c.slot BETWEEN (SELECT min_slot FROM constants) AND (SELECT max_slot FROM constants)
         AND (c."attestationDelay" IS NULL OR c."attestationDelay" > (SELECT max_attestation_delay FROM constants))
         AND uv.validator_status IN (2,3) -- active_ongoing, active_exiting

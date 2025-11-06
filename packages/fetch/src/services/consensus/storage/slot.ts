@@ -351,11 +351,14 @@ export class SlotStorage {
 
         // Process updates
         if (attestations.length > 0) {
-          const updateChunks = chunk(attestations, 20_000);
+          // Use 7000 chunks to avoid exceeding PostgreSQL's 32767 bind variables limit
+          // Each attestation generates 4 bind variables (slot, index, aggregationBitsIndex, delay)
+          // 7000 * 4 = 28000 < 32767
+          const updateChunks = chunk(attestations, 7000);
           for (const batchUpdates of updateChunks) {
             const updateQuery = Prisma.sql`
-            UPDATE "Committee" c
-            SET "attestationDelay" = v.delay
+            UPDATE "committee" c
+            SET "attestation_delay" = v.delay
             FROM (VALUES
               ${Prisma.join(
                 batchUpdates.map(
@@ -363,11 +366,11 @@ export class SlotStorage {
                     Prisma.sql`(${u.slot}, ${u.index}, ${u.aggregationBitsIndex}, ${u.attestationDelay})`,
                 ),
               )}
-            ) AS v(slot, index, "aggregationBitsIndex", delay)
+            ) AS v(slot, index, "aggregation_bits_index", delay)
             WHERE c.slot = v.slot 
               AND c.index = v.index 
-              AND c."aggregationBitsIndex" = v."aggregationBitsIndex"
-              AND (c."attestationDelay" IS NULL OR c."attestationDelay" > v.delay);
+              AND c."aggregation_bits_index" = v."aggregation_bits_index"
+              AND (c."attestation_delay" IS NULL OR c."attestation_delay" > v.delay);
           `;
             queries.push(updateQuery);
           }
