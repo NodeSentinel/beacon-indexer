@@ -29,8 +29,8 @@ export class SlotStorage {
   /**
    * Get slot by number without processing data
    */
-  async getSlotWithoutProcessedData(slot: number) {
-    return this.prisma.slot.findFirst({
+  async getBaseSlot(slot: number) {
+    return this.prisma.slot.findFirstOrThrow({
       where: {
         slot: slot,
       },
@@ -54,13 +54,16 @@ export class SlotStorage {
   /**
    * Check if block rewards data exists for a given slot
    */
-  async isBlockRewardsFetchedForSlot(slot: number) {
-    const res = await this.prisma.slot.findFirst({
-      where: { slot: slot },
-      select: { blockRewardsFetched: true },
+  async areSlotConsensusRewardsFetched(slotNumber: number) {
+    const slot = await this.prisma.slot.findFirstOrThrow({
+      where: { slot: slotNumber },
+      select: {
+        slot: true,
+        consensusRewardsFetched: true,
+      },
     });
 
-    return res?.blockRewardsFetched === true;
+    return slot.consensusRewardsFetched === true;
   }
 
   async areAttestationsProcessedForSlot(slot: number) {
@@ -152,9 +155,12 @@ export class SlotStorage {
     const processingData = await this.prisma.slot.findUnique({
       where: {
         slot: slot,
+        consensusRewardsFetched: true,
+        executionRewardsFetched: true,
         attestationsFetched: true,
         syncRewardsFetched: true,
-        blockRewardsFetched: true,
+        validatorWithdrawalsFetched: true,
+        executionRequestsFetched: true,
       },
     });
     return processingData !== null;
@@ -246,9 +252,11 @@ export class SlotStorage {
     data: Pick<
       Prisma.SlotUpdateInput,
       | 'attestationsFetched'
-      | 'syncRewardsFetched'
-      | 'blockRewardsFetched'
+      | 'consensusRewardsFetched'
       | 'executionRewardsFetched'
+      | 'validatorWithdrawalsFetched'
+      | 'syncRewardsFetched'
+      | 'executionRequestsFetched'
     >,
   ) {
     return this.prisma.slot.update({
@@ -278,24 +286,6 @@ export class SlotStorage {
     return this.prisma.slot.update({
       where: { slot: slot },
       data: { attestationsFetched: true },
-    });
-  }
-
-  /**
-   * Update block and sync rewards processed status
-   */
-  async updateBlockAndSyncRewardsProcessed(slot: number) {
-    return this.prisma.slot.upsert({
-      where: { slot },
-      update: {
-        syncRewardsFetched: true,
-        blockRewardsFetched: true,
-      },
-      create: {
-        slot,
-        syncRewardsFetched: true,
-        blockRewardsFetched: true,
-      },
     });
   }
 
@@ -475,6 +465,49 @@ export class SlotStorage {
           increment: reward.blockReward,
         },
       },
+    });
+  }
+
+  /**
+   * Save validator withdrawals to database
+   */
+  async saveValidatorWithdrawals(
+    slot: number,
+    withdrawals: Prisma.validatorWithdrawalsUncheckedCreateInput[],
+  ) {
+    await this.prisma.$transaction(async (tx) => {
+      await tx.validatorWithdrawals.createMany({
+        data: withdrawals,
+      });
+      await tx.slot.update({
+        where: { slot },
+        data: { validatorWithdrawalsFetched: true },
+      });
+    });
+  }
+
+  async saveExecutionRequests(
+    slotNumber: number,
+    data: {
+      validatorDeposits: Prisma.validatorDepositsUncheckedCreateInput[];
+      validatorWithdrawalsRequests: Prisma.validatorWithdrawalsRequestsUncheckedCreateInput[];
+      validatorConsolidationsRequests: Prisma.validatorConsolidationsRequestsUncheckedCreateInput[];
+    },
+  ) {
+    await this.prisma.$transaction(async (tx) => {
+      await tx.validatorDeposits.createMany({
+        data: data.validatorDeposits,
+      });
+      await tx.validatorWithdrawalsRequests.createMany({
+        data: data.validatorWithdrawalsRequests,
+      });
+      await tx.validatorConsolidationsRequests.createMany({
+        data: data.validatorConsolidationsRequests,
+      });
+      await tx.slot.update({
+        where: { slot: slotNumber },
+        data: { executionRequestsFetched: true },
+      });
     });
   }
 
@@ -669,7 +702,7 @@ export class SlotStorage {
    * Process block rewards and aggregate them into hourly validator data
    * Following the same pattern as epoch rewards processing
    */
-  async processBlockRewardsAndAggregate(
+  async processSlotConsensusRewardsForSlot(
     slot: number,
     proposerIndex: number,
     datetime: Date,
@@ -682,7 +715,7 @@ export class SlotStorage {
         data: {
           proposerIndex,
           consensusReward: blockReward,
-          blockRewardsFetched: true,
+          consensusRewardsFetched: true,
         },
       });
 
@@ -735,7 +768,6 @@ export class SlotStorage {
   async createTestSlots(data: Prisma.SlotCreateInput[]) {
     return this.prisma.slot.createMany({
       data: data,
-      skipDuplicates: true,
     });
   }
 
@@ -794,6 +826,44 @@ export class SlotStorage {
       orderBy: {
         slot: 'asc',
       },
+    });
+  }
+
+  /**
+   * Get validator withdrawals for a slot
+   */
+  async getValidatorWithdrawalsForSlot(slot: number) {
+    return this.prisma.validatorWithdrawals.findMany({
+      where: { slot },
+      orderBy: { validatorIndex: 'asc' },
+    });
+  }
+
+  /**
+   * Get validator deposits for a slot
+   */
+  async getValidatorDepositsForSlot(slot: number) {
+    return this.prisma.validatorDeposits.findMany({
+      where: { slot },
+      orderBy: { pubkey: 'asc' },
+    });
+  }
+
+  /**
+   * Get validator withdrawal requests for a slot
+   */
+  async getValidatorWithdrawalsRequestsForSlot(slot: number) {
+    return this.prisma.validatorWithdrawalsRequests.findMany({
+      where: { slot },
+    });
+  }
+
+  /**
+   * Get validator consolidation requests for a slot
+   */
+  async getValidatorConsolidationsRequestsForSlot(slot: number) {
+    return this.prisma.validatorConsolidationsRequests.findMany({
+      where: { slot },
     });
   }
 }

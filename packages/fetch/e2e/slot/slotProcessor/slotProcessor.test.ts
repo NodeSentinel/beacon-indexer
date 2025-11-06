@@ -142,7 +142,7 @@ describe('Slot Processor E2E Tests', () => {
       await slotControllerWithMock.fetchSyncCommitteeRewards(24497230, ['mocked', 'list']);
 
       // Verify slot flag was updated (even for missed slots)
-      const slot = await slotStorage.getSlotWithoutProcessedData(24497230);
+      const slot = await slotStorage.getBaseSlot(24497230);
       expect(slot?.syncRewardsFetched).toBe(true);
 
       // Verify processSyncCommitteeRewardsAndAggregate was NOT called for missed slot
@@ -177,14 +177,14 @@ describe('Slot Processor E2E Tests', () => {
       await slotControllerWithMock.fetchSyncCommitteeRewards(24497230, ['mocked', 'list']);
 
       // Verify slot flag was updated
-      const slotData24497230 = await slotStorage.getSlotWithoutProcessedData(24497230);
+      const slotData24497230 = await slotStorage.getBaseSlot(24497230);
       expect(slotData24497230?.syncRewardsFetched).toBe(true);
 
       // Process slot 24497231
       mockBeaconClient.getSyncCommitteeRewards.mockResolvedValueOnce(rewardsSyncCommittee24497231);
       await slotControllerWithMock.fetchSyncCommitteeRewards(24497231, ['mocked', 'list']);
 
-      const slotData24497231 = await slotStorage.getSlotWithoutProcessedData(24497231);
+      const slotData24497231 = await slotStorage.getBaseSlot(24497231);
       expect(slotData24497231?.syncRewardsFetched).toBe(true);
 
       // ------------------------------------------------------------
@@ -254,6 +254,10 @@ describe('Slot Processor E2E Tests', () => {
       await prisma.slotProcessedData.deleteMany();
       await prisma.slot.deleteMany();
       await prisma.validator.deleteMany();
+      await prisma.validatorWithdrawals.deleteMany();
+      await prisma.validatorWithdrawalsRequests.deleteMany();
+      await prisma.validatorDeposits.deleteMany();
+      await prisma.validatorConsolidationsRequests.deleteMany();
 
       // Create mock beacon client
       mockBeaconClient = {
@@ -291,13 +295,13 @@ describe('Slot Processor E2E Tests', () => {
     });
 
     it('should skip processing if block rewards already fetched', async () => {
-      // Pre-create slot with blockRewardsFetched = true
-      await slotStorage.updateSlotFlags(24497230, { blockRewardsFetched: true });
+      // Pre-create slot with consensusRewardsFetched = true
+      await slotStorage.updateSlotFlags(24497230, { consensusRewardsFetched: true });
 
       mockBeaconClient.getBlockRewards.mockResolvedValueOnce({});
 
       // Try to process (should skip due to existing flag)
-      await slotControllerWithMock.fetchBlockRewards(24497230);
+      await slotControllerWithMock.fetchSlotConsensusRewards(24497230);
 
       // Verify beacon client was not called
       expect(mockBeaconClient.getBlockRewards).not.toHaveBeenCalled();
@@ -313,14 +317,14 @@ describe('Slot Processor E2E Tests', () => {
       mockBeaconClient.getBlockRewards.mockResolvedValueOnce(mockMissedBlockRewards);
 
       // Spy on processBlockRewardsAndAggregate to verify it's NOT called for missed blocks
-      const processSpy = vi.spyOn(slotStorage, 'processBlockRewardsAndAggregate');
+      const processSpy = vi.spyOn(slotStorage, 'processSlotConsensusRewardsForSlot');
 
       // Process slot 24519345
-      await slotControllerWithMock.fetchBlockRewards(24519345);
+      await slotControllerWithMock.fetchSlotConsensusRewards(24519345);
 
       // Verify slot flag was updated (even for missed blocks)
-      const slot = await slotStorage.getSlotWithoutProcessedData(24519345);
-      expect(slot?.blockRewardsFetched).toBe(true);
+      const slot = await slotStorage.getBaseSlot(24519345);
+      expect(slot.consensusRewardsFetched).toBe(true);
 
       // Verify processBlockRewardsAndAggregate was NOT called for missed block
       expect(processSpy).not.toHaveBeenCalled();
@@ -348,21 +352,21 @@ describe('Slot Processor E2E Tests', () => {
 
       // Process slot 24519343
       mockBeaconClient.getBlockRewards.mockResolvedValueOnce(blockRewards24519343);
-      await slotControllerWithMock.fetchBlockRewards(24519343);
+      await slotControllerWithMock.fetchSlotConsensusRewards(24519343);
 
       // Verify slot flag and proposer were updated
-      const slotData24519343 = await slotStorage.getSlotWithoutProcessedData(24519343);
-      expect(slotData24519343?.blockRewardsFetched).toBe(true);
+      const slotData24519343 = await slotStorage.getBaseSlot(24519343);
+      expect(slotData24519343?.consensusRewardsFetched).toBe(true);
       expect(slotData24519343?.proposerIndex).toBe(536011);
       // Verify consensus reward is stored in Slot
       expect(slotData24519343?.consensusReward?.toString()).toBe('20546222');
 
       // Process slot 24519344
       mockBeaconClient.getBlockRewards.mockResolvedValueOnce(blockRewards24519344);
-      await slotControllerWithMock.fetchBlockRewards(24519344);
+      await slotControllerWithMock.fetchSlotConsensusRewards(24519344);
 
-      const slotData24519344 = await slotStorage.getSlotWithoutProcessedData(24519344);
-      expect(slotData24519344?.blockRewardsFetched).toBe(true);
+      const slotData24519344 = await slotStorage.getBaseSlot(24519344);
+      expect(slotData24519344?.consensusRewardsFetched).toBe(true);
       expect(slotData24519344?.proposerIndex).toBe(550617);
       // Verify consensus reward is stored in Slot
       expect(slotData24519344?.consensusReward?.toString()).toBe('20990521');
@@ -371,7 +375,7 @@ describe('Slot Processor E2E Tests', () => {
       // Validator 536011 (Proposer slot 24519343)
       // ------------------------------------------------------------
       // Get slot directly by slot number
-      const slot536011 = await slotStorage.getSlotWithoutProcessedData(24519343);
+      const slot536011 = await slotStorage.getBaseSlot(24519343);
       expect(slot536011).toBeDefined();
       expect(slot536011?.proposerIndex).toBe(536011);
       expect(slot536011?.consensusReward?.toString()).toBe('20546222');
@@ -388,7 +392,7 @@ describe('Slot Processor E2E Tests', () => {
       // Validator 550617 (Proposer slot 24519344)
       // ------------------------------------------------------------
       // Get slot directly by slot number
-      const slot550617 = await slotStorage.getSlotWithoutProcessedData(24519344);
+      const slot550617 = await slotStorage.getBaseSlot(24519344);
       expect(slot550617).toBeDefined();
       expect(slot550617?.proposerIndex).toBe(550617);
       expect(slot550617?.consensusReward?.toString()).toBe('20990521');
@@ -403,7 +407,7 @@ describe('Slot Processor E2E Tests', () => {
     });
   });
 
-  describe('fetchAttestations', () => {
+  describe('fetchBlock', () => {
     let mockBeaconClient: Pick<BeaconClient, 'slotStartIndexing'> & {
       getBlock: ReturnType<typeof vi.fn>;
       getCommittees: ReturnType<typeof vi.fn>;
@@ -421,13 +425,17 @@ describe('Slot Processor E2E Tests', () => {
     // Validators that attested on time for slot 24672000
     const attestedOnTimeValidators = [398596, 471558, 497750] as const;
 
-    beforeEach(async () => {
+    beforeAll(async () => {
       // Clean up database
       await prisma.committee.deleteMany();
       await prisma.slotProcessedData.deleteMany();
       await prisma.slot.deleteMany();
       await prisma.validator.deleteMany();
       await prisma.epoch.deleteMany();
+      await prisma.validatorWithdrawals.deleteMany();
+      await prisma.validatorWithdrawalsRequests.deleteMany();
+      await prisma.validatorDeposits.deleteMany();
+      await prisma.validatorConsolidationsRequests.deleteMany();
 
       // Create mock beacon client
       mockBeaconClient = {
@@ -480,112 +488,195 @@ describe('Slot Processor E2E Tests', () => {
 
       // Create slot 24672001 (where attestations come from)
       await slotStorage.createTestSlots([{ slot: slot24672001, processed: false }]);
-    });
-
-    it('should skip processing if attestations already fetched', async () => {
-      // Pre-create slot with attestationsFetched = true
-      await slotStorage.updateSlotFlags(slot24672001, { attestationsFetched: true });
-
-      // Mock block data (even though it won't be processed)
-      const blockData = blockData24672001 as Block;
-      mockBeaconClient.getBlock.mockResolvedValueOnce(blockData);
-
-      // Spy on saveSlotAttestations to verify it's NOT called
-      const saveSpy = vi.spyOn(slotStorage, 'saveSlotAttestations');
-
-      // Try to process (should skip due to existing flag)
-      await slotControllerWithMock.fetchBlock(slot24672001);
-
-      // Verify saveSlotAttestations was NOT called (processAttestations checks the flag)
-      expect(saveSpy).not.toHaveBeenCalled();
-
-      saveSpy.mockRestore();
-    });
-
-    it('should handle missed blocks', async () => {
-      // Create slot for missed block test
-      await slotStorage.createTestSlots([{ slot: 24672002, processed: false }]);
-
-      // Mock block for missed slot
-      const mockMissedBlock = 'SLOT MISSED';
-
-      mockBeaconClient.getBlock.mockResolvedValueOnce(mockMissedBlock);
-
-      // Spy on saveSlotAttestations to verify it's NOT called for missed blocks
-      const processSpy = vi.spyOn(slotStorage, 'saveSlotAttestations');
-
-      // Process slot 24672002
-      await slotControllerWithMock.fetchBlock(24672002);
-
-      // Verify slot flag was updated (even for missed blocks)
-      const slot = await slotStorage.getSlotWithoutProcessedData(24672002);
-      expect(slot?.processed).toBe(true);
-
-      // Verify processAttestations was NOT called for missed block
-      expect(processSpy).not.toHaveBeenCalled();
-
-      processSpy.mockRestore();
-    });
-
-    it('should process attestations and verify attestation delays for missed and on-time validators', async () => {
-      // Verify slot 24672001 exists before processing
-      const slotDataBefore = await slotStorage.getSlotWithoutProcessedData(slot24672001);
-      expect(slotDataBefore).toBeDefined();
 
       // Verify slot 24672000 exists and has committeesCountInSlot (needed for attestation processing)
-      const slot24672000Data = await slotStorage.getSlotWithoutProcessedData(slot24672000);
+      const slot24672000Data = await slotStorage.getBaseSlot(slot24672000);
       expect(slot24672000Data).toBeDefined();
       expect(slot24672000Data?.committeesCountInSlot).toBeDefined();
       expect(Array.isArray(slot24672000Data?.committeesCountInSlot)).toBe(true);
       expect((slot24672000Data?.committeesCountInSlot as number[]).length).toBeGreaterThan(0);
 
-      // Use block data directly from mock file
+      // Process fetchBlock once with mock data
       const blockData = blockData24672001 as Block;
       mockBeaconClient.getBlock.mockResolvedValueOnce(blockData);
 
-      // Process slot 24672001 (attestations for slot 24672000)
-      // Note: fetchBlock uses Promise.allSettled, so errors are silently caught
-      // We need to verify the processing completed successfully by checking the flag
-      const result = await slotControllerWithMock.fetchBlock(slot24672001);
+      // Process slot 24672001 (this will process attestations, withdrawals, and execution requests)
+      const result = await slotControllerWithMock.processSlotData(slot24672001);
       expect(result).toBeDefined();
       expect(result).not.toBe('SLOT MISSED');
+    });
 
-      // Verify slot flag was updated (this confirms saveSlotAttestations was called)
-      const slotData = await slotStorage.getSlotWithoutProcessedData(slot24672001);
-      expect(slotData).toBeDefined();
-      if (!slotData?.attestationsFetched) {
-        // If flag is not set, processAttestations likely failed silently
-        // Check if there are any attestations in the block to process
-        const attestations = (result as Block).data.message.body.attestations;
-        expect(attestations.length).toBeGreaterThan(0);
-        // If attestations exist but flag is not set, there was an error
-        throw new Error(
-          'attestationsFetched flag was not set after processing. This indicates processAttestations failed silently.',
+    describe('fetchAttestations', () => {
+      it('should verify attestations were processed and flag was set', async () => {
+        // Verify slot flag was updated (this confirms saveSlotAttestations was called)
+        const slotData = await slotStorage.getBaseSlot(slot24672001);
+        expect(slotData).toBeDefined();
+        expect(slotData?.attestationsFetched).toBe(true);
+      });
+
+      it('should verify attestation delays for missed and on-time validators', async () => {
+        // Get committees for slot 24672000 to verify attestation delays
+        const committees = await epochStorage.getCommitteesBySlots([slot24672000]);
+
+        // Filter committees for all validators we're testing (attested and missed) - single filter
+        const allValidatorsToTest = [
+          ...(attestedOnTimeValidators as readonly number[]),
+          ...(missedValidators as readonly number[]),
+        ];
+        const relevantCommittees = committees.filter((c) =>
+          allValidatorsToTest.includes(c.validatorIndex),
         );
-      }
-      expect(slotData.attestationsFetched).toBe(true);
 
-      // Get committees for slot 24672000 to verify attestation delays
-      const committees = await epochStorage.getCommitteesBySlots([slot24672000]);
-
-      // Filter committees for all validators we're testing (attested and missed) - single filter
-      const allValidatorsToTest = [
-        ...(attestedOnTimeValidators as readonly number[]),
-        ...(missedValidators as readonly number[]),
-      ];
-      const relevantCommittees = committees.filter((c) =>
-        allValidatorsToTest.includes(c.validatorIndex),
-      );
-
-      // Verify delays: attested validators have delay = 0, missed validators have delay = null
-      expect(relevantCommittees.length).toBeGreaterThan(0);
-      for (const committee of relevantCommittees) {
-        if ((attestedOnTimeValidators as readonly number[]).includes(committee.validatorIndex)) {
-          expect(committee.attestationDelay).toBe(0);
-        } else if ((missedValidators as readonly number[]).includes(committee.validatorIndex)) {
-          expect(committee.attestationDelay).toBeNull();
+        // Verify delays: attested validators have delay = 0, missed validators have delay = null
+        expect(relevantCommittees.length).toBeGreaterThan(0);
+        for (const committee of relevantCommittees) {
+          if ((attestedOnTimeValidators as readonly number[]).includes(committee.validatorIndex)) {
+            expect(committee.attestationDelay).toBe(0);
+          } else if ((missedValidators as readonly number[]).includes(committee.validatorIndex)) {
+            expect(committee.attestationDelay).toBeNull();
+          }
         }
-      }
+      });
+    });
+
+    describe('withdrawals', () => {
+      it('should verify withdrawals were processed and flag was set', async () => {
+        // Verify slot flag was updated
+        const slotData = await slotStorage.getBaseSlot(slot24672001);
+        expect(slotData).toBeDefined();
+        expect(slotData?.validatorWithdrawalsFetched).toBe(true);
+      });
+
+      it('should verify all withdrawals from mock data were saved correctly', async () => {
+        // Expected withdrawals from block_24672001.json
+        const expectedWithdrawals = [
+          { validatorIndex: '300993', amount: BigInt('12003217') },
+          { validatorIndex: '300994', amount: BigInt('12023599') },
+          { validatorIndex: '300995', amount: BigInt('11995355') },
+          { validatorIndex: '300996', amount: BigInt('12014455') },
+          { validatorIndex: '300997', amount: BigInt('11994342') },
+          { validatorIndex: '300998', amount: BigInt('12024224') },
+          { validatorIndex: '300999', amount: BigInt('12001852') },
+          { validatorIndex: '301000', amount: BigInt('12007175') },
+        ];
+
+        // Get all withdrawals for slot 24672001 using storage method
+        const withdrawals = await slotStorage.getValidatorWithdrawalsForSlot(slot24672001);
+
+        // Verify we have the correct number of withdrawals
+        expect(withdrawals.length).toBe(expectedWithdrawals.length);
+
+        // Verify each withdrawal matches expected data
+        for (let i = 0; i < expectedWithdrawals.length; i++) {
+          const expected = expectedWithdrawals[i];
+          const actual = withdrawals[i];
+
+          expect(actual.slot).toBe(slot24672001);
+          expect(actual.validatorIndex).toBe(expected.validatorIndex);
+          expect(actual.amount.toString()).toBe(expected.amount.toString());
+        }
+      });
+    });
+
+    describe('executionRequests', () => {
+      it('should verify execution requests flag was set', async () => {
+        // Verify slot flag was updated
+        const slotData = await slotStorage.getBaseSlot(slot24672001);
+        expect(slotData).toBeDefined();
+        expect(slotData?.executionRequestsFetched).toBe(true);
+      });
+
+      it('should verify deposits from execution requests were saved correctly', async () => {
+        // Expected deposits from block_24672001.json
+        const expectedDeposits = [
+          {
+            pubkey:
+              '0x95bfbd34770dcf14d605342f8141ff54c5737af55edd3034dd3bc3beecef5c610b38860de24e2de99a179ad61d535bdb',
+            amount: BigInt('32000000000'),
+          },
+          {
+            pubkey:
+              '0xa1202e8dec943df62a030f6d8226393c9914d12d6a03edfbeac2979326f63daa104bc6aacbffb39747db0552497065a4',
+            amount: BigInt('32000000000'),
+          },
+        ];
+
+        // Get all deposits for slot 24672001 using storage method
+        const deposits = await slotStorage.getValidatorDepositsForSlot(slot24672001);
+
+        // Verify we have the correct number of deposits
+        expect(deposits.length).toBe(expectedDeposits.length);
+
+        // Verify each deposit matches expected data
+        for (let i = 0; i < expectedDeposits.length; i++) {
+          const expected = expectedDeposits[i];
+          const actual = deposits[i];
+
+          expect(actual.slot).toBe(slot24672001);
+          expect(actual.pubkey).toBe(expected.pubkey);
+          expect(actual.amount.toString()).toBe(expected.amount.toString());
+        }
+      });
+
+      it('should verify withdrawal requests from execution requests were saved correctly', async () => {
+        // Expected withdrawal request from block_24672001.json
+        const expectedWithdrawalRequest = {
+          pubKey:
+            '0xa5256ce2de7b9bd44f3dc7e368d27386b1958373e7c04bcb97805bf382ecd6cd56716499f4dc625f3fab6f2cfca8fa0b',
+          amount: BigInt('640000000'),
+        };
+
+        // Get all withdrawal requests for slot 24672001 using storage method
+        const withdrawalRequests =
+          await slotStorage.getValidatorWithdrawalsRequestsForSlot(slot24672001);
+
+        // Verify we have the correct number of withdrawal requests
+        expect(withdrawalRequests.length).toBe(1);
+
+        // Verify the withdrawal request matches expected data
+        const actual = withdrawalRequests[0];
+        expect(actual.slot).toBe(slot24672001);
+        expect(actual.pubKey).toBe(expectedWithdrawalRequest.pubKey);
+        expect(actual.amount.toString()).toBe(expectedWithdrawalRequest.amount.toString());
+      });
+
+      it('should verify consolidation requests from execution requests were saved correctly', async () => {
+        // Expected consolidations from block_24672001.json
+        const expectedConsolidations = [
+          {
+            sourcePubkey:
+              '0xb311b7458d61a0124060557cbce90d002473cfc301e0e7898f0f11ba52894cdb125214234258a710d041771e53e19ac5',
+            targetPubkey:
+              '0x84e8a653de922a22b844a78caec1de0a1891a5ba633ce4138d537424abe8853e586a3b5a1580c71d25671e733aaf1114',
+          },
+          {
+            sourcePubkey:
+              '0xa0b865f5e3663fdb3a446f4d6eb1bac845988f834fea306c3708e827f5565f633b8a41c62b15a567c0aed5944e703ffa',
+            targetPubkey:
+              '0x84e8a653de922a22b844a78caec1de0a1891a5ba633ce4138d537424abe8853e586a3b5a1580c71d25671e733aaf1114',
+          },
+        ];
+
+        // Get all consolidation requests for slot 24672001 using storage method
+        const consolidationRequests =
+          await slotStorage.getValidatorConsolidationsRequestsForSlot(slot24672001);
+
+        // Verify we have the correct number of consolidation requests
+        expect(consolidationRequests.length).toBe(expectedConsolidations.length);
+
+        // Verify each consolidation request matches expected data
+        // Don't rely on order - find by sourcePubkey and then verify targetPubkey
+        for (const expected of expectedConsolidations) {
+          const actual = consolidationRequests.find(
+            (req) => req.sourcePubkey === expected.sourcePubkey,
+          );
+
+          expect(actual).toBeDefined();
+          expect(actual?.slot).toBe(slot24672001);
+          expect(actual?.sourcePubkey).toBe(expected.sourcePubkey);
+          expect(actual?.targetPubkey).toBe(expected.targetPubkey);
+        }
+      });
     });
   });
 });

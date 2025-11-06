@@ -20,7 +20,7 @@ async function hasUnprocessedSlots(endSlot: number): Promise<boolean> {
     where: {
       slot: endSlot,
       attestationsFetched: true,
-      blockRewardsFetched: true,
+      consensusRewardsFetched: true,
       syncRewardsFetched: true,
     },
   });
