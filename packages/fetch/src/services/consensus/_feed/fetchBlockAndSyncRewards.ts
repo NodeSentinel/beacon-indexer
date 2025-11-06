@@ -145,12 +145,12 @@ export const fetchBlockAndSyncRewards = async (
       await tx.slot.upsert({
         where: { slot },
         update: {
-          blockRewardsFetched: true,
+          consensusRewardsFetched: true,
           syncRewardsFetched: true,
         },
         create: {
           slot,
-          blockRewardsFetched: true,
+          consensusRewardsFetched: true,
           syncRewardsFetched: true,
         },
       });

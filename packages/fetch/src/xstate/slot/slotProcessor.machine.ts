@@ -192,7 +192,7 @@ export const slotProcessorMachine = setup({
                 return {
                   slot: slot.slot,
                   attestationsProcessed: slot.attestationsFetched || false,
-                  blockRewardsProcessed: slot.blockRewardsFetched || false,
+                  blockRewardsProcessed: slot.consensusRewardsFetched || false,
                   syncRewardsProcessed: slot.syncRewardsFetched || false,
                   executionRewardsProcessed: slot.executionRewardsFetched || false,
                   beaconBlockProcessed: false,

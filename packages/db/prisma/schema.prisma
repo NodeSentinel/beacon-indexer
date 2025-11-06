@@ -8,8 +8,6 @@ datasource db {
     url      = env("DATABASE_URL")
 }
 
-// TODO: normalized fetched vs processed
-
 model Validator {
     id                Int     @id @map("id")
     status            Int?    @map("status")
@@ -21,8 +19,45 @@ model Validator {
     users User[] @relation("user_to_validator")
 
     @@index([status])
+    @@index([pubkey])
     // TODO: do we need to index the pubkey?
     @@map("validator")
+}
+
+model validatorWithdrawals {
+    slot           Int    @map("slot")
+    validatorIndex String @map("validator_index") @db.VarChar(98)
+    amount         BigInt @map("amount")
+
+    @@id([slot, validatorIndex])
+    @@map("validator_withdrawals")
+}
+
+model validatorDeposits {
+    slot   Int    @map("slot")
+    pubkey String @map("pubkey") @db.VarChar(98)
+    amount BigInt @map("amount")
+
+    @@id([slot, pubkey])
+    @@map("validator_deposits")
+}
+
+model validatorWithdrawalsRequests {
+    slot   Int    @map("slot")
+    pubKey String @map("pub_key") @db.VarChar(98)
+    amount BigInt @map("amount")
+
+    @@id([slot, pubKey])
+    @@map("validator_request_withdrawals")
+}
+
+model validatorConsolidationsRequests {
+    slot         Int    @map("slot")
+    sourcePubkey String @map("source_pubkey") @db.VarChar(98)
+    targetPubkey String @map("target_pubkey") @db.VarChar(98)
+
+    @@id([slot, sourcePubkey, targetPubkey])
+    @@map("validator_request_consolidations")
 }
 
 model Epoch {
@@ -41,20 +76,21 @@ model Epoch {
 }
 
 model Slot {
-    slot                    Int     @id @map("slot")
-    proposerIndex           Int?    @map("proposer_index")
-    missed                  Boolean @default(false) @map("missed") // TODO
-    blockNumber             Int?    @map("block_number")
-    consensusReward         BigInt? @map("consensus_reward")
-    executionReward         BigInt? @map("execution_reward")
+    slot                        Int     @id @map("slot")
+    proposerIndex               Int?    @map("proposer_index")
+    blockNumber                 Int?    @map("block_number")
+    consensusReward             BigInt? @map("consensus_reward")
+    executionReward             BigInt? @map("execution_reward")
     // Stores the number of validators per committee index as an array: [350, 340, ...], required for attestation processing
-    committeesCountInSlot   Json?   @map("committees_count_in_slot")
+    committeesCountInSlot       Json?   @map("committees_count_in_slot")
     // processed data flags
-    processed               Boolean @default(false) @map("processed")
-    attestationsFetched     Boolean @default(false) @map("attestations_fetched")
-    syncRewardsFetched      Boolean @default(false) @map("sync_rewards_fetched")
-    blockRewardsFetched     Boolean @default(false) @map("block_rewards_fetched")
-    executionRewardsFetched Boolean @default(false) @map("execution_rewards_fetched")
+    processed                   Boolean @default(false) @map("processed")
+    attestationsFetched         Boolean @default(false) @map("attestations_fetched")
+    consensusRewardsFetched     Boolean @default(false) @map("consensus_rewards_fetched")
+    executionRewardsFetched     Boolean @default(false) @map("execution_rewards_fetched")
+    validatorWithdrawalsFetched Boolean @default(false) @map("validator_withdrawals_fetched")
+    syncRewardsFetched          Boolean @default(false) @map("sync_rewards_fetched")
+    executionRequestsFetched    Boolean @default(false) @map("execution_requests_fetched")
 
     slotProcessedData SlotProcessedData[]
 

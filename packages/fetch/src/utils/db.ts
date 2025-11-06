@@ -31,7 +31,7 @@ export const db_hasEpochCommittees = async (epoch: number) => {
 export const db_getLastSlotWithSyncRewards = async () =>
   await prisma.slot.findFirst({
     where: {
-      AND: [{ blockRewardsFetched: true }, { syncRewardsFetched: true }],
+      AND: [{ consensusRewardsFetched: true }, { syncRewardsFetched: true }],
     },
     orderBy: { slot: 'desc' },
     select: { slot: true },
@@ -223,7 +223,7 @@ export async function db_hasBlockAndSyncRewardsFetched(slot: number): Promise<bo
   const slotData = await prisma.slot.findFirst({
     where: {
       slot,
-      AND: [{ blockRewardsFetched: true }, { syncRewardsFetched: true }],
+      AND: [{ consensusRewardsFetched: true }, { syncRewardsFetched: true }],
     },
   });
   return slotData !== null;
