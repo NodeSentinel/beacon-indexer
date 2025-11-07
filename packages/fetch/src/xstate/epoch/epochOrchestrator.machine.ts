@@ -1,7 +1,6 @@
 import { Epoch } from '@beacon-indexer/db';
-import { setup, assign, stopChild, ActorRefFrom } from 'xstate';
+import { setup, assign, stopChild, ActorRefFrom, fromPromise } from 'xstate';
 
-import { getMinEpochToProcess } from './epoch.actors.js';
 import { epochProcessorMachine } from './epochProcessor.machine.js';
 
 import type { CustomLogger } from '@/src/lib/pino.js';
@@ -16,11 +15,16 @@ import { pinoLog } from '@/src/xstate/pinoLog.js';
  * @fileoverview The epoch orchestrator is a state machine that is responsible for orchestrating the processing of epochs.
  *
  * It is responsible for:
- * - Fetching the minimum unprocessed epoch
- * - Spawning the epoch processor machine
+ * - Polling for the minimum unprocessed epoch
+ * - Spawning the epoch processor machine when epoch data is available
  * - Monitoring epoch completion
  *
  * This machine processes one epoch at a time.
+ *
+ * States:
+ * - pollingEpoch: Invokes getMinEpochToProcess and transitions based on result
+ * - processingEpoch: Spawns epoch processor actor and handles completion
+ * - idleNoEpoch: Waits when no epoch is available before polling again
  */
 
 // TODO: make this machine to process N epochs at a time.
@@ -49,11 +53,15 @@ export const epochOrchestratorMachine = setup({
     };
   },
   actors: {
-    getMinEpochToProcess,
+    getMinEpochToProcess: fromPromise(
+      async ({ input }: { input: { epochController: EpochController } }) => {
+        return input.epochController.getMinEpochToProcess();
+      },
+    ),
     epochProcessorMachine,
   },
   guards: {
-    hasEpochDataInContext: ({ context }) => {
+    hasEpochData: ({ context }) => {
       return context.epochData !== null;
     },
   },
@@ -63,7 +71,7 @@ export const epochOrchestratorMachine = setup({
   },
 }).createMachine({
   id: 'EpochOrchestrator',
-  initial: 'gettingMinEpoch',
+  initial: 'pollingEpoch',
   context: ({ input }) => ({
     epochData: null,
     epochActor: null,
@@ -75,44 +83,37 @@ export const epochOrchestratorMachine = setup({
     slotController: input.slotController,
   }),
   states: {
-    gettingMinEpoch: {
+    pollingEpoch: {
       invoke: {
         src: 'getMinEpochToProcess',
         input: ({ context }) => ({ epochController: context.epochController }),
-        onDone: {
-          target: 'checkingIfCanSpawnEpochProcessor',
-          actions: [
-            assign({
-              epochData: ({ event }) => event.output,
-            }),
-            pinoLog(
-              ({ event }) => `Start processing epoch ${event.output?.epoch}`,
-              'EpochOrchestrator',
-            ),
-          ],
-        },
+        onDone: [
+          {
+            guard: ({ event }) => event.output !== null,
+            target: 'processingEpoch',
+            actions: [
+              assign({
+                epochData: ({ event }) => event.output,
+              }),
+              pinoLog(
+                ({ event }) => `Found epoch ${event.output?.epoch} to process`,
+                'EpochOrchestrator',
+              ),
+            ],
+          },
+          {
+            target: 'idleNoEpoch',
+            actions: pinoLog('No epoch to process, entering idle state', 'EpochOrchestrator'),
+          },
+        ],
         onError: {
-          target: 'noMinEpochToProcess',
+          target: 'idleNoEpoch',
           actions: pinoLog(
             ({ event }) => `Error getting min epoch to process: ${event.error}`,
             'EpochOrchestrator',
             'error',
           ),
         },
-      },
-    },
-
-    checkingIfCanSpawnEpochProcessor: {
-      after: {
-        0: [
-          {
-            guard: 'hasEpochDataInContext',
-            target: 'processingEpoch',
-          },
-          {
-            target: 'noMinEpochToProcess',
-          },
-        ],
       },
     },
 
@@ -162,10 +163,10 @@ export const epochOrchestratorMachine = setup({
       ],
       on: {
         EPOCH_COMPLETED: {
-          target: 'gettingMinEpoch',
+          target: 'pollingEpoch',
           actions: [
             pinoLog(
-              ({ event }) => `Epoch processing completed for epoch ${event.machineId}`,
+              ({ event }) => `Epoch processing completed for ${event.machineId}`,
               'EpochOrchestrator',
             ),
             stopChild(({ event }) => event.machineId),
@@ -178,10 +179,10 @@ export const epochOrchestratorMachine = setup({
       },
     },
 
-    noMinEpochToProcess: {
-      entry: pinoLog(`No min epoch to process, waiting for next check`, 'EpochOrchestrator'),
+    idleNoEpoch: {
+      entry: pinoLog('No epoch available, waiting before next poll', 'EpochOrchestrator'),
       after: {
-        noMinEpochDelay: 'gettingMinEpoch',
+        noMinEpochDelay: 'pollingEpoch',
       },
     },
   },

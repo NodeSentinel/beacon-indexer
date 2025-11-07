@@ -3,16 +3,6 @@ import { fromPromise } from 'xstate';
 import { EpochController } from '@/src/services/consensus/controllers/epoch.js';
 import { ValidatorsController } from '@/src/services/consensus/controllers/validators.js';
 
-/**
- * Finds the minimum unprocessed epoch that needs processing
- * Returns a single epoch with its current state
- */
-export const getMinEpochToProcess = fromPromise(
-  async ({ input }: { input: { epochController: EpochController } }) => {
-    return input.epochController.getMinEpochToProcess();
-  },
-);
-
 export const createEpochsIfNeeded = fromPromise(
   async ({ input }: { input: { epochController: EpochController } }) => {
     await input.epochController.createEpochsIfNeeded();

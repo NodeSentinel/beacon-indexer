@@ -1,5 +1,5 @@
 import { test, expect, vi, beforeEach } from 'vitest';
-import { createActor, createMachine, sendParent } from 'xstate';
+import { createActor, createMachine, sendParent, SnapshotFrom } from 'xstate';
 
 import { createControllablePromise } from '@/src/__tests__/utils.js';
 import { EpochController } from '@/src/services/consensus/controllers/epoch.js';
@@ -84,7 +84,7 @@ beforeEach(() => {
 });
 
 describe.skip('epochOrchestratorMachine', () => {
-  test('should initialize with correct context and transition to gettingMinEpoch', async () => {
+  test('should initialize with correct context and transition to pollingEpoch', async () => {
     // Arrange
     const controllableGetMinEpochPromise = createControllablePromise<null>();
 
@@ -92,6 +92,8 @@ describe.skip('epochOrchestratorMachine', () => {
       () => controllableGetMinEpochPromise.promise,
     );
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const stateTransitions: SnapshotFrom<any>[] = [];
     const actor = createActor(epochOrchestratorMachine, {
       input: {
         slotDuration: 0.1, // 100ms for faster tests
@@ -102,20 +104,15 @@ describe.skip('epochOrchestratorMachine', () => {
       },
     });
 
+    const subscription = actor.subscribe((snapshot) => {
+      stateTransitions.push(snapshot.value);
+    });
+
     // Act
     actor.start();
 
-    // Assert - Check state immediately after start (before async operation completes)
-    let snapshot = actor.getSnapshot();
-
-    // Check that context is properly initialized
-    expect(snapshot.context.epochData).toBe(null);
-    expect(snapshot.context.epochActor).toBe(null);
-    expect(snapshot.context.slotDuration).toBe(0.1);
-    expect(snapshot.context.lookbackSlot).toBe(32);
-
-    // The machine should be in gettingMinEpoch state
-    expect(snapshot.value).toBe('gettingMinEpoch');
+    // Assert - Check initial state
+    expect(stateTransitions[0]).toBe('pollingEpoch');
 
     // Verify that getMinEpochToProcess was called at least once
     expect(vi.mocked(mockEpochController.getMinEpochToProcess)).toHaveBeenCalledTimes(1);
@@ -126,16 +123,23 @@ describe.skip('epochOrchestratorMachine', () => {
     // Wait for the state transition to complete
     await new Promise((resolve) => setTimeout(resolve, 50));
 
-    // Assert - Should transition to noMinEpochToProcess after resolving with null
-    snapshot = actor.getSnapshot();
-    expect(snapshot.value).toBe('noMinEpochToProcess');
-    expect(snapshot.context.epochData).toBe(null);
+    // Assert - Should transition to idleNoEpoch after resolving with null
+    const lastState = stateTransitions[stateTransitions.length - 1];
+    expect(lastState).toBe('idleNoEpoch');
+
+    // Verify context using final snapshot
+    const finalSnapshot = actor.getSnapshot();
+    expect(finalSnapshot.context.epochData).toBe(null);
+    expect(finalSnapshot.context.epochActor).toBe(null);
+    expect(finalSnapshot.context.slotDuration).toBe(0.1);
+    expect(finalSnapshot.context.lookbackSlot).toBe(32);
 
     // Clean up
+    subscription.unsubscribe();
     actor.stop();
   });
 
-  test('should handle getMinEpochToProcess error and retry after 1s', async () => {
+  test('should handle getMinEpochToProcess error and retry after delay', async () => {
     // Arrange
     const controllableGetMinEpochPromise = createControllablePromise<null>();
 
@@ -143,8 +147,8 @@ describe.skip('epochOrchestratorMachine', () => {
       () => controllableGetMinEpochPromise.promise,
     );
 
-    // Track both microsteps and states using XState inspection API
-    const microstepValues: string[] = [];
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const stateTransitions: SnapshotFrom<any>[] = [];
     const actor = createActor(epochOrchestratorMachine, {
       input: {
         slotDuration: 0.1, // 100ms for faster tests
@@ -153,20 +157,17 @@ describe.skip('epochOrchestratorMachine', () => {
         beaconTime: mockBeaconTime,
         slotController: mockSlotController,
       },
-      inspect: (inspectionEvent) => {
-        if (inspectionEvent.type === '@xstate.microstep') {
-          // @ts-expect-error - snapshot.value exists at runtime for microstep events but not in type definition
-          microstepValues.push(inspectionEvent.snapshot.value);
-        }
-      },
+    });
+
+    const subscription = actor.subscribe((snapshot) => {
+      stateTransitions.push(snapshot.value);
     });
 
     // Act
     actor.start();
 
-    // Assert - Should be in gettingMinEpoch state initially
-    let snapshot = actor.getSnapshot();
-    expect(snapshot.value).toBe('gettingMinEpoch');
+    // Assert - Should be in pollingEpoch state initially
+    expect(stateTransitions[0]).toBe('pollingEpoch');
     expect(vi.mocked(mockEpochController.getMinEpochToProcess)).toHaveBeenCalledTimes(1);
 
     // Now reject the promise to trigger error handling
@@ -175,13 +176,9 @@ describe.skip('epochOrchestratorMachine', () => {
     // Wait for the state transition to complete
     await new Promise((resolve) => setTimeout(resolve, 5));
 
-    // Assert - Should transition to noMinEpochToProcess after error
-    snapshot = actor.getSnapshot();
-    expect(snapshot.value).toBe('noMinEpochToProcess');
-
-    // Verify we went through the expected states using microsteps in correct order
-    expect(microstepValues.length).toBeGreaterThanOrEqual(1);
-    expect(microstepValues[0]).toBe('noMinEpochToProcess');
+    // Assert - Should transition to idleNoEpoch after error
+    const stateAfterError = stateTransitions[stateTransitions.length - 1];
+    expect(stateAfterError).toBe('idleNoEpoch');
 
     // Wait for retry (33ms delay + some buffer)
     await new Promise((resolve) => setTimeout(resolve, 50));
@@ -191,17 +188,18 @@ describe.skip('epochOrchestratorMachine', () => {
       vi.mocked(mockEpochController.getMinEpochToProcess).mock.calls.length,
     ).toBeGreaterThanOrEqual(2);
 
-    // With always transitions, we get fewer microsteps but the retry still happens
-    // The important thing is that the function was called multiple times
-    expect(
-      vi.mocked(mockEpochController.getMinEpochToProcess).mock.calls.length,
-    ).toBeGreaterThanOrEqual(2);
+    // Verify state sequence includes expected states
+    const pollingCount = stateTransitions.filter((state) => state === 'pollingEpoch').length;
+    const idleCount = stateTransitions.filter((state) => state === 'idleNoEpoch').length;
+    expect(pollingCount).toBeGreaterThanOrEqual(1);
+    expect(idleCount).toBeGreaterThanOrEqual(1);
 
     // Clean up
+    subscription.unsubscribe();
     actor.stop();
   });
 
-  test('should handle null epoch data and transition to noMinEpochToProcess, then retry after 1s', async () => {
+  test('should handle null epoch data and transition to idleNoEpoch, then retry after delay', async () => {
     // Arrange
     const controllableGetMinEpochPromise = createControllablePromise<null>();
 
@@ -209,6 +207,8 @@ describe.skip('epochOrchestratorMachine', () => {
       () => controllableGetMinEpochPromise.promise,
     );
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const stateTransitions: SnapshotFrom<any>[] = [];
     const actor = createActor(epochOrchestratorMachine, {
       input: {
         slotDuration: 0.1, // 100ms for faster tests
@@ -219,18 +219,15 @@ describe.skip('epochOrchestratorMachine', () => {
       },
     });
 
-    // Track state transitions for additional verification
-    const stateTransitions: string[] = [];
     const subscription = actor.subscribe((snapshot) => {
-      stateTransitions.push(snapshot.value as string);
+      stateTransitions.push(snapshot.value);
     });
 
     // Act
     actor.start();
 
-    // Assert - Should be in gettingMinEpoch state initially
-    const snapshot = actor.getSnapshot();
-    expect(snapshot.value).toBe('gettingMinEpoch');
+    // Assert - Should be in pollingEpoch state initially
+    expect(stateTransitions[0]).toBe('pollingEpoch');
     expect(vi.mocked(mockEpochController.getMinEpochToProcess)).toHaveBeenCalledTimes(1);
 
     // Now resolve the promise with null to trigger the null handling
@@ -239,10 +236,9 @@ describe.skip('epochOrchestratorMachine', () => {
     // Wait for the state transition to complete
     await new Promise((resolve) => setTimeout(resolve, 5));
 
-    // Assert - Should transition to noMinEpochToProcess after resolving with null
-    // Use the last state from transitions instead of current snapshot
-    const finalState = stateTransitions[stateTransitions.length - 1];
-    expect(finalState).toBe('noMinEpochToProcess');
+    // Assert - Should transition to idleNoEpoch after resolving with null
+    const stateAfterNull = stateTransitions[stateTransitions.length - 1];
+    expect(stateAfterNull).toBe('idleNoEpoch');
 
     // Wait for the 33ms delay to complete and retry
     await new Promise((resolve) => setTimeout(resolve, 50));
@@ -253,22 +249,18 @@ describe.skip('epochOrchestratorMachine', () => {
     ).toBeGreaterThanOrEqual(2);
 
     // Verify we went through the expected states at least the expected number of times
-    const gettingMinEpochCount = stateTransitions.filter(
-      (state) => state === 'gettingMinEpoch',
-    ).length;
-    const noMinEpochToProcessCount = stateTransitions.filter(
-      (state) => state === 'noMinEpochToProcess',
-    ).length;
+    const pollingEpochCount = stateTransitions.filter((state) => state === 'pollingEpoch').length;
+    const idleNoEpochCount = stateTransitions.filter((state) => state === 'idleNoEpoch').length;
 
-    expect(gettingMinEpochCount).toBeGreaterThanOrEqual(2);
-    expect(noMinEpochToProcessCount).toBeGreaterThanOrEqual(2);
+    expect(pollingEpochCount).toBeGreaterThanOrEqual(2);
+    expect(idleNoEpochCount).toBeGreaterThanOrEqual(2);
 
     // Clean up
     subscription.unsubscribe();
     actor.stop();
   });
 
-  test('should complete full workflow: gettingMinEpoch -> checkingIfCanSpawnEpochProcessor -> processingEpoch -> EPOCH_COMPLETED -> gettingMinEpoch', async () => {
+  test('should complete full workflow: pollingEpoch -> processingEpoch -> EPOCH_COMPLETED -> pollingEpoch', async () => {
     // Arrange
     const mockEpochData = {
       epoch: 100,
@@ -299,8 +291,8 @@ describe.skip('epochOrchestratorMachine', () => {
       () => getMinEpochPromise.promise,
     );
 
-    // Track microsteps using XState inspection API
-    const microstepValues: string[] = [];
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const stateTransitions: SnapshotFrom<any>[] = [];
     const epochOrchestratorActor = createActor(epochOrchestratorMachine, {
       input: {
         slotDuration: 0.1, // 100ms for faster tests
@@ -309,32 +301,32 @@ describe.skip('epochOrchestratorMachine', () => {
         beaconTime: mockBeaconTime,
         slotController: mockSlotController,
       },
-      inspect: (inspectionEvent) => {
-        if (inspectionEvent.type === '@xstate.microstep') {
-          // @ts-expect-error - snapshot.value exists at runtime for microstep events but not in type definition
-          microstepValues.push(inspectionEvent.snapshot.value);
-        }
-      },
+    });
+
+    const subscription = epochOrchestratorActor.subscribe((snapshot) => {
+      stateTransitions.push(snapshot.value);
     });
 
     // Act
     epochOrchestratorActor.start();
 
-    // Assert - Should be in gettingMinEpoch state initially
-    let snapshot = epochOrchestratorActor.getSnapshot();
-    expect(snapshot.value).toBe('gettingMinEpoch');
+    // Assert - Should be in pollingEpoch state initially
+    expect(stateTransitions[0]).toBe('pollingEpoch');
 
     // Now resolve the promise, providing the mock epoch data to continue the workflow
     getMinEpochPromise.resolve(mockEpochData);
 
-    // Wait for the state transitions to complete (gettingMinEpoch -> checkingIfCanSpawnEpochProcessor -> processingEpoch)
+    // Wait for the state transitions to complete (pollingEpoch -> processingEpoch)
     await new Promise((resolve) => setTimeout(resolve, 5));
 
     // Assert - Should be in processingEpoch with epoch actor spawned
-    snapshot = epochOrchestratorActor.getSnapshot();
-    expect(snapshot.value).toBe('processingEpoch');
-    expect(snapshot.context.epochData).toEqual(mockEpochData);
-    expect(snapshot.context.epochActor).not.toBe(null);
+    const stateAfterResolve = stateTransitions[stateTransitions.length - 1];
+    expect(stateAfterResolve).toBe('processingEpoch');
+
+    // Verify context from stored snapshot
+    const snapshotAtProcessing = epochOrchestratorActor.getSnapshot();
+    expect(snapshotAtProcessing.context.epochData).toEqual(mockEpochData);
+    expect(snapshotAtProcessing.context.epochActor).not.toBe(null);
 
     // Update mock to return null for subsequent calls to prevent further processing
     vi.mocked(mockEpochController.getMinEpochToProcess).mockResolvedValue(null);
@@ -348,21 +340,30 @@ describe.skip('epochOrchestratorMachine', () => {
     // Wait a bit more for any pending state transitions
     await new Promise((resolve) => setTimeout(resolve, 5));
 
-    // Assert - Should be back to noMinEpochToProcess with cleaned context
-    snapshot = epochOrchestratorActor.getSnapshot();
-    expect(snapshot.value).toBe('noMinEpochToProcess');
-    expect(snapshot.context.epochData).toBe(null);
-    expect(snapshot.context.epochActor).toBe(null);
+    // Assert - Should be back to idleNoEpoch with cleaned context
+    const finalState = stateTransitions[stateTransitions.length - 1];
+    expect(finalState).toBe('idleNoEpoch');
+
+    // Verify cleanup using final snapshot
+    const finalSnapshot = epochOrchestratorActor.getSnapshot();
+    expect(finalSnapshot.context.epochData).toBe(null);
+    expect(finalSnapshot.context.epochActor).toBe(null);
 
     // Note: markEpochAsProcessed is called by the epochProcessor, not the orchestrator
     // The orchestrator just receives the EPOCH_COMPLETED event and cleans up
 
-    // Verify the state transitions using microsteps in correct order
-    expect(microstepValues.length).toBeGreaterThanOrEqual(2);
-    expect(microstepValues[0]).toBe('checkingIfCanSpawnEpochProcessor');
-    expect(microstepValues[1]).toBe('processingEpoch');
+    // Verify the state sequence
+    expect(stateTransitions.length).toBeGreaterThanOrEqual(3);
+    expect(stateTransitions[0]).toBe('pollingEpoch');
+    const processingIndex = stateTransitions.findIndex((state) => state === 'processingEpoch');
+    expect(processingIndex).toBeGreaterThan(0);
+    const idleIndex = stateTransitions.findIndex(
+      (state, idx) => state === 'idleNoEpoch' && idx > processingIndex,
+    );
+    expect(idleIndex).toBeGreaterThan(processingIndex);
 
     // Clean up
+    subscription.unsubscribe();
     epochOrchestratorActor.stop();
   });
 });
