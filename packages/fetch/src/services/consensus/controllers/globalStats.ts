@@ -1,56 +1,24 @@
 import { GlobalStatsStorage } from '../storage/globalStats.js';
 
 import { VALIDATOR_STATUS } from '@/src/services/consensus/constants.js';
+import { convertToUTC } from '@/src/utils/date/index.js';
 
-type Dateish = Date | string | number;
-
-function startOfUtcDay(d: Dateish) {
-  const x = new Date(d);
-  return new Date(Date.UTC(x.getUTCFullYear(), x.getUTCMonth(), x.getUTCDate()));
-}
-
-/**
- * GlobalStatsController - business layer for daily global metrics
- * Receives storage via injection, like the other controllers.
- */
 export class GlobalStatsController {
   constructor(private readonly storage: GlobalStatsStorage) {}
 
-  /**
-   * Aggregates and persists:
-   *  - Active validators (pending_queued, active_ongoing, active_exiting)
-   *  - Average balances over active_ongoing
-   *
-   * Returns a consolidated snapshot of the day.
-   */
-  async runDailyAggregation(when: Dateish = new Date()) {
-    const dayUtc = startOfUtcDay(when);
+  async runDailyAggregation(when: Date = new Date()) {
+    // Normalize to UTC start-of-day using existing helper
+    const { date } = convertToUTC(when); // 'yyyy-MM-dd' in UTC
+    const dayUtc = new Date(`${date}T00:00:00.000Z`);
 
-    // 1) Counts by status
-    const [pendingQueued, activeOngoing, activeExiting] = await Promise.all([
-      this.storage.countValidatorsByStatus(VALIDATOR_STATUS.pending_queued),
-      this.storage.countValidatorsByStatus(VALIDATOR_STATUS.active_ongoing),
-      this.storage.countValidatorsByStatus(VALIDATOR_STATUS.active_exiting),
-    ]);
-
-    await this.storage.upsertDailyActiveValidators(dayUtc, {
-      pendingQueued,
-      activeOngoing,
-      activeExiting,
+    // Single-shot aggregation + upsert (no multiple round-trips)
+    await this.storage.upsertDailyValidatorStatsRaw(dayUtc, {
+      pendingQueued: VALIDATOR_STATUS.pending_queued,
+      activeOngoing: VALIDATOR_STATUS.active_ongoing,
+      activeExiting: VALIDATOR_STATUS.active_exiting,
     });
 
-    // 2) Averages over ongoing-active validators
-    const averages = await this.storage.computeAverages({
-      status: VALIDATOR_STATUS.active_ongoing,
-    });
-
-    await this.storage.upsertDailyAverageBalances(dayUtc, averages);
-
-    // 3) Snapshot (useful for logs/tests)
-    return {
-      date: dayUtc,
-      activeValidators: { pendingQueued, activeOngoing, activeExiting },
-      averages,
-    };
+    // Optional: return a minimal snapshot (can re-select if you need exact persisted values)
+    return { date: dayUtc };
   }
 }

@@ -253,23 +253,18 @@ model ExecutionRewards {
     @@index([timestamp, address])
 }
 
-/// Global daily counts of validators by status
-model BeaconDailyActiveValidators {
-  date          DateTime @id @db.Date
-  pendingQueued Int      @default(0) @map("pending_queued")
-  activeOngoing Int      @default(0) @map("active_ongoing")
-  activeExiting Int      @default(0) @map("active_exiting")
-
-  @@map("beacon_daily_active_validators")
-}
-
-/// Global daily average balances for *active ongoing* validators (gwei)
-/// NOTE: We store as a BigInt (integer), rounding down.
-model BeaconDailyAverageBalances {
+/// Global daily validator stats (counts + averages in gwei)
+model BeaconDailyValidatorStats {
   date             DateTime @id @db.Date
-  balance          BigInt?  @map("balance")            // avg(balance) en gwei
-  effectiveBalance BigInt?  @map("effective_balance")  // avg(effective_balance) en gwei
 
-  @@map("beacon_daily_average_balances")
+  // counts
+  pendingQueued    Int      @default(0) @map("pending_queued")
+  activeOngoing    Int      @default(0) @map("active_ongoing")
+  activeExiting    Int      @default(0) @map("active_exiting")
+
+  // averages (store floored bigint in gwei)
+  balance          BigInt?  @map("avg_balance")
+  effectiveBalance BigInt?  @map("avg_effective_balance")
+
+  @@map("beacon_daily_validator_stats")
 }
-
