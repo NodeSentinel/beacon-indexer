@@ -1,6 +1,4 @@
-import { setup } from 'xstate';
-
-import { createEpochsIfNeeded } from './epoch.actors.js';
+import { fromPromise, setup } from 'xstate';
 
 import { EpochController } from '@/src/services/consensus/controllers/epoch.js';
 
@@ -16,7 +14,11 @@ export const epochCreationMachine = setup({
     };
   },
   actors: {
-    createEpochsIfNeeded,
+    createEpochsIfNeeded: fromPromise(
+      async ({ input }: { input: { epochController: EpochController } }) => {
+        await input.epochController.createEpochsIfNeeded();
+      },
+    ),
   },
   delays: {
     slotDuration: ({ context }) => context.slotDuration,

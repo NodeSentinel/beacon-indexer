@@ -412,6 +412,18 @@ export class EpochStorage {
   }
 
   /**
+   * Update the epoch's validatorsActivationFetched flag to true
+   */
+  async updateValidatorsActivationFetched(epoch: number): Promise<{ success: boolean }> {
+    await this.prisma.epoch.update({
+      where: { epoch },
+      data: { validatorsActivationFetched: true },
+    });
+
+    return { success: true };
+  }
+
+  /**
    * Get hourly validator attestation stats for specific validators and datetime
    */
   async getHourlyValidatorAttestationStats(validatorIndexes: number[], datetime: Date) {

@@ -98,6 +98,11 @@ export class EpochController extends EpochControllerHelpers {
    * comma separated
    */
   async fetchEpochRewards(epoch: number) {
+    const epochDb = await this.epochStorage.getEpochByNumber(epoch);
+    if (epochDb?.rewardsFetched) {
+      return { success: true, skipped: true };
+    }
+
     // Get all attesting validators from storage
     const attestingValidatorsIds = await this.validatorsStorage.getAttestingValidatorsIds();
 
@@ -156,10 +161,10 @@ export class EpochController extends EpochControllerHelpers {
   /**
    * Fetch committees for a specific epoch
    */
-  async fetchCommittees(epoch: number) {
+  async fetchCommittees(epoch: number): Promise<void> {
     const epochDb = await this.epochStorage.getEpochByNumber(epoch);
     if (epochDb?.committeesFetched) {
-      throw new Error(`Committees for epoch ${epoch} already fetched`);
+      return;
     }
 
     // Get committees from beacon chain
@@ -170,14 +175,6 @@ export class EpochController extends EpochControllerHelpers {
       committees,
       this.beaconTime.getLookbackSlot(),
     );
-
-    // Calculate slot timestamps for HourlyValidatorData updates
-    // const slotTimestamps = new Map<number, Date>();
-    // for (const slot of newSlots) {
-    //   const slotTimestamp = this.beaconTime.getTimestampFromSlotNumber(slot);
-    //   const datetime = getUTCDatetimeRoundedToHour(slotTimestamp);
-    //   slotTimestamps.set(slot, datetime);
-    // }
 
     // Save to database
     await this.epochStorage.saveCommitteesData(
@@ -212,10 +209,10 @@ export class EpochController extends EpochControllerHelpers {
   /**
    * Fetch sync committees for a specific epoch
    */
-  async fetchSyncCommittees(epoch: number) {
+  async fetchSyncCommittees(epoch: number): Promise<void> {
     const result = await this.isSyncCommitteeForEpochInDB(epoch);
     if (result.isFetched) {
-      this.epochStorage.updateSyncCommitteesFetched(epoch);
+      await this.epochStorage.updateSyncCommitteesFetched(epoch);
       return;
     }
 
@@ -235,8 +232,12 @@ export class EpochController extends EpochControllerHelpers {
    * Update the epoch's slotsFetched flag to true
    * This flag represents that all the slots for the epoch have been processed
    */
-  async updateSlotsFetched(epoch: number) {
-    return this.epochStorage.setAllSlotsProcessed(epoch);
+  async updateSlotsFetched(epoch: number): Promise<void> {
+    const epochDb = await this.epochStorage.getEpochByNumber(epoch);
+    if (epochDb?.allSlotsProcessed) {
+      return;
+    }
+    await this.epochStorage.setAllSlotsProcessed(epoch);
   }
 
   /**
@@ -250,7 +251,49 @@ export class EpochController extends EpochControllerHelpers {
     return this.epochStorage.updateSyncCommitteesFetched(epoch);
   }
 
-  async markEpochAsProcessed(epoch: number) {
+  async markEpochAsProcessed(epoch: number): Promise<void> {
     await this.epochStorage.markEpochAsProcessed(epoch);
+  }
+
+  /**
+   * Check if validators balances are already fetched
+   */
+  async isValidatorsBalancesFetched(epoch: number): Promise<boolean> {
+    const epochDb = await this.epochStorage.getEpochByNumber(epoch);
+    return epochDb?.validatorsBalancesFetched ?? false;
+  }
+
+  /**
+   * Check if epoch rewards are already fetched
+   */
+  async isRewardsFetched(epoch: number): Promise<boolean> {
+    const epochDb = await this.epochStorage.getEpochByNumber(epoch);
+    return epochDb?.rewardsFetched ?? false;
+  }
+
+  /**
+   * Check if validators activation tracking is complete
+   */
+  async isValidatorsActivationFetched(epoch: number): Promise<boolean> {
+    const epochDb = await this.epochStorage.getEpochByNumber(epoch);
+    return epochDb?.validatorsActivationFetched ?? false;
+  }
+
+  /**
+   * Fetch epoch rewards
+   * Returns early if already processed
+   */
+  async fetchRewards(epoch: number): Promise<void> {
+    if (await this.isRewardsFetched(epoch)) {
+      return;
+    }
+    await this.fetchEpochRewards(epoch);
+  }
+
+  /**
+   * Mark validators activation as fetched
+   */
+  async markValidatorsActivationFetched(epoch: number): Promise<void> {
+    await this.epochStorage.updateValidatorsActivationFetched(epoch);
   }
 }
