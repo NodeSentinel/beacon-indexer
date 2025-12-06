@@ -39,6 +39,7 @@ export const epochCreationMachine = setup({
         input: ({ context }) => ({ epochController: context.epochController }),
         onDone: 'sleep',
         onError: {
+          target: 'sleep',
           actions: pinoLog(
             ({ event }) => `error creating epochs: ${event.error}`,
             'EpochCreator:createEpochs',
