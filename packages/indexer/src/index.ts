@@ -6,9 +6,11 @@ import createLogger from '@/src/lib/pino.js';
 import { BeaconClient } from '@/src/services/consensus/beacon.js';
 import { EpochController } from '@/src/services/consensus/controllers/epoch.js';
 import { SlotController } from '@/src/services/consensus/controllers/slot.js';
+import { SummaryController } from '@/src/services/consensus/controllers/summary.js';
 import { ValidatorsController } from '@/src/services/consensus/controllers/validators.js';
 import { EpochStorage } from '@/src/services/consensus/storage/epoch.js';
 import { SlotStorage } from '@/src/services/consensus/storage/slot.js';
+import { SummaryStorage } from '@/src/services/consensus/storage/summary.js';
 import { ValidatorsStorage } from '@/src/services/consensus/storage/validators.js';
 import { BeaconTime } from '@/src/services/consensus/utils/beaconTime.js';
 import { ExecutionClient } from '@/src/services/execution/execution.js';
@@ -140,6 +142,14 @@ async function main() {
     executionClient,
   );
 
+  const summaryStorage = new SummaryStorage(prisma);
+  const summaryController = new SummaryController(
+    summaryStorage,
+    beaconTime,
+    chainConfig.beacon.maxAttestationDelay,
+    chainConfig.beacon.delaySlotsToHead,
+  );
+
   // Start indexing the beacon chain
   await validatorsController.initValidators();
 
@@ -150,6 +160,9 @@ async function main() {
     slotController,
     validatorsController,
   );
+
+  // Get validator inactivity status
+  await summaryController.getValidatorInactivityStatus();
 }
 
 main().catch((e) => {

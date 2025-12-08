@@ -89,7 +89,7 @@ export class SummaryStorage {
             END AS status
           FROM attestations a
           CROSS JOIN input_params ip
-          GROUP BY a.validator_index
+          GROUP BY a.validator_index, ip.status_slots
         ),
 
         -- Stats from the last hour: how many made and how many missed
