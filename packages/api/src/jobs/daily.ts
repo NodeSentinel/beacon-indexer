@@ -1,7 +1,6 @@
 import cron from 'node-cron';
 
 import { logger } from '@/lib/logger.js';
-import { getPrisma } from '@/lib/prisma.js';
 
 /**
  * Register daily jobs
@@ -13,23 +12,11 @@ export function registerDailyJobs() {
     try {
       logger.info('Starting daily aggregation job');
 
-      const prisma = getPrisma();
+      // TODO: Implement daily aggregation logic
+      // Previously used lastSummaryUpdate table which has been removed
+      // Daily aggregations should now be computed from slot-level data
 
-      // Example: Update daily validator stats
-      // This would typically aggregate data from the last day
-      // For now, this is a placeholder - implement actual aggregation logic
-      // You can reuse logic from the indexer's GlobalStatsController
-
-      // Check last summary update
-      const lastUpdate = await prisma.lastSummaryUpdate.findUnique({
-        where: { id: 1 },
-        select: { dailyValidatorStats: true },
-      });
-
-      logger.info(
-        { lastDailyUpdate: lastUpdate?.dailyValidatorStats },
-        'Daily aggregation job completed',
-      );
+      logger.info('Daily aggregation job completed');
     } catch (error) {
       logger.error({ err: error }, 'Error in daily aggregation job');
     }

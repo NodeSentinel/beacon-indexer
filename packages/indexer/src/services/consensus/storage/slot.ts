@@ -414,32 +414,30 @@ export class SlotStorage {
 
   /**
    * Save sync committee rewards to database
+   * Now stores rewards per slot instead of per hour
    */
   async saveSyncCommitteeRewards(
+    slot: number,
     rewards: Array<{
       validatorIndex: number;
-      date: Date;
-      hour: number;
       syncCommittee: bigint;
     }>,
   ) {
     await this.prisma.$transaction(
       async (tx) => {
         for (const reward of rewards) {
-          await tx.hourlyBlockAndSyncRewards.upsert({
+          await tx.validatorBlockAndSyncRewards.upsert({
             where: {
-              validatorIndex_date_hour: {
+              slot_validatorIndex: {
+                slot,
                 validatorIndex: reward.validatorIndex,
-                date: reward.date,
-                hour: reward.hour,
               },
             },
             create: {
+              slot,
               validatorIndex: reward.validatorIndex,
-              date: reward.date,
-              hour: reward.hour,
               syncCommittee: reward.syncCommittee,
-              blockReward: 0n,
+              blockReward: null,
             },
             update: {
               syncCommittee: {
@@ -457,27 +455,27 @@ export class SlotStorage {
 
   /**
    * Save block rewards to database
+   * Now stores rewards per slot instead of per hour
    */
-  async saveBlockRewards(reward: {
-    validatorIndex: number;
-    date: Date;
-    hour: number;
-    blockReward: bigint;
-  }) {
-    return this.prisma.hourlyBlockAndSyncRewards.upsert({
+  async saveBlockRewards(
+    slot: number,
+    reward: {
+      validatorIndex: number;
+      blockReward: bigint;
+    },
+  ) {
+    return this.prisma.validatorBlockAndSyncRewards.upsert({
       where: {
-        validatorIndex_date_hour: {
+        slot_validatorIndex: {
+          slot,
           validatorIndex: reward.validatorIndex,
-          date: reward.date,
-          hour: reward.hour,
         },
       },
       create: {
+        slot,
         validatorIndex: reward.validatorIndex,
-        date: reward.date,
-        hour: reward.hour,
         blockReward: reward.blockReward,
-        syncCommittee: 0n,
+        syncCommittee: null,
       },
       update: {
         blockReward: {
@@ -494,28 +492,24 @@ export class SlotStorage {
     slot: number,
     reward: {
       validatorIndex: number;
-      date: Date;
-      hour: number;
       blockReward: bigint;
     } | null,
   ) {
     await this.prisma.$transaction(
       async (tx) => {
         if (reward) {
-          await tx.hourlyBlockAndSyncRewards.upsert({
+          await tx.validatorBlockAndSyncRewards.upsert({
             where: {
-              validatorIndex_date_hour: {
+              slot_validatorIndex: {
+                slot,
                 validatorIndex: reward.validatorIndex,
-                date: reward.date,
-                hour: reward.hour,
               },
             },
             create: {
+              slot,
               validatorIndex: reward.validatorIndex,
-              date: reward.date,
-              hour: reward.hour,
               blockReward: reward.blockReward,
-              syncCommittee: 0n,
+              syncCommittee: null,
             },
             update: {
               blockReward: {
@@ -537,33 +531,30 @@ export class SlotStorage {
 
   /**
    * Save sync committee rewards and update slot flag in a transaction
+   * Now stores rewards per slot instead of per hour
    */
   async saveSyncRewardsAndUpdateSlot(
     slot: number,
     rewards: Array<{
       validatorIndex: number;
-      date: Date;
-      hour: number;
       syncCommittee: bigint;
     }>,
   ) {
     await this.prisma.$transaction(
       async (tx) => {
         for (const reward of rewards) {
-          await tx.hourlyBlockAndSyncRewards.upsert({
+          await tx.validatorBlockAndSyncRewards.upsert({
             where: {
-              validatorIndex_date_hour: {
+              slot_validatorIndex: {
+                slot,
                 validatorIndex: reward.validatorIndex,
-                date: reward.date,
-                hour: reward.hour,
               },
             },
             create: {
+              slot,
               validatorIndex: reward.validatorIndex,
-              date: reward.date,
-              hour: reward.hour,
               syncCommittee: reward.syncCommittee,
-              blockReward: 0n,
+              blockReward: null,
             },
             update: {
               syncCommittee: {

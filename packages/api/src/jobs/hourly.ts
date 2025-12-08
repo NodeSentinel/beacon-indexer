@@ -1,7 +1,6 @@
 import cron from 'node-cron';
 
 import { logger } from '@/lib/logger.js';
-import { getPrisma } from '@/lib/prisma.js';
 
 /**
  * Register hourly jobs
@@ -13,23 +12,11 @@ export function registerHourlyJobs() {
     try {
       logger.info('Starting hourly aggregation job');
 
-      const prisma = getPrisma();
+      // TODO: Implement hourly aggregation logic
+      // Previously used lastSummaryUpdate table which has been removed
+      // Hourly aggregations should now be computed from slot-level data
 
-      // Example: Update hourly validator stats
-      // This would typically aggregate data from the last hour
-      // For now, this is a placeholder - implement actual aggregation logic
-      // based on your requirements
-
-      // Check last summary update
-      const lastUpdate = await prisma.lastSummaryUpdate.findUnique({
-        where: { id: 1 },
-        select: { hourlyValidatorStats: true },
-      });
-
-      logger.info(
-        { lastHourlyUpdate: lastUpdate?.hourlyValidatorStats },
-        'Hourly aggregation job completed',
-      );
+      logger.info('Hourly aggregation job completed');
     } catch (error) {
       logger.error({ err: error }, 'Error in hourly aggregation job');
     }
