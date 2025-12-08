@@ -285,7 +285,7 @@ export class MultiMachineLogger {
       return null;
     }
 
-    const cleaned: Record<string, unknown> = {};
+    //const cleaned: Record<string, unknown> = {};
     const seen = new WeakSet();
 
     const cleanValue = (value: unknown): unknown => {
@@ -428,7 +428,7 @@ function cleanContextForLogging(context: unknown): Record<string, unknown> | und
     return undefined;
   }
 
-  const cleaned: Record<string, unknown> = {};
+  //const cleaned: Record<string, unknown> = {};
   const seen = new WeakSet();
 
   const cleanValue = (value: unknown): unknown => {

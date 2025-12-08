@@ -44,6 +44,7 @@
     "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,json,md}\"",
     "build": "pnpm --filter @beacon-indexer/db build && pnpm --filter indexer build",
     "dev:indexer": "pnpm --filter indexer run dev",
+    "dev:api": "pnpm --filter api run dev",
     "db:danger:reset": "node scripts/dev-reset-db.js",
     "db:danger:update-schema": "node scripts/dev-update-schema.js",
     "db:generate": "pnpm --filter @beacon-indexer/db prisma:generate && pnpm --filter @beacon-indexer/db build",

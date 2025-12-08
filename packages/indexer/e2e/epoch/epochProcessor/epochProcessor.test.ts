@@ -218,7 +218,7 @@ describe('Epoch Processor E2E Tests', () => {
       expect(epoch1525791?.rewardsFetched).toBe(true);
 
       // Expected datetime for both epochs (should be 2025-10-21T14:00:00.000Z)
-      const expectedDatetime = new Date('2025-10-21T14:00:00.000Z');
+      //const expectedDatetime = new Date('2025-10-21T14:00:00.000Z');
 
       // Fetch validators data and stats from database
       const validatorIndexes = [549417, 549418, 549419];
@@ -229,11 +229,11 @@ describe('Epoch Processor E2E Tests', () => {
           epoch: { in: [1525790, 1525791] },
         },
       });
-      const dbHourlyStats = await prisma.hourlyValidatorStats.findMany({
-        where: {
-          validatorIndex: { in: validatorIndexes },
-        },
-      });
+      // const dbHourlyStats = await prisma.hourlyValidatorStats.findMany({
+      //   where: {
+      //     validatorIndex: { in: validatorIndexes },
+      //   },
+      // });
 
       expect(dbEpochRewards.length).toBeGreaterThan(0);
 

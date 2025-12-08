@@ -60,6 +60,26 @@ services:
     networks:
       - app-network
 
+  api:
+    container_name: api
+    restart: on-failure
+    env_file:
+      - packages/api/.env
+    environment:
+      - DOCKER_ENV=true
+    build:
+      context: .
+      dockerfile: packages/api/Dockerfile
+      platforms:
+        - linux/arm64
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    ports:
+      - '3000:3000'
+    networks:
+      - app-network
+
   # telegram_bot:
   #   container_name: telegram_bot
   #   restart: on-failure
