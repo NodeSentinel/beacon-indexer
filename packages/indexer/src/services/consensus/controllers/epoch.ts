@@ -107,7 +107,7 @@ export class EpochController extends EpochControllerHelpers {
     }
 
     // Get all attesting validators from storage
-    const attestingValidatorsIds = await this.validatorsStorage.getAttestingValidatorsIds();
+    const attestingValidatorIndexes = await this.validatorsStorage.getAttestingValidatorIndexes();
 
     // Create ideal rewards lookup, used to calculate missed rewards
     let idealRewardsLookup: ReturnType<typeof this.createIdealRewardsLookup> | null = null;
@@ -120,7 +120,7 @@ export class EpochController extends EpochControllerHelpers {
     }> = [];
 
     // Fetch rewards in batches and process them
-    const validatorBatches = chunk(attestingValidatorsIds, 1000000);
+    const validatorBatches = chunk(attestingValidatorIndexes, 1000000);
     for (const batch of validatorBatches) {
       // Get effective balances for the validators
       // used to calculate missed rewards based on ideal rewards

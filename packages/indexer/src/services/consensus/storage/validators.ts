@@ -35,9 +35,9 @@ export class ValidatorsStorage {
   }
 
   /**
-   * Get max validator ID from database
+   * Get max validator index from database
    */
-  async getMaxValidatorId() {
+  async getMaxValidatorIndex() {
     const res = await this.prisma.validator.findFirst({
       orderBy: { id: 'desc' },
       select: { id: true },
@@ -46,9 +46,9 @@ export class ValidatorsStorage {
   }
 
   /**
-   * Get final state validator IDs from database
+   * Get final state validator indices from database
    */
-  async getFinalValidatorIds() {
+  async getFinalValidatorIndexes() {
     const finalStateValidators = await this.prisma.validator.findMany({
       where: {
         status: {
@@ -65,9 +65,9 @@ export class ValidatorsStorage {
   }
 
   /**
-   * Get attesting validator IDs from database
+   * Get attesting validator indices from database
    */
-  async getAttestingValidatorsIds() {
+  async getAttestingValidatorIndexes() {
     const validators = await this.prisma.validator.findMany({
       where: {
         OR: [
@@ -91,12 +91,12 @@ export class ValidatorsStorage {
   }
 
   /**
-   * Get validator balances for specific validator IDs
+   * Get validator balances for specific validator indices
    */
-  async getValidatorsBalances(validatorIds: number[]) {
+  async getValidatorsBalances(validatorIndexes: number[]) {
     return this.prisma.validator.findMany({
       where: {
-        id: { in: validatorIds },
+        id: { in: validatorIndexes },
       },
       select: { id: true, balance: true },
     });

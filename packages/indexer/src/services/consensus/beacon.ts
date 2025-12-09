@@ -159,21 +159,21 @@ export class BeaconClient extends ReliableRequestClient {
   }
 
   /**
-   * Get validator balances for specific validator IDs
+   * Get validator balances for specific validator indices
    */
   async getValidatorsBalances(
     stateId: string | number,
-    validatorIds: string[],
+    validatorIndexes: string[],
   ): Promise<GetValidatorsBalances['data']> {
-    if (validatorIds.length === 0) {
-      throw new Error('No validator IDs provided');
+    if (validatorIndexes.length === 0) {
+      throw new Error('No validator indices provided');
     }
 
     return this.makeReliableRequest(
       async (url) => {
         const res = await this.axiosInstance.post<GetValidatorsBalances>(
           `${url}/eth/v1/beacon/states/${stateId}/validator_balances`,
-          validatorIds,
+          validatorIndexes,
         );
         return res.data.data;
       },
@@ -191,14 +191,14 @@ export class BeaconClient extends ReliableRequestClient {
    */
   async getValidators(
     stateId: string | number,
-    validatorIds: string[] | null,
+    validatorIndexes: string[] | null,
     statuses: string[] | null,
   ): Promise<GetValidators['data']> {
     return this.makeReliableRequest(async (url) => {
       const res = await this.axiosInstance.post<GetValidators>(
         `${url}/eth/v1/beacon/states/${stateId}/validators`,
         {
-          ids: validatorIds,
+          ids: validatorIndexes,
           statuses,
         },
       );
@@ -209,12 +209,15 @@ export class BeaconClient extends ReliableRequestClient {
   /**
    * Get attestation rewards for specific validators in an epoch
    */
-  async getAttestationRewards(epoch: number, validatorIds: number[]): Promise<AttestationRewards> {
+  async getAttestationRewards(
+    epoch: number,
+    validatorIndexes: number[],
+  ): Promise<AttestationRewards> {
     return this.makeReliableRequest(
       async (url) => {
         const res = await this.axiosInstance.post<AttestationRewards>(
           `${url}/eth/v1/beacon/rewards/attestations/${epoch}`,
-          validatorIds.map((id) => id.toString()),
+          validatorIndexes.map((id) => id.toString()),
         );
         return res.data;
       },
@@ -252,13 +255,13 @@ export class BeaconClient extends ReliableRequestClient {
    */
   getSyncCommitteeRewards = async (
     slot: number,
-    validatorIds: string[],
+    validatorIndexes: string[],
   ): Promise<SyncCommitteeRewards | 'SLOT MISSED'> => {
     return this.makeReliableRequest<SyncCommitteeRewards | 'SLOT MISSED'>(
       async (url) => {
         const res = await this.axiosInstance.post<SyncCommitteeRewards>(
           `${url}/eth/v1/beacon/rewards/sync_committee/${slot}`,
-          validatorIds,
+          validatorIndexes,
         );
         return res.data;
       },

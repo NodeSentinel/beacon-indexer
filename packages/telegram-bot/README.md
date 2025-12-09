@@ -13,15 +13,15 @@ Bot starter template based on [grammY](https://grammy.dev/) bot framework.
 - Logger (powered by [pino](https://github.com/pinojs/pino))
 - Ultrafast and multi-runtime server (powered by [hono](https://github.com/honojs/hono))
 - Ready-to-use deployment setups:
-    - [Docker](#docker-dockercom)
-    - [Vercel](#vercel-vercelcom)
+  - [Docker](#docker-dockercom)
+  - [Vercel](#vercel-vercelcom)
 - Examples:
-    - grammY plugins:
-        - [Conversations](#grammy-conversations-grammydevpluginsconversations)
-    - Databases:
-      - [Prisma ORM](#prisma-orm-prismaio)
-    - Runtimes:
-      - [Bun](#bun-bunsh)
+  - grammY plugins:
+    - [Conversations](#grammy-conversations-grammydevpluginsconversations)
+  - Databases:
+    - [Prisma ORM](#prisma-orm-prismaio)
+  - Runtimes:
+    - [Bun](#bun-bunsh)
 
 ## Usage
 
@@ -29,46 +29,53 @@ Follow these steps to set up and run your bot using this template:
 
 1. **Create a New Repository**
 
-    Start by creating a new repository using this template. You can do this by clicking [here](https://github.com/bot-base/telegram-bot-template/generate).
+   Start by creating a new repository using this template. You can do this by clicking [here](https://github.com/bot-base/telegram-bot-template/generate).
 
 2. **Environment Variables Setup**
 
-    Create an environment variables file by copying the provided example file:
-     ```bash
-     cp .env.example .env
-     ```
-    Open the newly created `.env` file and set the `BOT_TOKEN` environment variable.
+   Create an environment variables file by copying the provided example file:
+
+   ```bash
+   cp .env.example .env
+   ```
+
+   Open the newly created `.env` file and set the `BOT_TOKEN` environment variable.
 
 3. **Launching the Bot**
 
-    You can run your bot in both development and production modes.
+   You can run your bot in both development and production modes.
 
-    **Development Mode:**
+   **Development Mode:**
 
-    Install the required dependencies:
-    ```bash
-    npm install
-    ```
-    Start the bot in watch mode (auto-reload when code changes):
-    ```bash
-    npm run dev
-    ```
+   Install the required dependencies:
+
+   ```bash
+   npm install
+   ```
+
+   Start the bot in watch mode (auto-reload when code changes):
+
+   ```bash
+   npm run dev
+   ```
 
    **Production Mode:**
 
-    Install only production dependencies:
-    ```bash
-    npm install --only=prod
-    ```
+   Install only production dependencies:
 
-    Set `DEBUG` environment variable to `false` in your `.env` file.
+   ```bash
+   npm install --only=prod
+   ```
 
-    Start the bot in production mode:
-    ```bash
-    npm run start:force # skip type checking and start
-    # or
-    npm start # with type checking (requires development dependencies)
-    ```
+   Set `DEBUG` environment variable to `false` in your `.env` file.
+
+   Start the bot in production mode:
+
+   ```bash
+   npm run start:force # skip type checking and start
+   # or
+   npm start # with type checking (requires development dependencies)
+   ```
 
 ### List of Available Commands
 
