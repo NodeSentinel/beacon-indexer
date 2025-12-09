@@ -143,26 +143,26 @@ async function main() {
   );
 
   const summaryStorage = new SummaryStorage(prisma);
-  const summaryController = new SummaryController(
-    summaryStorage,
-    beaconTime,
-    chainConfig.beacon.maxAttestationDelay,
-    chainConfig.beacon.delaySlotsToHead,
-  );
+  const summaryController = new SummaryController(summaryStorage, beaconTime);
 
   // Start indexing the beacon chain
   await validatorsController.initValidators();
 
-  await initXstateMachines(
-    epochController,
-    beaconTime,
-    chainConfig.beacon.slotDuration,
-    slotController,
-    validatorsController,
-  );
+  // await initXstateMachines(
+  //   epochController,
+  //   beaconTime,
+  //   chainConfig.beacon.slotDuration,
+  //   slotController,
+  //   validatorsController,
+  // );
 
   // Get validator inactivity status
-  await summaryController.getValidatorInactivityStatus();
+  await summaryController.getValidatorInactivityStatus({
+    slotsPerEpoch: chainConfig.beacon.slotsPerEpoch,
+    maxAttestationDelay: chainConfig.beacon.maxAttestationDelay,
+    delaySlotsToHead: chainConfig.beacon.delaySlotsToHead,
+    missedAttestationsForInactivity: chainConfig.beacon.missedAttestationsForInactivity,
+  });
 }
 
 main().catch((e) => {

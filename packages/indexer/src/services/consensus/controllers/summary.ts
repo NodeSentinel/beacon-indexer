@@ -14,50 +14,74 @@ export class SummaryController {
   constructor(
     private readonly summaryStorage: SummaryStorage,
     private readonly beaconTime: BeaconTime,
-    private readonly maxAttestationDelay: number,
-    private readonly delaySlotsToHead: number,
   ) {}
 
   /**
    * Get validator inactivity status for the last hour
    * Calculates slots considering delaySlotsToHead and queries the database
+   * Saves the results to validators_status_summary table
+   *
+   * @param params - Configuration parameters
+   * @param params.slotsPerEpoch - Number of slots per epoch
+   * @param params.maxAttestationDelay - Maximum delay threshold for attestations
+   * @param params.delaySlotsToHead - Delay slots to head
+   * @param params.missedAttestationsForInactivity - Number of missed attestations to mark as inactive
    */
-  async getValidatorInactivityStatus() {
-    // statusSlots is 3 as per requirements
-    const statusSlots = 3;
+  async getValidatorInactivityStatus(params: {
+    slotsPerEpoch: number;
+    maxAttestationDelay: number;
+    delaySlotsToHead: number;
+    missedAttestationsForInactivity: number;
+  }) {
+    const {
+      slotsPerEpoch,
+      maxAttestationDelay,
+      delaySlotsToHead,
+      missedAttestationsForInactivity,
+    } = params;
 
     // Calculate current slot from timestamp
     const currentTimestamp = Date.now();
     const currentSlot = this.beaconTime.getSlotNumberFromTimestamp(currentTimestamp);
 
     // Max slot we can query is currentSlot - delaySlotsToHead
-    const maxQueryableSlot = currentSlot - this.delaySlotsToHead - statusSlots;
+    const maxQueryableSlot = currentSlot - delaySlotsToHead - missedAttestationsForInactivity;
 
     // Calculate slot from 1 hour ago
     const oneHourAgoTimestamp = currentTimestamp - ms('1h');
     const slotFromOneHourAgo = this.beaconTime.getSlotNumberFromTimestamp(oneHourAgoTimestamp);
 
-    // maxSlotHour is the max queryable slot (currentSlot - delaySlotsToHead)
-    const maxSlotHour = maxQueryableSlot;
+    // maxSlotToQuery is the max queryable slot (currentSlot - delaySlotsToHead)
+    const maxSlotToQuery = maxQueryableSlot;
 
-    this.logger.info('Calculated slot range', {
-      currentSlot,
-      maxQueryableSlot,
-      slotFromOneHourAgo,
-      maxSlotHour,
-      statusSlots,
-      maxAttestationDelay: this.maxAttestationDelay,
-    });
+    const inactivityCheckStartSlot =
+      maxSlotToQuery -
+      missedAttestationsForInactivity -
+      slotsPerEpoch * missedAttestationsForInactivity;
+
+    // this.logger.info('Calculated slot range', {
+    //   currentSlot,
+    //   maxQueryableSlot,
+    //   slotFromOneHourAgo,
+    //   maxSlotToQuery,
+    //   inactivityCheckStartSlot,
+    //   missedAttestationsForInactivity,
+    //   maxAttestationDelay,
+    // });
 
     try {
-      await this.summaryStorage.getValidatorInactivityStatus(
-        slotFromOneHourAgo,
-        maxSlotHour,
-        this.maxAttestationDelay,
-        statusSlots,
-      );
+      // Calculate and save validator inactivity status in a single efficient query
+      await this.summaryStorage.validatorsStatusSummary({
+        minSlotHour: 25242200, // slotFromOneHourAgo,
+        maxSlotToQuery: 25242920, // maxSlotToQuery,
+        inactivityCheckStartSlot: 25242872, //inactivityCheckStartSlot,
+        maxAttestationDelay,
+        inactiveMissedCount: missedAttestationsForInactivity,
+      });
+
+      this.logger.info('Calculated and saved validator status summary');
     } catch (error) {
-      this.logger.error('Error getting validator inactivity status', error);
+      this.logger.error('Error calculating and saving validator inactivity status', error);
       throw error;
     }
   }

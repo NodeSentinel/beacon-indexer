@@ -210,6 +210,19 @@ model HourlyValidatorStats {
     @@map("hourly_validator_stats")
 }
 
+model ValidatorsStatusSummary {
+    validatorIndex     Int      @id @map("validator_index")
+    status             String   @map("status") @db.VarChar(10) // 'active' | 'inactive'
+    attestationsTotal  Int      @map("attestations_total")
+    attestationsMissed Int      @map("attestations_missed")
+    performance        Decimal  @map("performance") @db.Decimal(5, 2) // Percentage 0.00 to 100.00
+    beaconStatus       Int?     @map("beacon_status") // From validator.status
+    balance            BigInt   @map("balance") // From validator.balance
+    updatedAt          DateTime @default(now()) @map("updated_at") @db.Timestamp
+
+    @@map("validators_status_summary")
+}
+
 //-------------------------------------
 // API
 //-------------------------------------
