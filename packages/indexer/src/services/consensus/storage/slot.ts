@@ -440,9 +440,7 @@ export class SlotStorage {
               blockReward: null,
             },
             update: {
-              syncCommittee: {
-                increment: reward.syncCommittee,
-              },
+              syncCommittee: reward.syncCommittee,
             },
           });
         }
@@ -478,9 +476,7 @@ export class SlotStorage {
         syncCommittee: null,
       },
       update: {
-        blockReward: {
-          increment: reward.blockReward,
-        },
+        blockReward: reward.blockReward,
       },
     });
   }

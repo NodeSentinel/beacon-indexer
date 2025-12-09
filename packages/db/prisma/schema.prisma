@@ -16,7 +16,7 @@ model Validator {
     pubkey            String? @map("pubkey") @db.VarChar(98)
     withdrawalAddress String? @map("withdrawal_address") @db.VarChar(42)
 
-    users User[] @relation("user_to_validator")
+    users UserToValidator[] @relation("user_to_validator")
 
     @@index([status])
     @@index([pubkey])
@@ -215,23 +215,49 @@ model HourlyValidatorStats {
 //-------------------------------------
 
 model User {
-    id                 BigInt             @id @map("id")
-    userId             BigInt             @unique @map("user_id")
-    username           String             @unique @map("username")
-    messageId          BigInt?            @map("message_id")
-    lastClaimed        DateTime?          @map("last_claimed")
-    hasBlockedBot      Boolean            @default(false) @map("has_blocked_bot")
-    createdAt          DateTime           @default(now()) @map("created_at")
-    validators         Validator[]        @relation("user_to_validator")
-    feeRewardAddresses FeeRewardAddress[] @relation("user_to_fee_reward_address")
+    id                 BigInt                   @id @map("id")
+    userId             BigInt                   @unique @map("user_id")
+    username           String                   @unique @map("username")
+    messageId          BigInt?                  @map("message_id")
+    lastClaimed        DateTime?                @map("last_claimed")
+    hasBlockedBot      Boolean                  @default(false) @map("has_blocked_bot")
+    createdAt          DateTime                 @default(now()) @map("created_at")
+    validators         UserToValidator[]        @relation("user_to_validator")
+    feeRewardAddresses UserToFeeRewardAddress[] @relation("user_to_fee_reward_address")
 
     @@map("user")
 }
 
 model FeeRewardAddress {
-    address String  @id @map("address")
-    users   User[]  @relation("user_to_fee_reward_address")
-    userId  BigInt? @map("user_id")
+    address String                   @id @map("address")
+    users   UserToFeeRewardAddress[] @relation("user_to_fee_reward_address")
+    userId  BigInt?                  @map("user_id")
 
     @@map("fee_reward_address")
+}
+
+// Explicit intermediate table for User-Validator many-to-many relationship
+model UserToValidator {
+    userId      BigInt @map("user_id")
+    validatorId Int    @map("validator_id")
+
+    user      User      @relation("user_to_validator", fields: [userId], references: [id], onDelete: Cascade)
+    validator Validator @relation("user_to_validator", fields: [validatorId], references: [id], onDelete: Cascade)
+
+    @@id([userId, validatorId])
+    @@index([validatorId])
+    @@map("_user_to_validator")
+}
+
+// Explicit intermediate table for User-FeeRewardAddress many-to-many relationship
+model UserToFeeRewardAddress {
+    address String @map("address")
+    userId  BigInt @map("user_id")
+
+    user             User             @relation("user_to_fee_reward_address", fields: [userId], references: [id], onDelete: Cascade)
+    feeRewardAddress FeeRewardAddress @relation("user_to_fee_reward_address", fields: [address], references: [address], onDelete: Cascade)
+
+    @@id([address, userId])
+    @@index([userId])
+    @@map("_user_to_fee_reward_address")
 }
