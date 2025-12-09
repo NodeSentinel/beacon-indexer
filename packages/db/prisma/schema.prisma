@@ -16,7 +16,7 @@ model Validator {
     pubkey            String? @map("pubkey") @db.VarChar(98)
     withdrawalAddress String? @map("withdrawal_address") @db.VarChar(42)
 
-    users User[] @relation("user_to_validator")
+    users UserToValidator[] @relation("user_to_validator")
 
     @@index([status])
     @@index([pubkey])
@@ -76,6 +76,26 @@ model validatorConsolidationsRequests {
     @@map("validator_request_consolidations")
 }
 
+model ValidatorBlockAndSyncRewards {
+    slot           Int     @map("slot")
+    validatorIndex Int     @map("validator_index")
+    blockReward    BigInt? @map("block_reward")
+    syncCommittee  BigInt? @map("sync_committee")
+
+    @@id([slot, validatorIndex])
+    @@map("validator_block_and_sync_rewards")
+}
+
+model ExecutionRewards {
+    address     String   @map("address")
+    timestamp   DateTime @map("timestamp")
+    amount      Decimal  @map("amount") @db.Decimal(78, 0)
+    blockNumber Int      @id @map("block_number")
+
+    @@index([timestamp, address])
+    @@map("execution_rewards")
+}
+
 model Epoch {
     epoch                          Int     @id @map("epoch")
     // processed flags
@@ -89,6 +109,18 @@ model Epoch {
     rewardsFetched                 Boolean @default(false) @map("rewards_fetched")
 
     @@map("epoch")
+}
+
+model Committee {
+    slot                 Int  @map("slot")
+    index                Int  @map("index") @db.SmallInt // indicates what position in the epoch this slot is in
+    validatorIndex       Int  @map("validator_index")
+    aggregationBitsIndex Int  @map("aggregation_bits_index") @db.SmallInt // indicates what position in the aggregation bits this validator was assigned to
+    attestationDelay     Int? @map("attestation_delay") @db.SmallInt
+
+    @@id([slot, index, aggregationBitsIndex]) // used to update attestation delays
+    @@index([validatorIndex, slot(sort: Desc), attestationDelay]) // used to query attestations delays for a validator
+    @@map("committee")
 }
 
 model Slot {
@@ -126,20 +158,6 @@ model Slot {
 
     @@index([slot, processed])
     @@map("slot")
-}
-
-// Committee is a list of validators that were assigned to a slot.
-// TODO: add partition table
-model Committee {
-    slot                 Int  @map("slot")
-    index                Int  @map("index") @db.SmallInt // indicates what position in the epoch this slot is in
-    validatorIndex       Int  @map("validator_index")
-    aggregationBitsIndex Int  @map("aggregation_bits_index") @db.SmallInt // indicates what position in the aggregation bits this validator was assigned to
-    attestationDelay     Int? @map("attestation_delay") @db.SmallInt
-
-    @@id([slot, index, aggregationBitsIndex]) // used to update attestation delays
-    @@index([validatorIndex, slot(sort: Desc), attestationDelay]) // used to query attestations delays for a validator
-    @@map("committee")
 }
 
 model SyncCommittee {
@@ -197,130 +215,49 @@ model HourlyValidatorStats {
 //-------------------------------------
 
 model User {
-    id                           BigInt              @id @map("id")
-    loginId                      String              @unique @default(nanoid()) @map("login_id")
-    userId                       BigInt              @unique @map("user_id")
-    chatId                       BigInt              @unique @map("chat_id")
-    username                     String              @unique @map("username")
-    messageId                    BigInt?             @map("message_id")
-    lastClaimed                  DateTime?           @map("last_claimed")
-    hasBlockedBot                Boolean             @default(false) @map("has_blocked_bot")
-    createdAt                    DateTime            @default(now()) @map("created_at")
-    performanceNotif             DateTime?           @map("performance_notif")
-    performanceThreshold         Int                 @default(90) @map("performance_threshold")
-    inactiveNotif                DateTime?           @map("inactive_notif")
-    inactiveOnMissedAttestations Int                 @default(3) @map("inactive_on_missed_attestations")
-    validators                   Validator[]         @relation("user_to_validator")
-    withdrawalAddresses          WithdrawalAddress[] @relation("user_to_withdrawal_address")
-    feeRewardAddresses           FeeRewardAddress[]  @relation("user_to_fee_reward_address")
+    id                 BigInt                   @id @map("id")
+    userId             BigInt                   @unique @map("user_id")
+    username           String                   @unique @map("username")
+    messageId          BigInt?                  @map("message_id")
+    lastClaimed        DateTime?                @map("last_claimed")
+    hasBlockedBot      Boolean                  @default(false) @map("has_blocked_bot")
+    createdAt          DateTime                 @default(now()) @map("created_at")
+    validators         UserToValidator[]        @relation("user_to_validator")
+    feeRewardAddresses UserToFeeRewardAddress[] @relation("user_to_fee_reward_address")
 
     @@map("user")
 }
 
-//-------------------------------------
-// remove
-//-------------------------------------
-
-model WithdrawalAddress {
-    address String @id @map("address")
-    users   User[] @relation("user_to_withdrawal_address")
-
-    @@map("withdrawal_address")
-}
-
 model FeeRewardAddress {
-    address String  @id @map("address")
-    users   User[]  @relation("user_to_fee_reward_address")
-    userId  BigInt? @map("user_id")
+    address String                   @id @map("address")
+    users   UserToFeeRewardAddress[] @relation("user_to_fee_reward_address")
+    userId  BigInt?                  @map("user_id")
 
     @@map("fee_reward_address")
 }
 
-model DailyValidatorStats {
-    validatorIndex Int      @map("validator_index")
-    date           DateTime @db.Date
+// Explicit intermediate table for User-Validator many-to-many relationship
+model UserToValidator {
+    userId      BigInt @map("user_id")
+    validatorId Int    @map("validator_id")
 
-    head             BigInt? @map("head")
-    target           BigInt? @map("target")
-    source           BigInt? @map("source")
-    inactivity       BigInt? @map("inactivity")
-    syncCommittee    BigInt? @map("sync_committee")
-    blockReward      BigInt? @map("block_reward")
-    missedHead       BigInt? @map("missed_head")
-    missedTarget     BigInt? @map("missed_target")
-    missedSource     BigInt? @map("missed_source")
-    missedInactivity BigInt? @map("missed_inactivity")
+    user      User      @relation("user_to_validator", fields: [userId], references: [id], onDelete: Cascade)
+    validator Validator @relation("user_to_validator", fields: [validatorId], references: [id], onDelete: Cascade)
 
-    attestationsMissed Int? @map("attestations_missed")
-
-    @@id([validatorIndex, date])
-    @@index([date])
+    @@id([userId, validatorId])
+    @@index([validatorId])
+    @@map("_user_to_validator")
 }
 
-model LastSummaryUpdate {
-    id                    Int       @id @default(autoincrement()) @map("id")
-    hourlyValidatorStats  DateTime? @map("hourly_validator_stats")
-    dailyValidatorStats   DateTime? @map("daily_validator_stats") @db.Date
-    weeklyValidatorStats  DateTime? @map("weekly_validator_stats")
-    monthlyValidatorStats DateTime? @map("monthly_validator_stats")
-    yearlyValidatorStats  DateTime? @map("yearly_validator_stats")
+// Explicit intermediate table for User-FeeRewardAddress many-to-many relationship
+model UserToFeeRewardAddress {
+    address String @map("address")
+    userId  BigInt @map("user_id")
 
-    @@map("last_summary_update")
-}
+    user             User             @relation("user_to_fee_reward_address", fields: [userId], references: [id], onDelete: Cascade)
+    feeRewardAddress FeeRewardAddress @relation("user_to_fee_reward_address", fields: [address], references: [address], onDelete: Cascade)
 
-model ValidatorsStats {
-    validatorId     Int
-    validatorStatus Int?
-    oneHourMissed   Int?
-    lastMissed      Int[] // Array of last missed slots: [1020, 1021, .., 1040]
-
-    dailyCLRewards BigInt?
-    dailyELRewards BigInt?
-
-    weeklyCLRewards BigInt?
-    weeklyELRewards BigInt?
-
-    monthlyCLRewards BigInt?
-    monthlyELRewards BigInt?
-
-    timestamp DateTime
-
-    @@id([validatorId])
-}
-
-model HourlyBlockAndSyncRewards {
-    validatorIndex Int
-    hour           Int // 0-23
-    date           DateTime @db.Date // dd-mm-yyyy
-
-    blockReward   BigInt? // Reward for proposing a block
-    syncCommittee BigInt? // Rewarded for participating in the sync committee
-
-    @@id([validatorIndex, date, hour])
-    @@index([date, hour])
-}
-
-model ExecutionRewards {
-    address     String
-    timestamp   DateTime
-    amount      Decimal  @db.Decimal(78, 0)
-    blockNumber Int      @id
-
-    @@index([timestamp, address])
-}
-
-/// Global daily validator stats (counts + averages in gwei)
-model BeaconDailyValidatorStats {
-    date DateTime @id @db.Date
-
-    // counts
-    pendingQueued Int @default(0) @map("pending_queued")
-    activeOngoing Int @default(0) @map("active_ongoing")
-    activeExiting Int @default(0) @map("active_exiting")
-
-    // averages (store floored bigint in gwei)
-    balance          BigInt? @map("avg_balance")
-    effectiveBalance BigInt? @map("avg_effective_balance")
-
-    @@map("beacon_daily_validator_stats")
+    @@id([address, userId])
+    @@index([userId])
+    @@map("_user_to_fee_reward_address")
 }

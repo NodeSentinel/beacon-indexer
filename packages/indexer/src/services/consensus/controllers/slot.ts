@@ -177,9 +177,7 @@ export class SlotController extends SlotControllerHelpers {
 
     const blockRewards = await this.beaconClient.getBlockRewards(slot);
 
-    const { date, hour } = convertToUTC(new Date(timestamp * 1000));
-
-    const reward = this.prepareBlockRewards(blockRewards, hour, date);
+    const reward = this.prepareBlockRewards(blockRewards);
 
     await this.slotStorage.saveBlockRewardsAndUpdateSlot(slot, reward);
   }
