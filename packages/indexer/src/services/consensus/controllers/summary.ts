@@ -59,22 +59,12 @@ export class SummaryController {
       missedAttestationsForInactivity -
       slotsPerEpoch * missedAttestationsForInactivity;
 
-    // this.logger.info('Calculated slot range', {
-    //   currentSlot,
-    //   maxQueryableSlot,
-    //   slotFromOneHourAgo,
-    //   maxSlotToQuery,
-    //   inactivityCheckStartSlot,
-    //   missedAttestationsForInactivity,
-    //   maxAttestationDelay,
-    // });
-
     try {
       // Calculate and save validator inactivity status in a single efficient query
       await this.summaryStorage.validatorsStatusSummary({
-        minSlotHour: 25242200, // slotFromOneHourAgo,
-        maxSlotToQuery: 25242920, // maxSlotToQuery,
-        inactivityCheckStartSlot: 25242872, //inactivityCheckStartSlot,
+        minSlotHour: slotFromOneHourAgo,
+        maxSlotToQuery: maxSlotToQuery,
+        inactivityCheckStartSlot: inactivityCheckStartSlot,
         maxAttestationDelay,
         inactiveMissedCount: missedAttestationsForInactivity,
       });
