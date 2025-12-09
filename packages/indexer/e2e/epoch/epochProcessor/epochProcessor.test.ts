@@ -639,10 +639,10 @@ describe('Epoch Processor E2E Tests', () => {
       for (const aggregate of validatorAggregates) {
         expect(Array.isArray(aggregate)).toBe(true);
         expect(aggregate.length).toBeGreaterThan(0);
-        // Each aggregate should contain validator IDs as strings
-        for (const validatorId of aggregate) {
-          expect(typeof validatorId).toBe('string');
-          expect(validatorId).toMatch(/^\d+$/); // Should be numeric string
+        // Each aggregate should contain validator indices as strings
+        for (const validatorIndex of aggregate) {
+          expect(typeof validatorIndex).toBe('string');
+          expect(validatorIndex).toMatch(/^\d+$/); // Should be numeric string
         }
       }
 

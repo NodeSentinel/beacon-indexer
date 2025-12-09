@@ -251,14 +251,14 @@ model FeeRewardAddress {
 
 // Explicit intermediate table for User-Validator many-to-many relationship
 model UserToValidator {
-    userId      BigInt @map("user_id")
-    validatorId Int    @map("validator_id")
+    userId         BigInt @map("user_id")
+    validatorIndex Int    @map("validator_index")
 
     user      User      @relation("user_to_validator", fields: [userId], references: [id], onDelete: Cascade)
-    validator Validator @relation("user_to_validator", fields: [validatorId], references: [id], onDelete: Cascade)
+    validator Validator @relation("user_to_validator", fields: [validatorIndex], references: [id], onDelete: Cascade)
 
-    @@id([userId, validatorId])
-    @@index([validatorId])
+    @@id([userId, validatorIndex])
+    @@index([validatorIndex])
     @@map("_user_to_validator")
 }
 

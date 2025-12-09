@@ -19,15 +19,17 @@ export class ValidatorsController {
 
     const batchSize = 1_000_000;
     let allValidatorsData: Awaited<ReturnType<typeof this.beaconClient.getValidators>> = [];
-    let currentValidatorId = 0;
+    let currentValidatorIndex = 0;
     let hasMore = true;
 
     // Keep fetching validators in batches until we get fewer results than batchSize
     while (hasMore) {
-      // Generate batch of validator IDs starting from currentValidatorId
-      const batchIds = Array.from({ length: batchSize }, (_, i) => String(currentValidatorId + i));
+      // Generate batch of validator indices starting from currentValidatorIndex
+      const batchIndexes = Array.from({ length: batchSize }, (_, i) =>
+        String(currentValidatorIndex + i),
+      );
 
-      const batchResult = await this.beaconClient.getValidators('head', batchIds, null);
+      const batchResult = await this.beaconClient.getValidators('head', batchIndexes, null);
 
       allValidatorsData = [...allValidatorsData, ...batchResult];
 
@@ -36,7 +38,7 @@ export class ValidatorsController {
 
       // Move to next batch only when there are more validators to fetch
       if (hasMore) {
-        currentValidatorId += batchSize;
+        currentValidatorIndex += batchSize;
       }
     }
 
@@ -46,31 +48,31 @@ export class ValidatorsController {
   }
 
   /**
-   * Get max validator ID from database
+   * Get max validator index from database
    */
-  async getMaxValidatorId() {
-    return this.validatorsStorage.getMaxValidatorId();
+  async getMaxValidatorIndex() {
+    return this.validatorsStorage.getMaxValidatorIndex();
   }
 
   /**
-   * Get final state validator IDs from database
+   * Get final state validator indices from database
    */
-  async getFinalValidatorIds() {
-    return this.validatorsStorage.getFinalValidatorIds();
+  async getFinalValidatorIndexes() {
+    return this.validatorsStorage.getFinalValidatorIndexes();
   }
 
   /**
-   * Get attesting validator IDs from database
+   * Get attesting validator indices from database
    */
-  async getAttestingValidatorsIds() {
-    return this.validatorsStorage.getAttestingValidatorsIds();
+  async getAttestingValidatorIndexes() {
+    return this.validatorsStorage.getAttestingValidatorIndexes();
   }
 
   /**
-   * Get validator balances for specific validator IDs
+   * Get validator balances for specific validator indices
    */
-  async getValidatorsBalances(validatorIds: number[]) {
-    return this.validatorsStorage.getValidatorsBalances(validatorIds);
+  async getValidatorsBalances(validatorIndexes: number[]) {
+    return this.validatorsStorage.getValidatorsBalances(validatorIndexes);
   }
 
   /**
@@ -113,20 +115,20 @@ export class ValidatorsController {
    */
   async fetchValidatorsBalances(slot: number, epoch: number) {
     try {
-      const totalValidators = await this.validatorsStorage.getMaxValidatorId();
+      const totalValidators = await this.validatorsStorage.getMaxValidatorIndex();
       if (totalValidators === 0) {
         return;
       }
 
-      const finalStateValidatorsIds = await this.validatorsStorage.getFinalValidatorIds();
-      const finalStateValidatorsSet = new Set(finalStateValidatorsIds);
+      const finalStateValidatorIndexes = await this.validatorsStorage.getFinalValidatorIndexes();
+      const finalStateValidatorsSet = new Set(finalStateValidatorIndexes);
 
-      const allValidatorIds = Array.from({ length: totalValidators }, (_, i) => i).filter(
+      const allValidatorIndexes = Array.from({ length: totalValidators }, (_, i) => i).filter(
         (id) => !finalStateValidatorsSet.has(id),
       );
 
       const batchSize = 1_000_000;
-      const batches = chunk(allValidatorIds, batchSize);
+      const batches = chunk(allValidatorIndexes, batchSize);
       let allValidatorBalances: Array<{ index: string; balance: string }> = [];
 
       for (const batchIds of batches) {
@@ -158,8 +160,8 @@ export class ValidatorsController {
       return { success: true, processedCount: 0 };
     }
 
-    const validatorIds = pendingValidators.map((v) => String(v.id));
-    const validatorsData = await this.beaconClient.getValidators(slotId, validatorIds, null);
+    const validatorIndexes = pendingValidators.map((v) => String(v.id));
+    const validatorsData = await this.beaconClient.getValidators(slotId, validatorIndexes, null);
 
     await this.validatorsStorage.updateValidators(validatorsData);
 

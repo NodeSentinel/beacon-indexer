@@ -47,9 +47,9 @@ export class SummaryStorage {
     await this.prisma.$executeRaw`
       WITH 
         user_validators AS (
-          SELECT DISTINCT utv.validator_id
+          SELECT DISTINCT utv.validator_index
           FROM _user_to_validator utv
-          JOIN validator v ON v.id = utv.validator_id
+          JOIN validator v ON v.id = utv.validator_index
           WHERE v.status IN (2, 3)
         ),
 
@@ -63,7 +63,7 @@ export class SummaryStorage {
             )::int AS is_missed
           FROM user_validators uvs
           JOIN committee c 
-            ON c.validator_index = uvs.validator_id
+            ON c.validator_index = uvs.validator_index
           WHERE c.slot BETWEEN ${minSlotHour}::int AND ${maxSlotToQuery}::int
         ),
 
