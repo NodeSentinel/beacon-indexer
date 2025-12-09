@@ -19,6 +19,7 @@ type ChainConfig = {
     maxAttestationDelay: number;
     delaySlotsToHead: number;
     apiRequestPerSecond: number;
+    missedAttestationsForInactivity: number;
   };
 };
 
@@ -35,6 +36,7 @@ export const ethereumConfig: ChainConfig = {
     maxAttestationDelay: 5,
     delaySlotsToHead: 2,
     apiRequestPerSecond: 10,
+    missedAttestationsForInactivity: 3,
   },
 };
 
@@ -52,6 +54,7 @@ export const gnosisConfig: ChainConfig = {
     maxAttestationDelay: 5,
     delaySlotsToHead: 3,
     apiRequestPerSecond: 10,
+    missedAttestationsForInactivity: 3,
   },
 };
 

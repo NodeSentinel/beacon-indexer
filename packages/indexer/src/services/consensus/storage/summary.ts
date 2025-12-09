@@ -11,49 +11,45 @@ export class SummaryStorage {
   constructor(private readonly prisma: PrismaClient) {}
 
   /**
-   * Get validator inactivity status and hourly statistics
-   * Returns validators with their status based on the last N slots and hourly attestation statistics
+   * Calculate and save validator inactivity status and hourly statistics
+   * This method calculates status based on the last N slots, gets validator beacon_status and balance,
+   * and saves everything to validators_status_summary table in a single efficient query
    *
-   * @param minSlotHour - Start slot of the last hour (inclusive)
-   * @param maxSlotHour - End slot of the last hour (inclusive)
-   * @param maxAttestationDelay - Maximum delay threshold (attestations with delay > this are considered missed)
-   * @param statusSlots - Number of recent slots to use for determining active/inactive status
-   * @returns Array of validator indices with status, total attestations, and missed attestations
+   * @param params - Parameters object
+   * @param params.minSlotHour - Start slot of the last hour (inclusive)
+   * @param params.maxSlotToQuery - End slot of the last hour (inclusive)
+   * @param params.maxAttestationDelay - Maximum delay threshold (attestations with delay > this are considered missed)
+   * @param params.inactiveMissedCount - Number of consecutive missed attestations to mark as inactive
+   * @param params.inactivityCheckStartSlot - Start slot for inactivity check (inclusive). If not provided, defaults to maxSlotToQuery - inactiveMissedCount + 1
    */
-  async getValidatorInactivityStatus(
-    minSlotHour: number,
-    maxSlotHour: number,
-    maxAttestationDelay: number,
-    statusSlots: number,
-  ): Promise<
-    Array<{
-      validator_index: number;
-      status: 'active' | 'inactive';
-      attestations_total: number;
-      attestations_missed: number;
-    }>
-  > {
-    return this.prisma.$queryRaw<
-      Array<{
-        validator_index: number;
-        status: 'active' | 'inactive';
-        attestations_total: number;
-        attestations_missed: number;
-      }>
-    >`
-      WITH 
-        input_params AS (
-          SELECT 
-            ${minSlotHour}::int AS min_slot_hour,         -- slot start of the last hour
-            ${maxSlotHour}::int AS max_slot_hour,         -- slot end of the last hour
-            ${maxAttestationDelay}::int AS max_attestation_delay,
-            ${statusSlots}::int AS status_slots           -- how many slots to use for "active/inactive"
-        ),
+  async validatorsStatusSummary(params: {
+    minSlotHour: number;
+    maxSlotToQuery: number;
+    maxAttestationDelay: number;
+    inactiveMissedCount: number;
+    inactivityCheckStartSlot?: number;
+  }): Promise<void> {
+    const {
+      minSlotHour,
+      maxSlotToQuery,
+      maxAttestationDelay,
+      inactiveMissedCount,
+      inactivityCheckStartSlot,
+    } = params;
 
+    // Calculate inactivityCheckStartSlot if not provided (defaults to maxSlotToQuery - inactiveMissedCount + 1)
+    const minSlotStatus = inactivityCheckStartSlot ?? maxSlotToQuery - inactiveMissedCount + 1;
+
+    // Truncate table to replace all existing data (separate call because $executeRaw cannot handle multiple commands)
+    await this.prisma.$executeRaw`TRUNCATE TABLE validators_status_summary`;
+
+    // Calculate and insert validator status summary in a single query
+    await this.prisma.$executeRaw`
+      WITH 
         user_validators AS (
-          SELECT DISTINCT uv."B" AS validator_id
-          FROM _user_to_validator uv
-          JOIN validator v ON v.id = uv."B"
+          SELECT DISTINCT utv.validator_id
+          FROM _user_to_validator utv
+          JOIN validator v ON v.id = utv.validator_id
           WHERE v.status IN (2, 3)
         ),
 
@@ -63,33 +59,43 @@ export class SummaryStorage {
             c.validator_index,
             c.slot,
             (c.attestation_delay IS NULL 
-              OR c.attestation_delay > ip.max_attestation_delay
-            )::int AS is_missed,
-            ROW_NUMBER() OVER (
-              PARTITION BY c.validator_index 
-              ORDER BY c.slot DESC
-            ) AS rn
-          FROM user_validators uv
+              OR c.attestation_delay > ${maxAttestationDelay}::int
+            )::int AS is_missed
+          FROM user_validators uvs
           JOIN committee c 
-            ON c.validator_index = uv.validator_id
-          CROSS JOIN input_params ip
-          WHERE c.slot BETWEEN ip.min_slot_hour AND ip.max_slot_hour
+            ON c.validator_index = uvs.validator_id
+          WHERE c.slot BETWEEN ${minSlotHour}::int AND ${maxSlotToQuery}::int
         ),
 
-        -- Current status: look only at the last N slots (status_slots)
-        status AS (
+        -- Attestations for status check: only from the status range (inactivityCheckStartSlot to maxSlotToQuery)
+        -- This ensures we only check the last N attestations in the specified range
+        status_attestations AS (
           SELECT
             a.validator_index,
+            a.slot,
+            a.is_missed,
+            ROW_NUMBER() OVER (
+              PARTITION BY a.validator_index 
+              ORDER BY a.slot DESC
+            ) AS rn
+          FROM attestations a
+          WHERE a.slot >= ${minSlotStatus}::int
+        ),
+
+        -- Current status: look only at the last N attestations (inactiveMissedCount)
+        -- A validator is inactive if they missed ALL of the last N attestations they should have made
+        status AS (
+          SELECT
+            sa.validator_index,
             CASE 
               WHEN SUM(
-                CASE WHEN a.rn <= ip.status_slots THEN a.is_missed ELSE 0 END
-              ) = ip.status_slots
+                CASE WHEN sa.rn <= ${inactiveMissedCount}::int THEN sa.is_missed ELSE 0 END
+              ) = ${inactiveMissedCount}::int
               THEN 'inactive'
               ELSE 'active'
             END AS status
-          FROM attestations a
-          CROSS JOIN input_params ip
-          GROUP BY a.validator_index, ip.status_slots
+          FROM status_attestations sa
+          GROUP BY sa.validator_index
         ),
 
         -- Stats from the last hour: how many made and how many missed
@@ -100,15 +106,49 @@ export class SummaryStorage {
             SUM(is_missed)    AS attestations_missed
           FROM attestations
           GROUP BY validator_index
+        ),
+
+        -- Final result with validator beacon_status and balance
+        summary_data AS (
+          SELECT
+            h.validator_index,
+            COALESCE(s.status, 'active') AS status,  -- Default to active if no attestations in status range
+            h.attestations_total,
+            h.attestations_missed,
+            -- Performance: percentage of successful attestations (0.0 to 100.0)
+            CASE 
+              WHEN h.attestations_total > 0 
+              THEN ((h.attestations_total - h.attestations_missed)::float / h.attestations_total * 100)::numeric(5, 2)
+              ELSE 0.0
+            END AS performance,
+            v.status AS beacon_status,
+            v.balance
+          FROM hourly h
+          LEFT JOIN status s USING (validator_index)
+          JOIN validator v ON v.id = h.validator_index
         )
 
+      -- Insert directly into validators_status_summary table
+      INSERT INTO validators_status_summary (
+        validator_index,
+        status,
+        attestations_total,
+        attestations_missed,
+        performance,
+        beacon_status,
+        balance,
+        updated_at
+      )
       SELECT
-        h.validator_index,
-        s.status,
-        h.attestations_total,
-        h.attestations_missed
-      FROM hourly h
-      JOIN status s USING (validator_index)
+        validator_index,
+        status,
+        attestations_total,
+        attestations_missed,
+        performance,
+        beacon_status,
+        balance,
+        NOW()
+      FROM summary_data
     `;
   }
 }
