@@ -62,6 +62,26 @@ CREATE TABLE "public"."validator_request_consolidations" (
 );
 
 -- CreateTable
+CREATE TABLE "public"."validator_block_and_sync_rewards" (
+    "slot" INTEGER NOT NULL,
+    "validator_index" INTEGER NOT NULL,
+    "block_reward" BIGINT,
+    "sync_committee" BIGINT,
+
+    CONSTRAINT "validator_block_and_sync_rewards_pkey" PRIMARY KEY ("slot","validator_index")
+);
+
+-- CreateTable
+CREATE TABLE "public"."execution_rewards" (
+    "address" TEXT NOT NULL,
+    "timestamp" TIMESTAMP(3) NOT NULL,
+    "amount" DECIMAL(78,0) NOT NULL,
+    "block_number" INTEGER NOT NULL,
+
+    CONSTRAINT "execution_rewards_pkey" PRIMARY KEY ("block_number")
+);
+
+-- CreateTable
 CREATE TABLE "public"."epoch" (
     "epoch" INTEGER NOT NULL,
     "processed" BOOLEAN NOT NULL DEFAULT false,
@@ -74,6 +94,17 @@ CREATE TABLE "public"."epoch" (
     "rewards_fetched" BOOLEAN NOT NULL DEFAULT false,
 
     CONSTRAINT "epoch_pkey" PRIMARY KEY ("epoch")
+);
+
+-- CreateTable
+CREATE TABLE "public"."committee" (
+    "slot" INTEGER NOT NULL,
+    "index" SMALLINT NOT NULL,
+    "validator_index" INTEGER NOT NULL,
+    "aggregation_bits_index" SMALLINT NOT NULL,
+    "attestation_delay" SMALLINT,
+
+    CONSTRAINT "committee_pkey" PRIMARY KEY ("slot","index","aggregation_bits_index")
 );
 
 -- CreateTable
@@ -99,17 +130,6 @@ CREATE TABLE "public"."slot" (
     "processed" BOOLEAN NOT NULL DEFAULT false,
 
     CONSTRAINT "slot_pkey" PRIMARY KEY ("slot")
-);
-
--- CreateTable
-CREATE TABLE "public"."committee" (
-    "slot" INTEGER NOT NULL,
-    "index" SMALLINT NOT NULL,
-    "validator_index" INTEGER NOT NULL,
-    "aggregation_bits_index" SMALLINT NOT NULL,
-    "attestation_delay" SMALLINT,
-
-    CONSTRAINT "committee_pkey" PRIMARY KEY ("slot","index","aggregation_bits_index")
 );
 
 -- CreateTable
@@ -159,29 +179,30 @@ CREATE TABLE "public"."hourly_validator_stats" (
 );
 
 -- CreateTable
+CREATE TABLE "public"."validators_status_summary" (
+    "validator_index" INTEGER NOT NULL,
+    "status" VARCHAR(10) NOT NULL,
+    "attestations_total" INTEGER NOT NULL,
+    "attestations_missed" INTEGER NOT NULL,
+    "performance" DECIMAL(5,2) NOT NULL,
+    "beacon_status" INTEGER,
+    "balance" BIGINT NOT NULL,
+    "updated_at" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "validators_status_summary_pkey" PRIMARY KEY ("validator_index")
+);
+
+-- CreateTable
 CREATE TABLE "public"."user" (
     "id" BIGINT NOT NULL,
-    "login_id" TEXT NOT NULL,
     "user_id" BIGINT NOT NULL,
-    "chat_id" BIGINT NOT NULL,
     "username" TEXT NOT NULL,
     "message_id" BIGINT,
     "last_claimed" TIMESTAMP(3),
     "has_blocked_bot" BOOLEAN NOT NULL DEFAULT false,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "performance_notif" TIMESTAMP(3),
-    "performance_threshold" INTEGER NOT NULL DEFAULT 90,
-    "inactive_notif" TIMESTAMP(3),
-    "inactive_on_missed_attestations" INTEGER NOT NULL DEFAULT 3,
 
     CONSTRAINT "user_pkey" PRIMARY KEY ("id")
-);
-
--- CreateTable
-CREATE TABLE "public"."withdrawal_address" (
-    "address" TEXT NOT NULL,
-
-    CONSTRAINT "withdrawal_address_pkey" PRIMARY KEY ("address")
 );
 
 -- CreateTable
@@ -193,108 +214,19 @@ CREATE TABLE "public"."fee_reward_address" (
 );
 
 -- CreateTable
-CREATE TABLE "public"."DailyValidatorStats" (
-    "validator_index" INTEGER NOT NULL,
-    "date" DATE NOT NULL,
-    "head" BIGINT,
-    "target" BIGINT,
-    "source" BIGINT,
-    "inactivity" BIGINT,
-    "sync_committee" BIGINT,
-    "block_reward" BIGINT,
-    "missed_head" BIGINT,
-    "missed_target" BIGINT,
-    "missed_source" BIGINT,
-    "missed_inactivity" BIGINT,
-    "attestations_missed" INTEGER,
-
-    CONSTRAINT "DailyValidatorStats_pkey" PRIMARY KEY ("validator_index","date")
-);
-
--- CreateTable
-CREATE TABLE "public"."last_summary_update" (
-    "id" SERIAL NOT NULL,
-    "hourly_validator_stats" TIMESTAMP(3),
-    "daily_validator_stats" DATE,
-    "weekly_validator_stats" TIMESTAMP(3),
-    "monthly_validator_stats" TIMESTAMP(3),
-    "yearly_validator_stats" TIMESTAMP(3),
-
-    CONSTRAINT "last_summary_update_pkey" PRIMARY KEY ("id")
-);
-
--- CreateTable
-CREATE TABLE "public"."ValidatorsStats" (
-    "validatorId" INTEGER NOT NULL,
-    "validatorStatus" INTEGER,
-    "oneHourMissed" INTEGER,
-    "lastMissed" INTEGER[],
-    "dailyCLRewards" BIGINT,
-    "dailyELRewards" BIGINT,
-    "weeklyCLRewards" BIGINT,
-    "weeklyELRewards" BIGINT,
-    "monthlyCLRewards" BIGINT,
-    "monthlyELRewards" BIGINT,
-    "timestamp" TIMESTAMP(3) NOT NULL,
-
-    CONSTRAINT "ValidatorsStats_pkey" PRIMARY KEY ("validatorId")
-);
-
--- CreateTable
-CREATE TABLE "public"."HourlyBlockAndSyncRewards" (
-    "validatorIndex" INTEGER NOT NULL,
-    "hour" INTEGER NOT NULL,
-    "date" DATE NOT NULL,
-    "blockReward" BIGINT,
-    "syncCommittee" BIGINT,
-
-    CONSTRAINT "HourlyBlockAndSyncRewards_pkey" PRIMARY KEY ("validatorIndex","date","hour")
-);
-
--- CreateTable
-CREATE TABLE "public"."ExecutionRewards" (
-    "address" TEXT NOT NULL,
-    "timestamp" TIMESTAMP(3) NOT NULL,
-    "amount" DECIMAL(78,0) NOT NULL,
-    "blockNumber" INTEGER NOT NULL,
-
-    CONSTRAINT "ExecutionRewards_pkey" PRIMARY KEY ("blockNumber")
-);
-
--- CreateTable
-CREATE TABLE "public"."beacon_daily_validator_stats" (
-    "date" DATE NOT NULL,
-    "pending_queued" INTEGER NOT NULL DEFAULT 0,
-    "active_ongoing" INTEGER NOT NULL DEFAULT 0,
-    "active_exiting" INTEGER NOT NULL DEFAULT 0,
-    "avg_balance" BIGINT,
-    "avg_effective_balance" BIGINT,
-
-    CONSTRAINT "beacon_daily_validator_stats_pkey" PRIMARY KEY ("date")
-);
-
--- CreateTable
 CREATE TABLE "public"."_user_to_validator" (
-    "A" BIGINT NOT NULL,
-    "B" INTEGER NOT NULL,
+    "user_id" BIGINT NOT NULL,
+    "validator_index" INTEGER NOT NULL,
 
-    CONSTRAINT "_user_to_validator_AB_pkey" PRIMARY KEY ("A","B")
-);
-
--- CreateTable
-CREATE TABLE "public"."_user_to_withdrawal_address" (
-    "A" BIGINT NOT NULL,
-    "B" TEXT NOT NULL,
-
-    CONSTRAINT "_user_to_withdrawal_address_AB_pkey" PRIMARY KEY ("A","B")
+    CONSTRAINT "_user_to_validator_pkey" PRIMARY KEY ("user_id","validator_index")
 );
 
 -- CreateTable
 CREATE TABLE "public"."_user_to_fee_reward_address" (
-    "A" TEXT NOT NULL,
-    "B" BIGINT NOT NULL,
+    "address" TEXT NOT NULL,
+    "user_id" BIGINT NOT NULL,
 
-    CONSTRAINT "_user_to_fee_reward_address_AB_pkey" PRIMARY KEY ("A","B")
+    CONSTRAINT "_user_to_fee_reward_address_pkey" PRIMARY KEY ("address","user_id")
 );
 
 -- CreateIndex
@@ -304,55 +236,34 @@ CREATE INDEX "validator_status_idx" ON "public"."validator"("status");
 CREATE INDEX "validator_pubkey_idx" ON "public"."validator"("pubkey");
 
 -- CreateIndex
+CREATE INDEX "execution_rewards_timestamp_address_idx" ON "public"."execution_rewards"("timestamp", "address");
+
+-- CreateIndex
+CREATE INDEX "committee_validator_index_slot_attestation_delay_idx" ON "public"."committee"("validator_index", "slot" DESC, "attestation_delay");
+
+-- CreateIndex
 CREATE INDEX "slot_slot_processed_idx" ON "public"."slot"("slot", "processed");
-
--- CreateIndex
-CREATE INDEX "committee_slot_validator_index_attestation_delay_idx" ON "public"."committee"("slot", "validator_index", "attestation_delay");
-
--- CreateIndex
-CREATE UNIQUE INDEX "user_login_id_key" ON "public"."user"("login_id");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "user_user_id_key" ON "public"."user"("user_id");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "user_chat_id_key" ON "public"."user"("chat_id");
-
--- CreateIndex
 CREATE UNIQUE INDEX "user_username_key" ON "public"."user"("username");
 
 -- CreateIndex
-CREATE INDEX "DailyValidatorStats_date_idx" ON "public"."DailyValidatorStats"("date");
+CREATE INDEX "_user_to_validator_validator_index_idx" ON "public"."_user_to_validator"("validator_index");
 
 -- CreateIndex
-CREATE INDEX "HourlyBlockAndSyncRewards_date_hour_idx" ON "public"."HourlyBlockAndSyncRewards"("date", "hour");
-
--- CreateIndex
-CREATE INDEX "ExecutionRewards_timestamp_address_idx" ON "public"."ExecutionRewards"("timestamp", "address");
-
--- CreateIndex
-CREATE INDEX "_user_to_validator_B_index" ON "public"."_user_to_validator"("B");
-
--- CreateIndex
-CREATE INDEX "_user_to_withdrawal_address_B_index" ON "public"."_user_to_withdrawal_address"("B");
-
--- CreateIndex
-CREATE INDEX "_user_to_fee_reward_address_B_index" ON "public"."_user_to_fee_reward_address"("B");
+CREATE INDEX "_user_to_fee_reward_address_user_id_idx" ON "public"."_user_to_fee_reward_address"("user_id");
 
 -- AddForeignKey
-ALTER TABLE "public"."_user_to_validator" ADD CONSTRAINT "_user_to_validator_A_fkey" FOREIGN KEY ("A") REFERENCES "public"."user"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "public"."_user_to_validator" ADD CONSTRAINT "_user_to_validator_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "public"."user"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "public"."_user_to_validator" ADD CONSTRAINT "_user_to_validator_B_fkey" FOREIGN KEY ("B") REFERENCES "public"."validator"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "public"."_user_to_validator" ADD CONSTRAINT "_user_to_validator_validator_index_fkey" FOREIGN KEY ("validator_index") REFERENCES "public"."validator"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "public"."_user_to_withdrawal_address" ADD CONSTRAINT "_user_to_withdrawal_address_A_fkey" FOREIGN KEY ("A") REFERENCES "public"."user"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "public"."_user_to_fee_reward_address" ADD CONSTRAINT "_user_to_fee_reward_address_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "public"."user"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "public"."_user_to_withdrawal_address" ADD CONSTRAINT "_user_to_withdrawal_address_B_fkey" FOREIGN KEY ("B") REFERENCES "public"."withdrawal_address"("address") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "public"."_user_to_fee_reward_address" ADD CONSTRAINT "_user_to_fee_reward_address_A_fkey" FOREIGN KEY ("A") REFERENCES "public"."fee_reward_address"("address") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "public"."_user_to_fee_reward_address" ADD CONSTRAINT "_user_to_fee_reward_address_B_fkey" FOREIGN KEY ("B") REFERENCES "public"."user"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "public"."_user_to_fee_reward_address" ADD CONSTRAINT "_user_to_fee_reward_address_address_fkey" FOREIGN KEY ("address") REFERENCES "public"."fee_reward_address"("address") ON DELETE CASCADE ON UPDATE CASCADE;
