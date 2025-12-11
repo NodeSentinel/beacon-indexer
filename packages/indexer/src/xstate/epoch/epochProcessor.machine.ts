@@ -64,6 +64,11 @@ export const epochProcessorMachine = setup({
   },
   actors: {
     // Inline actors using the new controller methods
+    upsertDBCommitteePartition: fromPromise(
+      async ({ input }: { input: { epochController: EpochController; epoch: number } }) => {
+        await input.epochController.upsertCommitteePartitions(input.epoch);
+      },
+    ),
     fetchCommittees: fromPromise(
       async ({ input }: { input: { epochController: EpochController; epoch: number } }) => {
         await input.epochController.fetchCommittees(input.epoch);
@@ -348,8 +353,32 @@ export const epochProcessorMachine = setup({
             committees: {
               description:
                 'Get epoch committees, create the slots if they do not exist. Raise COMMITTEES_FETCHED event when done.',
-              initial: 'fetchingCommittees',
+              initial: 'upsertDBCommitteePartition',
               states: {
+                upsertDBCommitteePartition: {
+                  entry: pinoLog(
+                    ({ context }) => `Upserting DB committee partitions for epoch ${context.epoch}`,
+                    'EpochProcessor:committees',
+                  ),
+                  invoke: {
+                    src: 'upsertDBCommitteePartition',
+                    input: ({ context }) => ({
+                      epochController: context.services.epochController,
+                      epoch: context.epoch,
+                    }),
+                    onDone: {
+                      target: 'fetchingCommittees',
+                    },
+                    onError: {
+                      actions: pinoLog(
+                        ({ context, event }) =>
+                          `error upserting DB committee partitions for epoch ${context.epoch}: ${event.error}`,
+                        'EpochProcessor:committees',
+                        'error',
+                      ),
+                    },
+                  },
+                },
                 fetchingCommittees: {
                   entry: pinoLog(
                     ({ context }) => `Processing committees for epoch ${context.epoch}`,
