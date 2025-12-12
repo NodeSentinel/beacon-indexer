@@ -49,28 +49,20 @@ export class EpochController extends EpochControllerHelpers {
     const { startSlot, endSlot } = this.beaconTime.getEpochSlots(epoch);
     const lookbackSlot = this.beaconTime.getLookbackSlot();
 
-    // Determine which partitions this epoch needs
-    const partitionStart1 = this.beaconTime.getPartitionStartSlot(startSlot);
-    const partitionStart2 = this.beaconTime.getPartitionStartSlot(endSlot);
-
-    const partitions: Array<{ startSlot: number; endSlot: number }> = [];
-
     // Calculate effective partition start: if partitionStart1 < lookbackSlot,
     // we need the partition that contains lookbackSlot instead
+    const partitionStart1 = this.beaconTime.getPartitionStartSlot(startSlot);
     const effectivePartitionStart = Math.max(lookbackSlot, partitionStart1);
     const partitionToCreate1 = this.beaconTime.getPartitionStartSlot(effectivePartitionStart);
-
-    // Always create the partition that contains the effective start (which covers lookbackSlot)
     const partitionEnd1 = this.beaconTime.getPartitionEndSlot(partitionToCreate1);
-    partitions.push({ startSlot: partitionToCreate1, endSlot: partitionEnd1 });
+    await this.epochStorage.upsertCommitteePartition(partitionToCreate1, partitionEnd1);
 
     // Add second partition only if different from first
+    const partitionStart2 = this.beaconTime.getPartitionStartSlot(endSlot);
     if (partitionStart2 !== partitionToCreate1) {
       const partitionEnd2 = this.beaconTime.getPartitionEndSlot(partitionStart2);
-      partitions.push({ startSlot: partitionStart2, endSlot: partitionEnd2 });
+      await this.epochStorage.upsertCommitteePartition(partitionStart2, partitionEnd2);
     }
-
-    await this.epochStorage.upsertCommitteePartitions(partitions);
   }
 
   async getUnprocessedCount() {
