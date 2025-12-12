@@ -288,11 +288,11 @@ export class EpochStorage {
     // PostgreSQL partition ranges use FROM (inclusive) TO (exclusive)
     // We add +1 to endSlot because PostgreSQL's TO is exclusive,
     // so TO (12720) includes slots up to 12719
-    await this.prisma.$executeRawUnsafe(`
-      CREATE TABLE IF NOT EXISTS "${partitionName}"
+    await this.prisma.$executeRaw`
+      CREATE TABLE IF NOT EXISTS ${Prisma.raw(partitionName)}
       PARTITION OF committee
       FOR VALUES FROM (${startSlot}) TO (${endSlot + 1})
-    `);
+    `;
   }
 
   /**
