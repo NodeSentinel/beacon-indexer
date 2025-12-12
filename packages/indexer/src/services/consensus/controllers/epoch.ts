@@ -51,9 +51,9 @@ export class EpochController extends EpochControllerHelpers {
 
     // Calculate effective partition start: if partitionStart1 < lookbackSlot,
     // we need the partition that contains lookbackSlot instead
-    const partitionStart1 = this.beaconTime.getPartitionStartSlot(startSlot);
-    const effectivePartitionStart = Math.max(lookbackSlot, partitionStart1);
-    const partitionToCreate1 = this.beaconTime.getPartitionStartSlot(effectivePartitionStart);
+    // The first partition to create is the one containing the first slot we'll process.
+    const firstSlotToProcess = Math.max(startSlot, lookbackSlot);
+    const partitionToCreate1 = this.beaconTime.getPartitionStartSlot(firstSlotToProcess);
     const partitionEnd1 = this.beaconTime.getPartitionEndSlot(partitionToCreate1);
     await this.epochStorage.upsertCommitteePartition(partitionToCreate1, partitionEnd1);
 
