@@ -65,7 +65,7 @@ describe('Committee Partitioning E2E Tests', () => {
       `;
 
       for (const partition of partitions) {
-        await prisma.$executeRawUnsafe(`DROP TABLE IF EXISTS ${partition.tablename}`);
+        await prisma.$executeRawUnsafe(`DROP TABLE IF EXISTS "${partition.tablename}"`);
       }
     });
 
