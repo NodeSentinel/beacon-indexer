@@ -9,26 +9,26 @@ on:
 jobs:
   e2e-indexer:
     runs-on: ubuntu-latest
-    
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-        
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '22'
-          
+
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
         with:
           version: 9.2.0
-          
+
       - name: Get pnpm store directory
         shell: bash
         run: |
           echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
-          
+
       - name: Setup pnpm cache
         uses: actions/cache@v4
         with:
@@ -36,19 +36,19 @@ jobs:
           key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
           restore-keys: |
             ${{ runner.os }}-pnpm-store-
-            
+
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
-        
+
       - name: Generate Prisma client
-        run: pnpm run db:generate
-        
+        run: pnpm run prisma:generate
+
       - name: Build db package
         run: pnpm --filter @beacon-indexer/db run build
-        
+
       - name: Build packages
         run: pnpm run build
-        
+
       - name: Start PostgreSQL container
         run: |
           docker run --name e2e-postgres \
@@ -58,7 +58,7 @@ jobs:
             -p 5433:5432 \
             --tmpfs /var/lib/postgresql/data \
             -d postgres:16
-          
+
       - name: Wait for PostgreSQL
         run: |
           for i in {1..60}; do
@@ -73,18 +73,18 @@ jobs:
             fi
             sleep 1
           done
-          
+
       - name: Setup database
         run: |
           DATABASE_URL="postgresql://postgres:password@localhost:5433/beacon_test?schema=public" \
-          pnpm --filter @beacon-indexer/db exec prisma db push --schema=prisma/schema.prisma
-          
+          pnpm --filter @beacon-indexer/db exec prisma migrate deploy --schema=prisma/schema.prisma
+
       - name: Run e2e tests
         run: |
           cd packages/indexer
           DATABASE_URL="postgresql://postgres:password@localhost:5433/beacon_test?schema=public" \
           pnpm vitest run --config vitest.e2e.config.ts --no-coverage
-          
+
       - name: Cleanup
         if: always()
         run: |

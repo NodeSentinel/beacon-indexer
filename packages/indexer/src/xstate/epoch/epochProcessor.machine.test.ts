@@ -28,6 +28,7 @@ const EPOCH_101_START_TIME = GENESIS_TIMESTAMP + 101 * SLOTS_PER_EPOCH * 10;
 // Mock Controllers
 // ============================================================================
 const mockEpochController = {
+  upsertCommitteePartitions: vi.fn(),
   fetchCommittees: vi.fn(),
   fetchSyncCommittees: vi.fn(),
   fetchRewards: vi.fn(),
@@ -106,6 +107,9 @@ vi.mock('@/src/xstate/multiMachineLogger.js', () => ({
  */
 function resetMocks() {
   vi.clearAllMocks();
+  (mockEpochController.upsertCommitteePartitions as ReturnType<typeof vi.fn>).mockResolvedValue(
+    undefined,
+  );
   (mockEpochController.fetchCommittees as ReturnType<typeof vi.fn>).mockResolvedValue(undefined);
   (mockEpochController.fetchSyncCommittees as ReturnType<typeof vi.fn>).mockResolvedValue(
     undefined,
@@ -316,6 +320,11 @@ describe('epochProcessorMachine', () => {
       test('should process and complete', async () => {
         vi.setSystemTime(new Date(EPOCH_101_START_TIME + 50));
 
+        const upsertPromise = createControllablePromise<void>();
+        (mockEpochController.upsertCommitteePartitions as ReturnType<typeof vi.fn>).mockReturnValue(
+          upsertPromise.promise,
+        );
+
         const fetchPromise = createControllablePromise<void>();
         (mockEpochController.fetchCommittees as ReturnType<typeof vi.fn>).mockReturnValue(
           fetchPromise.promise,
@@ -328,9 +337,20 @@ describe('epochProcessorMachine', () => {
 
         await vi.runAllTimersAsync();
 
-        // Should be processing
+        // Should be in upsertCommitteePartition state
         let lastState = getLastState(stateTransitions);
         let committeesState = getNestedState(lastState, 'epochProcessing.fetching.committees') as
+          | string
+          | null;
+        expect(committeesState).toBe('upsertCommitteePartition');
+
+        // Complete the upsert
+        upsertPromise.resolve();
+        await vi.runAllTimersAsync();
+
+        // Should now be in fetchingCommittees
+        lastState = getLastState(stateTransitions);
+        committeesState = getNestedState(lastState, 'epochProcessing.fetching.committees') as
           | string
           | null;
         expect(committeesState).toBe('fetchingCommittees');
@@ -413,6 +433,11 @@ describe('epochProcessorMachine', () => {
       test('should wait for committees before processing', async () => {
         vi.setSystemTime(new Date(EPOCH_101_START_TIME + 50));
 
+        const upsertPromise = createControllablePromise<void>();
+        (mockEpochController.upsertCommitteePartitions as ReturnType<typeof vi.fn>).mockReturnValue(
+          upsertPromise.promise,
+        );
+
         const committeesPromise = createControllablePromise<void>();
         (mockEpochController.fetchCommittees as ReturnType<typeof vi.fn>).mockReturnValue(
           committeesPromise.promise,
@@ -423,6 +448,10 @@ describe('epochProcessorMachine', () => {
           createProcessorMachineDefaultInput(100),
         );
 
+        await vi.runAllTimersAsync();
+
+        // Complete upsert to allow committees to start
+        upsertPromise.resolve();
         await vi.runAllTimersAsync();
 
         // Should be waiting for committees
@@ -462,6 +491,10 @@ describe('epochProcessorMachine', () => {
         );
 
         // Wait for committees to be ready and slots to start processing
+        await vi.runAllTimersAsync();
+
+        // Complete upsert and committees to allow slots to start processing
+        // (they are auto-resolved by resetMocks, but we need to wait for them)
         await vi.runAllTimersAsync();
 
         const lastState = getLastState(stateTransitions);

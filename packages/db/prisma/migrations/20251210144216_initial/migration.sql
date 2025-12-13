@@ -96,7 +96,9 @@ CREATE TABLE "public"."epoch" (
     CONSTRAINT "epoch_pkey" PRIMARY KEY ("epoch")
 );
 
--- CreateTable
+-- CreateTable (Partitioned by slot range)
+-- Committee table is partitioned by slot number to improve query performance
+-- Partitions are created dynamically per hour when processing epochs
 CREATE TABLE "public"."committee" (
     "slot" INTEGER NOT NULL,
     "index" SMALLINT NOT NULL,
@@ -105,7 +107,7 @@ CREATE TABLE "public"."committee" (
     "attestation_delay" SMALLINT,
 
     CONSTRAINT "committee_pkey" PRIMARY KEY ("slot","index","aggregation_bits_index")
-);
+) PARTITION BY RANGE ("slot");
 
 -- CreateTable
 CREATE TABLE "public"."slot" (

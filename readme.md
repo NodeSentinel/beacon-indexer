@@ -57,7 +57,6 @@ The code is written in TypeScript and uses XState to orchestrate the data fetchi
 - pnpm install
 - Create `.env` files in each package (see Environment variables section)
 - docker compose up postgres
-- pnpm db:generate
 - pnpm db:dev:reset
 - pnpm build
 - pnpm dev:indexer
@@ -222,6 +221,8 @@ These commands are **only for development** and include safety checks to prevent
 ### Prisma Commands
 
 Direct access to Prisma CLI commands (wrapped with database URL setup):
+
+- **`pnpm prisma:generate`**:
 
 - **`prisma:migrate`**: Runs `prisma migrate dev` - creates and applies incremental migrations (for development workflow with multiple migrations).
 

@@ -152,4 +152,38 @@ export class BeaconTime {
     }
     await new Promise((resolve) => setTimeout(resolve, delayMs));
   }
+
+  /**
+   * Calculate the number of slots per hour based on slot duration.
+   * @returns The number of slots in one hour
+   */
+  getSlotsPerHour(): number {
+    const secondsPerHour = 3600;
+    const slotDurationSeconds = this.slotDurationMs / 1000;
+    return Math.floor(secondsPerHour / slotDurationSeconds);
+  }
+
+  /**
+   * Given a slot number, returns the slot number at the start of its partition.
+   * Partitions are based on fixed slot ranges (equivalent to one hour of slots),
+   * aligned to lookbackSlot as the starting point.
+   * @param slot - The slot number to find the partition start for
+   * @returns The slot number at the start of the partition containing the given slot
+   */
+  getPartitionStartSlot(slot: number): number {
+    const offsetFromLookback = slot - this.lookbackSlot;
+    const slotsPerHour = this.getSlotsPerHour();
+    const partitionIndex = Math.floor(offsetFromLookback / slotsPerHour);
+    return this.lookbackSlot + partitionIndex * slotsPerHour;
+  }
+
+  /**
+   * Given a partition start slot, returns the last slot in that partition.
+   * @param partitionStartSlot - The slot number at the start of a partition
+   * @returns The slot number at the end of the partition (last slot before next partition starts)
+   */
+  getPartitionEndSlot(partitionStartSlot: number): number {
+    const slotsPerHour = this.getSlotsPerHour();
+    return partitionStartSlot + slotsPerHour - 1;
+  }
 }

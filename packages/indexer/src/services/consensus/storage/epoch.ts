@@ -276,6 +276,27 @@ export class EpochStorage {
   }
 
   /**
+   * Upsert a committee table partition with the specified range.
+   * This method only handles database operations, all business logic should be in the controller.
+   *
+   * @param startSlot - Starting slot of the partition (inclusive)
+   * @param endSlot - Ending slot of the partition (inclusive, will be converted to exclusive for PostgreSQL)
+   */
+  async upsertCommitteePartition(startSlot: number, endSlot: number): Promise<void> {
+    const partitionName = `committee_slot_${startSlot}`;
+    const exclusiveEndSlot = endSlot + 1;
+
+    // PostgreSQL partition ranges use FROM (inclusive) TO (exclusive)
+    // We add +1 to endSlot because PostgreSQL's TO is exclusive,
+    // so TO (12720) includes slots up to 12719
+    // Note: FOR VALUES FROM/TO must use literal values, not parameters
+    // Using $executeRawUnsafe because partition range values must be literals
+    await this.prisma.$executeRawUnsafe(
+      `CREATE TABLE IF NOT EXISTS "${partitionName}" PARTITION OF committee FOR VALUES FROM (${startSlot}) TO (${exclusiveEndSlot})`,
+    );
+  }
+
+  /**
    * Save committees and update slots with committee counts
    */
   async saveCommitteesData(

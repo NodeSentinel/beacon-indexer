@@ -111,6 +111,13 @@ model Epoch {
     @@map("epoch")
 }
 
+// Committee table is partitioned by slot number to improve query performance
+// Partitions are created automatically when processing epochs
+// Partition naming: committee_slot_<partition_start_slot>
+// Each partition covers a fixed range of slots equivalent to one hour (e.g., 720 slots for Gnosis, 300 slots for Ethereum)
+// Partitions are based on slot ranges, not actual UTC hours, making the logic simpler and more predictable
+// Note: Prisma doesn't natively support partitioned tables, so actual partition
+// creation is handled via raw SQL in runtime code
 model Committee {
     slot                 Int  @map("slot")
     index                Int  @map("index") @db.SmallInt // indicates what position in the epoch this slot is in
