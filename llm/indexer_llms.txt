@@ -1,0 +1,168 @@
+# Beacon Chain Indexer
+
+> A TypeScript-based beacon chain indexer that collects, processes, and stores validator data from Ethereum and Gnosis beacon chains using a clean three-layer architecture with XState orchestration, business logic controllers, and pure persistence storage.
+
+This project is a production-grade beacon chain indexer designed to monitor and track validator performance, rewards, attestations, and other consensus layer data. The indexer follows a strict separation of concerns pattern with three distinct layers: XState machines for workflow orchestration, Controllers for business logic, and Storage classes for database persistence.
+
+The architecture ensures that business logic is completely isolated from persistence operations. Storage classes are pure data access objects (DAOs) that only perform CRUD operations through Prisma ORM. All data transformation, validation, business rules, and coordination with external APIs happen in the Controller layer. XState machines orchestrate the overall workflow but delegate all business decisions to controllers.
+
+The indexer processes data in a hierarchical structure: Epochs contain Slots, and each Slot contains validator attestations, rewards, and block data. The system uses state machines to coordinate the complex multi-step process of fetching data from beacon chain APIs, transforming it, and storing it in PostgreSQL.
+
+## Architecture
+
+The indexer follows a three-layer architecture with strict separation of concerns:
+
+**XState Layer** (`packages/indexer/src/xstate/`): State machines that orchestrate the data extraction workflow. These machines manage state transitions, coordinate between different processing stages, and handle retries and error recovery. They do NOT contain business logic - they only coordinate when to call controller methods. Key machines include:
+- `epochCreator.machine.ts`: Creates new epoch records when needed
+- `epochOrchestrator.machine.ts`: Orchestrates epoch-level processing, polls for unprocessed epochs
+- `epochProcessor.machine.ts`: Handles the complete processing workflow for a single epoch
+- `slotOrchestrator.machine.ts`: Manages slot processing within an epoch
+- `slotProcessor.machine.ts`: Processes individual slots and their data
+
+**Controllers Layer** (`packages/indexer/src/services/consensus/controllers/`): Contains ALL business logic, data transformation, validation, and coordination with external services. Controllers fetch data from BeaconClient, process and transform it according to business rules, and coordinate with storage when persistence is needed. Key controllers:
+- `epoch.ts`: EpochController - Handles epoch creation, committee fetching, rewards processing, sync committees
+- `slot.ts`: SlotController - Processes slots, attestations, block rewards, execution rewards
+- `validators.ts`: ValidatorsController - Manages validator data, balances, activation tracking
+- `summary.ts`: SummaryController - Aggregates validator statistics and status summaries
+- `globalStats.ts`: GlobalStatsController - Handles global statistics aggregation
+
+**Storage Layer** (`packages/indexer/src/services/consensus/storage/`): Pure persistence layer with NO business logic. These classes are data access objects (DAOs) that only perform database operations through Prisma ORM. They contain simple CRUD methods, queries, and transactions. Storage classes never make decisions, transform data, or interact with external APIs. Key storage classes:
+- `epoch.ts`: EpochStorage - Database operations for epochs (create, read, update flags)
+- `slot.ts`: SlotStorage - Database operations for slots and slot-related data
+- `validators.ts`: ValidatorsStorage - Database operations for validators
+- `summary.ts`: SummaryStorage - Database operations for summary statistics
+- `globalStats.ts`: GlobalStatsStorage - Database operations for global stats
+
+The dependency flow is strictly: XState → Controllers → Storage → Database. Controllers never call XState, Storage never calls Controllers, and Storage never contains business logic.
+
+## Key Principles
+
+**Storage Layer Principle**: Storage classes are pure persistence layers. They:
+- Only contain database operations (Prisma queries, transactions, raw SQL)
+- Never contain business logic, data transformation, or validation
+- Never make decisions about what data to fetch or how to process it
+- Accept pre-processed data from controllers and store it as-is
+- Return raw database records without business logic interpretation
+
+**Controller Layer Principle**: Controllers contain all business logic. They:
+- Fetch data from external APIs (BeaconClient, ExecutionClient)
+- Transform and validate data according to business rules
+- Coordinate between multiple storage classes when needed
+- Handle complex calculations (rewards, attestation delays, etc.)
+- Make decisions about what data to fetch and when
+
+**XState Layer Principle**: State machines orchestrate workflow. They:
+- Manage state transitions and workflow coordination
+- Handle retries, delays, and error recovery
+- Delegate all business logic to controllers
+- Never contain data transformation or business rules
+- Coordinate the sequence of operations but not the logic
+
+## Database Schema
+
+The database schema is defined in `packages/db/prisma/schema.prisma`. Key models:
+
+- **Epoch**: Tracks epoch processing state with flags (processed, committeesFetched, syncCommitteesFetched, rewardsFetched, etc.)
+- **Slot**: Stores slot data including proposer, block number, rewards, and processing flags
+- **Committee**: Partitioned table storing validator committee assignments by slot (partitioned by slot ranges for performance)
+- **Validator**: Core validator information (id, status, balance, pubkey, withdrawal address)
+- **SyncCommittee**: Sync committee assignments for epoch ranges
+- **epochRewards**: Epoch-level rewards for validators (head, target, source, inactivity rewards)
+- **HourlyValidatorStats**: Aggregated hourly statistics for validators
+- **ValidatorsStatusSummary**: Current status summary for each validator
+
+The Committee table uses PostgreSQL table partitioning by slot ranges (equivalent to one hour of slots) to improve query performance on large datasets.
+
+## Key Files
+
+**Entry Point**:
+- `packages/indexer/src/index.ts`: Main entry point that initializes all dependencies, creates controllers and storage instances, and starts the indexing process
+
+**XState Machines**:
+- `packages/indexer/src/xstate/index.ts`: Exports and initializes all state machines
+- `packages/indexer/src/xstate/epoch/epochCreator.machine.ts`: Machine that creates epoch records
+- `packages/indexer/src/xstate/epoch/epochOrchestrator.machine.ts`: Orchestrates epoch processing workflow
+- `packages/indexer/src/xstate/epoch/epochProcessor.machine.ts`: Processes individual epochs through all required steps
+- `packages/indexer/src/xstate/slot/slotOrchestrator.machine.ts`: Orchestrates slot processing within an epoch
+- `packages/indexer/src/xstate/slot/slotProcessor.machine.ts`: Processes individual slots
+
+**Controllers**:
+- `packages/indexer/src/services/consensus/controllers/epoch.ts`: EpochController - All epoch-related business logic
+- `packages/indexer/src/services/consensus/controllers/slot.ts`: SlotController - All slot-related business logic
+- `packages/indexer/src/services/consensus/controllers/validators.ts`: ValidatorsController - Validator data management
+- `packages/indexer/src/services/consensus/controllers/summary.ts`: SummaryController - Statistics aggregation
+- `packages/indexer/src/services/consensus/controllers/helpers/`: Helper classes with shared business logic utilities
+
+**Storage**:
+- `packages/indexer/src/services/consensus/storage/epoch.ts`: EpochStorage - Pure database operations for epochs
+- `packages/indexer/src/services/consensus/storage/slot.ts`: SlotStorage - Pure database operations for slots
+- `packages/indexer/src/services/consensus/storage/validators.ts`: ValidatorsStorage - Pure database operations for validators
+- `packages/indexer/src/services/consensus/storage/summary.ts`: SummaryStorage - Pure database operations for summaries
+
+**External Services**:
+- `packages/indexer/src/services/consensus/beacon.ts`: BeaconClient - Handles all beacon chain API calls with retry logic and rate limiting
+- `packages/indexer/src/services/execution/execution.ts`: ExecutionClient - Handles execution layer API calls
+
+**Database**:
+- `packages/db/prisma/schema.prisma`: Prisma schema defining all database models
+- `packages/db/src/index.ts`: Exports PrismaClient for use across packages
+
+**Utilities**:
+- `packages/indexer/src/services/consensus/utils/beaconTime.ts`: BeaconTime - Utility for beacon chain time calculations (slots, epochs, timestamps)
+- `packages/indexer/src/services/consensus/utils/reliableRequestClient.ts`: Base class for reliable HTTP clients with retry logic
+
+## Data Flow Examples
+
+**Epoch Processing Flow**:
+1. XState machine (epochOrchestrator) polls for unprocessed epochs
+2. When found, spawns epochProcessor machine
+3. epochProcessor invokes EpochController methods in sequence:
+   - `fetchCommittees()` - Controller fetches from BeaconClient, transforms data, calls EpochStorage.saveCommitteesData()
+   - `fetchSyncCommittees()` - Controller fetches from BeaconClient, transforms, calls EpochStorage.saveSyncCommittees()
+   - `fetchValidatorsBalances()` - Controller coordinates ValidatorsController, which calls ValidatorsStorage
+   - `fetchRewards()` - Controller fetches rewards, calculates missed rewards, transforms data, calls EpochStorage.processEpochRewardsAndAggregate()
+4. Storage methods perform pure database operations (inserts, updates, transactions)
+5. Machine transitions based on controller method results
+
+**Slot Processing Flow**:
+1. SlotOrchestrator machine manages slot processing for an epoch
+2. For each slot, spawns SlotProcessor machine
+3. SlotProcessor invokes SlotController methods:
+   - `fetchBeaconBlock()` - Controller calls BeaconClient, gets block data
+   - `processAttestations()` - Controller transforms attestation data, calculates delays, calls SlotStorage.saveAttestations()
+   - `fetchConsensusRewards()` - Controller fetches and processes rewards, calls SlotStorage
+   - `fetchExecutionRewards()` - Controller calls ExecutionClient, processes data, calls SlotStorage
+4. All data transformation happens in Controller, Storage only persists
+
+## Package Structure
+
+**@beacon-indexer/db** (`packages/db/`):
+- Prisma schema and migrations
+- Generated Prisma client
+- Database connection utilities
+- No business logic, only database definitions
+
+**indexer** (`packages/indexer/`):
+- Core indexing service
+- XState machines for orchestration
+- Controllers with business logic
+- Storage classes for persistence
+- External service clients (BeaconClient, ExecutionClient)
+- Configuration and utilities
+
+## Testing
+
+The project includes comprehensive testing:
+- Unit tests in `packages/indexer/src/__tests__/`
+- E2E tests in `packages/indexer/e2e/` with mocked beacon chain data
+- Test utilities and setup in `packages/indexer/src/__tests__/setup.ts`
+
+## Important Notes for AI Agents
+
+When working with this codebase:
+1. **Never add business logic to Storage classes** - If you need to transform data, add it to the Controller
+2. **Storage methods should be simple** - They should accept data and store it, or query and return it
+3. **Controllers coordinate everything** - If you need to fetch from API and store, do both in the Controller
+4. **XState machines orchestrate** - They call controller methods and handle state, not business logic
+5. **Follow the dependency flow** - XState → Controllers → Storage → Database (never reverse)
+6. **Storage classes are DAOs** - They're thin wrappers around Prisma, nothing more
