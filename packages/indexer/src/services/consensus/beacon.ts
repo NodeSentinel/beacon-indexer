@@ -29,6 +29,7 @@ export interface BeaconClientConfig {
   archiveNodeRetries: number;
   baseDelay: number;
   slotStartIndexing: number;
+  slotsPerEpoch: number;
 }
 
 /**
@@ -38,6 +39,7 @@ export interface BeaconClientConfig {
 export class BeaconClient extends ReliableRequestClient {
   private readonly axiosInstance: AxiosInstance;
   public readonly slotStartIndexing: number;
+  public readonly slotsPerEpoch: number;
 
   constructor(config: BeaconClientConfig) {
     super({
@@ -51,6 +53,7 @@ export class BeaconClient extends ReliableRequestClient {
     });
 
     this.slotStartIndexing = config.slotStartIndexing;
+    this.slotsPerEpoch = config.slotsPerEpoch;
     this.axiosInstance = axios.create();
     this.axiosInstance.interceptors.request.use(logRequest);
     this.axiosInstance.interceptors.response.use(logResponse, logError);
@@ -84,7 +87,7 @@ export class BeaconClient extends ReliableRequestClient {
     }
 
     const currentSlot = getSlotNumberFromTimestamp(Date.now());
-    return currentSlot - slot > 250;
+    return currentSlot - slot > this.slotsPerEpoch * 4;
   }
 
   /**

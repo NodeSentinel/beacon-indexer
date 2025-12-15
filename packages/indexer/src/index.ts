@@ -96,12 +96,13 @@ async function main() {
   const beaconClient = new BeaconClient({
     fullNodeUrl: env.CONSENSUS_FULL_API_URL,
     fullNodeConcurrency: env.CONSENSUS_API_REQUEST_PER_SECOND,
-    fullNodeRetries: 10,
+    fullNodeRetries: 2,
     archiveNodeUrl: env.CONSENSUS_ARCHIVE_API_URL,
     archiveNodeConcurrency: env.CONSENSUS_API_REQUEST_PER_SECOND,
     archiveNodeRetries: 30,
     baseDelay: ms('1s'),
     slotStartIndexing: env.CONSENSUS_LOOKBACK_SLOT,
+    slotsPerEpoch: chainConfig.beacon.slotsPerEpoch,
   });
 
   const beaconTime = new BeaconTime({
@@ -148,21 +149,21 @@ async function main() {
   // Start indexing the beacon chain
   await validatorsController.initValidators();
 
-  // await initXstateMachines(
-  //   epochController,
-  //   beaconTime,
-  //   chainConfig.beacon.slotDuration,
-  //   slotController,
-  //   validatorsController,
-  // );
+  await initXstateMachines(
+    epochController,
+    beaconTime,
+    chainConfig.beacon.slotDuration,
+    slotController,
+    validatorsController,
+  );
 
   // Get validator inactivity status
-  await summaryController.getValidatorInactivityStatus({
-    slotsPerEpoch: chainConfig.beacon.slotsPerEpoch,
-    maxAttestationDelay: chainConfig.beacon.maxAttestationDelay,
-    delaySlotsToHead: chainConfig.beacon.delaySlotsToHead,
-    missedAttestationsForInactivity: chainConfig.beacon.missedAttestationsForInactivity,
-  });
+  // await summaryController.getValidatorInactivityStatus({
+  //   slotsPerEpoch: chainConfig.beacon.slotsPerEpoch,
+  //   maxAttestationDelay: chainConfig.beacon.maxAttestationDelay,
+  //   delaySlotsToHead: chainConfig.beacon.delaySlotsToHead,
+  //   missedAttestationsForInactivity: chainConfig.beacon.missedAttestationsForInactivity,
+  // });
 }
 
 main().catch((e) => {
