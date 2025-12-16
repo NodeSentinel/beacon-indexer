@@ -96,6 +96,16 @@ CREATE TABLE "public"."epoch" (
     CONSTRAINT "epoch_pkey" PRIMARY KEY ("epoch")
 );
 
+-- CreateTable
+CREATE TABLE "public"."indexer_config" (
+    "id" INTEGER NOT NULL DEFAULT 1,
+    "chain" VARCHAR(20) NOT NULL,
+    "lookback_slot" INTEGER NOT NULL,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "indexer_config_pkey" PRIMARY KEY ("id")
+);
+
 -- CreateTable (Partitioned by slot range)
 -- Committee table is partitioned by slot number to improve query performance
 -- Partitions are created dynamically per hour when processing epochs

@@ -5,10 +5,12 @@ import { env, chainConfig } from '@/src/lib/env.js';
 import createLogger from '@/src/lib/pino.js';
 import { BeaconClient } from '@/src/services/consensus/beacon.js';
 import { EpochController } from '@/src/services/consensus/controllers/epoch.js';
+import { IndexerConfigController } from '@/src/services/consensus/controllers/indexerConfig.js';
 import { SlotController } from '@/src/services/consensus/controllers/slot.js';
 import { SummaryController } from '@/src/services/consensus/controllers/summary.js';
 import { ValidatorsController } from '@/src/services/consensus/controllers/validators.js';
 import { EpochStorage } from '@/src/services/consensus/storage/epoch.js';
+import { IndexerConfigStorage } from '@/src/services/consensus/storage/indexerConfig.js';
 import { SlotStorage } from '@/src/services/consensus/storage/slot.js';
 import { SummaryStorage } from '@/src/services/consensus/storage/summary.js';
 import { ValidatorsStorage } from '@/src/services/consensus/storage/validators.js';
@@ -91,6 +93,13 @@ async function main() {
     }
     throw error;
   }
+
+  // Validate or initialize indexer configuration
+  // This must happen before any other initialization to prevent data corruption
+  const indexerConfigStorage = new IndexerConfigStorage(prisma);
+  const indexerConfigController = new IndexerConfigController(indexerConfigStorage);
+  await indexerConfigController.validateOrInitializeConfig(env.CHAIN, env.CONSENSUS_LOOKBACK_SLOT);
+  logger.info('Indexer configuration validated successfully');
 
   // Initialize dependencies
   const beaconClient = new BeaconClient({

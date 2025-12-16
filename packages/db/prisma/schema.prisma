@@ -204,6 +204,18 @@ model epochRewards {
 }
 
 //-------------------------------------
+// Indexer Configuration
+//-------------------------------------
+model IndexerConfig {
+  id           Int      @id @default(1) // Singleton pattern - only one row
+  chain        String   @map("chain") @db.VarChar(20)
+  lookbackSlot Int      @map("lookback_slot")
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamp
+
+  @@map("indexer_config")
+}
+
+//-------------------------------------
 // Aggregation tables
 //-------------------------------------
 model HourlyValidatorStats {
