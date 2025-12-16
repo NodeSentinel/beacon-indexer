@@ -5,10 +5,12 @@ import { env, chainConfig } from '@/src/lib/env.js';
 import createLogger from '@/src/lib/pino.js';
 import { BeaconClient } from '@/src/services/consensus/beacon.js';
 import { EpochController } from '@/src/services/consensus/controllers/epoch.js';
+import { PartitionController } from '@/src/services/consensus/controllers/partition.js';
 import { SlotController } from '@/src/services/consensus/controllers/slot.js';
 import { SummaryController } from '@/src/services/consensus/controllers/summary.js';
 import { ValidatorsController } from '@/src/services/consensus/controllers/validators.js';
 import { EpochStorage } from '@/src/services/consensus/storage/epoch.js';
+import { PartitionStorage } from '@/src/services/consensus/storage/partition.js';
 import { SlotStorage } from '@/src/services/consensus/storage/slot.js';
 import { SummaryStorage } from '@/src/services/consensus/storage/summary.js';
 import { ValidatorsStorage } from '@/src/services/consensus/storage/validators.js';
@@ -146,11 +148,16 @@ async function main() {
   const summaryStorage = new SummaryStorage(prisma);
   const summaryController = new SummaryController(summaryStorage, beaconTime);
 
+  // Create partition controller
+  const partitionStorage = new PartitionStorage(prisma);
+  const partitionController = new PartitionController(partitionStorage, beaconTime);
+
   // Start indexing the beacon chain
   await validatorsController.initValidators();
 
   await initXstateMachines(
     epochController,
+    partitionController,
     beaconTime,
     chainConfig.beacon.slotDuration,
     slotController,

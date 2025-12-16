@@ -1,3 +1,5 @@
+import { getUTCDatetimeFlooredToHour } from '@/src/utils/date/index.js';
+
 /**
  * Time utilities class for beacon chain time calculations
  * All methods are pure functions that use the configuration provided in the constructor
@@ -185,5 +187,18 @@ export class BeaconTime {
   getPartitionEndSlot(partitionStartSlot: number): number {
     const slotsPerHour = this.getSlotsPerHour();
     return partitionStartSlot + slotsPerHour - 1;
+  }
+
+  /**
+   * Calculate the first slot of the UTC hour that contains the given slot.
+   * Partitions are aligned to UTC hour boundaries (e.g., 10:00, 11:00, 12:00).
+   *
+   * @param slot - The slot number
+   * @returns The first slot of the UTC hour containing this slot
+   */
+  getSlotAtStartOfUTCHourContaining(slot: number): number {
+    const ts = this.getTimestampFromSlotNumber(slot);
+    const hourStartTs = Math.floor(ts / 3_600_000) * 3_600_000; // floor to UTC hour
+    return this.getSlotNumberFromTimestamp(hourStartTs);
   }
 }

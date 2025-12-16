@@ -5,6 +5,7 @@ import { epochProcessorMachine } from './epochProcessor.machine.js';
 
 import type { CustomLogger } from '@/src/lib/pino.js';
 import { EpochController } from '@/src/services/consensus/controllers/epoch.js';
+import { PartitionController } from '@/src/services/consensus/controllers/partition.js';
 import { SlotController } from '@/src/services/consensus/controllers/slot.js';
 import { ValidatorsController } from '@/src/services/consensus/controllers/validators.js';
 import { BeaconTime } from '@/src/services/consensus/utils/beaconTime.js';
@@ -38,6 +39,7 @@ export const epochOrchestratorMachine = setup({
       slotDuration: number;
       lookbackSlot: number;
       epochController: EpochController;
+      partitionController: PartitionController;
       beaconTime: BeaconTime;
       validatorsController?: ValidatorsController;
       slotController: SlotController;
@@ -47,6 +49,7 @@ export const epochOrchestratorMachine = setup({
       slotDuration: number;
       lookbackSlot: number;
       epochController: EpochController;
+      partitionController: PartitionController;
       beaconTime: BeaconTime;
       validatorsController?: ValidatorsController;
       slotController: SlotController;
@@ -56,6 +59,15 @@ export const epochOrchestratorMachine = setup({
     getMinEpochToProcess: fromPromise(
       async ({ input }: { input: { epochController: EpochController } }) => {
         return input.epochController.getMinEpochToProcess();
+      },
+    ),
+    ensureAllPartitionsForEpoch: fromPromise(
+      async ({
+        input,
+      }: {
+        input: { partitionController: PartitionController; epoch: number };
+      }) => {
+        await input.partitionController.ensureAllPartitionsForEpoch(input.epoch);
       },
     ),
     epochProcessorMachine,
@@ -78,6 +90,7 @@ export const epochOrchestratorMachine = setup({
     slotDuration: input.slotDuration,
     lookbackSlot: input.lookbackSlot,
     epochController: input.epochController,
+    partitionController: input.partitionController,
     beaconTime: input.beaconTime,
     validatorsController: input.validatorsController,
     slotController: input.slotController,
@@ -90,7 +103,7 @@ export const epochOrchestratorMachine = setup({
         onDone: [
           {
             guard: ({ event }) => event.output !== null,
-            target: 'processingEpoch',
+            target: 'ensuringPartitions',
             actions: [
               assign({
                 epochData: ({ event }) => event.output,
@@ -110,6 +123,37 @@ export const epochOrchestratorMachine = setup({
           target: 'idleNoEpoch',
           actions: pinoLog(
             ({ event }) => `Error getting min epoch to process: ${event.error}`,
+            'EpochOrchestrator',
+            'error',
+          ),
+        },
+      },
+    },
+
+    ensuringPartitions: {
+      entry: pinoLog(
+        ({ context }) =>
+          `Ensuring partitions for epoch ${context.epochData?.epoch} before processing`,
+        'EpochOrchestrator',
+      ),
+      invoke: {
+        src: 'ensureAllPartitionsForEpoch',
+        input: ({ context }) => ({
+          partitionController: context.partitionController,
+          epoch: context.epochData!.epoch,
+        }),
+        onDone: {
+          target: 'processingEpoch',
+          actions: pinoLog(
+            ({ context }) => `Partitions ensured for epoch ${context.epochData?.epoch}`,
+            'EpochOrchestrator',
+          ),
+        },
+        onError: {
+          target: 'idleNoEpoch',
+          actions: pinoLog(
+            ({ context, event }) =>
+              `Error ensuring partitions for epoch ${context.epochData?.epoch}: ${event.error}`,
             'EpochOrchestrator',
             'error',
           ),

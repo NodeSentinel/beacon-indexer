@@ -6,7 +6,7 @@ import { BeaconClient } from '@/src/services/consensus/beacon.js';
 import { EpochStorage } from '@/src/services/consensus/storage/epoch.js';
 import { ValidatorsStorage } from '@/src/services/consensus/storage/validators.js';
 import { BeaconTime } from '@/src/services/consensus/utils/beaconTime.js';
-import { getUTCDatetimeRoundedToHour } from '@/src/utils/date/index.js';
+import { getUTCDatetimeFlooredToHour } from '@/src/utils/date/index.js';
 
 export class EpochController extends EpochControllerHelpers {
   static readonly maxUnprocessedEpochs: number = 5;
@@ -34,35 +34,6 @@ export class EpochController extends EpochControllerHelpers {
 
   getBeaconTime() {
     return this.beaconTime;
-  }
-
-  /**
-   * Upsert committee table partitions for the given epoch.
-   * Calculates which partitions are needed based on fixed slot ranges (equivalent to one hour of slots).
-   * An epoch can span 1 or 2 partitions depending on slot duration and slots per epoch.
-   *
-   * Since epochs are only processed if they contain slots >= lookbackSlot, we determine which
-   * partitions are actually needed. If partitionStart1 < lookbackSlot, we skip partition1 and
-   * only create partition2 (which will contain the valid slots >= lookbackSlot).
-   */
-  async upsertCommitteePartitions(epoch: number): Promise<void> {
-    const { startSlot, endSlot } = this.beaconTime.getEpochSlots(epoch);
-    const lookbackSlot = this.beaconTime.getLookbackSlot();
-
-    // Calculate effective partition start: if partitionStart1 < lookbackSlot,
-    // we need the partition that contains lookbackSlot instead
-    // The first partition to create is the one containing the first slot we'll process.
-    const firstSlotToProcess = Math.max(startSlot, lookbackSlot);
-    const partitionToCreate1 = this.beaconTime.getPartitionStartSlot(firstSlotToProcess);
-    const partitionEnd1 = this.beaconTime.getPartitionEndSlot(partitionToCreate1);
-    await this.epochStorage.upsertCommitteePartition(partitionToCreate1, partitionEnd1);
-
-    // Add second partition only if different from first
-    const partitionStart2 = this.beaconTime.getPartitionStartSlot(endSlot);
-    if (partitionStart2 !== partitionToCreate1) {
-      const partitionEnd2 = this.beaconTime.getPartitionEndSlot(partitionStart2);
-      await this.epochStorage.upsertCommitteePartition(partitionStart2, partitionEnd2);
-    }
   }
 
   async getUnprocessedCount() {
@@ -186,7 +157,7 @@ export class EpochController extends EpochControllerHelpers {
 
     // Calculate datetime for hourly aggregation using BeaconTime
     const epochTimestamp = this.beaconTime.getTimestampFromEpochNumber(epoch);
-    const datetime = getUTCDatetimeRoundedToHour(epochTimestamp);
+    const datetime = getUTCDatetimeFlooredToHour(epochTimestamp);
 
     // Process and aggregate rewards in a single atomic transaction
     await this.epochStorage.processEpochRewardsAndAggregate(epoch, datetime, allProcessedRewards);
@@ -194,15 +165,13 @@ export class EpochController extends EpochControllerHelpers {
 
   /**
    * Fetch committees for a specific epoch
+   * Note: Partitions should be created before calling this method (via PartitionController)
    */
   async fetchCommittees(epoch: number): Promise<void> {
     const epochDb = await this.epochStorage.getEpochByNumber(epoch);
     if (epochDb?.committeesFetched) {
       return;
     }
-
-    // Ensure committee table partitions exist for this epoch before fetching data
-    await this.upsertCommitteePartitions(epoch);
 
     // Get committees from beacon chain
     const { startSlot, endSlot } = this.beaconTime.getEpochSlots(epoch);

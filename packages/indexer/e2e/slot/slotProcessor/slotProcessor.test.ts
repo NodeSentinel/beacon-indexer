@@ -13,16 +13,18 @@ import blockRewards24519344 from './mocks/slotRewards_ 24519344.json' with { typ
 
 import { gnosisConfig } from '@/src/config/chain.js';
 import { BeaconClient } from '@/src/services/consensus/beacon.js';
+import { PartitionController } from '@/src/services/consensus/controllers/partition.js';
 import { EpochController } from '@/src/services/consensus/controllers/epoch.js';
 import { ValidatorControllerHelpers } from '@/src/services/consensus/controllers/helpers/validatorControllerHelpers.js';
 import { SlotController } from '@/src/services/consensus/controllers/slot.js';
 import { EpochStorage } from '@/src/services/consensus/storage/epoch.js';
+import { PartitionStorage } from '@/src/services/consensus/storage/partition.js';
 import { SlotStorage } from '@/src/services/consensus/storage/slot.js';
 import { ValidatorsStorage } from '@/src/services/consensus/storage/validators.js';
 import { GetCommittees, Block } from '@/src/services/consensus/types.js';
 import { BeaconTime } from '@/src/services/consensus/utils/beaconTime.js';
 import { ExecutionClient } from '@/src/services/execution/execution.js';
-import { getUTCDatetimeRoundedToHour } from '@/src/utils/date/index.js';
+import { getUTCDatetimeFlooredToHour } from '@/src/utils/date/index.js';
 
 /**
  * Note: Mocked data from this tests was taken from Gnosis chain.
@@ -173,7 +175,7 @@ describe('Slot Processor E2E Tests', () => {
     it('should process sync committee rewards and verify syncCommitteeRewards table and HourlyValidatorStats', async () => {
       // Calculate datetime for slots (both should be in the same hour)
       const slot24497230Timestamp = beaconTime.getTimestampFromSlotNumber(24497230);
-      const datetime24497230 = getUTCDatetimeRoundedToHour(slot24497230Timestamp);
+      const datetime24497230 = getUTCDatetimeFlooredToHour(slot24497230Timestamp);
 
       // Initialize existing values for multiple validators to test aggregation
       await slotStorage.createTestHourlyValidatorStats({
@@ -367,9 +369,9 @@ describe('Slot Processor E2E Tests', () => {
     it('should process block rewards and verify Slot table and HourlyValidatorStats', async () => {
       // Calculate datetime for slots
       const slot24519343Timestamp = beaconTime.getTimestampFromSlotNumber(24519343);
-      const datetime24519343 = getUTCDatetimeRoundedToHour(slot24519343Timestamp);
+      const datetime24519343 = getUTCDatetimeFlooredToHour(slot24519343Timestamp);
       const slot24519344Timestamp = beaconTime.getTimestampFromSlotNumber(24519344);
-      const datetime24519344 = getUTCDatetimeRoundedToHour(slot24519344Timestamp);
+      const datetime24519344 = getUTCDatetimeFlooredToHour(slot24519344Timestamp);
 
       // Initialize existing values for validator 536011 to test aggregation
       await slotStorage.createTestHourlyValidatorStats({
@@ -521,6 +523,11 @@ describe('Slot Processor E2E Tests', () => {
 
       // Create epoch 1542000
       await epochStorage.createEpochs([epoch1542000]);
+
+      // Create partitions for the epoch before processing committees
+      const partitionStorage = new PartitionStorage(prisma);
+      const partitionController = new PartitionController(partitionStorage, beaconTimeWithLookback);
+      await partitionController.createPartitionForCommittee(epoch1542000);
 
       // Load committees for epoch 1542000
       // This will create ALL slots for the epoch (24672000-24672015)
