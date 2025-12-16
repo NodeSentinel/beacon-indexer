@@ -166,3 +166,4 @@ When working with this codebase:
 4. **XState machines orchestrate** - They call controller methods and handle state, not business logic
 5. **Follow the dependency flow** - XState → Controllers → Storage → Database (never reverse)
 6. **Storage classes are DAOs** - They're thin wrappers around Prisma, nothing more
+
