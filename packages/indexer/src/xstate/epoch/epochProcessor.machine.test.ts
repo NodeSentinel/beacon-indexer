@@ -107,9 +107,6 @@ vi.mock('@/src/xstate/multiMachineLogger.js', () => ({
  */
 function resetMocks() {
   vi.clearAllMocks();
-  (mockEpochController.upsertCommitteePartitions as ReturnType<typeof vi.fn>).mockResolvedValue(
-    undefined,
-  );
   (mockEpochController.fetchCommittees as ReturnType<typeof vi.fn>).mockResolvedValue(undefined);
   (mockEpochController.fetchSyncCommittees as ReturnType<typeof vi.fn>).mockResolvedValue(
     undefined,

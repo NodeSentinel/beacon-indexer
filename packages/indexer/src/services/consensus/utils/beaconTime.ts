@@ -1,5 +1,3 @@
-import { getUTCDatetimeFlooredToHour } from '@/src/utils/date/index.js';
-
 /**
  * Time utilities class for beacon chain time calculations
  * All methods are pure functions that use the configuration provided in the constructor

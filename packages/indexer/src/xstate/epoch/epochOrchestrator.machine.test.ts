@@ -3,6 +3,7 @@ import { createActor, createMachine, sendParent, SnapshotFrom } from 'xstate';
 
 import { createControllablePromise } from '@/src/__tests__/utils.js';
 import { EpochController } from '@/src/services/consensus/controllers/epoch.js';
+import { PartitionController } from '@/src/services/consensus/controllers/partition.js';
 import { SlotController } from '@/src/services/consensus/controllers/slot.js';
 // eslint-disable-next-line import/order
 import { BeaconTime } from '@/src/services/consensus/utils/beaconTime.js';
@@ -14,6 +15,10 @@ const mockEpochController = {
   getMinEpochToProcess: vi.fn(),
   markEpochAsProcessed: vi.fn(),
 } as unknown as EpochController;
+
+const mockPartitionController = {
+  ensureAllPartitionsForEpoch: vi.fn(),
+} as unknown as PartitionController;
 
 // Mock BeaconTime instance for testing
 const GENESIS_TIMESTAMP = 1606824000000; // Example genesis timestamp
@@ -99,6 +104,7 @@ describe.skip('epochOrchestratorMachine', () => {
         slotDuration: 0.1, // 100ms for faster tests
         lookbackSlot: 32,
         epochController: mockEpochController,
+        partitionController: mockPartitionController,
         beaconTime: mockBeaconTime,
         slotController: mockSlotController,
       },
@@ -154,6 +160,7 @@ describe.skip('epochOrchestratorMachine', () => {
         slotDuration: 0.1, // 100ms for faster tests
         lookbackSlot: 32,
         epochController: mockEpochController,
+        partitionController: mockPartitionController,
         beaconTime: mockBeaconTime,
         slotController: mockSlotController,
       },
@@ -214,6 +221,7 @@ describe.skip('epochOrchestratorMachine', () => {
         slotDuration: 0.1, // 100ms for faster tests
         lookbackSlot: 32,
         epochController: mockEpochController,
+        partitionController: mockPartitionController,
         beaconTime: mockBeaconTime,
         slotController: mockSlotController,
       },
@@ -298,6 +306,7 @@ describe.skip('epochOrchestratorMachine', () => {
         slotDuration: 0.1, // 100ms for faster tests
         lookbackSlot: 32,
         epochController: mockEpochController,
+        partitionController: mockPartitionController,
         beaconTime: mockBeaconTime,
         slotController: mockSlotController,
       },
