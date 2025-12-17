@@ -55,15 +55,15 @@ export class PartitionController {
 
     const partitionOneFirstSlot =
       this.beaconTime.getSlotAtStartOfUTCHourContaining(firstSlotToProcess);
-    const partitonOne = this.makeHourPartition(tableName, partitionOneFirstSlot);
+    const partitionOne = this.makeHourPartition(tableName, partitionOneFirstSlot);
 
     // if endSlot is still within partitionOne, only 1 partition
-    if (endSlot < partitonOne.endSlot) return [partitonOne];
+    if (endSlot < partitionOne.endSlot) return [partitionOne];
 
     const partitionTwoFirstSlot = this.beaconTime.getSlotAtStartOfUTCHourContaining(endSlot);
-    if (partitionTwoFirstSlot === partitionOneFirstSlot) return [partitonOne]; // paranoia / safety
+    if (partitionTwoFirstSlot === partitionOneFirstSlot) return [partitionOne]; // paranoia / safety
 
-    return [partitonOne, this.makeHourPartition(tableName, partitionTwoFirstSlot)];
+    return [partitionOne, this.makeHourPartition(tableName, partitionTwoFirstSlot)];
   }
 
   /**
