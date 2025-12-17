@@ -1,6 +1,7 @@
 import { createActor } from 'xstate';
 
 import { EpochController } from '@/src/services/consensus/controllers/epoch.js';
+import { PartitionController } from '@/src/services/consensus/controllers/partition.js';
 import { SlotController } from '@/src/services/consensus/controllers/slot.js';
 import { ValidatorsController } from '@/src/services/consensus/controllers/validators.js';
 import { BeaconTime } from '@/src/services/consensus/utils/beaconTime.js';
@@ -30,6 +31,7 @@ export const getCreateEpochActor = (epochController: EpochController, slotDurati
 
 export const getEpochOrchestratorActor = (
   epochController: EpochController,
+  partitionController: PartitionController,
   beaconTime: BeaconTime,
   slotDuration: number,
   slotController: SlotController,
@@ -40,6 +42,7 @@ export const getEpochOrchestratorActor = (
       slotDuration,
       lookbackSlot: beaconTime.getLookbackSlot(),
       epochController,
+      partitionController,
       beaconTime,
       slotController,
       validatorsController,

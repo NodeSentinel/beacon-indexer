@@ -1,12 +1,14 @@
 import { getCreateEpochActor, getEpochOrchestratorActor } from './epoch/index.js';
 
 import { EpochController } from '@/src/services/consensus/controllers/epoch.js';
+import { PartitionController } from '@/src/services/consensus/controllers/partition.js';
 import { SlotController } from '@/src/services/consensus/controllers/slot.js';
 import { ValidatorsController } from '@/src/services/consensus/controllers/validators.js';
 import { BeaconTime } from '@/src/services/consensus/utils/beaconTime.js';
 
 export default function initXstateMachines(
   epochController: EpochController,
+  partitionController: PartitionController,
   beaconTime: BeaconTime,
   slotDuration: number,
   slotController: SlotController,
@@ -16,6 +18,7 @@ export default function initXstateMachines(
 
   getEpochOrchestratorActor(
     epochController,
+    partitionController,
     beaconTime,
     slotDuration,
     slotController,

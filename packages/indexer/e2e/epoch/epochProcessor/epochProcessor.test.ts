@@ -12,9 +12,11 @@ import validatorsData from './mocks/validators.json' with { type: 'json' };
 
 import { gnosisConfig } from '@/src/config/chain.js';
 import { BeaconClient } from '@/src/services/consensus/beacon.js';
+import { PartitionController } from '@/src/services/consensus/controllers/partition.js';
 import { EpochController } from '@/src/services/consensus/controllers/epoch.js';
 import { ValidatorControllerHelpers } from '@/src/services/consensus/controllers/helpers/validatorControllerHelpers.js';
 import { EpochStorage } from '@/src/services/consensus/storage/epoch.js';
+import { PartitionStorage } from '@/src/services/consensus/storage/partition.js';
 import { ValidatorsStorage } from '@/src/services/consensus/storage/validators.js';
 import { GetCommittees } from '@/src/services/consensus/types.js';
 import { BeaconTime } from '@/src/services/consensus/utils/beaconTime.js';
@@ -356,22 +358,32 @@ describe('Epoch Processor E2E Tests', () => {
           getCommittees: vi.fn(),
         };
 
+        // Create beacon time instance
+        const beaconTime = new BeaconTime({
+          genesisTimestamp: gnosisConfig.beacon.genesisTimestamp,
+          slotDurationMs: gnosisConfig.beacon.slotDuration,
+          slotsPerEpoch: gnosisConfig.beacon.slotsPerEpoch,
+          epochsPerSyncCommitteePeriod: gnosisConfig.beacon.epochsPerSyncCommitteePeriod,
+          lookbackSlot: 32000,
+        });
+
+        // Create partition controller and create partitions before inserting data
+        const partitionStorage = new PartitionStorage(prisma);
+        const partitionController = new PartitionController(partitionStorage, beaconTime);
+
         // Create epoch controller with mock
         const epochControllerWithMock = new EpochController(
           mockBeaconClient as unknown as BeaconClient,
           epochStorage,
           validatorsStorage,
-          new BeaconTime({
-            genesisTimestamp: gnosisConfig.beacon.genesisTimestamp,
-            slotDurationMs: gnosisConfig.beacon.slotDuration,
-            slotsPerEpoch: gnosisConfig.beacon.slotsPerEpoch,
-            epochsPerSyncCommitteePeriod: gnosisConfig.beacon.epochsPerSyncCommitteePeriod,
-            lookbackSlot: 32000,
-          }),
+          beaconTime,
         );
 
         // Create epoch
         await epochStorage.createEpochs([1529553]);
+
+        // Create partitions for the epoch before processing committees
+        await partitionController.createPartitionForCommittee(1529553);
 
         // Process committees once
         const committeeDataTyped = committeeData as GetCommittees;

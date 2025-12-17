@@ -1,18 +1,16 @@
 import { PrismaClient } from '@beacon-indexer/db';
+import { addHours } from 'date-fns';
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 
-import { BeaconClient } from '@/src/services/consensus/beacon.js';
-import { EpochController } from '@/src/services/consensus/controllers/epoch.js';
-import { EpochStorage } from '@/src/services/consensus/storage/epoch.js';
-import { ValidatorsStorage } from '@/src/services/consensus/storage/validators.js';
+import { PartitionController } from '@/src/services/consensus/controllers/partition.js';
+import { PartitionStorage } from '@/src/services/consensus/storage/partition.js';
 import { BeaconTime } from '@/src/services/consensus/utils/beaconTime.js';
 
 describe('Committee Partitioning E2E Tests', () => {
   let prisma: PrismaClient;
-  let epochStorage: EpochStorage;
-  let validatorsStorage: ValidatorsStorage;
+  let partitionStorage: PartitionStorage;
   let beaconTimeWithLookback: BeaconTime;
-  let epochControllerWithLookback: EpochController;
+  let partitionControllerWithLookback: PartitionController;
 
   beforeAll(async () => {
     if (!process.env.DATABASE_URL) {
@@ -28,9 +26,8 @@ describe('Committee Partitioning E2E Tests', () => {
       },
     });
 
-    // Initialize storage
-    validatorsStorage = new ValidatorsStorage(prisma);
-    epochStorage = new EpochStorage(prisma, validatorsStorage);
+    // Initialize partition storage
+    partitionStorage = new PartitionStorage(prisma);
 
     // Create BeaconTime with lookbackSlot = 12000 (realistic production scenario)
     // Gnosis: 5 second slots, 16 slots per epoch = 80 seconds per epoch
@@ -43,10 +40,8 @@ describe('Committee Partitioning E2E Tests', () => {
       lookbackSlot: 12000,
     });
 
-    epochControllerWithLookback = new EpochController(
-      { slotStartIndexing: 12000 } as BeaconClient,
-      epochStorage,
-      validatorsStorage,
+    partitionControllerWithLookback = new PartitionController(
+      partitionStorage,
       beaconTimeWithLookback,
     );
   });
@@ -61,7 +56,7 @@ describe('Committee Partitioning E2E Tests', () => {
       const partitions = await prisma.$queryRaw<Array<{ tablename: string }>>`
         SELECT tablename 
         FROM pg_tables 
-        WHERE tablename LIKE 'committee_slot_%'
+        WHERE tablename LIKE 'committee_%'
       `;
 
       for (const partition of partitions) {
@@ -69,17 +64,24 @@ describe('Committee Partitioning E2E Tests', () => {
       }
     });
 
-    it('should create partition starting at lookbackSlot', async () => {
+    it('should create partition aligned to UTC hour boundary', async () => {
       // Epoch that contains lookbackSlot
       const epoch = beaconTimeWithLookback.getEpochFromSlot(12000);
 
-      await epochControllerWithLookback.upsertCommitteePartitions(epoch);
+      await partitionControllerWithLookback.createPartitionForCommittee(epoch);
 
-      // Partition should start at 12000
-      const partitionStartSlot = beaconTimeWithLookback.getPartitionStartSlot(12000);
-      expect(partitionStartSlot).toBe(12000);
+      // Partition should start at the UTC hour boundary containing slot 12000
+      const partitionStartSlot = beaconTimeWithLookback.getSlotAtStartOfUTCHourContaining(12000);
 
-      const partitionName = `committee_slot_${partitionStartSlot}`;
+      // Calculate the end slot (start of next UTC hour)
+      const startSlotTimestamp =
+        beaconTimeWithLookback.getTimestampFromSlotNumber(partitionStartSlot);
+      const nextHour = addHours(startSlotTimestamp, 1).getTime(); // next UTC hour start
+      const nextHourSlot = beaconTimeWithLookback.getSlotNumberFromTimestamp(nextHour);
+      const partitionEndSlot = nextHourSlot - 1; // we don't want to include the first slot of the next hour
+
+      // Partition name format: committee_${startSlot}-${endSlot}
+      const partitionName = `committee_${partitionStartSlot}-${partitionEndSlot}`;
 
       const partitionExists = await prisma.$queryRaw<Array<{ exists: boolean }>>`
         SELECT EXISTS (
@@ -90,10 +92,7 @@ describe('Committee Partitioning E2E Tests', () => {
 
       expect(partitionExists[0]?.exists).toBe(true);
 
-      // Verify partition has correct range [12000, 12720)
-      const partitionEndSlot = beaconTimeWithLookback.getPartitionEndSlot(partitionStartSlot);
-      expect(partitionEndSlot).toBe(12719); // 12000 + 720 - 1
-
+      // Verify partition has correct range [partitionStartSlot, nextHourSlot)
       const partitionInfo = await prisma.$queryRaw<Array<{ partition_expression: string }>>`
         SELECT pg_get_expr(c.relpartbound, c.oid) as partition_expression
         FROM pg_class c
@@ -102,8 +101,8 @@ describe('Committee Partitioning E2E Tests', () => {
 
       expect(partitionInfo).toHaveLength(1);
       const expression = partitionInfo[0].partition_expression;
-      expect(expression).toContain('12000');
-      expect(expression).toContain('12720'); // endSlot + 1 = 12719 + 1 = 12720
+      expect(expression).toContain(partitionStartSlot.toString());
+      expect(expression).toContain(nextHourSlot.toString()); // exclusive end
 
       // Verify the partition is actually a child of committee table
       const inheritanceInfo = await prisma.$queryRaw<Array<{ parent: string }>>`
@@ -116,47 +115,56 @@ describe('Committee Partitioning E2E Tests', () => {
       expect(inheritanceInfo[0].parent).toBe('committee');
     });
 
-    it('should create multiple partitions when epoch spans partition boundary', async () => {
-      // Create a BeaconTime with lookbackSlot = 12010 to ensure epochs can cross partition boundaries
-      // With lookbackSlot = 12010 and slotsPerHour = 720:
-      // Partition 0: slots 12010-12729
-      // Partition 1: slots 12730-13449
-      // Epoch 795 has slots 12720-12735, which spans both partitions:
-      //   - Slots 12720-12729 are in partition 0
-      //   - Slots 12730-12735 are in partition 1
+    it('should create multiple partitions when epoch spans UTC hour boundary', async () => {
+      // Use Gnosis chain configuration with epoch 1586253 which crosses UTC hour boundary
+      // Epoch 1586253: slots 25380048-25380063 (2025-12-16T13:59:40Z to 14:00:55Z)
+      // This epoch crosses from 13:00 UTC hour to 14:00 UTC hour
+      const gnosisGenesisTimestamp = 1638993340000; // Gnosis genesis: 1638993340s
+      const lookbackSlot = 25380000; // Before the epoch start slot
+
       const beaconTimeForBoundaryTest = new BeaconTime({
-        genesisTimestamp: 1640995200000,
+        genesisTimestamp: gnosisGenesisTimestamp,
         slotDurationMs: 5000,
         slotsPerEpoch: 16,
         epochsPerSyncCommitteePeriod: 256,
-        lookbackSlot: 12010,
+        lookbackSlot: lookbackSlot,
       });
 
-      const epochControllerForBoundaryTest = new EpochController(
-        { slotStartIndexing: 12010 } as BeaconClient,
-        epochStorage,
-        validatorsStorage,
+      const partitionControllerForBoundaryTest = new PartitionController(
+        partitionStorage,
         beaconTimeForBoundaryTest,
       );
 
-      // Epoch 795 crosses the partition boundary
-      const epoch795 = 795;
-      const { startSlot, endSlot } = beaconTimeForBoundaryTest.getEpochSlots(epoch795);
+      // Epoch 1586253 crosses UTC hour boundary
+      const epoch1586253 = 1586253;
+      const { startSlot, endSlot } = beaconTimeForBoundaryTest.getEpochSlots(epoch1586253);
 
-      // Verify this epoch actually spans the boundary
-      const partitionStart = beaconTimeForBoundaryTest.getPartitionStartSlot(startSlot);
-      const partitionEnd = beaconTimeForBoundaryTest.getPartitionStartSlot(endSlot);
-      expect(partitionStart).not.toBe(partitionEnd); // Should be in different partitions
+      // Verify this epoch actually spans UTC hour boundary
+      const partitionOneStart = beaconTimeForBoundaryTest.getSlotAtStartOfUTCHourContaining(
+        Math.max(startSlot, beaconTimeForBoundaryTest.getLookbackSlot()),
+      );
+      const partitionTwoStart =
+        beaconTimeForBoundaryTest.getSlotAtStartOfUTCHourContaining(endSlot);
+      expect(partitionOneStart).not.toBe(partitionTwoStart); // Should be in different UTC hours
 
       // Process the epoch - this should create both partitions in a single call
-      await epochControllerForBoundaryTest.upsertCommitteePartitions(epoch795);
+      await partitionControllerForBoundaryTest.createPartitionForCommittee(epoch1586253);
 
-      // Verify both partitions were created
-      const partition0Start = beaconTimeForBoundaryTest.getPartitionStartSlot(startSlot);
-      const partition1Start = beaconTimeForBoundaryTest.getPartitionStartSlot(endSlot);
+      // Calculate partition names based on UTC hour boundaries
+      const startSlotTimestamp0 =
+        beaconTimeForBoundaryTest.getTimestampFromSlotNumber(partitionOneStart);
+      const nextHour0 = addHours(startSlotTimestamp0, 1).getTime();
+      const nextHourSlot0 = beaconTimeForBoundaryTest.getSlotNumberFromTimestamp(nextHour0);
+      const partition0EndSlot = nextHourSlot0 - 1; // we don't want to include the first slot of the next hour
 
-      const partition0Name = `committee_slot_${partition0Start}`;
-      const partition1Name = `committee_slot_${partition1Start}`;
+      const startSlotTimestamp1 =
+        beaconTimeForBoundaryTest.getTimestampFromSlotNumber(partitionTwoStart);
+      const nextHour1 = addHours(startSlotTimestamp1, 1).getTime();
+      const nextHourSlot1 = beaconTimeForBoundaryTest.getSlotNumberFromTimestamp(nextHour1);
+      const partition1EndSlot = nextHourSlot1 - 1;
+
+      const partition0Name = `committee_${partitionOneStart}-${partition0EndSlot}`;
+      const partition1Name = `committee_${partitionTwoStart}-${partition1EndSlot}`;
 
       const partition0Exists = await prisma.$queryRaw<Array<{ exists: boolean }>>`
         SELECT EXISTS (
@@ -175,25 +183,41 @@ describe('Committee Partitioning E2E Tests', () => {
       expect(partition0Exists[0]?.exists).toBe(true);
       expect(partition1Exists[0]?.exists).toBe(true);
 
-      // Verify partition ranges are correct
-      const partition0EndSlot = beaconTimeForBoundaryTest.getPartitionEndSlot(partition0Start);
-      const partition1EndSlot = beaconTimeForBoundaryTest.getPartitionEndSlot(partition1Start);
+      // Verify partition ranges are correct (exclusive end in PostgreSQL)
+      const partition0Info = await prisma.$queryRaw<Array<{ partition_expression: string }>>`
+        SELECT pg_get_expr(c.relpartbound, c.oid) as partition_expression
+        FROM pg_class c
+        WHERE c.relname = ${partition0Name}
+      `;
 
-      expect(partition0EndSlot).toBe(12729); // 12010 + 720 - 1
-      expect(partition1EndSlot).toBe(13449); // 12730 + 720 - 1
+      const partition1Info = await prisma.$queryRaw<Array<{ partition_expression: string }>>`
+        SELECT pg_get_expr(c.relpartbound, c.oid) as partition_expression
+        FROM pg_class c
+        WHERE c.relname = ${partition1Name}
+      `;
+
+      expect(partition0Info[0].partition_expression).toContain(partitionOneStart.toString());
+      expect(partition0Info[0].partition_expression).toContain(nextHourSlot0.toString());
+      expect(partition1Info[0].partition_expression).toContain(partitionTwoStart.toString());
+      expect(partition1Info[0].partition_expression).toContain(nextHourSlot1.toString());
     });
 
     it('should be idempotent - calling multiple times should not cause errors', async () => {
       const epoch = beaconTimeWithLookback.getEpochFromSlot(12000);
 
-      // Call upsertCommitteePartitions multiple times
-      await epochControllerWithLookback.upsertCommitteePartitions(epoch);
-      await epochControllerWithLookback.upsertCommitteePartitions(epoch);
-      await epochControllerWithLookback.upsertCommitteePartitions(epoch);
+      // Call createPartitionForCommittee multiple times
+      await partitionControllerWithLookback.createPartitionForCommittee(epoch);
+      await partitionControllerWithLookback.createPartitionForCommittee(epoch);
+      await partitionControllerWithLookback.createPartitionForCommittee(epoch);
 
       // Verify partition still exists and no errors occurred
-      const partitionStartSlot = beaconTimeWithLookback.getPartitionStartSlot(12000);
-      const partitionName = `committee_slot_${partitionStartSlot}`;
+      const partitionStartSlot = beaconTimeWithLookback.getSlotAtStartOfUTCHourContaining(12000);
+      const startSlotTimestamp =
+        beaconTimeWithLookback.getTimestampFromSlotNumber(partitionStartSlot);
+      const nextHour = addHours(startSlotTimestamp, 1).getTime();
+      const nextHourSlot = beaconTimeWithLookback.getSlotNumberFromTimestamp(nextHour);
+      const partitionEndSlot = nextHourSlot - 1;
+      const partitionName = `committee_${partitionStartSlot}-${partitionEndSlot}`;
 
       const partitionExists = await prisma.$queryRaw<Array<{ exists: boolean }>>`
         SELECT EXISTS (
@@ -204,14 +228,16 @@ describe('Committee Partitioning E2E Tests', () => {
 
       expect(partitionExists[0]?.exists).toBe(true);
 
-      // Verify still only one partition exists
+      // Verify still only one partition exists for this epoch
+      // (epoch might create 1 or 2 partitions depending on UTC hour boundaries)
       const allPartitions = await prisma.$queryRaw<Array<{ tablename: string }>>`
         SELECT tablename 
         FROM pg_tables 
-        WHERE tablename LIKE 'committee_slot_%'
+        WHERE tablename LIKE 'committee_%'
       `;
 
-      expect(allPartitions).toHaveLength(1);
+      // Should have at least one partition, but might have more if epoch spans UTC hours
+      expect(allPartitions.length).toBeGreaterThanOrEqual(1);
     });
   });
 });

@@ -7,7 +7,7 @@ import { SlotControllerHelpers } from './helpers/slotControllerHelpers.js';
 
 import { EpochStorage } from '@/src/services/consensus/storage/epoch.js';
 import { ExecutionClient } from '@/src/services/execution/execution.js';
-import { convertToUTC, getUTCDatetimeRoundedToHour } from '@/src/utils/date/index.js';
+import { convertToUTC, getUTCDatetimeFlooredToHour } from '@/src/utils/date/index.js';
 
 /**
  * SlotController - Business logic layer for slot-related operations
@@ -232,7 +232,7 @@ export class SlotController extends SlotControllerHelpers {
     }
 
     const slotTimestamp = await this.beaconTime.getTimestampFromSlotNumber(slot);
-    const datetime = getUTCDatetimeRoundedToHour(slotTimestamp);
+    const datetime = getUTCDatetimeFlooredToHour(slotTimestamp);
 
     // Prepare sync committee rewards for processing
     const processedRewards = this.prepareSyncCommitteeRewards(syncCommitteeRewards, slot);
@@ -269,7 +269,7 @@ export class SlotController extends SlotControllerHelpers {
     }
 
     const slotTimestamp = this.beaconTime.getTimestampFromSlotNumber(slot);
-    const datetime = getUTCDatetimeRoundedToHour(slotTimestamp);
+    const datetime = getUTCDatetimeFlooredToHour(slotTimestamp);
 
     // Process block rewards and aggregate into hourly data
     await this.slotStorage.processSlotConsensusRewardsForSlot(

@@ -107,9 +107,6 @@ vi.mock('@/src/xstate/multiMachineLogger.js', () => ({
  */
 function resetMocks() {
   vi.clearAllMocks();
-  (mockEpochController.upsertCommitteePartitions as ReturnType<typeof vi.fn>).mockResolvedValue(
-    undefined,
-  );
   (mockEpochController.fetchCommittees as ReturnType<typeof vi.fn>).mockResolvedValue(undefined);
   (mockEpochController.fetchSyncCommittees as ReturnType<typeof vi.fn>).mockResolvedValue(
     undefined,
@@ -320,11 +317,6 @@ describe('epochProcessorMachine', () => {
       test('should process and complete', async () => {
         vi.setSystemTime(new Date(EPOCH_101_START_TIME + 50));
 
-        const upsertPromise = createControllablePromise<void>();
-        (mockEpochController.upsertCommitteePartitions as ReturnType<typeof vi.fn>).mockReturnValue(
-          upsertPromise.promise,
-        );
-
         const fetchPromise = createControllablePromise<void>();
         (mockEpochController.fetchCommittees as ReturnType<typeof vi.fn>).mockReturnValue(
           fetchPromise.promise,
@@ -337,20 +329,9 @@ describe('epochProcessorMachine', () => {
 
         await vi.runAllTimersAsync();
 
-        // Should be in upsertCommitteePartition state
+        // Should be in fetchingCommittees state
         let lastState = getLastState(stateTransitions);
         let committeesState = getNestedState(lastState, 'epochProcessing.fetching.committees') as
-          | string
-          | null;
-        expect(committeesState).toBe('upsertCommitteePartition');
-
-        // Complete the upsert
-        upsertPromise.resolve();
-        await vi.runAllTimersAsync();
-
-        // Should now be in fetchingCommittees
-        lastState = getLastState(stateTransitions);
-        committeesState = getNestedState(lastState, 'epochProcessing.fetching.committees') as
           | string
           | null;
         expect(committeesState).toBe('fetchingCommittees');
@@ -433,11 +414,6 @@ describe('epochProcessorMachine', () => {
       test('should wait for committees before processing', async () => {
         vi.setSystemTime(new Date(EPOCH_101_START_TIME + 50));
 
-        const upsertPromise = createControllablePromise<void>();
-        (mockEpochController.upsertCommitteePartitions as ReturnType<typeof vi.fn>).mockReturnValue(
-          upsertPromise.promise,
-        );
-
         const committeesPromise = createControllablePromise<void>();
         (mockEpochController.fetchCommittees as ReturnType<typeof vi.fn>).mockReturnValue(
           committeesPromise.promise,
@@ -448,10 +424,6 @@ describe('epochProcessorMachine', () => {
           createProcessorMachineDefaultInput(100),
         );
 
-        await vi.runAllTimersAsync();
-
-        // Complete upsert to allow committees to start
-        upsertPromise.resolve();
         await vi.runAllTimersAsync();
 
         // Should be waiting for committees
