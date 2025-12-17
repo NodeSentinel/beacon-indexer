@@ -1,10 +1,10 @@
 import { PrismaClient } from '@beacon-indexer/db';
+import { addHours } from 'date-fns';
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 
 import { PartitionController } from '@/src/services/consensus/controllers/partition.js';
 import { PartitionStorage } from '@/src/services/consensus/storage/partition.js';
 import { BeaconTime } from '@/src/services/consensus/utils/beaconTime.js';
-import { addHours } from 'date-fns';
 
 describe('Committee Partitioning E2E Tests', () => {
   let prisma: PrismaClient;
@@ -153,13 +153,13 @@ describe('Committee Partitioning E2E Tests', () => {
       // Calculate partition names based on UTC hour boundaries
       const startSlotTimestamp0 =
         beaconTimeForBoundaryTest.getTimestampFromSlotNumber(partitionOneStart);
-      const nextHour0 = startSlotTimestamp0 + 60 * 60 * 1000;
+      const nextHour0 = addHours(startSlotTimestamp0, 1).getTime();
       const nextHourSlot0 = beaconTimeForBoundaryTest.getSlotNumberFromTimestamp(nextHour0);
       const partition0EndSlot = nextHourSlot0 - 1; // we don't want to include the first slot of the next hour
 
       const startSlotTimestamp1 =
         beaconTimeForBoundaryTest.getTimestampFromSlotNumber(partitionTwoStart);
-      const nextHour1 = startSlotTimestamp1 + 60 * 60 * 1000;
+      const nextHour1 = addHours(startSlotTimestamp1, 1).getTime();
       const nextHourSlot1 = beaconTimeForBoundaryTest.getSlotNumberFromTimestamp(nextHour1);
       const partition1EndSlot = nextHourSlot1 - 1;
 
@@ -214,7 +214,7 @@ describe('Committee Partitioning E2E Tests', () => {
       const partitionStartSlot = beaconTimeWithLookback.getSlotAtStartOfUTCHourContaining(12000);
       const startSlotTimestamp =
         beaconTimeWithLookback.getTimestampFromSlotNumber(partitionStartSlot);
-      const nextHour = startSlotTimestamp + 60 * 60 * 1000;
+      const nextHour = addHours(startSlotTimestamp, 1).getTime();
       const nextHourSlot = beaconTimeWithLookback.getSlotNumberFromTimestamp(nextHour);
       const partitionEndSlot = nextHourSlot - 1;
       const partitionName = `committee_${partitionStartSlot}-${partitionEndSlot}`;
