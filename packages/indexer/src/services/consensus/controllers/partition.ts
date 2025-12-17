@@ -27,14 +27,14 @@ export class PartitionController {
   ) {}
 
   // Helper to create a partition for a UTC hour
-  private makeHourPartition(tableName: string, startSlotTimestamp: number): SlotPartitionInfo {
-    const hourStartTs = this.beaconTime.getTimestampFromSlotNumber(startSlotTimestamp);
+  private makeHourPartition(tableName: string, startSlot: number): SlotPartitionInfo {
+    const hourStartTs = this.beaconTime.getTimestampFromSlotNumber(startSlot);
     const hourEndTs = addHours(hourStartTs, 1).getTime(); // next UTC hour start
     const hourEndSlot = this.beaconTime.getSlotNumberFromTimestamp(hourEndTs);
 
     return {
-      name: `${tableName}_${startSlotTimestamp}-${hourEndSlot - 1}`,
-      startSlot: startSlotTimestamp,
+      name: `${tableName}_${startSlot}-${hourEndSlot - 1}`,
+      startSlot,
       endSlot: hourEndSlot, // exclusive
     };
   }
