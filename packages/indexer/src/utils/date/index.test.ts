@@ -4,7 +4,7 @@ import { describe, it, expect } from 'vitest';
 import { getUTCDatetimeFlooredToHour } from './index.js';
 
 describe('Date utilities', () => {
-  describe('getUTCDatetimeRoundedToHour', () => {
+  describe('getUTCDatetimeFlooredToHour', () => {
     it('should convert timestamp to UTC Date object correctly', () => {
       // Test with a known timestamp: 2024-01-15 14:30:00 UTC
       const timestamp = new Date('2024-01-15T14:30:00.000Z').getTime();
