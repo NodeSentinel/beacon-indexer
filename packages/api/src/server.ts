@@ -72,8 +72,6 @@ export function createHttpServer() {
     try {
       const url = new URL(req.url || '', `http://${req.headers.host}`);
       const pathname = url.pathname;
-      const queryParams = Object.fromEntries(url.searchParams);
-      const hasParams = Object.keys(queryParams).length > 0;
 
       // Determine which handler to use based on path prefix
       // Routes starting with /rpc use RPCHandler (for oRPC client)
@@ -94,7 +92,7 @@ export function createHttpServer() {
             if (prop === 'url') {
               return modifiedUrl;
             }
-            return (target as any)[prop];
+            return Reflect.get(target, prop);
           },
         }) as typeof req;
       }
