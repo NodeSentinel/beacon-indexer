@@ -19,13 +19,14 @@
   "dependencies": {
     "@beacon-indexer/db": "workspace:*",
     "@orpc/client": "latest",
+    "@orpc/experimental-pino": "^1.13.0",
     "@orpc/openapi": "latest",
     "@orpc/server": "latest",
     "date-fns": "^4.1.0",
     "dotenv": "^16.4.5",
     "ms": "^2.1.3",
     "node-cron": "^3.0.3",
-    "pino": "^9.5.0",
+    "pino": "^10.1.0",
     "pino-pretty": "^11.3.0",
     "zod": "^3.23.8"
   },
