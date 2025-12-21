@@ -133,6 +133,9 @@ export class BeaconClient extends ReliableRequestClient {
       },
       'archive',
       (error: AxiosError) => {
+        // TODO: Check for slot missed using message.
+        // compare a real slot missed vs one from the future
+        // compare also both Beacon APIs Archive and full
         if (axios.isAxiosError(error) && error.response?.status === 404) {
           return 'SLOT MISSED';
         }

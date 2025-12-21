@@ -12,10 +12,6 @@ export function registerDailyJobs() {
     try {
       logger.info('Starting daily aggregation job');
 
-      // TODO: Implement daily aggregation logic
-      // Previously used lastSummaryUpdate table which has been removed
-      // Daily aggregations should now be computed from slot-level data
-
       logger.info('Daily aggregation job completed');
     } catch (error) {
       logger.error({ err: error }, 'Error in daily aggregation job');

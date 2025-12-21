@@ -423,32 +423,17 @@ export class SlotStorage {
       syncCommittee: bigint;
     }>,
   ) {
-    await this.prisma.$transaction(
-      async (tx) => {
-        for (const reward of rewards) {
-          await tx.validatorBlockAndSyncRewards.upsert({
-            where: {
-              slot_validatorIndex: {
-                slot,
-                validatorIndex: reward.validatorIndex,
-              },
-            },
-            create: {
-              slot,
-              validatorIndex: reward.validatorIndex,
-              syncCommittee: reward.syncCommittee,
-              blockReward: null,
-            },
-            update: {
-              syncCommittee: reward.syncCommittee,
-            },
-          });
-        }
-      },
-      {
-        timeout: ms('5m'),
-      },
-    );
+    await this.prisma.$transaction(async (tx) => {
+      for (const reward of rewards) {
+        await tx.validatorSyncRewards.create({
+          data: {
+            slot,
+            validatorIndex: reward.validatorIndex,
+            syncCommittee: reward.syncCommittee,
+          },
+        });
+      }
+    });
   }
 
   /**
@@ -462,20 +447,10 @@ export class SlotStorage {
       blockReward: bigint;
     },
   ) {
-    return this.prisma.validatorBlockAndSyncRewards.upsert({
-      where: {
-        slot_validatorIndex: {
-          slot,
-          validatorIndex: reward.validatorIndex,
-        },
-      },
-      create: {
+    return this.prisma.validatorBlockRewards.create({
+      data: {
         slot,
         validatorIndex: reward.validatorIndex,
-        blockReward: reward.blockReward,
-        syncCommittee: null,
-      },
-      update: {
         blockReward: reward.blockReward,
       },
     });
@@ -491,38 +466,33 @@ export class SlotStorage {
       blockReward: bigint;
     } | null,
   ) {
-    await this.prisma.$transaction(
-      async (tx) => {
-        if (reward) {
-          await tx.validatorBlockAndSyncRewards.upsert({
-            where: {
-              slot_validatorIndex: {
-                slot,
-                validatorIndex: reward.validatorIndex,
-              },
-            },
-            create: {
+    await this.prisma.$transaction(async (tx) => {
+      if (reward) {
+        await tx.validatorBlockRewards.upsert({
+          where: {
+            slot_validatorIndex: {
               slot,
               validatorIndex: reward.validatorIndex,
-              blockReward: reward.blockReward,
-              syncCommittee: null,
             },
-            update: {
-              blockReward: {
-                increment: reward.blockReward,
-              },
+          },
+          create: {
+            slot,
+            validatorIndex: reward.validatorIndex,
+            blockReward: reward.blockReward,
+          },
+          update: {
+            blockReward: {
+              increment: reward.blockReward,
             },
-          });
-        }
-
-        await tx.slot.upsert({
-          where: { slot },
-          update: { consensusRewardsFetched: true },
-          create: { slot, consensusRewardsFetched: true },
+          },
         });
-      },
-      { timeout: ms('5m') },
-    );
+      }
+
+      await tx.slot.update({
+        where: { slot },
+        data: { consensusRewardsFetched: true },
+      });
+    });
   }
 
   /**
@@ -539,7 +509,7 @@ export class SlotStorage {
     await this.prisma.$transaction(
       async (tx) => {
         for (const reward of rewards) {
-          await tx.validatorBlockAndSyncRewards.upsert({
+          await tx.validatorSyncRewards.upsert({
             where: {
               slot_validatorIndex: {
                 slot,
@@ -550,7 +520,6 @@ export class SlotStorage {
               slot,
               validatorIndex: reward.validatorIndex,
               syncCommittee: reward.syncCommittee,
-              blockReward: null,
             },
             update: {
               syncCommittee: {
