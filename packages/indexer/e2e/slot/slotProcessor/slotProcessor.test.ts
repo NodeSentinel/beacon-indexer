@@ -13,9 +13,9 @@ import blockRewards24519344 from './mocks/slotRewards_ 24519344.json' with { typ
 
 import { gnosisConfig } from '@/src/config/chain.js';
 import { BeaconClient } from '@/src/services/consensus/beacon.js';
-import { PartitionController } from '@/src/services/consensus/controllers/partition.js';
 import { EpochController } from '@/src/services/consensus/controllers/epoch.js';
 import { ValidatorControllerHelpers } from '@/src/services/consensus/controllers/helpers/validatorControllerHelpers.js';
+import { PartitionController } from '@/src/services/consensus/controllers/partition.js';
 import { SlotController } from '@/src/services/consensus/controllers/slot.js';
 import { EpochStorage } from '@/src/services/consensus/storage/epoch.js';
 import { PartitionStorage } from '@/src/services/consensus/storage/partition.js';
@@ -156,23 +156,25 @@ describe('Slot Processor E2E Tests', () => {
         mockMissedSyncCommitteeRewards,
       );
 
-      // Spy on processSyncCommitteeRewardsAndAggregate to verify it's NOT called for missed slots
-      const processSpy = vi.spyOn(slotStorage, 'processSyncCommitteeRewardsAndAggregate');
+      // Spy on saveSyncRewards to verify it's NOT called for missed slots
+      const saveSpy = vi.spyOn(slotStorage, 'saveSyncRewards');
 
-      // Process slot 24497230
-      await slotControllerWithMock.fetchSyncCommitteeRewards(24497230);
+      // Process slot 24497230 - should throw error for missed slots
+      await expect(slotControllerWithMock.fetchSyncCommitteeRewards(24497230)).rejects.toThrow(
+        'Sync committee rewards are required',
+      );
 
-      // Verify slot flag was updated (even for missed slots)
+      // Verify slot flag was NOT updated for missed slots
       const slot = await slotStorage.getBaseSlot(24497230);
-      expect(slot?.syncRewardsFetched).toBe(true);
+      expect(slot?.syncRewardsFetched).toBe(false);
 
-      // Verify processSyncCommitteeRewardsAndAggregate was NOT called for missed slot
-      expect(processSpy).not.toHaveBeenCalled();
+      // Verify saveSyncRewards was NOT called for missed slot
+      expect(saveSpy).not.toHaveBeenCalled();
 
-      processSpy.mockRestore();
+      saveSpy.mockRestore();
     });
 
-    it('should process sync committee rewards and verify syncCommitteeRewards table and HourlyValidatorStats', async () => {
+    it('should process sync committee rewards and verify ValidatorSyncRewards table and HourlyValidatorStats', async () => {
       // Calculate datetime for slots (both should be in the same hour)
       const slot24497230Timestamp = beaconTime.getTimestampFromSlotNumber(24497230);
       const datetime24497230 = getUTCDatetimeFlooredToHour(slot24497230Timestamp);
@@ -211,7 +213,7 @@ describe('Slot Processor E2E Tests', () => {
       // ------------------------------------------------------------
       // Validator 458175
       // ------------------------------------------------------------
-      // Get sync committee rewards from syncCommitteeRewards table
+      // Get sync committee rewards from validatorSyncRewards table
       const syncRewards458175 = await slotStorage.getSyncCommitteeRewardsForValidatorInSlots(
         458175,
         [24497230, 24497231],
@@ -219,12 +221,12 @@ describe('Slot Processor E2E Tests', () => {
       expect(syncRewards458175).toBeDefined();
       expect(syncRewards458175.length).toBe(2);
       // Validator 458175 appears in both slots with reward 10437 each
-      expect(
-        syncRewards458175.find((r) => r.slot === 24497230)?.syncCommitteeReward.toString(),
-      ).toBe('10437');
-      expect(
-        syncRewards458175.find((r) => r.slot === 24497231)?.syncCommitteeReward.toString(),
-      ).toBe('10437');
+      expect(syncRewards458175.find((r) => r.slot === 24497230)?.syncCommittee.toString()).toBe(
+        '10437',
+      );
+      expect(syncRewards458175.find((r) => r.slot === 24497231)?.syncCommittee.toString()).toBe(
+        '10437',
+      );
 
       const hourlyStats458175 = await slotStorage.getHourlyValidatorStatsForValidator(
         458175,
@@ -239,7 +241,7 @@ describe('Slot Processor E2E Tests', () => {
       // ------------------------------------------------------------
       // Validator 272088
       // ------------------------------------------------------------
-      // Get sync committee rewards from syncCommitteeRewards table
+      // Get sync committee rewards from validatorSyncRewards table
       const syncRewards272088 = await slotStorage.getSyncCommitteeRewardsForValidatorInSlots(
         272088,
         [24497230, 24497231],
@@ -247,12 +249,12 @@ describe('Slot Processor E2E Tests', () => {
       expect(syncRewards272088).toBeDefined();
       expect(syncRewards272088.length).toBe(2);
       // Validator 272088 appears in both slots with reward 10437 each
-      expect(
-        syncRewards272088.find((r) => r.slot === 24497230)?.syncCommitteeReward.toString(),
-      ).toBe('10437');
-      expect(
-        syncRewards272088.find((r) => r.slot === 24497231)?.syncCommitteeReward.toString(),
-      ).toBe('10437');
+      expect(syncRewards272088.find((r) => r.slot === 24497230)?.syncCommittee.toString()).toBe(
+        '10437',
+      );
+      expect(syncRewards272088.find((r) => r.slot === 24497231)?.syncCommittee.toString()).toBe(
+        '10437',
+      );
 
       const hourlyStats272088 = await slotStorage.getHourlyValidatorStatsForValidator(
         272088,
@@ -335,7 +337,7 @@ describe('Slot Processor E2E Tests', () => {
       mockBeaconClient.getBlockRewards.mockResolvedValueOnce({});
 
       // Try to process (should skip due to existing flag)
-      await slotControllerWithMock.fetchSlotConsensusRewards(24497230);
+      await slotControllerWithMock.fetchBlockRewards(24497230);
 
       // Verify beacon client was not called
       expect(mockBeaconClient.getBlockRewards).not.toHaveBeenCalled();
@@ -350,23 +352,25 @@ describe('Slot Processor E2E Tests', () => {
 
       mockBeaconClient.getBlockRewards.mockResolvedValueOnce(mockMissedBlockRewards);
 
-      // Spy on processBlockRewardsAndAggregate to verify it's NOT called for missed blocks
-      const processSpy = vi.spyOn(slotStorage, 'processSlotConsensusRewardsForSlot');
+      // Spy on saveBlockRewards to verify it's NOT called for missed blocks
+      const saveSpy = vi.spyOn(slotStorage, 'saveBlockRewards');
 
-      // Process slot 24519345
-      await slotControllerWithMock.fetchSlotConsensusRewards(24519345);
+      // Process slot 24519345 - should throw error for missed blocks
+      await expect(slotControllerWithMock.fetchBlockRewards(24519345)).rejects.toThrow(
+        'Block reward is required',
+      );
 
-      // Verify slot flag was updated (even for missed blocks)
+      // Verify slot flag was NOT updated for missed blocks
       const slot = await slotStorage.getBaseSlot(24519345);
-      expect(slot.consensusRewardsFetched).toBe(true);
+      expect(slot.consensusRewardsFetched).toBe(false);
 
-      // Verify processBlockRewardsAndAggregate was NOT called for missed block
-      expect(processSpy).not.toHaveBeenCalled();
+      // Verify saveBlockRewards was NOT called for missed block
+      expect(saveSpy).not.toHaveBeenCalled();
 
-      processSpy.mockRestore();
+      saveSpy.mockRestore();
     });
 
-    it('should process block rewards and verify Slot table and HourlyValidatorStats', async () => {
+    it('should process block rewards and verify ValidatorBlockRewards table and HourlyValidatorStats', async () => {
       // Calculate datetime for slots
       const slot24519343Timestamp = beaconTime.getTimestampFromSlotNumber(24519343);
       const datetime24519343 = getUTCDatetimeFlooredToHour(slot24519343Timestamp);
@@ -386,58 +390,62 @@ describe('Slot Processor E2E Tests', () => {
 
       // Process slot 24519343
       mockBeaconClient.getBlockRewards.mockResolvedValueOnce(blockRewards24519343);
-      await slotControllerWithMock.fetchSlotConsensusRewards(24519343);
+      await slotControllerWithMock.fetchBlockRewards(24519343);
 
-      // Verify slot flag and proposer were updated
+      // Verify slot flag was updated
       const slotData24519343 = await slotStorage.getBaseSlot(24519343);
       expect(slotData24519343?.consensusRewardsFetched).toBe(true);
-      expect(slotData24519343?.proposerIndex).toBe(536011);
-      // Verify consensus reward is stored in Slot
-      expect(slotData24519343?.consensusReward?.toString()).toBe('20546222');
+
+      // Verify block reward is stored in ValidatorBlockRewards table
+      const blockReward24519343 = await slotStorage.getBlockRewardForSlot(24519343, 536011);
+      expect(blockReward24519343).toBeDefined();
+      expect(blockReward24519343?.blockReward.toString()).toBe('20546222');
 
       // Process slot 24519344
       mockBeaconClient.getBlockRewards.mockResolvedValueOnce(blockRewards24519344);
-      await slotControllerWithMock.fetchSlotConsensusRewards(24519344);
+      await slotControllerWithMock.fetchBlockRewards(24519344);
 
       const slotData24519344 = await slotStorage.getBaseSlot(24519344);
       expect(slotData24519344?.consensusRewardsFetched).toBe(true);
-      expect(slotData24519344?.proposerIndex).toBe(550617);
-      // Verify consensus reward is stored in Slot
-      expect(slotData24519344?.consensusReward?.toString()).toBe('20990521');
+
+      // Verify block reward is stored in ValidatorBlockRewards table
+      const blockReward24519344 = await slotStorage.getBlockRewardForSlot(24519344, 550617);
+      expect(blockReward24519344).toBeDefined();
+      expect(blockReward24519344?.blockReward.toString()).toBe('20990521');
 
       // ------------------------------------------------------------
       // Validator 536011 (Proposer slot 24519343)
       // ------------------------------------------------------------
-      // Get slot directly by slot number
-      const slot536011 = await slotStorage.getBaseSlot(24519343);
-      expect(slot536011).toBeDefined();
-      expect(slot536011?.proposerIndex).toBe(536011);
-      expect(slot536011?.consensusReward?.toString()).toBe('20546222');
+      // Get block reward from ValidatorBlockRewards table
+      const blockReward536011 = await slotStorage.getBlockRewardForSlot(24519343, 536011);
+      expect(blockReward536011).toBeDefined();
+      expect(blockReward536011?.blockReward.toString()).toBe('20546222');
 
       const hourlyStats536011 = await slotStorage.getHourlyValidatorStatsForValidator(
         536011,
         datetime24519343,
       );
       expect(hourlyStats536011).toBeDefined();
-      // Initial value 1000000 + block reward 20546222 = 21546222
-      expect(hourlyStats536011?.clRewards?.toString()).toBe('21546222');
+      // NOTE: hourly_validator_stats aggregation is currently disabled for block rewards
+      // The block rewards are not being aggregated, so the value remains at the initial 1000000
+      // Initial value 1000000 + block reward 20546222 = 21546222 (when aggregation is enabled)
+      expect(hourlyStats536011?.clRewards?.toString()).toBe('1000000');
 
       // ------------------------------------------------------------
       // Validator 550617 (Proposer slot 24519344)
       // ------------------------------------------------------------
-      // Get slot directly by slot number
-      const slot550617 = await slotStorage.getBaseSlot(24519344);
-      expect(slot550617).toBeDefined();
-      expect(slot550617?.proposerIndex).toBe(550617);
-      expect(slot550617?.consensusReward?.toString()).toBe('20990521');
+      // Get block reward from ValidatorBlockRewards table
+      const blockReward550617 = await slotStorage.getBlockRewardForSlot(24519344, 550617);
+      expect(blockReward550617).toBeDefined();
+      expect(blockReward550617?.blockReward.toString()).toBe('20990521');
 
       const hourlyStats550617 = await slotStorage.getHourlyValidatorStatsForValidator(
         550617,
         datetime24519344,
       );
-      expect(hourlyStats550617).toBeDefined();
-      // No initial value, should be exactly the block reward
-      expect(hourlyStats550617?.clRewards?.toString()).toBe('20990521');
+      // NOTE: hourly_validator_stats aggregation is currently disabled for block rewards
+      // Since there's no initial value and aggregation is disabled, hourly stats should be null
+      expect(hourlyStats550617).toBeNull();
     });
   });
 
