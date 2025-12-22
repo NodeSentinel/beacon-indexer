@@ -62,13 +62,21 @@ CREATE TABLE "public"."validator_request_consolidations" (
 );
 
 -- CreateTable
-CREATE TABLE "public"."validator_block_and_sync_rewards" (
+CREATE TABLE "public"."validator_block_rewards" (
     "slot" INTEGER NOT NULL,
     "validator_index" INTEGER NOT NULL,
-    "block_reward" BIGINT,
-    "sync_committee" BIGINT,
+    "block_reward" BIGINT NOT NULL,
 
-    CONSTRAINT "validator_block_and_sync_rewards_pkey" PRIMARY KEY ("slot","validator_index")
+    CONSTRAINT "validator_block_rewards_pkey" PRIMARY KEY ("slot","validator_index")
+);
+
+-- CreateTable
+CREATE TABLE "public"."validator_sync_rewards" (
+    "slot" INTEGER NOT NULL,
+    "validator_index" INTEGER NOT NULL,
+    "sync_committee" BIGINT NOT NULL,
+
+    CONSTRAINT "validator_sync_rewards_pkey" PRIMARY KEY ("slot","validator_index")
 );
 
 -- CreateTable

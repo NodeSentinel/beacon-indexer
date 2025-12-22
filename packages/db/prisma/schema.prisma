@@ -76,14 +76,22 @@ model validatorConsolidationsRequests {
     @@map("validator_request_consolidations")
 }
 
-model ValidatorBlockAndSyncRewards {
-    slot           Int     @map("slot")
-    validatorIndex Int     @map("validator_index")
-    blockReward    BigInt? @map("block_reward")
-    syncCommittee  BigInt? @map("sync_committee")
+model ValidatorBlockRewards {
+    slot           Int    @map("slot")
+    validatorIndex Int    @map("validator_index")
+    blockReward    BigInt @map("block_reward")
 
     @@id([slot, validatorIndex])
-    @@map("validator_block_and_sync_rewards")
+    @@map("validator_block_rewards")
+}
+
+model ValidatorSyncRewards {
+    slot           Int    @map("slot")
+    validatorIndex Int    @map("validator_index")
+    syncCommittee  BigInt @map("sync_committee")
+
+    @@id([slot, validatorIndex])
+    @@map("validator_sync_rewards")
 }
 
 model ExecutionRewards {
@@ -135,6 +143,7 @@ model Slot {
     proposerIndex            Int?    @map("proposer_index")
     blockNumber              Int?    @map("block_number")
     consensusReward          BigInt? @map("consensus_reward")
+    // TODO: remember to also set execution rewards here when processing the execution rewards.
     executionReward          BigInt? @map("execution_reward")
     // Stores the number of validators per committee index as an array: [350, 340, ...], required for attestation processing
     committeesCountInSlot    Json?   @map("committees_count_in_slot")
@@ -207,12 +216,12 @@ model epochRewards {
 // Indexer Configuration
 //-------------------------------------
 model IndexerConfig {
-  id           Int      @id @default(1) // Singleton pattern - only one row
-  chain        String   @map("chain") @db.VarChar(20)
-  lookbackSlot Int      @map("lookback_slot")
-  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamp
+    id           Int      @id @default(1) // Singleton pattern - only one row
+    chain        String   @map("chain") @db.VarChar(20)
+    lookbackSlot Int      @map("lookback_slot")
+    createdAt    DateTime @default(now()) @map("created_at") @db.Timestamp
 
-  @@map("indexer_config")
+    @@map("indexer_config")
 }
 
 //-------------------------------------
@@ -229,7 +238,7 @@ model HourlyValidatorStats {
     @@map("hourly_validator_stats")
 }
 
-model ValidatorsStatusSummary {
+model ValidatorsSnapshotStats {
     validatorIndex     Int      @id @map("validator_index")
     status             String   @map("status") @db.VarChar(10) // 'active' | 'inactive'
     attestationsTotal  Int      @map("attestations_total")

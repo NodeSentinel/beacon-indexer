@@ -274,7 +274,6 @@ export class SlotControllerHelpers {
   ): Array<{
     validatorIndex: number;
     syncCommitteeReward: bigint;
-    rewards: string;
   }> {
     if (
       syncCommitteeRewards === 'SLOT MISSED' ||
@@ -287,7 +286,6 @@ export class SlotControllerHelpers {
     return syncCommitteeRewards.data.map((reward) => ({
       validatorIndex: Number(reward.validator_index),
       syncCommitteeReward: BigInt(reward.reward),
-      rewards: `${slot}:${reward.reward}`,
     }));
   }
 

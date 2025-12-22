@@ -80,9 +80,8 @@ export const slotProcessorMachine = setup({
         input: {
           slotController: SlotController;
           slot: number;
-          timestamp: number;
         };
-      }) => input.slotController.fetchBlockRewards(input.slot, input.timestamp),
+      }) => input.slotController.fetchBlockRewards(input.slot),
     ),
 
     // Fetch sync committee rewards
@@ -478,13 +477,9 @@ export const slotProcessorMachine = setup({
                       invoke: {
                         src: 'fetchBlockRewards',
                         input: ({ context }) => {
-                          const _beaconBlockData = context.beaconBlockData?.rawData as Block;
                           return {
                             slotController: context.slotController,
                             slot: context.slot,
-                            timestamp: Number(
-                              _beaconBlockData.data.message.body.execution_payload.timestamp,
-                            ),
                           };
                         },
                         onDone: {

@@ -7,7 +7,6 @@ import { SlotControllerHelpers } from './helpers/slotControllerHelpers.js';
 
 import { EpochStorage } from '@/src/services/consensus/storage/epoch.js';
 import { ExecutionClient } from '@/src/services/execution/execution.js';
-import { convertToUTC, getUTCDatetimeFlooredToHour } from '@/src/utils/date/index.js';
 
 /**
  * SlotController - Business logic layer for slot-related operations
@@ -96,38 +95,6 @@ export class SlotController extends SlotControllerHelpers {
   }
 
   /**
-   * Get committee sizes for attestations in a beacon block.
-   * Returns the committee sizes and whether all slots have counts.
-   */
-  async getCommitteeSizesForBlock(slot: number, beaconBlockData: Block) {
-    const attestations = beaconBlockData.data.message.body.attestations || [];
-    const uniqueSlots = [...new Set(attestations.map((att) => parseInt(att.data.slot)))].filter(
-      (s) => s >= this.beaconTime.getLookbackSlot(),
-    );
-
-    if (uniqueSlots.length === 0) {
-      return {
-        committeesCountInSlot: {},
-        allSlotsHaveCounts: false,
-        uniqueSlots: [],
-      };
-    }
-
-    const committeesCountInSlot = await this.slotStorage.getCommitteeSizesForSlots(uniqueSlots);
-
-    const allSlotsHaveCounts = uniqueSlots.every((s) => {
-      const counts = committeesCountInSlot[s];
-      return counts && counts.length > 0;
-    });
-
-    return {
-      committeesCountInSlot,
-      allSlotsHaveCounts,
-      uniqueSlots,
-    };
-  }
-
-  /**
    * Process attestations for a slot
    * Checks if already processed before processing.
    * Throws an error if committee sizes are not available for all slots.
@@ -169,7 +136,7 @@ export class SlotController extends SlotControllerHelpers {
    * Fetch and save block rewards for a slot.
    * Checks if already fetched before processing.
    */
-  async fetchBlockRewards(slot: number, timestamp: number) {
+  async fetchBlockRewards(slot: number) {
     const isAlreadyFetched = await this.slotStorage.areSlotConsensusRewardsFetched(slot);
     if (isAlreadyFetched) {
       return;
@@ -179,7 +146,11 @@ export class SlotController extends SlotControllerHelpers {
 
     const reward = this.prepareBlockRewards(blockRewards);
 
-    await this.slotStorage.saveBlockRewardsAndUpdateSlot(slot, reward);
+    if (!reward) {
+      throw new Error('Block reward is required');
+    }
+
+    await this.slotStorage.saveBlockRewards(slot, reward);
   }
 
   /**
@@ -225,59 +196,15 @@ export class SlotController extends SlotControllerHelpers {
       syncCommitteeValidators,
     );
 
-    // Handle missed slots
-    if (syncCommitteeRewards === 'SLOT MISSED') {
-      await this.slotStorage.updateSlotFlags(slot, { syncRewardsFetched: true });
-      return;
-    }
-
-    const slotTimestamp = await this.beaconTime.getTimestampFromSlotNumber(slot);
-    const datetime = getUTCDatetimeFlooredToHour(slotTimestamp);
-
     // Prepare sync committee rewards for processing
     const processedRewards = this.prepareSyncCommitteeRewards(syncCommitteeRewards, slot);
 
     if (processedRewards.length === 0) {
-      await this.slotStorage.updateSlotFlags(slot, { syncRewardsFetched: true });
-      return;
+      throw new Error('Sync committee rewards are required');
     }
 
     // Process sync committee rewards and aggregate into hourly data
-    await this.slotStorage.processSyncCommitteeRewardsAndAggregate(
-      slot,
-      datetime,
-      processedRewards,
-    );
-  }
-
-  /**
-   * Fetch and process block rewards for a slot
-   * These rewards are for the proposer of the block
-   */
-  async fetchSlotConsensusRewards(slot: number) {
-    const isBlockRewardsFetched = await this.slotStorage.areSlotConsensusRewardsFetched(slot);
-    if (isBlockRewardsFetched) {
-      return;
-    }
-
-    // Fetch block rewards from beacon chain
-    const blockRewards = await this.beaconClient.getBlockRewards(slot);
-
-    if (blockRewards === 'SLOT MISSED' || !blockRewards.data) {
-      await this.slotStorage.updateSlotFlags(slot, { consensusRewardsFetched: true });
-      return;
-    }
-
-    const slotTimestamp = this.beaconTime.getTimestampFromSlotNumber(slot);
-    const datetime = getUTCDatetimeFlooredToHour(slotTimestamp);
-
-    // Process block rewards and aggregate into hourly data
-    await this.slotStorage.processSlotConsensusRewardsForSlot(
-      slot,
-      Number(blockRewards.data.proposer_index),
-      datetime,
-      BigInt(blockRewards.data.total),
-    );
+    await this.slotStorage.saveSyncRewards(slot, processedRewards);
   }
 
   /**

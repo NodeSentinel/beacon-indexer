@@ -384,15 +384,6 @@ export class SlotStorage {
   }
 
   /**
-   * Save execution rewards to database
-   */
-  async saveExecutionRewards(data: Prisma.ExecutionRewardsUncheckedCreateInput) {
-    return this.prisma.executionRewards.create({
-      data,
-    });
-  }
-
-  /**
    * Save execution rewards and update slot flag in a transaction
    * TODO: move this to execution controller/storage.
    */
@@ -413,161 +404,64 @@ export class SlotStorage {
   }
 
   /**
-   * Save sync committee rewards to database
-   * Now stores rewards per slot instead of per hour
-   */
-  async saveSyncCommitteeRewards(
-    slot: number,
-    rewards: Array<{
-      validatorIndex: number;
-      syncCommittee: bigint;
-    }>,
-  ) {
-    await this.prisma.$transaction(
-      async (tx) => {
-        for (const reward of rewards) {
-          await tx.validatorBlockAndSyncRewards.upsert({
-            where: {
-              slot_validatorIndex: {
-                slot,
-                validatorIndex: reward.validatorIndex,
-              },
-            },
-            create: {
-              slot,
-              validatorIndex: reward.validatorIndex,
-              syncCommittee: reward.syncCommittee,
-              blockReward: null,
-            },
-            update: {
-              syncCommittee: reward.syncCommittee,
-            },
-          });
-        }
-      },
-      {
-        timeout: ms('5m'),
-      },
-    );
-  }
-
-  /**
-   * Save block rewards to database
-   * Now stores rewards per slot instead of per hour
+   * Save block rewards and update slot flag in a transaction
    */
   async saveBlockRewards(
     slot: number,
     reward: {
       validatorIndex: number;
       blockReward: bigint;
-    },
-  ) {
-    return this.prisma.validatorBlockAndSyncRewards.upsert({
-      where: {
-        slot_validatorIndex: {
-          slot,
-          validatorIndex: reward.validatorIndex,
-        },
-      },
-      create: {
-        slot,
-        validatorIndex: reward.validatorIndex,
-        blockReward: reward.blockReward,
-        syncCommittee: null,
-      },
-      update: {
-        blockReward: reward.blockReward,
-      },
-    });
-  }
-
-  /**
-   * Save block rewards and update slot flag in a transaction
-   */
-  async saveBlockRewardsAndUpdateSlot(
-    slot: number,
-    reward: {
-      validatorIndex: number;
-      blockReward: bigint;
     } | null,
   ) {
-    await this.prisma.$transaction(
-      async (tx) => {
-        if (reward) {
-          await tx.validatorBlockAndSyncRewards.upsert({
-            where: {
-              slot_validatorIndex: {
-                slot,
-                validatorIndex: reward.validatorIndex,
-              },
-            },
-            create: {
-              slot,
-              validatorIndex: reward.validatorIndex,
-              blockReward: reward.blockReward,
-              syncCommittee: null,
-            },
-            update: {
-              blockReward: {
-                increment: reward.blockReward,
-              },
-            },
-          });
-        }
+    if (!reward) {
+      throw new Error('Block reward is required');
+    }
 
-        await tx.slot.upsert({
-          where: { slot },
-          update: { consensusRewardsFetched: true },
-          create: { slot, consensusRewardsFetched: true },
-        });
-      },
-      { timeout: ms('5m') },
-    );
+    await this.prisma.$transaction(async (tx) => {
+      await tx.validatorBlockRewards.create({
+        data: {
+          slot,
+          validatorIndex: reward.validatorIndex,
+          blockReward: reward.blockReward,
+        },
+      });
+
+      await tx.slot.update({
+        where: { slot },
+        data: { consensusRewardsFetched: true, proposerIndex: reward.validatorIndex },
+      });
+    });
   }
 
   /**
    * Save sync committee rewards and update slot flag in a transaction
    * Now stores rewards per slot instead of per hour
    */
-  async saveSyncRewardsAndUpdateSlot(
+  async saveSyncRewards(
     slot: number,
     rewards: Array<{
       validatorIndex: number;
-      syncCommittee: bigint;
+      syncCommitteeReward: bigint;
     }>,
   ) {
-    await this.prisma.$transaction(
-      async (tx) => {
-        for (const reward of rewards) {
-          await tx.validatorBlockAndSyncRewards.upsert({
-            where: {
-              slot_validatorIndex: {
-                slot,
-                validatorIndex: reward.validatorIndex,
-              },
-            },
-            create: {
-              slot,
-              validatorIndex: reward.validatorIndex,
-              syncCommittee: reward.syncCommittee,
-              blockReward: null,
-            },
-            update: {
-              syncCommittee: {
-                increment: reward.syncCommittee,
-              },
-            },
-          });
-        }
+    if (rewards.length === 0) {
+      throw new Error('Sync committee rewards are required');
+    }
 
-        await tx.slot.upsert({
-          where: { slot },
-          update: { syncRewardsFetched: true },
-          create: { slot, syncRewardsFetched: true },
-        });
-      },
-      { timeout: ms('5m') },
-    );
+    await this.prisma.$transaction(async (tx) => {
+      await tx.validatorSyncRewards.createMany({
+        data: rewards.map((reward) => ({
+          slot,
+          validatorIndex: reward.validatorIndex,
+          syncCommittee: reward.syncCommitteeReward,
+        })),
+      });
+
+      await tx.slot.update({
+        where: { slot },
+        data: { syncRewardsFetched: true },
+      });
+    });
   }
 
   /**
@@ -815,111 +709,6 @@ export class SlotStorage {
   }
 
   /**
-   * Process sync committee rewards and aggregate them into hourly validator data
-   * Following the same pattern as epoch rewards processing
-   */
-  async processSyncCommitteeRewardsAndAggregate(
-    slot: number,
-    datetime: Date,
-    processedRewards: Array<{
-      validatorIndex: number;
-      syncCommitteeReward: bigint;
-      rewards: string; // Format: 'slot:reward'
-    }>,
-  ): Promise<void> {
-    await this.prisma.$transaction(
-      async (tx) => {
-        // Bulk insert into sync_committee_rewards table using VALUES in batches
-        // PostgreSQL limit: 32,767 bind variables per prepared statement
-        // With 3 columns per row, max batch size = 32,767 / 3 ≈ 10,900 rows
-        // Using 5,000 rows per batch for better performance (using executeRawUnsafe)
-        const batchSize = 5_000;
-        const batches = chunk(processedRewards, batchSize);
-        for (const batch of batches) {
-          const valuesClause = batch
-            .map((r) => `(${slot}, ${r.validatorIndex}, ${r.syncCommitteeReward.toString()})`)
-            .join(',');
-
-          await tx.$executeRawUnsafe(`
-            INSERT INTO sync_committee_rewards 
-              (slot, validator_index, sync_committee_reward)
-            VALUES ${valuesClause}
-          `);
-        }
-
-        // Aggregate rewards into HourlyValidatorStats using pre-calculated values
-        // Process in batches to avoid SQL parameter limits
-        // const statsBatchSize = 5_000;
-        // const statsBatches = chunk(processedRewards, statsBatchSize);
-
-        // for (const statsBatch of statsBatches) {
-        //   const valuesClause = statsBatch
-        //     .map((r) => `(${r.validatorIndex}, ${r.syncCommitteeReward.toString()}, 0)`)
-        //     .join(',');
-
-        //   await tx.$executeRawUnsafe(`
-        //     INSERT INTO hourly_validator_stats
-        //       (datetime, validator_index, cl_rewards, cl_missed_rewards)
-        //     SELECT
-        //       '${datetime.toISOString()}'::timestamp as datetime,
-        //       validator_index,
-        //       cl_rewards,
-        //       cl_missed_rewards
-        //     FROM (VALUES ${valuesClause}) AS rewards(validator_index, cl_rewards, cl_missed_rewards)
-        //     ON CONFLICT (datetime, validator_index) DO UPDATE SET
-        //       cl_rewards = hourly_validator_stats.cl_rewards + EXCLUDED.cl_rewards
-        //   `);
-        // }
-
-        // mark slot as processed
-        await tx.slot.upsert({
-          where: { slot },
-          update: { syncRewardsFetched: true },
-          create: {
-            slot,
-            syncRewardsFetched: true,
-          },
-        });
-      },
-      {
-        timeout: ms('1m'),
-      },
-    );
-  }
-
-  /**
-   * Process block rewards and aggregate them into hourly validator data
-   * Following the same pattern as epoch rewards processing
-   */
-  async processSlotConsensusRewardsForSlot(
-    slot: number,
-    proposerIndex: number,
-    datetime: Date,
-    blockReward: bigint,
-  ) {
-    await this.prisma.$transaction(async (tx) => {
-      // Save block reward to Slot table (consensusReward and proposerIndex)
-      await tx.slot.update({
-        where: { slot },
-        data: {
-          proposerIndex,
-          consensusReward: blockReward,
-          consensusRewardsFetched: true,
-        },
-      });
-
-      // Aggregate rewards into HourlyValidatorStats
-      await tx.$executeRaw`
-          INSERT INTO hourly_validator_stats 
-            (datetime, validator_index, cl_rewards, cl_missed_rewards)
-          VALUES (${datetime}::timestamp, ${proposerIndex}, ${blockReward}, 0)
-          ON CONFLICT (datetime, validator_index) DO UPDATE SET
-            cl_rewards = hourly_validator_stats.cl_rewards + ${blockReward}
-        `;
-    });
-  }
-
-  /**
    * Test helper: Create initial hourly validator data for testing
    */
   // async createTestHourlyValidatorData(data: Prisma.HourlyValidatorDataCreateInput) {
@@ -999,7 +788,7 @@ export class SlotStorage {
       return [];
     }
 
-    return this.prisma.syncCommitteeRewards.findMany({
+    return this.prisma.validatorSyncRewards.findMany({
       where: {
         validatorIndex,
         slot: {
@@ -1008,6 +797,41 @@ export class SlotStorage {
       },
       orderBy: {
         slot: 'asc',
+      },
+    });
+  }
+
+  /**
+   * Get block rewards for a validator in specific slots
+   */
+  async getBlockRewardsForValidatorInSlots(validatorIndex: number, slots: number[]) {
+    if (slots.length === 0) {
+      return [];
+    }
+
+    return this.prisma.validatorBlockRewards.findMany({
+      where: {
+        validatorIndex,
+        slot: {
+          in: slots,
+        },
+      },
+      orderBy: {
+        slot: 'asc',
+      },
+    });
+  }
+
+  /**
+   * Get block reward for a specific slot and validator
+   */
+  async getBlockRewardForSlot(slot: number, validatorIndex: number) {
+    return this.prisma.validatorBlockRewards.findUnique({
+      where: {
+        slot_validatorIndex: {
+          slot,
+          validatorIndex,
+        },
       },
     });
   }
