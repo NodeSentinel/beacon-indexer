@@ -428,7 +428,7 @@ export class SlotStorage {
 
       await tx.slot.update({
         where: { slot },
-        data: { consensusRewardsFetched: true },
+        data: { consensusRewardsFetched: true, proposerIndex: reward.validatorIndex },
       });
     });
   }
