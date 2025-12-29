@@ -12,9 +12,9 @@ import validatorsData from './mocks/validators.json' with { type: 'json' };
 
 import { gnosisConfig } from '@/src/config/chain.js';
 import { BeaconClient } from '@/src/services/consensus/beacon.js';
-import { PartitionController } from '@/src/services/consensus/controllers/partition.js';
 import { EpochController } from '@/src/services/consensus/controllers/epoch.js';
 import { ValidatorControllerHelpers } from '@/src/services/consensus/controllers/helpers/validatorControllerHelpers.js';
+import { PartitionController } from '@/src/services/consensus/controllers/partition.js';
 import { EpochStorage } from '@/src/services/consensus/storage/epoch.js';
 import { PartitionStorage } from '@/src/services/consensus/storage/partition.js';
 import { ValidatorsStorage } from '@/src/services/consensus/storage/validators.js';
@@ -204,6 +204,21 @@ describe('Epoch Processor E2E Tests', () => {
 
       // Create epochs
       await epochStorage.createEpochs([1525790, 1525791, 1525792, 1525793]);
+
+      // Ensure partitions for rewards using real BeaconTime config
+      const partitionStorage = new PartitionStorage(prisma);
+      const partitionController = new PartitionController(
+        partitionStorage,
+        new BeaconTime({
+          genesisTimestamp: gnosisConfig.beacon.genesisTimestamp,
+          slotDurationMs: gnosisConfig.beacon.slotDuration,
+          slotsPerEpoch: gnosisConfig.beacon.slotsPerEpoch,
+          epochsPerSyncCommitteePeriod: gnosisConfig.beacon.epochsPerSyncCommitteePeriod,
+          lookbackSlot: 32000,
+        }),
+      );
+      await partitionController.createPartitionsToProcessEpoch(1525790);
+      await partitionController.createPartitionsToProcessEpoch(1525791);
     });
 
     it('should process both epochs and verify HourlyValidatorData and HourlyValidatorStats', async () => {

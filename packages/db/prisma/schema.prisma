@@ -196,6 +196,11 @@ model syncCommitteeRewards {
     @@map("sync_committee_rewards")
 }
 
+// Epoch rewards table is partitioned by epoch number to improve query performance
+// Partitions are created automatically when processing epochs
+// Partition naming: epoch_rewards_<start_epoch>-<end_epoch>
+// Each partition covers epochs that fall within a UTC hour range
+// Partitions are aligned to UTC hour boundaries (e.g., 10:00-11:00, 11:00-12:00)
 model epochRewards {
     epoch            Int    @map("epoch")
     validatorIndex   Int    @map("validator_index")

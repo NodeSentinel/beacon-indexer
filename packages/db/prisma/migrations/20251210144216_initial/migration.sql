@@ -171,7 +171,9 @@ CREATE TABLE "public"."sync_committee_rewards" (
     CONSTRAINT "sync_committee_rewards_pkey" PRIMARY KEY ("slot","validator_index")
 );
 
--- CreateTable
+-- CreateTable (Partitioned by epoch range)
+-- Epoch rewards table is partitioned by epoch number to improve query performance
+-- Partitions are created dynamically per hour when processing epochs
 CREATE TABLE "public"."epoch_rewards" (
     "epoch" INTEGER NOT NULL,
     "validator_index" INTEGER NOT NULL,
@@ -185,7 +187,7 @@ CREATE TABLE "public"."epoch_rewards" (
     "missed_inactivity" BIGINT NOT NULL,
 
     CONSTRAINT "epoch_rewards_pkey" PRIMARY KEY ("epoch","validator_index")
-);
+) PARTITION BY RANGE ("epoch");
 
 -- CreateTable
 CREATE TABLE "public"."hourly_validator_stats" (
