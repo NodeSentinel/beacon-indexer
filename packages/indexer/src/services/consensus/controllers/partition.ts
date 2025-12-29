@@ -122,19 +122,15 @@ export class PartitionController {
    * even if it ends at 14:01.
    */
   private calculateEpochPartition(epoch: number, tableNamePrefix: string): EpochPartitionInfo {
-    const { startSlot } = this.beaconTime.getEpochSlots(epoch);
-    const _baseSlot = Math.max(startSlot, this.beaconTime.getLookbackSlot());
-    const _baseEpoch = this.beaconTime.getEpochFromSlot(_baseSlot);
-    const _baseEpochTimestamp = this.beaconTime.getTimestampFromEpochNumber(_baseEpoch);
+    // Use the epoch's start timestamp directly
+    const epochTimestamp = this.beaconTime.getTimestampFromEpochNumber(epoch);
 
     // Round to UTC hour boundary using existing helper
-    const hourStartDate = getUTCDatetimeFlooredToHour(_baseEpochTimestamp);
+    const hourStartDate = getUTCDatetimeFlooredToHour(epochTimestamp);
     const hourStartTimestamp = hourStartDate.getTime();
     const nextHourTimestamp = hourStartTimestamp + 3_600_000; // add 1 hour
 
-    // Find the first epoch that start at a specific timestamp
-    // using getEpochFromTimestamp is not enough because the epoch returned belongs to the hour but
-    // it might have started before the hour boundary.
+    // Get first epoch starting at or after each hour boundary
     const startEpoch = this.beaconTime.getFirstEpochStartingAtOrAfter(hourStartTimestamp);
     const endEpoch = this.beaconTime.getFirstEpochStartingAtOrAfter(nextHourTimestamp); // exclusive
 
