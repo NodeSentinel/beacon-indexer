@@ -1,7 +1,8 @@
-import { addHours, startOfHour } from 'date-fns';
+import { addHours } from 'date-fns';
 
-import { PartitionStorage } from '../storage/partition.js';
-import { BeaconTime } from '../utils/beaconTime.js';
+import { PartitionStorage } from '@/src/services/consensus/storage/partition.js';
+import { BeaconTime } from '@/src/services/consensus/utils/beaconTime.js';
+import { getUTCDatetimeFlooredToHour } from '@/src/utils/date/index.js';
 
 /**
  * Partition information for a slot-based partition
@@ -10,6 +11,15 @@ interface SlotPartitionInfo {
   name: string;
   startSlot: number;
   endSlot: number; // Exclusive end for PostgreSQL
+}
+
+/**
+ * Partition information for an epoch-based partition
+ */
+interface EpochPartitionInfo {
+  name: string;
+  startEpoch: number;
+  endEpoch: number; // Exclusive end for PostgreSQL
 }
 
 /**
@@ -27,15 +37,28 @@ export class PartitionController {
   ) {}
 
   // Helper to create a partition for a UTC hour
-  private makeHourPartition(tableName: string, startSlot: number): SlotPartitionInfo {
+  private makeHourPartitionForSlot(tableNamePrefix: string, startSlot: number): SlotPartitionInfo {
     const hourStartTs = this.beaconTime.getTimestampFromSlotNumber(startSlot);
     const hourEndTs = addHours(hourStartTs, 1).getTime(); // next UTC hour start
     const hourEndSlot = this.beaconTime.getSlotNumberFromTimestamp(hourEndTs);
 
     return {
-      name: `${tableName}_${startSlot}-${hourEndSlot - 1}`,
+      name: `${tableNamePrefix}_${startSlot}-${hourEndSlot - 1}`,
       startSlot,
       endSlot: hourEndSlot, // exclusive
+    };
+  }
+
+  // Helper to build an epoch-based partition info object
+  private makeEpochPartition(
+    tableName: string,
+    startEpochInclusive: number,
+    endEpochExclusive: number,
+  ): EpochPartitionInfo {
+    return {
+      name: `${tableName}_${startEpochInclusive}-${endEpochExclusive - 1}`,
+      startEpoch: startEpochInclusive,
+      endEpoch: endEpochExclusive,
     };
   }
 
@@ -44,10 +67,10 @@ export class PartitionController {
    * Returns an array of partition info (1 or 2 partitions depending on if the epoch spans multiple UTC hours).
    *
    * @param epoch - The epoch number
-   * @param tableName - Name of the table (for partition naming)
+   * @param tableNamePrefix - Name of the table (for partition naming)
    * @returns Array of partition info objects
    */
-  private calculateSlotPartitions(epoch: number, tableName: string): SlotPartitionInfo[] {
+  private calculateSlotPartitions(epoch: number, tableNamePrefix: string): SlotPartitionInfo[] {
     const { startSlot, endSlot } = this.beaconTime.getEpochSlots(epoch);
 
     const firstSlotToProcess = Math.max(startSlot, this.beaconTime.getLookbackSlot());
@@ -55,7 +78,7 @@ export class PartitionController {
 
     const partitionOneFirstSlot =
       this.beaconTime.getSlotAtStartOfUTCHourContaining(firstSlotToProcess);
-    const partitionOne = this.makeHourPartition(tableName, partitionOneFirstSlot);
+    const partitionOne = this.makeHourPartitionForSlot(tableNamePrefix, partitionOneFirstSlot);
 
     // if endSlot is still within partitionOne, only 1 partition
     if (endSlot < partitionOne.endSlot) return [partitionOne];
@@ -63,7 +86,7 @@ export class PartitionController {
     const partitionTwoFirstSlot = this.beaconTime.getSlotAtStartOfUTCHourContaining(endSlot);
     if (partitionTwoFirstSlot === partitionOneFirstSlot) return [partitionOne]; // paranoia / safety
 
-    return [partitionOne, this.makeHourPartition(tableName, partitionTwoFirstSlot)];
+    return [partitionOne, this.makeHourPartitionForSlot(tableNamePrefix, partitionTwoFirstSlot)];
   }
 
   /**
@@ -90,30 +113,45 @@ export class PartitionController {
   }
 
   /**
-   * Create epoch_rewards table partition for the given epoch.
-   * Partitions epoch_rewards by epoch ranges (e.g., 100 epochs per partition).
+   * Calculates the epoch partition for a given epoch.
    *
-   * @param epoch - The epoch number
+   * Partitions are aligned to UTC hours. An epoch belongs to the partition
+   * of the hour where it STARTS, regardless of where it ends.
+   *
+   * Example: epoch starting at 13:59 goes to 13:00 hour partition,
+   * even if it ends at 14:01.
+   */
+  private calculateEpochPartition(epoch: number, tableNamePrefix: string): EpochPartitionInfo {
+    const { startSlot } = this.beaconTime.getEpochSlots(epoch);
+    const _baseSlot = Math.max(startSlot, this.beaconTime.getLookbackSlot());
+    const _baseEpoch = this.beaconTime.getEpochFromSlot(_baseSlot);
+    const _baseEpochTimestamp = this.beaconTime.getTimestampFromEpochNumber(_baseEpoch);
+
+    // Round to UTC hour boundary using existing helper
+    const hourStartDate = getUTCDatetimeFlooredToHour(_baseEpochTimestamp);
+    const hourStartTimestamp = hourStartDate.getTime();
+    const nextHourTimestamp = hourStartTimestamp + 3_600_000; // add 1 hour
+
+    // Find the first epoch that start at a specific timestamp
+    // using getEpochFromTimestamp is not enough because the epoch returned belongs to the hour but
+    // it might have started before the hour boundary.
+    const startEpoch = this.beaconTime.getFirstEpochStartingAtOrAfter(hourStartTimestamp);
+    const endEpoch = this.beaconTime.getFirstEpochStartingAtOrAfter(nextHourTimestamp); // exclusive
+
+    return this.makeEpochPartition(tableNamePrefix, startEpoch, endEpoch);
+  }
+
+  /**
+   * Creates `epoch_rewards` table partition for the given epoch.
    */
   async createPartitionForEpochRewards(epoch: number): Promise<void> {
-    // For epoch_rewards, we partition by epoch ranges
-    // Each partition covers a range of epochs (e.g., 100 epochs per partition)
-    // This is simpler than slot-based partitioning
-
-    // Calculate partition boundaries
-    // Using 100 epochs per partition as a reasonable default
-    // This can be adjusted based on data volume
-    const epochsPerPartition = 100;
-    const partitionStartEpoch = Math.floor(epoch / epochsPerPartition) * epochsPerPartition;
-    const partitionEndEpoch = partitionStartEpoch + epochsPerPartition - 1;
-    const partitionName = `epoch_rewards_epoch_${partitionStartEpoch}`;
-    const exclusiveEndEpoch = partitionEndEpoch + 1; // PostgreSQL uses exclusive end
+    const partition = this.calculateEpochPartition(epoch, 'epoch_rewards');
 
     await this.partitionStorage.createPartition(
       'epoch_rewards',
-      partitionName,
-      partitionStartEpoch,
-      exclusiveEndEpoch,
+      partition.name,
+      partition.startEpoch,
+      partition.endEpoch,
     );
   }
 
@@ -126,12 +164,12 @@ export class PartitionController {
   }
 
   /**
-   * Ensure all partitions required for processing an epoch are created.
+   * Ensures all partitions required for processing an epoch are created.
    * This is the main method called before processing an epoch.
    *
-   * @param epoch - The epoch number
+   * @param epoch - The epoch number.
    */
-  async ensureAllPartitionsForEpoch(epoch: number): Promise<void> {
+  async createPartitionsToProcessEpoch(epoch: number): Promise<void> {
     // Create committee partitions
     await this.createPartitionForCommittee(epoch);
 

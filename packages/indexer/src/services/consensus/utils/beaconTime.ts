@@ -199,4 +199,17 @@ export class BeaconTime {
     const hourStartTs = Math.floor(ts / 3_600_000) * 3_600_000; // floor to UTC hour
     return this.getSlotNumberFromTimestamp(hourStartTs);
   }
+
+  /**
+   * Returns the first epoch that STARTS at or after the given timestamp.
+   * If the epoch containing the timestamp started before it, returns the next epoch.
+   *
+   * @param timestamp - The timestamp in milliseconds
+   * @returns The first epoch number starting at or after the timestamp
+   */
+  getFirstEpochStartingAtOrAfter(timestamp: number): number {
+    const epoch = this.getEpochNumberFromTimestamp(timestamp);
+    const epochStartTimestamp = this.getTimestampFromEpochNumber(epoch);
+    return epochStartTimestamp < timestamp ? epoch + 1 : epoch;
+  }
 }

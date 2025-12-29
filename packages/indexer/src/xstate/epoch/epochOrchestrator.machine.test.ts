@@ -17,7 +17,7 @@ const mockEpochController = {
 } as unknown as EpochController;
 
 const mockPartitionController = {
-  ensureAllPartitionsForEpoch: vi.fn(),
+  createPartitionsToProcessEpoch: vi.fn(),
 } as unknown as PartitionController;
 
 // Mock BeaconTime instance for testing
@@ -178,7 +178,7 @@ describe.skip('epochOrchestratorMachine', () => {
     expect(vi.mocked(mockEpochController.getMinEpochToProcess)).toHaveBeenCalledTimes(1);
 
     // Now reject the promise to trigger error handling
-    controllableGetMinEpochPromise.reject(new Error('Database connection failed'));
+    controllableGetMinEpochPromise.reject(new Error('Test error: failed to get min epoch'));
 
     // Wait for the state transition to complete
     await new Promise((resolve) => setTimeout(resolve, 5));

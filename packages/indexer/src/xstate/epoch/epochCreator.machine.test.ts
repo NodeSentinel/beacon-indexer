@@ -1,9 +1,14 @@
-import { test, expect } from 'vitest';
+import { test, expect, vi } from 'vitest';
 import { createActor } from 'xstate';
 
 import { epochCreationMachine } from './epochCreator.machine.js';
 
 import { EpochController } from '@/src/services/consensus/controllers/epoch.js';
+
+// Mock the logging functions - simple mocks that do nothing
+vi.mock('@/src/xstate/pinoLog.js', () => ({
+  pinoLog: vi.fn(() => () => {}),
+}));
 
 // Type for mock EpochController with only the methods we need
 type MockEpochController = {
@@ -57,7 +62,7 @@ describe('epochCreationMachine', () => {
     // Arrange
     const mockEpochController: MockEpochController = {
       async createEpochsIfNeeded() {
-        throw new Error('Database connection failed');
+        throw new Error('Test error: failed to create epochs');
       },
     };
 

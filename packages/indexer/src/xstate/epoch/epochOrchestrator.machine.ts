@@ -61,13 +61,9 @@ export const epochOrchestratorMachine = setup({
         return input.epochController.getMinEpochToProcess();
       },
     ),
-    ensureAllPartitionsForEpoch: fromPromise(
-      async ({
-        input,
-      }: {
-        input: { partitionController: PartitionController; epoch: number };
-      }) => {
-        await input.partitionController.ensureAllPartitionsForEpoch(input.epoch);
+    createPartitionsForTables: fromPromise(
+      async ({ input }: { input: { partitionController: PartitionController; epoch: number } }) => {
+        await input.partitionController.createPartitionsToProcessEpoch(input.epoch);
       },
     ),
     epochProcessorMachine,
@@ -103,7 +99,7 @@ export const epochOrchestratorMachine = setup({
         onDone: [
           {
             guard: ({ event }) => event.output !== null,
-            target: 'ensuringPartitions',
+            target: 'creatingPartitionsForTables',
             actions: [
               assign({
                 epochData: ({ event }) => event.output,
@@ -129,15 +125,14 @@ export const epochOrchestratorMachine = setup({
         },
       },
     },
-
-    ensuringPartitions: {
+    creatingPartitionsForTables: {
       entry: pinoLog(
         ({ context }) =>
-          `Ensuring partitions for epoch ${context.epochData?.epoch} before processing`,
+          `Ensuring tables partitions for epoch ${context.epochData?.epoch} exist before processing`,
         'EpochOrchestrator',
       ),
       invoke: {
-        src: 'ensureAllPartitionsForEpoch',
+        src: 'createPartitionsForTables',
         input: ({ context }) => ({
           partitionController: context.partitionController,
           epoch: context.epochData!.epoch,
@@ -160,7 +155,6 @@ export const epochOrchestratorMachine = setup({
         },
       },
     },
-
     processingEpoch: {
       entry: [
         assign({
@@ -214,7 +208,6 @@ export const epochOrchestratorMachine = setup({
         },
       },
     },
-
     idleNoEpoch: {
       entry: pinoLog('No epoch available, waiting before next poll', 'EpochOrchestrator'),
       after: {
