@@ -163,8 +163,9 @@ export class EpochStorage {
         // Create temporary table using epoch_rewards as template
         // This ensures the structure is always in sync with the main table
         // No indexes or constraints are copied, which improves performance
+        // UNLOGGED to avoid WAL generation for temporary data
         await tx.$executeRaw`
-          CREATE TEMPORARY TABLE tmp_epoch_rewards (LIKE epoch_rewards) ON COMMIT DROP;
+          CREATE UNLOGGED TEMPORARY TABLE tmp_epoch_rewards (LIKE epoch_rewards) ON COMMIT DROP;
         `;
 
         // Bulk insert into temporary table using VALUES in batches
@@ -254,8 +255,9 @@ export class EpochStorage {
         `;
 
         // Insert committees using temporary table for better performance
+        // UNLOGGED to avoid WAL generation for temporary data
         await tx.$executeRaw`
-          CREATE TEMPORARY TABLE tmp_committee (LIKE "committee") ON COMMIT DROP;
+          CREATE UNLOGGED TEMPORARY TABLE tmp_committee (LIKE "committee") ON COMMIT DROP;
         `;
 
         // PostgreSQL limit: 32,767 bind variables per prepared statement

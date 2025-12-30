@@ -126,14 +126,15 @@ export class ValidatorsStorage {
     await this.prisma.$transaction(
       async (tx) => {
         // Create temporary table
+        // UNLOGGED to avoid WAL generation for temporary data
         await tx.$executeRaw`
-        CREATE TEMPORARY TABLE "TempValidator" (LIKE validator) ON COMMIT DROP
+        CREATE UNLOGGED TEMPORARY TABLE tmp_validator (LIKE validator) ON COMMIT DROP
       `;
 
         const batches = chunk(validatorBalances, 12_000);
         for (const batch of batches) {
           await tx.$executeRaw`
-          INSERT INTO "TempValidator" (id, balance)
+          INSERT INTO tmp_validator (id, balance)
           VALUES ${Prisma.join(
             batch.map(
               (data) =>
@@ -151,7 +152,7 @@ export class ValidatorsStorage {
         await tx.$executeRaw`
           INSERT INTO validator (id, balance)
           SELECT id, balance
-          FROM "TempValidator"
+          FROM tmp_validator
           ON CONFLICT (id) DO UPDATE SET
             balance = EXCLUDED.balance
         `;
