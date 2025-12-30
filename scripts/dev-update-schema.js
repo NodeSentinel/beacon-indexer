@@ -53,7 +53,6 @@ async function executeCommand(command, args = []) {
   return new Promise((resolve, reject) => {
     const child = spawn(command, args, {
       stdio: 'inherit',
-      shell: true,
       cwd: process.cwd(),
     });
 
