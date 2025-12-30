@@ -179,8 +179,8 @@ describe('epochProcessorMachine', () => {
     vi.clearAllTimers();
   });
 
-  describe('checkingCanProcess', () => {
-    test('cannot process epoch (too early), should go to waiting and retry', async () => {
+  describe('waitingToProcessEpoch', () => {
+    test('cannot process epoch (too early), should wait until ready', async () => {
       const { actor, stateTransitions, subscription } = createAndStartActor(
         epochProcessorMachine,
         createProcessorMachineDefaultInput(100),
@@ -189,20 +189,21 @@ describe('epochProcessorMachine', () => {
         },
       );
 
-      // Initial state should be checkingCanProcess
-      expect(stateTransitions[0]).toBe('checkingCanProcess');
+      // Initial state should be waitingToProcessEpoch
+      expect(stateTransitions[0]).toBe('waitingToProcessEpoch');
 
-      // After timers run, we should move to waitingToProcessEpoch
+      // After timers run, should still be waiting (invoke will wait)
       vi.runOnlyPendingTimers();
       await Promise.resolve();
 
-      expect(stateTransitions[1]).toBe('waitingToProcessEpoch');
+      // Should still be in waitingToProcessEpoch (waiting for timeout)
+      expect(stateTransitions[stateTransitions.length - 1]).toBe('waitingToProcessEpoch');
 
       actor.stop();
       subscription.unsubscribe();
     });
 
-    test('can process next epoch (1 epoch in advance), should go to epochProcessing', async () => {
+    test('can process next epoch (1 epoch in advance), should go directly to epochProcessing', async () => {
       // Current epoch is 100, we want to process epoch 101 (one epoch ahead)
       vi.setSystemTime(new Date(EPOCH_100_START_TIME + SLOT_DURATION));
 
@@ -211,13 +212,13 @@ describe('epochProcessorMachine', () => {
         createProcessorMachineDefaultInput(101),
       );
 
-      // Initial snapshot should be checkingCanProcess
-      expect(stateTransitions[0]).toBe('checkingCanProcess');
+      // Initial snapshot should be waitingToProcessEpoch
+      expect(stateTransitions[0]).toBe('waitingToProcessEpoch');
 
       vi.runOnlyPendingTimers();
       await Promise.resolve();
 
-      // Next snapshot should be epochProcessing
+      // Next snapshot should be epochProcessing (invoke resolves immediately if already ready)
       expect(typeof stateTransitions[1]).toBe('object');
       expect(stateTransitions[1]).toHaveProperty('epochProcessing');
 
