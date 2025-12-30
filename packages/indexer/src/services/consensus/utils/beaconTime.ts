@@ -212,4 +212,12 @@ export class BeaconTime {
     const epochStartTimestamp = this.getTimestampFromEpochNumber(epoch);
     return epochStartTimestamp < timestamp ? epoch + 1 : epoch;
   }
+
+  /**
+   * Get the current slot number based on the current timestamp
+   * @returns The current slot number
+   */
+  getChainCurrentSlot(): number {
+    return this.getSlotNumberFromTimestamp(Date.now()) - this.delaySlotsToHead;
+  }
 }

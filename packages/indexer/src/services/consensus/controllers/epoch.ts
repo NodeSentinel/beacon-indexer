@@ -171,7 +171,14 @@ export class EpochController extends EpochControllerHelpers {
 
     // Get committees from beacon chain
     const { startSlot, endSlot } = this.beaconTime.getEpochSlots(epoch);
-    const committees = await this.beaconClient.getCommittees(epoch, 'head');
+    const currentSlot = this.beaconTime.getChainCurrentSlot();
+
+    // If fetching a future epoch (up to 1 epoch ahead), use 'head', otherwise use startSlot
+    // An epoch is in the future if its startSlot is greater than the current slot
+    const isFutureEpoch = startSlot > currentSlot;
+    const stateId = isFutureEpoch ? 'head' : startSlot;
+
+    const committees = await this.beaconClient.getCommittees(epoch, stateId);
 
     // Prepare data for storage - will throw if beacon chain didn't return all expected slots
     const { newSlots, newCommittees, committeesCountInSlot } = this.prepareCommitteeData(
