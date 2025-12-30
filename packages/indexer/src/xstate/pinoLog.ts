@@ -1,6 +1,7 @@
 import type { ActionArgs, EventObject, MachineContext, ParameterizedObject } from 'xstate';
 
 import createLogger from '@/src/lib/pino.js';
+import { cleanContextForLogging } from '@/src/xstate/multiMachineLogger.js';
 
 // Define the log expression type that returns either string or log data object
 type PinoLogExpr<
@@ -65,23 +66,24 @@ export const pinoLog = <
     let data: unknown;
 
     if (typeof value === 'string') {
-      // Simple string message
+      // Simple string message - don't include context/event for simple messages
       message = value;
-      data = { context: args.context, event: args.event };
+      data = undefined;
     } else if (typeof value === 'function') {
       // Function that returns either string or log data object
       const result = value(args, params);
       if (typeof result === 'string') {
         message = result;
-        // data = { context: args.context, event: args.event };
+        // Don't include context/event by default for function-based logs
+        data = undefined;
       } else {
         message = result.message;
         data = result.data;
       }
     } else {
-      // Default case
+      // Default case - don't include context/event
       message = 'XState log';
-      data = { context: args.context, event: args.event };
+      data = undefined;
     }
 
     // Log through Pino with the specified level

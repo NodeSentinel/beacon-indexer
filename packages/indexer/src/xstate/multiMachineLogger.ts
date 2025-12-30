@@ -423,7 +423,7 @@ export const removeMachine = (machineId: string) => {
  * Clean context data to remove circular references and non-serializable objects
  * Helper function to clean context before serialization
  */
-function cleanContextForLogging(context: unknown): Record<string, unknown> | undefined {
+export function cleanContextForLogging(context: unknown): Record<string, unknown> | undefined {
   if (!context || typeof context !== 'object') {
     return undefined;
   }
