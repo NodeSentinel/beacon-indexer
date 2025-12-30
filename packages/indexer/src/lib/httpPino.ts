@@ -6,10 +6,11 @@ import { AxiosError, AxiosResponse, InternalAxiosRequestConfig } from 'axios';
 // blockchain-specific environment variables.
 import createLogger from '@/src/lib/pino.js';
 
-// Extend Axios config to include metadata for timing
+// Extend Axios config to include metadata for timing and nodeType
 interface ExtendedAxiosRequestConfig extends InternalAxiosRequestConfig {
   metadata?: {
     startTime?: number;
+    nodeType?: 'full' | 'archive';
   };
 }
 
@@ -47,18 +48,25 @@ export function logResponse(response: AxiosResponse): AxiosResponse {
   const startTime = extendedConfig?.metadata?.startTime;
   const duration = startTime ? Date.now() - startTime : undefined;
   const durationStr = duration ? `${duration}ms` : undefined;
+  const nodeType = extendedConfig?.metadata?.nodeType;
 
   const isError = response.status >= 400;
   const isDebugLevel = process.env.LOG_LEVEL === 'debug';
   const endpoint = extractEndpointPath(response.config?.url);
   const statusText = response.statusText || '';
   const errorMessage = statusText ? ` - ${statusText}` : '';
-  const message = `${response.status} ${response.config?.method?.toUpperCase()} ${endpoint}${errorMessage}`;
+  const nodeTypePrefix = nodeType ? `[${nodeType.toUpperCase()}] ` : '';
+  const message = `${nodeTypePrefix}${response.status} ${response.config?.method?.toUpperCase()} ${endpoint}${errorMessage}`;
 
   // Always log errors, or log all responses if LOG_LEVEL is debug
   if (isError || isDebugLevel) {
     if (isError) {
-      const logData: { statusCode: number; message?: string; duration?: string } = {
+      const logData: {
+        statusCode: number;
+        message?: string;
+        duration?: string;
+        nodeType?: string;
+      } = {
         statusCode: response.status,
       };
       // Include response data message if available
@@ -70,12 +78,18 @@ export function logResponse(response: AxiosResponse): AxiosResponse {
       if (durationStr) {
         logData.duration = durationStr;
       }
+      if (nodeType) {
+        logData.nodeType = nodeType;
+      }
       httpLogger.error(message, logData);
     } else {
       // Success responses only in DEBUG mode
-      const logData: { duration?: string } = {};
+      const logData: { duration?: string; nodeType?: string } = {};
       if (durationStr) {
         logData.duration = durationStr;
+      }
+      if (nodeType) {
+        logData.nodeType = nodeType;
       }
       httpLogger.debug(message, Object.keys(logData).length > 0 ? logData : undefined);
     }
@@ -90,6 +104,7 @@ export function logError(error: AxiosError): Promise<never> {
   const startTime = extendedConfig?.metadata?.startTime;
   const duration = startTime ? Date.now() - startTime : undefined;
   const durationStr = duration ? `${duration}ms` : undefined;
+  const nodeType = extendedConfig?.metadata?.nodeType;
 
   // Log the error with endpoint information
   const endpoint = extractEndpointPath(error.config?.url || error.request?.url);
@@ -97,11 +112,18 @@ export function logError(error: AxiosError): Promise<never> {
   const method = error.config?.method?.toUpperCase() || 'UNKNOWN';
   const statusText = error.response?.statusText || '';
   const errorMessage = error.message || statusText || '';
+  const nodeTypePrefix = nodeType ? `[${nodeType.toUpperCase()}] ` : '';
   const message = statusCode
-    ? `${statusCode} ${method} ${endpoint} - ${errorMessage}`
-    : `ERROR ${method} ${endpoint} - ${errorMessage}`;
+    ? `${nodeTypePrefix}${statusCode} ${method} ${endpoint} - ${errorMessage}`
+    : `${nodeTypePrefix}ERROR ${method} ${endpoint} - ${errorMessage}`;
 
-  const logData: { statusCode?: number; error: string; message?: string; duration?: string } = {
+  const logData: {
+    statusCode?: number;
+    error: string;
+    message?: string;
+    duration?: string;
+    nodeType?: string;
+  } = {
     error: error.message,
   };
 
@@ -122,6 +144,10 @@ export function logError(error: AxiosError): Promise<never> {
 
   if (durationStr) {
     logData.duration = durationStr;
+  }
+
+  if (nodeType) {
+    logData.nodeType = nodeType;
   }
 
   // Always log errors at ERROR level
