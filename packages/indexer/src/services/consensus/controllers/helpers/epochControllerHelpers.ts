@@ -60,28 +60,30 @@ export abstract class EpochControllerHelpers {
   }
 
   /**
-   * Process a batch of rewards and return formatted data
+   * Process a batch of rewards and return data ready for storage
    *
-   * - Calculates clRewards and clMissedRewards for aggregation
-   * - Formats rewards string for HourlyValidatorData storage
-   * - Returns data ready for storage layer
+   * - Calculates missed rewards based on ideal rewards
+   * - Returns individual reward values ready for direct database storage
    *
    * @param rewards - Array of total rewards from beacon chain
    * @param validatorsBalancesMap - Map of validator balances for ideal reward calculation
    * @param idealRewardsLookup - Lookup map for ideal rewards by balance
-   * @param epoch - The epoch number for the rewards string format
    * @returns Array of processed reward data ready for storage
    */
   protected processEpochReward(
     rewards: TotalReward[],
     validatorsBalancesMap: Map<string, string>,
     idealRewardsLookup: Map<string, IdealReward>,
-    epoch: number,
   ): Array<{
     validatorIndex: number;
-    clRewards: bigint;
-    clMissedRewards: bigint;
-    rewards: string; // Format: 'epoch:head:target:source:inactivity:missedHead:missedTarget:missedSource:missedInactivity'
+    head: bigint;
+    target: bigint;
+    source: bigint;
+    inactivity: bigint;
+    missedHead: bigint;
+    missedTarget: bigint;
+    missedSource: bigint;
+    missedInactivity: bigint;
   }> {
     return rewards.map((validatorInfo) => {
       const balance = validatorsBalancesMap.get(validatorInfo.validator_index) || '0';
@@ -108,18 +110,16 @@ export abstract class EpochControllerHelpers {
         missedInactivity = BigInt(idealReward.inactivity || '0') - inactivity;
       }
 
-      // Calculate aggregated values for storage
-      const clRewards = head + target + source + inactivity;
-      const clMissedRewards = missedHead + missedTarget + missedSource + missedInactivity;
-
-      // Format rewards string for HourlyValidatorData storage
-      const rewardsString = `${epoch}:${head}:${target}:${source}:${inactivity}:${missedHead}:${missedTarget}:${missedSource}:${missedInactivity}`;
-
       return {
         validatorIndex: Number(validatorInfo.validator_index),
-        clRewards,
-        clMissedRewards,
-        rewards: rewardsString,
+        head,
+        target,
+        source,
+        inactivity,
+        missedHead,
+        missedTarget,
+        missedSource,
+        missedInactivity,
       };
     });
   }

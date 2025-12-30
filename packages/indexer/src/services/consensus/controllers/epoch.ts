@@ -2,12 +2,10 @@ import chunk from 'lodash/chunk.js';
 
 import { EpochControllerHelpers } from './helpers/epochControllerHelpers.js';
 
-import createLogger from '@/src/lib/pino.js';
 import { BeaconClient } from '@/src/services/consensus/beacon.js';
 import { EpochStorage } from '@/src/services/consensus/storage/epoch.js';
 import { ValidatorsStorage } from '@/src/services/consensus/storage/validators.js';
 import { BeaconTime } from '@/src/services/consensus/utils/beaconTime.js';
-import { getUTCDatetimeFlooredToHour } from '@/src/utils/date/index.js';
 
 export class EpochController extends EpochControllerHelpers {
   static readonly maxUnprocessedEpochs: number = 5;
@@ -88,13 +86,8 @@ export class EpochController extends EpochControllerHelpers {
    *
    * 1. Fetches rewards from the beacon chain in batches
    * 2. Processes and calculates missed rewards using ideal rewards
-   * 3. Directly aggregates rewards into HourlyValidatorData and HourlyValidatorStats
+   * 3. Stores rewards directly in epoch_rewards table
    * 4. Marks epoch as rewardsFetched = true
-   *
-   * The old EpochRewards table is no longer used, and rewards are stored directly
-   * in HourlyValidatorData.epochRewards using the format:
-   * 'epoch:head:target:source:inactivity:missedHead:missedTarget:missedSource:missedInactivity'
-   * comma separated
    */
   async fetchEpochRewards(epoch: number) {
     const epochDb = await this.epochStorage.getEpochByNumber(epoch);
@@ -110,9 +103,14 @@ export class EpochController extends EpochControllerHelpers {
 
     let allProcessedRewards: Array<{
       validatorIndex: number;
-      clRewards: bigint;
-      clMissedRewards: bigint;
-      rewards: string; // Format: 'epoch:head:target:source:inactivity:missedHead:missedTarget:missedSource:missedInactivity'
+      head: bigint;
+      target: bigint;
+      source: bigint;
+      inactivity: bigint;
+      missedHead: bigint;
+      missedTarget: bigint;
+      missedSource: bigint;
+      missedInactivity: bigint;
     }> = [];
 
     // Fetch rewards in batches and process them
@@ -138,12 +136,11 @@ export class EpochController extends EpochControllerHelpers {
       }
 
       // Process rewards: get validator balances, find ideal rewards by balance,
-      // calculate missed rewards (ideal - actual), and format for new storage strategy
+      // calculate missed rewards (ideal - actual)
       const epochRewardsData = this.processEpochReward(
         epochRewards.data.total_rewards,
         validatorsBalancesMap,
         idealRewardsLookup!,
-        epoch,
       );
 
       // Use concat instead of spread operator to avoid stack overflow with large arrays
@@ -151,12 +148,8 @@ export class EpochController extends EpochControllerHelpers {
       allProcessedRewards = allProcessedRewards.concat(epochRewardsData);
     }
 
-    // Calculate datetime for hourly aggregation using BeaconTime
-    const epochTimestamp = this.beaconTime.getTimestampFromEpochNumber(epoch);
-    const datetime = getUTCDatetimeFlooredToHour(epochTimestamp);
-
-    // Process and aggregate rewards in a single atomic transaction
-    await this.epochStorage.processEpochRewardsAndAggregate(epoch, datetime, allProcessedRewards);
+    // Process and store rewards in a single atomic transaction
+    await this.epochStorage.processEpochRewardsAndAggregate(epoch, allProcessedRewards);
   }
 
   /**
