@@ -259,8 +259,8 @@ export class BeaconClient extends ReliableRequestClient {
   getSyncCommitteeRewards = async (
     slot: number,
     validatorIndexes: string[],
-  ): Promise<SyncCommitteeRewards | 'SLOT MISSED'> => {
-    return this.makeReliableRequest<SyncCommitteeRewards | 'SLOT MISSED'>(
+  ): Promise<SyncCommitteeRewards> => {
+    return this.makeReliableRequest<SyncCommitteeRewards>(
       async (url) => {
         const res = await this.axiosInstance.post<SyncCommitteeRewards>(
           `${url}/eth/v1/beacon/rewards/sync_committee/${slot}`,
