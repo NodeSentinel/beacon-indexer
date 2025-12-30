@@ -152,7 +152,7 @@ export const epochProcessorMachine = setup({
     waitForEpochEnd: fromPromise(
       async ({ input }: { input: { beaconTime: BeaconTime; endSlot: number } }) => {
         // Wait until the slot after the last slot of the epoch has started
-        await input.beaconTime.waitUntilSlotStart(input.endSlot + 1);
+        await input.beaconTime.waitUntilSlotStart(input.endSlot + 12);
       },
     ),
     // Fetch rewards after epoch has ended

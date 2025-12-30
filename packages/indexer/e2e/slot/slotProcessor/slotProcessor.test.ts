@@ -21,7 +21,7 @@ import { EpochStorage } from '@/src/services/consensus/storage/epoch.js';
 import { PartitionStorage } from '@/src/services/consensus/storage/partition.js';
 import { SlotStorage } from '@/src/services/consensus/storage/slot.js';
 import { ValidatorsStorage } from '@/src/services/consensus/storage/validators.js';
-import { GetCommittees, Block } from '@/src/services/consensus/types.js';
+import { GetCommittees, GetValidators, Block } from '@/src/services/consensus/types.js';
 import { BeaconTime } from '@/src/services/consensus/utils/beaconTime.js';
 import { ExecutionClient } from '@/src/services/execution/execution.js';
 import { getUTCDatetimeFlooredToHour } from '@/src/utils/date/index.js';
@@ -123,7 +123,9 @@ describe('Slot Processor E2E Tests', () => {
 
       // Save validators data to database
       const validators = validatorsData.data.map((v) =>
-        ValidatorControllerHelpers.mapValidatorDataToDBEntity(v),
+        ValidatorControllerHelpers.mapValidatorDataToDBEntity(
+          v as unknown as GetValidators['data'][number],
+        ),
       );
       await validatorsStorage.saveValidators(validators);
 
@@ -317,7 +319,9 @@ describe('Slot Processor E2E Tests', () => {
 
       // Save validators data to database
       const validators = validatorsData.data.map((v) =>
-        ValidatorControllerHelpers.mapValidatorDataToDBEntity(v),
+        ValidatorControllerHelpers.mapValidatorDataToDBEntity(
+          v as unknown as GetValidators['data'][number],
+        ),
       );
       await validatorsStorage.saveValidators(validators);
 
@@ -525,7 +529,9 @@ describe('Slot Processor E2E Tests', () => {
 
       // Save validators data to database
       const validators = validatorsData.data.map((v) =>
-        ValidatorControllerHelpers.mapValidatorDataToDBEntity(v),
+        ValidatorControllerHelpers.mapValidatorDataToDBEntity(
+          v as unknown as GetValidators['data'][number],
+        ),
       );
       await validatorsStorage.saveValidators(validators);
 
