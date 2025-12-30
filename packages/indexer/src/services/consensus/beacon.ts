@@ -219,16 +219,13 @@ export class BeaconClient extends ReliableRequestClient {
     epoch: number,
     validatorIndexes: number[],
   ): Promise<AttestationRewards> {
-    return this.makeReliableRequest(
-      async (url) => {
-        const res = await this.axiosInstance.post<AttestationRewards>(
-          `${url}/eth/v1/beacon/rewards/attestations/${epoch}`,
-          validatorIndexes.map((id) => id.toString()),
-        );
-        return res.data;
-      },
-      this.isIndexerDelayed({ value: epoch, type: 'epoch' }) ? 'archive' : 'full',
-    );
+    return this.makeReliableRequest(async (url) => {
+      const res = await this.axiosInstance.post<AttestationRewards>(
+        `${url}/eth/v1/beacon/rewards/attestations/${epoch}`,
+        validatorIndexes.map((id) => id.toString()),
+      );
+      return res.data;
+    }, 'archive');
   }
 
   async getValidatorProposerDuties(epoch: number): Promise<ValidatorProposerDuties['data']> {
@@ -272,7 +269,6 @@ export class BeaconClient extends ReliableRequestClient {
         return res.data;
       },
       this.isIndexerDelayed({ value: slot, type: 'slot' }) ? 'archive' : 'full',
-      (error) => this.handleSlotError(error),
     );
   };
 }

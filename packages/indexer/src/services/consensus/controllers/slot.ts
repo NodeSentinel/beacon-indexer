@@ -391,25 +391,18 @@ export class SlotController extends SlotControllerHelpers {
     epoch: number;
     beaconBlockData?: Block; // TODO: fix this
   }) {
-    try {
-      console.log(`Updating validator statuses for slot ${input.slot}`);
+    // Simulate some processing time
+    await new Promise((resolve) => setTimeout(resolve, 90));
 
-      // Simulate some processing time
-      await new Promise((resolve) => setTimeout(resolve, 90));
-
-      return {
-        slot: input.slot,
-        validatorUpdates: [
-          {
-            validatorIndex: Math.floor(Math.random() * 1000),
-            status: 'active',
-          },
-        ],
-      };
-    } catch (error) {
-      console.error('Error updating validator statuses:', error);
-      throw error;
-    }
+    return {
+      slot: input.slot,
+      validatorUpdates: [
+        {
+          validatorIndex: Math.floor(Math.random() * 1000),
+          status: 'active',
+        },
+      ],
+    };
   }
 
   /**

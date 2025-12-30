@@ -2,6 +2,7 @@ import chunk from 'lodash/chunk.js';
 
 import { EpochControllerHelpers } from './helpers/epochControllerHelpers.js';
 
+import createLogger from '@/src/lib/pino.js';
 import { BeaconClient } from '@/src/services/consensus/beacon.js';
 import { EpochStorage } from '@/src/services/consensus/storage/epoch.js';
 import { ValidatorsStorage } from '@/src/services/consensus/storage/validators.js';
@@ -61,29 +62,24 @@ export class EpochController extends EpochControllerHelpers {
 
   // New method that handles the complete epoch creation logic internally
   async createEpochsIfNeeded() {
-    try {
-      // Get the last created epoch
-      const lastEpoch = await this.getMaxEpoch();
-      const unprocessedCount = await this.epochStorage.getUnprocessedCount();
-      const epochStartIndexing = this.beaconTime.getEpochFromSlot(
-        this.beaconClient.slotStartIndexing,
-      );
+    // Get the last created epoch
+    const lastEpoch = await this.getMaxEpoch();
+    const unprocessedCount = await this.epochStorage.getUnprocessedCount();
+    const epochStartIndexing = this.beaconTime.getEpochFromSlot(
+      this.beaconClient.slotStartIndexing,
+    );
 
-      // Get epochs to create based on the last epoch
-      const epochsToCreate = this.getEpochsToCreate(
-        unprocessedCount,
-        lastEpoch,
-        epochStartIndexing,
-        EpochController.maxUnprocessedEpochs,
-      );
+    // Get epochs to create based on the last epoch
+    const epochsToCreate = this.getEpochsToCreate(
+      unprocessedCount,
+      lastEpoch,
+      epochStartIndexing,
+      EpochController.maxUnprocessedEpochs,
+    );
 
-      // If there are epochs to create, create them
-      if (epochsToCreate.length > 0) {
-        await this.epochStorage.createEpochs(epochsToCreate);
-      }
-    } catch (error) {
-      // Log error but don't throw to prevent machine from stopping
-      console.error('Error in createEpochsIfNeeded:', error);
+    // If there are epochs to create, create them
+    if (epochsToCreate.length > 0) {
+      await this.epochStorage.createEpochs(epochsToCreate);
     }
   }
 
@@ -175,7 +171,7 @@ export class EpochController extends EpochControllerHelpers {
 
     // Get committees from beacon chain
     const { startSlot, endSlot } = this.beaconTime.getEpochSlots(epoch);
-    const committees = await this.beaconClient.getCommittees(epoch, startSlot);
+    const committees = await this.beaconClient.getCommittees(epoch, 'head');
 
     // Prepare data for storage - will throw if beacon chain didn't return all expected slots
     const { newSlots, newCommittees, committeesCountInSlot } = this.prepareCommitteeData(

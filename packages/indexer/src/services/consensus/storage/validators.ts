@@ -123,54 +123,49 @@ export class ValidatorsStorage {
     validatorBalances: Array<{ index: string; balance: string }>,
     epoch: number,
   ) {
-    try {
-      await this.prisma.$transaction(
-        async (tx) => {
-          // Create temporary table
+    await this.prisma.$transaction(
+      async (tx) => {
+        // Create temporary table
+        await tx.$executeRaw`
+        CREATE TEMPORARY TABLE "TempValidator" (LIKE validator) ON COMMIT DROP
+      `;
+
+        const batches = chunk(validatorBalances, 12_000);
+        for (const batch of batches) {
           await tx.$executeRaw`
-          CREATE TEMPORARY TABLE "TempValidator" (LIKE validator) ON COMMIT DROP
+          INSERT INTO "TempValidator" (id, balance)
+          VALUES ${Prisma.join(
+            batch.map(
+              (data) =>
+                Prisma.sql`(
+                  ${parseInt(data.index)}, 
+                  ${new Decimal(data.balance)}
+                )`,
+            ),
+            ', ',
+          )}
+        `;
+        }
+
+        // Merge data from temporary table to main table
+        await tx.$executeRaw`
+          INSERT INTO validator (id, balance)
+          SELECT id, balance
+          FROM "TempValidator"
+          ON CONFLICT (id) DO UPDATE SET
+            balance = EXCLUDED.balance
         `;
 
-          const batches = chunk(validatorBalances, 12_000);
-          for (const batch of batches) {
-            await tx.$executeRaw`
-            INSERT INTO "TempValidator" (id, balance)
-            VALUES ${Prisma.join(
-              batch.map(
-                (data) =>
-                  Prisma.sql`(
-                    ${parseInt(data.index)}, 
-                    ${new Decimal(data.balance)}
-                  )`,
-              ),
-              ', ',
-            )}
-          `;
-          }
-
-          // Merge data from temporary table to main table
-          await tx.$executeRaw`
-            INSERT INTO validator (id, balance)
-            SELECT id, balance
-            FROM "TempValidator"
-            ON CONFLICT (id) DO UPDATE SET
-              balance = EXCLUDED.balance
-          `;
-
-          // Update the epoch to mark balances as fetched
-          await tx.epoch.update({
-            where: { epoch },
-            data: { validatorsBalancesFetched: true },
-          });
-        },
-        {
-          timeout: ms('1m'),
-        },
-      );
-    } catch (error) {
-      console.error(`Error saving validator balances to database`, error);
-      throw error;
-    }
+        // Update the epoch to mark balances as fetched
+        await tx.epoch.update({
+          where: { epoch },
+          data: { validatorsBalancesFetched: true },
+        });
+      },
+      {
+        timeout: ms('1m'),
+      },
+    );
   }
 
   /**
