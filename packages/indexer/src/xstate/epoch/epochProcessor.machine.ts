@@ -215,7 +215,7 @@ export const epochProcessorMachine = setup({
   },
 }).createMachine({
   id: 'EpochProcessor',
-  initial: 'checkingCanProcess',
+  initial: 'waitingToProcessEpoch',
   context: ({ input }) => {
     const { startSlot, endSlot } = input.services.beaconTime.getEpochSlots(input.epoch);
     return {
@@ -234,30 +234,11 @@ export const epochProcessorMachine = setup({
     };
   },
   states: {
-    checkingCanProcess: {
-      description:
-        'Check if we can start processing the epoch, we can fetch some data one epoch ahead.',
-      entry: [
-        pinoLog(
-          ({ context }) => `Checking if we can process the epoch, ${context.epoch}`,
-          'EpochProcessor',
-        ),
-      ],
-      after: {
-        0: [
-          {
-            guard: 'canProcessEpoch',
-            target: 'epochProcessing',
-          },
-          {
-            target: 'waitingToProcessEpoch',
-          },
-        ],
-      },
-    },
     waitingToProcessEpoch: {
+      description:
+        'Waiting for the epoch to be ready. Uses beaconTime to calculate exact wait time.',
       entry: pinoLog(
-        ({ context }) => `Waiting to be able to process epoch ${context.epoch}`,
+        ({ context }) => `Waiting to process epoch ${context.epoch}`,
         'EpochProcessor',
       ),
       invoke: {
@@ -267,7 +248,7 @@ export const epochProcessorMachine = setup({
           epoch: context.epoch,
         }),
         onDone: {
-          target: 'checkingCanProcess',
+          target: 'epochProcessing',
         },
         onError: {
           actions: pinoLog(

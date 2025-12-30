@@ -114,40 +114,36 @@ export class ValidatorsController {
    * The caller must provide the epoch corresponding to the slot to avoid coupling with time utils.
    */
   async fetchValidatorsBalances(slot: number, epoch: number) {
-    try {
-      const totalValidators = await this.validatorsStorage.getMaxValidatorIndex();
-      if (totalValidators === 0) {
-        return;
-      }
+    const totalValidators = await this.validatorsStorage.getMaxValidatorIndex();
+    if (totalValidators === 0) {
+      return;
+    }
 
-      const finalStateValidatorIndexes = await this.validatorsStorage.getFinalValidatorIndexes();
-      const finalStateValidatorsSet = new Set(finalStateValidatorIndexes);
+    const finalStateValidatorIndexes = await this.validatorsStorage.getFinalValidatorIndexes();
+    const finalStateValidatorsSet = new Set(finalStateValidatorIndexes);
 
-      const allValidatorIndexes = Array.from({ length: totalValidators }, (_, i) => i).filter(
-        (id) => !finalStateValidatorsSet.has(id),
+    const allValidatorIndexes = Array.from({ length: totalValidators }, (_, i) => i).filter(
+      (id) => !finalStateValidatorsSet.has(id),
+    );
+
+    const batchSize = 1_000_000;
+    const batches = chunk(allValidatorIndexes, batchSize);
+    let allValidatorBalances: Array<{ index: string; balance: string }> = [];
+
+    for (const batchIds of batches) {
+      const batchResult = await this.beaconClient.getValidatorsBalances(
+        slot,
+        batchIds.map((id) => String(id)),
       );
 
-      const batchSize = 1_000_000;
-      const batches = chunk(allValidatorIndexes, batchSize);
-      let allValidatorBalances: Array<{ index: string; balance: string }> = [];
+      allValidatorBalances = [...allValidatorBalances, ...batchResult];
 
-      for (const batchIds of batches) {
-        const batchResult = await this.beaconClient.getValidatorsBalances(
-          slot,
-          batchIds.map((id) => String(id)),
-        );
-
-        allValidatorBalances = [...allValidatorBalances, ...batchResult];
-
-        if (batchResult.length < batchSize) {
-          break;
-        }
+      if (batchResult.length < batchSize) {
+        break;
       }
-
-      await this.validatorsStorage.saveValidatorBalances(allValidatorBalances, epoch);
-    } catch (error) {
-      console.error(`Error fetching validator balances info`, error);
     }
+
+    await this.validatorsStorage.saveValidatorBalances(allValidatorBalances, epoch);
   }
 
   /**

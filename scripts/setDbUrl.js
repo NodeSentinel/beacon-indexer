@@ -39,7 +39,6 @@ if (!command) {
 // Execute the command
 const child = spawn(command, args, {
   stdio: 'inherit',
-  shell: true,
   cwd: process.cwd(), // Use current working directory
 });
 

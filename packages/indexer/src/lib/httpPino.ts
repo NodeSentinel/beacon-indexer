@@ -6,6 +6,14 @@ import { AxiosError, AxiosResponse, InternalAxiosRequestConfig } from 'axios';
 // blockchain-specific environment variables.
 import createLogger from '@/src/lib/pino.js';
 
+// Extend Axios config to include metadata for timing and nodeType
+interface ExtendedAxiosRequestConfig extends InternalAxiosRequestConfig {
+  metadata?: {
+    startTime?: number;
+    nodeType?: 'full' | 'archive';
+  };
+}
+
 // Create the HTTP logger using the existing createLogger function with blue color
 const httpLogger = createLogger('HTTP', true, 'blue');
 
@@ -26,30 +34,64 @@ function extractEndpointPath(url: string | undefined): string {
 }
 
 export function logRequest(request: InternalAxiosRequestConfig): InternalAxiosRequestConfig {
-  // Log the request only if LOG_LEVEL is debug
-  const isDebugLevel = process.env.LOG_LEVEL === 'debug';
-
-  if (isDebugLevel) {
-    const endpoint = extractEndpointPath(request.url);
-    httpLogger.info(`${request.method?.toUpperCase()} ${endpoint}`);
-  }
+  // Store timestamp for duration calculation
+  const extendedRequest = request as ExtendedAxiosRequestConfig;
+  extendedRequest.metadata = extendedRequest.metadata || {};
+  extendedRequest.metadata.startTime = Date.now();
 
   return request;
 }
 
 export function logResponse(response: AxiosResponse): AxiosResponse {
-  // Log the response using the custom logger format
+  // Calculate duration
+  const extendedConfig = response.config as ExtendedAxiosRequestConfig | undefined;
+  const startTime = extendedConfig?.metadata?.startTime;
+  const duration = startTime ? Date.now() - startTime : undefined;
+  const durationStr = duration ? `${duration}ms` : undefined;
+  const nodeType = extendedConfig?.metadata?.nodeType;
+
   const isError = response.status >= 400;
   const isDebugLevel = process.env.LOG_LEVEL === 'debug';
   const endpoint = extractEndpointPath(response.config?.url);
-  const message = `${response.status} ${response.config?.method?.toUpperCase()} ${endpoint}`;
+  const statusText = response.statusText || '';
+  const errorMessage = statusText ? ` - ${statusText}` : '';
+  const nodeTypePrefix = nodeType ? `[${nodeType.toUpperCase()}] ` : '';
+  const message = `${nodeTypePrefix}${response.status} ${response.config?.method?.toUpperCase()} ${endpoint}${errorMessage}`;
 
   // Always log errors, or log all responses if LOG_LEVEL is debug
   if (isError || isDebugLevel) {
     if (isError) {
-      httpLogger.error(message, { statusCode: response.status });
+      const logData: {
+        statusCode: number;
+        message?: string;
+        duration?: string;
+        nodeType?: string;
+      } = {
+        statusCode: response.status,
+      };
+      // Include response data message if available
+      if (response.data && typeof response.data === 'object' && 'message' in response.data) {
+        logData.message = String(response.data.message);
+      } else if (statusText) {
+        logData.message = statusText;
+      }
+      if (durationStr) {
+        logData.duration = durationStr;
+      }
+      if (nodeType) {
+        logData.nodeType = nodeType;
+      }
+      httpLogger.error(message, logData);
     } else {
-      httpLogger.info(message);
+      // Success responses only in DEBUG mode
+      const logData: { duration?: string; nodeType?: string } = {};
+      if (durationStr) {
+        logData.duration = durationStr;
+      }
+      if (nodeType) {
+        logData.nodeType = nodeType;
+      }
+      httpLogger.debug(message, Object.keys(logData).length > 0 ? logData : undefined);
     }
   }
 
@@ -57,18 +99,59 @@ export function logResponse(response: AxiosResponse): AxiosResponse {
 }
 
 export function logError(error: AxiosError): Promise<never> {
+  // Calculate duration
+  const extendedConfig = error.config as ExtendedAxiosRequestConfig | undefined;
+  const startTime = extendedConfig?.metadata?.startTime;
+  const duration = startTime ? Date.now() - startTime : undefined;
+  const durationStr = duration ? `${duration}ms` : undefined;
+  const nodeType = extendedConfig?.metadata?.nodeType;
+
   // Log the error with endpoint information
   const endpoint = extractEndpointPath(error.config?.url || error.request?.url);
   const statusCode = error.response?.status;
   const method = error.config?.method?.toUpperCase() || 'UNKNOWN';
+  const statusText = error.response?.statusText || '';
+  const errorMessage = error.message || statusText || '';
+  const nodeTypePrefix = nodeType ? `[${nodeType.toUpperCase()}] ` : '';
   const message = statusCode
-    ? `${statusCode} ${method} ${endpoint}`
-    : `ERROR ${method} ${endpoint}`;
+    ? `${nodeTypePrefix}${statusCode} ${method} ${endpoint} - ${errorMessage}`
+    : `${nodeTypePrefix}ERROR ${method} ${endpoint} - ${errorMessage}`;
 
-  httpLogger.error(message, {
-    statusCode,
+  const logData: {
+    statusCode?: number;
+    error: string;
+    message?: string;
+    duration?: string;
+    nodeType?: string;
+  } = {
     error: error.message,
-  });
+  };
+
+  if (statusCode) {
+    logData.statusCode = statusCode;
+  }
+
+  // Include response data message if available
+  if (error.response?.data) {
+    if (typeof error.response.data === 'object' && 'message' in error.response.data) {
+      logData.message = String(error.response.data.message);
+    } else if (typeof error.response.data === 'string') {
+      logData.message = error.response.data;
+    }
+  } else if (statusText) {
+    logData.message = statusText;
+  }
+
+  if (durationStr) {
+    logData.duration = durationStr;
+  }
+
+  if (nodeType) {
+    logData.nodeType = nodeType;
+  }
+
+  // Always log errors at ERROR level
+  httpLogger.error(message, logData);
 
   return Promise.reject(error);
 }

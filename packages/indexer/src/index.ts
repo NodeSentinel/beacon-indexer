@@ -114,6 +114,7 @@ async function main() {
     baseDelay: ms('1s'),
     slotStartIndexing: env.CONSENSUS_LOOKBACK_SLOT,
     slotsPerEpoch: chainConfig.beacon.slotsPerEpoch,
+    archiveNodeToken: env.CONSENSUS_ARCHIVE_API_TOKEN,
   });
 
   const beaconTime = new BeaconTime({

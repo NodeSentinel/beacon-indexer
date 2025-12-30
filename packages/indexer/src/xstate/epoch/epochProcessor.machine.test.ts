@@ -164,6 +164,17 @@ function createProcessorMachineDefaultInput(
   };
 }
 
+/**
+ * Wait for XState to process transitions by allowing multiple event loop ticks
+ * This is needed because XState requires multiple microtask ticks to process transitions
+ */
+async function waitForXStateTransitions() {
+  // Allow XState to process transitions by giving multiple event loop ticks
+  await Promise.resolve();
+  await Promise.resolve();
+  await Promise.resolve();
+}
+
 // ============================================================================
 // Tests
 // ============================================================================
@@ -179,8 +190,8 @@ describe('epochProcessorMachine', () => {
     vi.clearAllTimers();
   });
 
-  describe('checkingCanProcess', () => {
-    test('cannot process epoch (too early), should go to waiting and retry', async () => {
+  describe('waitingToProcessEpoch', () => {
+    test('cannot process epoch (too early), should wait until ready', async () => {
       const { actor, stateTransitions, subscription } = createAndStartActor(
         epochProcessorMachine,
         createProcessorMachineDefaultInput(100),
@@ -189,20 +200,22 @@ describe('epochProcessorMachine', () => {
         },
       );
 
-      // Initial state should be checkingCanProcess
-      expect(stateTransitions[0]).toBe('checkingCanProcess');
+      // Initial state should be waitingToProcessEpoch
+      expect(stateTransitions[0]).toBe('waitingToProcessEpoch');
 
-      // After timers run, we should move to waitingToProcessEpoch
+      // After timers run, should still be waiting (invoke will wait)
       vi.runOnlyPendingTimers();
+      // Single tick to allow XState to process, but not enough for invoke to complete
       await Promise.resolve();
 
-      expect(stateTransitions[1]).toBe('waitingToProcessEpoch');
+      // Should still be in waitingToProcessEpoch (waiting for timeout)
+      expect(stateTransitions[stateTransitions.length - 1]).toBe('waitingToProcessEpoch');
 
       actor.stop();
       subscription.unsubscribe();
     });
 
-    test('can process next epoch (1 epoch in advance), should go to epochProcessing', async () => {
+    test('can process next epoch (1 epoch in advance), should go directly to epochProcessing', async () => {
       // Current epoch is 100, we want to process epoch 101 (one epoch ahead)
       vi.setSystemTime(new Date(EPOCH_100_START_TIME + SLOT_DURATION));
 
@@ -211,15 +224,17 @@ describe('epochProcessorMachine', () => {
         createProcessorMachineDefaultInput(101),
       );
 
-      // Initial snapshot should be checkingCanProcess
-      expect(stateTransitions[0]).toBe('checkingCanProcess');
+      // Initial snapshot should be waitingToProcessEpoch
+      expect(stateTransitions[0]).toBe('waitingToProcessEpoch');
 
+      // Wait for the invoke to resolve (it resolves immediately if slot already passed)
       vi.runOnlyPendingTimers();
-      await Promise.resolve();
+      await waitForXStateTransitions();
 
-      // Next snapshot should be epochProcessing
-      expect(typeof stateTransitions[1]).toBe('object');
-      expect(stateTransitions[1]).toHaveProperty('epochProcessing');
+      // Next snapshot should be epochProcessing (invoke resolves immediately if already ready)
+      expect(stateTransitions.length).toBeGreaterThan(1);
+      expect(typeof stateTransitions[stateTransitions.length - 1]).toBe('object');
+      expect(stateTransitions[stateTransitions.length - 1]).toHaveProperty('epochProcessing');
 
       actor.stop();
       subscription.unsubscribe();
@@ -527,8 +542,9 @@ describe('epochProcessorMachine', () => {
           createProcessorMachineDefaultInput(100),
         );
 
+        // Wait for the machine to transition to epochProcessing
         vi.runOnlyPendingTimers();
-        await Promise.resolve();
+        await waitForXStateTransitions();
 
         // Should be waiting for epoch start
         const lastState = getLastState(stateTransitions);
@@ -591,8 +607,9 @@ describe('epochProcessorMachine', () => {
           createProcessorMachineDefaultInput(100),
         );
 
+        // Wait for the machine to transition to epochProcessing
         vi.runOnlyPendingTimers();
-        await Promise.resolve();
+        await waitForXStateTransitions();
 
         // Should be waiting for epoch start
         const lastState = getLastState(stateTransitions);

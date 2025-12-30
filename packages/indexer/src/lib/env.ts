@@ -26,6 +26,17 @@ export const env = createEnv({
     // Blockchain - Consensus layer
     CONSENSUS_LOOKBACK_SLOT: z.preprocess((val) => Number(val), z.number().int().min(0)),
     CONSENSUS_ARCHIVE_API_URL: z.string().url(),
+    CONSENSUS_ARCHIVE_API_TOKEN: z
+      .string()
+      .optional()
+      .transform((val) => {
+        if (!val) return undefined;
+        const parts = val.split(':').map((s) => s.trim());
+        if (parts.length !== 2 || !parts[0] || !parts[1]) {
+          throw new Error('CONSENSUS_ARCHIVE_API_TOKEN must be in format "key: value"');
+        }
+        return { key: parts[0], value: parts[1] };
+      }),
     CONSENSUS_FULL_API_URL: z.string().url(),
     CONSENSUS_API_REQUEST_PER_SECOND: z.preprocess(
       (val) => Number(val),

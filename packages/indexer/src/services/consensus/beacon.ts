@@ -1,4 +1,4 @@
-import axios, { AxiosError, AxiosInstance } from 'axios';
+import axios, { AxiosError, AxiosInstance, InternalAxiosRequestConfig } from 'axios';
 
 import { logError, logRequest, logResponse } from '@/src/lib/httpPino.js';
 import {
@@ -17,6 +17,14 @@ import { getEpochSlots } from '@/src/services/consensus/utils/misc.js';
 import { ReliableRequestClient } from '@/src/services/consensus/utils/reliableRequestClient.js';
 import { getSlotNumberFromTimestamp } from '@/src/services/consensus/utils/time.deprecated.js';
 
+// Extend Axios config to include metadata for nodeType
+interface ExtendedAxiosRequestConfig extends InternalAxiosRequestConfig {
+  metadata?: {
+    startTime?: number;
+    nodeType?: 'full' | 'archive';
+  };
+}
+
 /**
  * Configuration interface for BeaconClient
  */
@@ -30,6 +38,7 @@ export interface BeaconClientConfig {
   baseDelay: number;
   slotStartIndexing: number;
   slotsPerEpoch: number;
+  archiveNodeToken?: { key: string; value: string };
 }
 
 /**
@@ -40,6 +49,7 @@ export class BeaconClient extends ReliableRequestClient {
   private readonly axiosInstance: AxiosInstance;
   public readonly slotStartIndexing: number;
   public readonly slotsPerEpoch: number;
+  private readonly archiveNodeToken?: { key: string; value: string };
 
   constructor(config: BeaconClientConfig) {
     super({
@@ -54,8 +64,37 @@ export class BeaconClient extends ReliableRequestClient {
 
     this.slotStartIndexing = config.slotStartIndexing;
     this.slotsPerEpoch = config.slotsPerEpoch;
+    this.archiveNodeToken = config.archiveNodeToken;
     this.axiosInstance = axios.create();
-    this.axiosInstance.interceptors.request.use(logRequest);
+
+    // Add header interceptor for archive node requests and nodeType metadata
+    this.axiosInstance.interceptors.request.use((config) => {
+      logRequest(config);
+
+      // Determine node type based on URL
+      const url = config.url || '';
+      let nodeType: 'full' | 'archive';
+      if (url.startsWith(this.archiveNodeUrl)) {
+        nodeType = 'archive';
+      } else if (url.startsWith(this.fullNodeUrl)) {
+        nodeType = 'full';
+      } else {
+        throw new Error(`Unable to determine node type for URL: ${url}`);
+      }
+
+      // Add nodeType to metadata for logging
+      const extendedConfig = config as ExtendedAxiosRequestConfig;
+      extendedConfig.metadata = extendedConfig.metadata || {};
+      extendedConfig.metadata.nodeType = nodeType;
+
+      // Add token header only if token is provided and this is an archive node request
+      if (this.archiveNodeToken && nodeType === 'archive') {
+        config.headers[this.archiveNodeToken.key] = this.archiveNodeToken.value;
+      }
+
+      return config;
+    });
+
     this.axiosInstance.interceptors.response.use(logResponse, logError);
   }
 
@@ -219,16 +258,13 @@ export class BeaconClient extends ReliableRequestClient {
     epoch: number,
     validatorIndexes: number[],
   ): Promise<AttestationRewards> {
-    return this.makeReliableRequest(
-      async (url) => {
-        const res = await this.axiosInstance.post<AttestationRewards>(
-          `${url}/eth/v1/beacon/rewards/attestations/${epoch}`,
-          validatorIndexes.map((id) => id.toString()),
-        );
-        return res.data;
-      },
-      this.isIndexerDelayed({ value: epoch, type: 'epoch' }) ? 'archive' : 'full',
-    );
+    return this.makeReliableRequest(async (url) => {
+      const res = await this.axiosInstance.post<AttestationRewards>(
+        `${url}/eth/v1/beacon/rewards/attestations/${epoch}`,
+        validatorIndexes.map((id) => id.toString()),
+      );
+      return res.data;
+    }, 'archive');
   }
 
   async getValidatorProposerDuties(epoch: number): Promise<ValidatorProposerDuties['data']> {
@@ -262,8 +298,8 @@ export class BeaconClient extends ReliableRequestClient {
   getSyncCommitteeRewards = async (
     slot: number,
     validatorIndexes: string[],
-  ): Promise<SyncCommitteeRewards | 'SLOT MISSED'> => {
-    return this.makeReliableRequest<SyncCommitteeRewards | 'SLOT MISSED'>(
+  ): Promise<SyncCommitteeRewards> => {
+    return this.makeReliableRequest<SyncCommitteeRewards>(
       async (url) => {
         const res = await this.axiosInstance.post<SyncCommitteeRewards>(
           `${url}/eth/v1/beacon/rewards/sync_committee/${slot}`,
@@ -272,7 +308,6 @@ export class BeaconClient extends ReliableRequestClient {
         return res.data;
       },
       this.isIndexerDelayed({ value: slot, type: 'slot' }) ? 'archive' : 'full',
-      (error) => this.handleSlotError(error),
     );
   };
 }

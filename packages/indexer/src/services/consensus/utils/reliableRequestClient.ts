@@ -3,6 +3,10 @@ import ms from 'ms';
 import pLimit from 'p-limit';
 import pRetry from 'p-retry';
 
+import createLogger from '@/src/lib/pino.js';
+
+const retryLogger = createLogger('ReliableRequest');
+
 /**
  * Extract endpoint path from a full URL or AxiosError
  * Returns just the path and query string, without the base URL
@@ -126,9 +130,14 @@ export abstract class ReliableRequestClient {
             const errorMessage = error instanceof Error ? error.message : String(error);
             const statusCode = error instanceof AxiosError ? error.response?.status : undefined;
 
-            console.log(
-              `Failed attempt ${attemptNumber} for ${endpoint}. Error: ${errorMessage}${statusCode ? ` (${statusCode})` : ''}`,
-            );
+            // Only log retries in DEBUG mode
+            const isDebugLevel = process.env.LOG_LEVEL === 'debug';
+            if (isDebugLevel) {
+              retryLogger.debug(`Failed attempt ${attemptNumber} for ${endpoint}`, {
+                error: errorMessage,
+                statusCode,
+              });
+            }
             const delay = this.calculateBackoffDelay(attemptNumber);
             await new Promise((resolve) => setTimeout(resolve, delay));
           },
