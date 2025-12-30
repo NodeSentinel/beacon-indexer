@@ -164,6 +164,17 @@ function createProcessorMachineDefaultInput(
   };
 }
 
+/**
+ * Wait for XState to process transitions by allowing multiple event loop ticks
+ * This is needed because XState requires multiple microtask ticks to process transitions
+ */
+async function waitForXStateTransitions() {
+  // Allow XState to process transitions by giving multiple event loop ticks
+  await Promise.resolve();
+  await Promise.resolve();
+  await Promise.resolve();
+}
+
 // ============================================================================
 // Tests
 // ============================================================================
@@ -194,6 +205,7 @@ describe('epochProcessorMachine', () => {
 
       // After timers run, should still be waiting (invoke will wait)
       vi.runOnlyPendingTimers();
+      // Single tick to allow XState to process, but not enough for invoke to complete
       await Promise.resolve();
 
       // Should still be in waitingToProcessEpoch (waiting for timeout)
@@ -215,12 +227,14 @@ describe('epochProcessorMachine', () => {
       // Initial snapshot should be waitingToProcessEpoch
       expect(stateTransitions[0]).toBe('waitingToProcessEpoch');
 
+      // Wait for the invoke to resolve (it resolves immediately if slot already passed)
       vi.runOnlyPendingTimers();
-      await Promise.resolve();
+      await waitForXStateTransitions();
 
       // Next snapshot should be epochProcessing (invoke resolves immediately if already ready)
-      expect(typeof stateTransitions[1]).toBe('object');
-      expect(stateTransitions[1]).toHaveProperty('epochProcessing');
+      expect(stateTransitions.length).toBeGreaterThan(1);
+      expect(typeof stateTransitions[stateTransitions.length - 1]).toBe('object');
+      expect(stateTransitions[stateTransitions.length - 1]).toHaveProperty('epochProcessing');
 
       actor.stop();
       subscription.unsubscribe();
@@ -528,8 +542,9 @@ describe('epochProcessorMachine', () => {
           createProcessorMachineDefaultInput(100),
         );
 
+        // Wait for the machine to transition to epochProcessing
         vi.runOnlyPendingTimers();
-        await Promise.resolve();
+        await waitForXStateTransitions();
 
         // Should be waiting for epoch start
         const lastState = getLastState(stateTransitions);
@@ -592,8 +607,9 @@ describe('epochProcessorMachine', () => {
           createProcessorMachineDefaultInput(100),
         );
 
+        // Wait for the machine to transition to epochProcessing
         vi.runOnlyPendingTimers();
-        await Promise.resolve();
+        await waitForXStateTransitions();
 
         // Should be waiting for epoch start
         const lastState = getLastState(stateTransitions);
