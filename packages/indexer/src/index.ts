@@ -127,7 +127,11 @@ async function main() {
   });
 
   const validatorsStorage = new ValidatorsStorage(prisma, databaseUrl);
-  const validatorsController = new ValidatorsController(beaconClient, validatorsStorage);
+  const validatorsController = new ValidatorsController(
+    beaconClient,
+    validatorsStorage,
+    beaconTime,
+  );
 
   const epochStorage = new EpochStorage(prisma, databaseUrl);
   const slotStorage = new SlotStorage(prisma);
@@ -163,7 +167,7 @@ async function main() {
   const partitionController = new PartitionController(partitionStorage, beaconTime);
 
   // Start indexing the beacon chain
-  await validatorsController.initValidators();
+  await validatorsController.initValidatorsWithWait(env.CONSENSUS_LOOKBACK_SLOT);
 
   await initXstateMachines(
     epochController,
