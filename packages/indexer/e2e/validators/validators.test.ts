@@ -33,7 +33,7 @@ describe('Validators E2E Tests', () => {
     });
 
     // Initialize storage and controller
-    validatorsStorage = new ValidatorsStorage(prisma);
+    validatorsStorage = new ValidatorsStorage(prisma, process.env.DATABASE_URL!);
 
     // Mock BeaconClient
     mockBeaconClient = {
@@ -50,6 +50,7 @@ describe('Validators E2E Tests', () => {
   });
 
   afterAll(async () => {
+    await ValidatorsStorage.closePgPool();
     await prisma.$disconnect();
   });
 

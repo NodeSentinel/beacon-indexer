@@ -82,8 +82,8 @@ describe('Epoch Processor E2E Tests', () => {
       },
     });
 
-    validatorsStorage = new ValidatorsStorage(prisma);
-    epochStorage = new EpochStorage(prisma, validatorsStorage);
+    validatorsStorage = new ValidatorsStorage(prisma, process.env.DATABASE_URL!);
+    epochStorage = new EpochStorage(prisma, process.env.DATABASE_URL!);
 
     epochController = new EpochController(
       { slotStartIndexing: 32000 } as BeaconClient,
@@ -102,6 +102,8 @@ describe('Epoch Processor E2E Tests', () => {
   });
 
   afterAll(async () => {
+    await EpochStorage.closePgPool();
+    await ValidatorsStorage.closePgPool();
     await prisma.$disconnect();
   });
 
