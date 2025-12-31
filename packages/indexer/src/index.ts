@@ -129,7 +129,7 @@ async function main() {
   const validatorsStorage = new ValidatorsStorage(prisma);
   const validatorsController = new ValidatorsController(beaconClient, validatorsStorage);
 
-  const epochStorage = new EpochStorage(prisma, validatorsStorage);
+  const epochStorage = new EpochStorage(prisma);
   const slotStorage = new SlotStorage(prisma);
   const epochController = new EpochController(
     beaconClient,

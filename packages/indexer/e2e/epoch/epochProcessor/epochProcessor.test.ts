@@ -83,7 +83,7 @@ describe('Epoch Processor E2E Tests', () => {
     });
 
     validatorsStorage = new ValidatorsStorage(prisma);
-    epochStorage = new EpochStorage(prisma, validatorsStorage);
+    epochStorage = new EpochStorage(prisma);
 
     epochController = new EpochController(
       { slotStartIndexing: 32000 } as BeaconClient,

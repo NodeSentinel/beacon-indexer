@@ -1,8 +1,13 @@
+import { Readable } from 'stream';
+
 import { PrismaClient, Committee, Prisma } from '@beacon-indexer/db';
 import chunk from 'lodash/chunk.js';
 import ms from 'ms';
+import { Pool } from 'pg';
+// @ts-expect-error - pg-copy-streams doesn't have type definitions
+import { from as copyFrom } from 'pg-copy-streams';
 
-import { ValidatorsStorage } from './validators.js';
+import { env } from '@/src/lib/env.js';
 
 /**
  * EpochStorage - Database persistence layer for epoch-related operations
@@ -19,10 +24,24 @@ import { ValidatorsStorage } from './validators.js';
  * - rewardsAggregated flag is no longer needed
  */
 export class EpochStorage {
-  constructor(
-    private readonly prisma: PrismaClient,
-    private readonly validatorsStorage: ValidatorsStorage,
-  ) {}
+  private static pgPool: Pool | null = null;
+
+  constructor(private readonly prisma: PrismaClient) {}
+
+  /**
+   * Get or create PostgreSQL connection pool for COPY operations
+   * Uses a static pool that can be shared across instances
+   * The pool manages multiple connections automatically for concurrent operations
+   */
+  private static getPgPool(): Pool {
+    if (!EpochStorage.pgPool) {
+      EpochStorage.pgPool = new Pool({
+        connectionString: env.DATABASE_URL,
+        max: 10, // Allow up to 10 concurrent connections
+      });
+    }
+    return EpochStorage.pgPool;
+  }
 
   private validateConsecutiveEpochs(epochs: number[]) {
     if (epochs.length === 0) {
@@ -140,6 +159,7 @@ export class EpochStorage {
 
   /**
    * Process epoch rewards and store them in the database in a single atomic transaction.
+   * Uses COPY FROM STDIN for maximum performance when inserting large amounts of data.
    *
    * @param epoch - The epoch number to process
    * @param processedRewards - Array of pre-processed reward data ready for storage
@@ -158,58 +178,69 @@ export class EpochStorage {
       missedInactivity: bigint;
     }>,
   ) {
-    await this.prisma.$transaction(
-      async (tx) => {
-        // Create temporary table using epoch_rewards as template
-        // This ensures the structure is always in sync with the main table
-        // No indexes or constraints are copied, which improves performance
-        // UNLOGGED to avoid WAL generation for temporary data
-        await tx.$executeRaw`
-          CREATE UNLOGGED TEMPORARY TABLE tmp_epoch_rewards (LIKE epoch_rewards) ON COMMIT DROP;
-        `;
+    const pool = EpochStorage.getPgPool();
+    const client = await pool.connect();
 
-        // Bulk insert into temporary table using VALUES in batches
-        // PostgreSQL limit: 32,767 bind variables per prepared statement
-        // With 10 columns per row, max batch size = 32,767 / 10 ≈ 3,200 rows
-        // Using 5,000 rows per batch for better performance (using executeRawUnsafe)
-        const batchSize = 5_000;
-        const batches = chunk(processedRewards, batchSize);
-        for (const batch of batches) {
-          const valuesClause = batch
-            .map(
-              (r) =>
-                `(${epoch}, ${r.validatorIndex}, ${r.head.toString()}, ${r.target.toString()}, ${r.source.toString()}, ${r.inactivity.toString()}, ${r.missedHead.toString()}, ${r.missedTarget.toString()}, ${r.missedSource.toString()}, ${r.missedInactivity.toString()})`,
-            )
-            .join(',');
+    try {
+      await client.query('BEGIN');
 
-          await tx.$executeRawUnsafe(`
-            INSERT INTO tmp_epoch_rewards 
-              (epoch, validator_index, head, target, source, inactivity, missed_head, missed_target, missed_source, missed_inactivity)
-            VALUES ${valuesClause}
-          `);
-        }
+      // Create temporary table using epoch_rewards as template
+      // This ensures the structure is always in sync with the main table
+      // No indexes or constraints are copied, which improves performance
 
-        // Merge from temporary table to main table
-        // If duplicates exist, PostgreSQL will throw a constraint violation error
-        // This is the desired behavior - duplicates should not exist
-        await tx.$executeRaw`
-          INSERT INTO epoch_rewards 
-            (epoch, validator_index, head, target, source, inactivity, missed_head, missed_target, missed_source, missed_inactivity)
-          SELECT 
-            epoch, validator_index, head, target, source, inactivity, missed_head, missed_target, missed_source, missed_inactivity
-          FROM tmp_epoch_rewards
-        `;
+      // Why use a temporary table instead of COPY directly to epoch_rewards?
+      // - COPY to temp table generates NO WAL (much faster, no checkpoint triggers)
+      // - Only the final INSERT SELECT generates WAL (just the final data)
+      // - This significantly reduces WAL generation and checkpoint frequency
+      // - The overhead of INSERT SELECT is minimal compared to WAL reduction benefits
+      await client.query(`
+        CREATE TEMPORARY TABLE tmp_epoch_rewards (LIKE epoch_rewards) ON COMMIT DROP;
+      `);
 
-        // Mark epoch as rewardsFetched = true
-        await tx.epoch.update({
-          where: { epoch },
-          data: { rewardsFetched: true },
-        });
-      },
-      {
-        timeout: ms('4m'),
-      },
-    );
+      // Use COPY FROM STDIN for maximum performance
+      // This is significantly faster than INSERT VALUES for large datasets
+      const copyStream = client.query(
+        copyFrom(`
+          COPY tmp_epoch_rewards (epoch, validator_index, head, target, source, inactivity, missed_head, missed_target, missed_source, missed_inactivity)
+          FROM STDIN WITH (FORMAT csv)
+        `),
+      );
+
+      // Convert data to CSV format and stream to COPY
+      const csvRows = processedRewards.map(
+        (r) =>
+          `${epoch},${r.validatorIndex},${r.head},${r.target},${r.source},${r.inactivity},${r.missedHead},${r.missedTarget},${r.missedSource},${r.missedInactivity}`,
+      );
+
+      const csvData = csvRows.join('\n');
+      const readable = Readable.from(csvData);
+
+      // Pipe CSV data to COPY stream
+      await new Promise<void>((resolve, reject) => {
+        readable.pipe(copyStream).on('finish', resolve).on('error', reject);
+      });
+
+      // Merge from temporary table to main table
+      // If duplicates exist, PostgreSQL will throw a constraint violation error
+      // This is the desired behavior - duplicates should not exist
+      await client.query(`
+        INSERT INTO epoch_rewards 
+          (epoch, validator_index, head, target, source, inactivity, missed_head, missed_target, missed_source, missed_inactivity)
+        SELECT 
+          epoch, validator_index, head, target, source, inactivity, missed_head, missed_target, missed_source, missed_inactivity
+        FROM tmp_epoch_rewards
+      `);
+
+      // Mark epoch as rewardsFetched = true
+      await client.query('UPDATE epoch SET rewards_fetched = true WHERE epoch = $1', [epoch]);
+
+      await client.query('COMMIT');
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
   }
 
   async saveValidatorProposerDuties(
@@ -235,6 +266,7 @@ export class EpochStorage {
 
   /**
    * Save committees and update slots with committee counts
+   * Uses COPY FROM STDIN for maximum performance when inserting large amounts of data.
    */
   async saveCommitteesData(
     epoch: number,
@@ -242,72 +274,77 @@ export class EpochStorage {
     committees: Committee[],
     committeesCountInSlot: Map<number, number[]>,
   ) {
-    await this.prisma.$transaction(
-      async (tx) => {
-        await tx.$executeRaw`
-          INSERT INTO "slot" (slot, processed, "committees_count_in_slot")
-          SELECT 
-            unnest(${slots}::integer[]), 
-            false,
-            unnest(${slots.map((slot) => JSON.stringify(committeesCountInSlot.get(slot) || []))}::jsonb[])
-          ON CONFLICT (slot) DO UPDATE SET
-            "committees_count_in_slot" = EXCLUDED."committees_count_in_slot"
-        `;
+    const pool = EpochStorage.getPgPool();
+    const client = await pool.connect();
 
-        // Insert committees using temporary table for better performance
-        // UNLOGGED to avoid WAL generation for temporary data
-        await tx.$executeRaw`
-          CREATE UNLOGGED TEMPORARY TABLE tmp_committee (LIKE "committee") ON COMMIT DROP;
-        `;
+    try {
+      await client.query('BEGIN');
 
-        // PostgreSQL limit: 32,767 bind variables per prepared statement
-        // With 5 columns per row, max batch size = 32,767 / 5 ≈ 6,500 rows
-        const batchSize = 6_000;
-        const batches = chunk(committees, batchSize);
-        for (const batch of batches) {
-          await tx.$executeRaw`
-            INSERT INTO tmp_committee (slot, index, "aggregation_bits_index", "validator_index", "attestation_delay")
-            VALUES ${Prisma.join(
-              batch.map(
-                (c) =>
-                  Prisma.sql`(${c.slot}, ${c.index}, ${c.aggregationBitsIndex}, ${c.validatorIndex}, ${c.attestationDelay})`,
-              ),
-            )}
-          `;
-        }
+      // Update slots with committee counts
+      const slotsArray = slots;
+      const committeesCountArray = slots.map((slot) =>
+        JSON.stringify(committeesCountInSlot.get(slot) || []),
+      );
+      await client.query(
+        `
+        INSERT INTO "slot" (slot, processed, "committees_count_in_slot")
+        SELECT 
+          unnest($1::integer[]), 
+          false,
+          unnest($2::jsonb[])
+        ON CONFLICT (slot) DO UPDATE SET
+          "committees_count_in_slot" = EXCLUDED."committees_count_in_slot"
+      `,
+        [slotsArray, committeesCountArray],
+      );
 
-        // Copy all data from temporary table to Committee table in one operation
-        await tx.$executeRaw`
-          INSERT INTO "committee" (slot, index, "aggregation_bits_index", "validator_index", "attestation_delay")
-          SELECT slot, index, "aggregation_bits_index", "validator_index", "attestation_delay"
-          FROM tmp_committee;
-        `;
+      // Insert committees using temporary table for better performance
+      await client.query(`
+        CREATE TEMPORARY TABLE tmp_committee (LIKE "committee") ON COMMIT DROP;
+      `);
 
-        // Create a VALUES clause with slot-timestamp mappings for the SQL query
-        // const slotTimestampValues = slots
-        //   .map((slot) => {
-        //     const timestamp = slotTimestamps.get(slot);
-        //     if (!timestamp) {
-        //       throw new Error(`Missing timestamp for slot ${slot}`);
-        //     }
-        //     return `(${slot}, '${timestamp.toISOString()}'::timestamp)`;
-        //   })
-        //   .join(',');
+      // Use COPY FROM STDIN for maximum performance
+      // This is significantly faster than INSERT VALUES for large datasets
+      // Using NULL '' to specify empty string as NULL representation
+      const copyStream = client.query(
+        copyFrom(`
+          COPY tmp_committee (slot, index, aggregation_bits_index, validator_index, attestation_delay)
+          FROM STDIN WITH (FORMAT csv, NULL '')
+        `),
+      );
 
-        // Note: slots information is now stored in Committee table
-        // The slot field already exists in Committee, so no additional storage needed
-        // This was previously storing in hourly_validator_data which no longer exists
+      // Convert data to CSV format and stream to COPY
+      // Using empty string for NULL values (specified in COPY command above)
+      const csvRows = committees.map((c) => {
+        const delay = c.attestationDelay === null ? '' : c.attestationDelay;
+        return `${c.slot},${c.index},${c.aggregationBitsIndex},${c.validatorIndex},${delay}`;
+      });
 
-        // Update epoch status
-        await tx.epoch.update({
-          where: { epoch },
-          data: { committeesFetched: true },
-        });
-      },
-      {
-        timeout: ms('5m'),
-      },
-    );
+      const csvData = csvRows.join('\n');
+      const readable = Readable.from(csvData);
+
+      // Pipe CSV data to COPY stream
+      await new Promise<void>((resolve, reject) => {
+        readable.pipe(copyStream).on('finish', resolve).on('error', reject);
+      });
+
+      // Copy all data from temporary table to Committee table in one operation
+      await client.query(`
+        INSERT INTO "committee" (slot, index, "aggregation_bits_index", "validator_index", "attestation_delay")
+        SELECT slot, index, "aggregation_bits_index", "validator_index", "attestation_delay"
+        FROM tmp_committee;
+      `);
+
+      // Update epoch status
+      await client.query('UPDATE epoch SET committees_fetched = true WHERE epoch = $1', [epoch]);
+
+      await client.query('COMMIT');
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
   }
 
   /**

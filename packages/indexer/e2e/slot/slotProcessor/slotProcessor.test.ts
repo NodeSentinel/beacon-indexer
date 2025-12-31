@@ -490,7 +490,7 @@ describe('Slot Processor E2E Tests', () => {
       };
 
       // Create epoch storage
-      epochStorage = new EpochStorage(prisma, validatorsStorage);
+      epochStorage = new EpochStorage(prisma);
 
       // Create beacon time with lookbackSlot set to 24672000
       const beaconTimeWithLookback = new BeaconTime({

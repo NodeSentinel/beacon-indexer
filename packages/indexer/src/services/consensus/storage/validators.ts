@@ -1,11 +1,34 @@
+import { Readable } from 'stream';
+
 import { PrismaClient, Validator, Decimal, Prisma } from '@beacon-indexer/db';
 import chunk from 'lodash/chunk.js';
 import ms from 'ms';
+import { Pool } from 'pg';
+// @ts-expect-error - pg-copy-streams doesn't have type definitions
+import { from as copyFrom } from 'pg-copy-streams';
 
+import { env } from '@/src/lib/env.js';
 import { VALIDATOR_STATUS } from '@/src/services/consensus/constants.js';
 
 export class ValidatorsStorage {
+  private static pgPool: Pool | null = null;
+
   constructor(private readonly prisma: PrismaClient) {}
+
+  /**
+   * Get or create PostgreSQL connection pool for COPY operations
+   * Uses a static pool that can be shared across instances
+   * The pool manages multiple connections automatically for concurrent operations
+   */
+  private static getPgPool(): Pool {
+    if (!ValidatorsStorage.pgPool) {
+      ValidatorsStorage.pgPool = new Pool({
+        connectionString: env.DATABASE_URL,
+        max: 10, // Allow up to 10 concurrent connections
+      });
+    }
+    return ValidatorsStorage.pgPool;
+  }
 
   async getValidatorsCount() {
     return this.prisma.validator.count();
@@ -118,55 +141,69 @@ export class ValidatorsStorage {
 
   /**
    * Save validator balances to database
+   * Uses COPY FROM STDIN for maximum performance when inserting large amounts of data.
    */
   async saveValidatorBalances(
     validatorBalances: Array<{ index: string; balance: string }>,
     epoch: number,
   ) {
-    await this.prisma.$transaction(
-      async (tx) => {
-        // Create temporary table
-        // UNLOGGED to avoid WAL generation for temporary data
-        await tx.$executeRaw`
-        CREATE UNLOGGED TEMPORARY TABLE tmp_validator (LIKE validator) ON COMMIT DROP
-      `;
+    const pool = ValidatorsStorage.getPgPool();
+    const client = await pool.connect();
 
-        const batches = chunk(validatorBalances, 12_000);
-        for (const batch of batches) {
-          await tx.$executeRaw`
-          INSERT INTO tmp_validator (id, balance)
-          VALUES ${Prisma.join(
-            batch.map(
-              (data) =>
-                Prisma.sql`(
-                  ${parseInt(data.index)}, 
-                  ${new Decimal(data.balance)}
-                )`,
-            ),
-            ', ',
-          )}
-        `;
-        }
+    try {
+      await client.query('BEGIN');
 
-        // Merge data from temporary table to main table
-        await tx.$executeRaw`
-          INSERT INTO validator (id, balance)
-          SELECT id, balance
-          FROM tmp_validator
-          ON CONFLICT (id) DO UPDATE SET
-            balance = EXCLUDED.balance
-        `;
+      // Create temporary table
+      // UNLOGGED to avoid WAL generation for temporary data
+      await client.query(`
+        CREATE UNLOGGED TEMPORARY TABLE tmp_validator (LIKE validator) ON COMMIT DROP;
+      `);
 
-        // Update the epoch to mark balances as fetched
-        await tx.epoch.update({
-          where: { epoch },
-          data: { validatorsBalancesFetched: true },
-        });
-      },
-      {
-        timeout: ms('1m'),
-      },
-    );
+      // Use COPY FROM STDIN for maximum performance
+      // This is significantly faster than INSERT VALUES for large datasets
+      const copyStream = client.query(
+        copyFrom(`
+          COPY tmp_validator (id, balance)
+          FROM STDIN WITH (FORMAT csv)
+        `),
+      );
+
+      // Convert data to CSV format and stream to COPY
+      const csvRows = validatorBalances.map((data) => {
+        const id = parseInt(data.index);
+        const balance = data.balance;
+        return `${id},${balance}`;
+      });
+
+      const csvData = csvRows.join('\n');
+      const readable = Readable.from(csvData);
+
+      // Pipe CSV data to COPY stream
+      await new Promise<void>((resolve, reject) => {
+        readable.pipe(copyStream).on('finish', resolve).on('error', reject);
+      });
+
+      // Merge data from temporary table to main table
+      await client.query(`
+        INSERT INTO validator (id, balance)
+        SELECT id, balance
+        FROM tmp_validator
+        ON CONFLICT (id) DO UPDATE SET
+          balance = EXCLUDED.balance
+      `);
+
+      // Update the epoch to mark balances as fetched
+      await client.query('UPDATE epoch SET validators_balances_fetched = true WHERE epoch = $1', [
+        epoch,
+      ]);
+
+      await client.query('COMMIT');
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
   }
 
   /**

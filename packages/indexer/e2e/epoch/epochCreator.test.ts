@@ -31,7 +31,7 @@ describe('Epoch Creation E2E Tests', () => {
 
     // Initialize storage and controller
     validatorsStorage = new ValidatorsStorage(prisma);
-    epochStorage = new EpochStorage(prisma, validatorsStorage);
+    epochStorage = new EpochStorage(prisma);
 
     // Create EpochController with mocked BeaconClient
     epochController = new EpochController(
