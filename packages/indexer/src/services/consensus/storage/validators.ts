@@ -170,9 +170,8 @@ export class ValidatorsStorage {
       await client.query('BEGIN');
 
       // Create temporary table
-      // UNLOGGED to avoid WAL generation for temporary data
       await client.query(`
-        CREATE UNLOGGED TEMPORARY TABLE tmp_validator (LIKE validator) ON COMMIT DROP;
+        CREATE TEMPORARY TABLE tmp_validator (LIKE validator) ON COMMIT DROP;
       `);
 
       // Use COPY FROM STDIN for maximum performance
