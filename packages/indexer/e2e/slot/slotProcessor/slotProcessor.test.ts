@@ -49,7 +49,7 @@ describe('Slot Processor E2E Tests', () => {
       },
     });
 
-    validatorsStorage = new ValidatorsStorage(prisma);
+    validatorsStorage = new ValidatorsStorage(prisma, process.env.DATABASE_URL!);
     slotStorage = new SlotStorage(prisma);
     beaconTime = new BeaconTime({
       genesisTimestamp: gnosisConfig.beacon.genesisTimestamp,
@@ -69,6 +69,8 @@ describe('Slot Processor E2E Tests', () => {
   });
 
   afterAll(async () => {
+    await EpochStorage.closePgPool();
+    await ValidatorsStorage.closePgPool();
     await prisma.$disconnect();
   });
 
@@ -490,7 +492,7 @@ describe('Slot Processor E2E Tests', () => {
       };
 
       // Create epoch storage
-      epochStorage = new EpochStorage(prisma);
+      epochStorage = new EpochStorage(prisma, process.env.DATABASE_URL!);
 
       // Create beacon time with lookbackSlot set to 24672000
       const beaconTimeWithLookback = new BeaconTime({

@@ -7,27 +7,43 @@ import { Pool } from 'pg';
 // @ts-expect-error - pg-copy-streams doesn't have type definitions
 import { from as copyFrom } from 'pg-copy-streams';
 
-import { env } from '@/src/lib/env.js';
 import { VALIDATOR_STATUS } from '@/src/services/consensus/constants.js';
 
 export class ValidatorsStorage {
   private static pgPool: Pool | null = null;
+  private readonly databaseUrl: string;
 
-  constructor(private readonly prisma: PrismaClient) {}
+  constructor(
+    private readonly prisma: PrismaClient,
+    databaseUrl: string,
+  ) {
+    this.databaseUrl = databaseUrl;
+  }
 
   /**
    * Get or create PostgreSQL connection pool for COPY operations
    * Uses a static pool that can be shared across instances
    * The pool manages multiple connections automatically for concurrent operations
    */
-  private static getPgPool(): Pool {
+  private getPgPool(): Pool {
     if (!ValidatorsStorage.pgPool) {
       ValidatorsStorage.pgPool = new Pool({
-        connectionString: env.DATABASE_URL,
+        connectionString: this.databaseUrl,
         max: 10, // Allow up to 10 concurrent connections
       });
     }
     return ValidatorsStorage.pgPool;
+  }
+
+  /**
+   * Close the PostgreSQL connection pool
+   * Should be called during cleanup (e.g., in test afterAll hooks)
+   */
+  static async closePgPool(): Promise<void> {
+    if (ValidatorsStorage.pgPool) {
+      await ValidatorsStorage.pgPool.end();
+      ValidatorsStorage.pgPool = null;
+    }
   }
 
   async getValidatorsCount() {
@@ -147,7 +163,7 @@ export class ValidatorsStorage {
     validatorBalances: Array<{ index: string; balance: string }>,
     epoch: number,
   ) {
-    const pool = ValidatorsStorage.getPgPool();
+    const pool = this.getPgPool();
     const client = await pool.connect();
 
     try {

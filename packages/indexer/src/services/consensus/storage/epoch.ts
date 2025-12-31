@@ -1,13 +1,9 @@
 import { Readable } from 'stream';
 
 import { PrismaClient, Committee, Prisma } from '@beacon-indexer/db';
-import chunk from 'lodash/chunk.js';
-import ms from 'ms';
 import { Pool } from 'pg';
 // @ts-expect-error - pg-copy-streams doesn't have type definitions
 import { from as copyFrom } from 'pg-copy-streams';
-
-import { env } from '@/src/lib/env.js';
 
 /**
  * EpochStorage - Database persistence layer for epoch-related operations
@@ -25,22 +21,39 @@ import { env } from '@/src/lib/env.js';
  */
 export class EpochStorage {
   private static pgPool: Pool | null = null;
+  private readonly databaseUrl: string;
 
-  constructor(private readonly prisma: PrismaClient) {}
+  constructor(
+    private readonly prisma: PrismaClient,
+    databaseUrl: string,
+  ) {
+    this.databaseUrl = databaseUrl;
+  }
 
   /**
    * Get or create PostgreSQL connection pool for COPY operations
    * Uses a static pool that can be shared across instances
    * The pool manages multiple connections automatically for concurrent operations
    */
-  private static getPgPool(): Pool {
+  private getPgPool(): Pool {
     if (!EpochStorage.pgPool) {
       EpochStorage.pgPool = new Pool({
-        connectionString: env.DATABASE_URL,
+        connectionString: this.databaseUrl,
         max: 10, // Allow up to 10 concurrent connections
       });
     }
     return EpochStorage.pgPool;
+  }
+
+  /**
+   * Close the PostgreSQL connection pool
+   * Should be called during cleanup (e.g., in test afterAll hooks)
+   */
+  static async closePgPool(): Promise<void> {
+    if (EpochStorage.pgPool) {
+      await EpochStorage.pgPool.end();
+      EpochStorage.pgPool = null;
+    }
   }
 
   private validateConsecutiveEpochs(epochs: number[]) {
@@ -178,7 +191,7 @@ export class EpochStorage {
       missedInactivity: bigint;
     }>,
   ) {
-    const pool = EpochStorage.getPgPool();
+    const pool = this.getPgPool();
     const client = await pool.connect();
 
     try {
@@ -274,7 +287,7 @@ export class EpochStorage {
     committees: Committee[],
     committeesCountInSlot: Map<number, number[]>,
   ) {
-    const pool = EpochStorage.getPgPool();
+    const pool = this.getPgPool();
     const client = await pool.connect();
 
     try {

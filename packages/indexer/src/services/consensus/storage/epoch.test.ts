@@ -9,7 +9,7 @@ describe('EpochStorage Validation Logic', () => {
     vi.clearAllMocks();
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    epochStorage = new EpochStorage({} as unknown as any);
+    epochStorage = new EpochStorage({} as unknown as any, 'postgresql://test');
   });
 
   describe('createEpochs validation', () => {

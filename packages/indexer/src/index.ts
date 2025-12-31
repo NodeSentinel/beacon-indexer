@@ -126,10 +126,10 @@ async function main() {
     delaySlotsToHead: chainConfig.beacon.delaySlotsToHead,
   });
 
-  const validatorsStorage = new ValidatorsStorage(prisma);
+  const validatorsStorage = new ValidatorsStorage(prisma, databaseUrl);
   const validatorsController = new ValidatorsController(beaconClient, validatorsStorage);
 
-  const epochStorage = new EpochStorage(prisma);
+  const epochStorage = new EpochStorage(prisma, databaseUrl);
   const slotStorage = new SlotStorage(prisma);
   const epochController = new EpochController(
     beaconClient,
