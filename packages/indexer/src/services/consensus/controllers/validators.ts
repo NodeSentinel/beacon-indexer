@@ -60,7 +60,7 @@ export class ValidatorsController {
     this.logger.info(`Starting validators initialization for lookback slot ${lookbackSlot}`);
 
     const batchSize = 1_000_000;
-    const allValidatorsData: Awaited<ReturnType<typeof this.beaconClient.getValidators>> = [];
+    let allValidatorsData: Awaited<ReturnType<typeof this.beaconClient.getValidators>> = [];
     let currentValidatorIndex = 0;
     let hasMore = true;
     let batchNumber = 0;
@@ -79,7 +79,8 @@ export class ValidatorsController {
 
       const batchResult = await this.beaconClient.getValidators(lookbackSlot, batchIndexes, null);
 
-      allValidatorsData.push(...batchResult);
+      // Use concat instead of push with spread operator to avoid stack overflow
+      allValidatorsData = allValidatorsData.concat(batchResult);
 
       // If we get fewer results than batchSize, we have reached the end
       hasMore = batchResult.length === batchSize;

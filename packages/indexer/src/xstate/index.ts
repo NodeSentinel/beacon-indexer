@@ -11,6 +11,7 @@ export default function initXstateMachines(
   partitionController: PartitionController,
   beaconTime: BeaconTime,
   slotDuration: number,
+  slotsPerEpoch: number,
   slotController: SlotController,
   validatorsController: ValidatorsController,
 ) {
@@ -21,6 +22,7 @@ export default function initXstateMachines(
     partitionController,
     beaconTime,
     slotDuration,
+    slotsPerEpoch,
     slotController,
     validatorsController,
   ).start();

@@ -37,6 +37,7 @@ export const epochOrchestratorMachine = setup({
       epochActor: ActorRefFrom<typeof epochProcessorMachine> | null;
       logger?: CustomLogger;
       slotDuration: number;
+      slotsPerEpoch: number;
       lookbackSlot: number;
       epochController: EpochController;
       partitionController: PartitionController;
@@ -47,6 +48,7 @@ export const epochOrchestratorMachine = setup({
     events: { type: 'EPOCH_COMPLETED'; machineId: string };
     input: {
       slotDuration: number;
+      slotsPerEpoch: number;
       lookbackSlot: number;
       epochController: EpochController;
       partitionController: PartitionController;
@@ -84,6 +86,7 @@ export const epochOrchestratorMachine = setup({
     epochData: null,
     epochActor: null,
     slotDuration: input.slotDuration,
+    slotsPerEpoch: input.slotsPerEpoch,
     lookbackSlot: input.lookbackSlot,
     epochController: input.epochController,
     partitionController: input.partitionController,
@@ -170,6 +173,7 @@ export const epochOrchestratorMachine = setup({
                 epoch,
                 config: {
                   slotDuration: context.slotDuration,
+                  slotsPerEpoch: context.slotsPerEpoch,
                   lookbackSlot: context.lookbackSlot,
                 },
                 services: {

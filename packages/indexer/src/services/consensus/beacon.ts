@@ -214,21 +214,13 @@ export class BeaconClient extends ReliableRequestClient {
       throw new Error('No validator indices provided');
     }
 
-    return this.makeReliableRequest(
-      async (url) => {
-        const res = await this.axiosInstance.post<GetValidatorsBalances>(
-          `${url}/eth/v1/beacon/states/${stateId}/validator_balances`,
-          validatorIndexes,
-        );
-        return res.data.data;
-      },
-      'archive',
-      // typeof stateId === 'string' // when stateId is 'head', we use full node
-      //   ? 'full'
-      //   : this.isIndexerDelayed({ value: stateId as number, type: 'slot' })
-      //     ? 'full'
-      //     : 'archive',
-    );
+    return this.makeReliableRequest(async (url) => {
+      const res = await this.axiosInstance.post<GetValidatorsBalances>(
+        `${url}/eth/v1/beacon/states/${stateId}/validator_balances`,
+        validatorIndexes,
+      );
+      return res.data.data;
+    }, 'archive');
   }
 
   /**
@@ -299,12 +291,15 @@ export class BeaconClient extends ReliableRequestClient {
     slot: number,
     validatorIndexes: string[],
   ): Promise<SyncCommitteeRewards> => {
-    return this.makeReliableRequest<SyncCommitteeRewards>(async (url) => {
-      const res = await this.axiosInstance.post<SyncCommitteeRewards>(
-        `${url}/eth/v1/beacon/rewards/sync_committee/${slot}`,
-        validatorIndexes,
-      );
-      return res.data;
-    }, 'archive');
+    return this.makeReliableRequest<SyncCommitteeRewards>(
+      async (url) => {
+        const res = await this.axiosInstance.post<SyncCommitteeRewards>(
+          `${url}/eth/v1/beacon/rewards/sync_committee/${slot}`,
+          validatorIndexes,
+        );
+        return res.data;
+      },
+      this.isIndexerDelayed({ value: slot, type: 'slot' }) ? 'archive' : 'full',
+    );
   };
 }

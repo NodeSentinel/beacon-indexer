@@ -174,6 +174,7 @@ async function main() {
     partitionController,
     beaconTime,
     chainConfig.beacon.slotDuration,
+    chainConfig.beacon.slotsPerEpoch,
     slotController,
     validatorsController,
   );

@@ -34,12 +34,14 @@ export const getEpochOrchestratorActor = (
   partitionController: PartitionController,
   beaconTime: BeaconTime,
   slotDuration: number,
+  slotsPerEpoch: number,
   slotController: SlotController,
   validatorsController: ValidatorsController,
 ) => {
   const actor = createActor(epochOrchestratorMachine, {
     input: {
       slotDuration,
+      slotsPerEpoch,
       lookbackSlot: beaconTime.getLookbackSlot(),
       epochController,
       partitionController,

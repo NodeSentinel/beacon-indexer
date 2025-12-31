@@ -286,18 +286,6 @@ export class EpochController extends EpochControllerHelpers {
   }
 
   /**
-   * Fetch epoch rewards
-   * Returns early if already processed
-   */
-  async fetchRewards(epoch: number): Promise<void> {
-    const isFetched = await this.isRewardsFetched(epoch);
-    if (isFetched) {
-      return;
-    }
-    await this.fetchEpochRewards(epoch);
-  }
-
-  /**
    * Mark validators activation as fetched
    */
   async markValidatorsActivationFetched(epoch: number): Promise<void> {

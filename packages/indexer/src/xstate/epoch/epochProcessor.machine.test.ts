@@ -31,7 +31,7 @@ const mockEpochController = {
   upsertCommitteePartitions: vi.fn(),
   fetchCommittees: vi.fn(),
   fetchSyncCommittees: vi.fn(),
-  fetchRewards: vi.fn(),
+  fetchEpochRewards: vi.fn(),
   updateSlotsFetched: vi.fn(),
   markEpochAsProcessed: vi.fn(),
   markValidatorsActivationFetched: vi.fn(),
@@ -111,7 +111,7 @@ function resetMocks() {
   (mockEpochController.fetchSyncCommittees as ReturnType<typeof vi.fn>).mockResolvedValue(
     undefined,
   );
-  (mockEpochController.fetchRewards as ReturnType<typeof vi.fn>).mockResolvedValue(undefined);
+  (mockEpochController.fetchEpochRewards as ReturnType<typeof vi.fn>).mockResolvedValue(undefined);
   (mockEpochController.updateSlotsFetched as ReturnType<typeof vi.fn>).mockResolvedValue(undefined);
   (mockEpochController.markEpochAsProcessed as ReturnType<typeof vi.fn>).mockResolvedValue(
     undefined,
@@ -153,6 +153,7 @@ function createProcessorMachineDefaultInput(
     epoch,
     config: {
       slotDuration: SLOT_DURATION,
+      slotsPerEpoch: SLOTS_PER_EPOCH,
       lookbackSlot: SLOT_START_INDEXING,
     },
     services: {
@@ -466,9 +467,9 @@ describe('epochProcessorMachine', () => {
       test('should spawn slot orchestrator and handle SLOTS_COMPLETED lifecycle', async () => {
         vi.setSystemTime(new Date(EPOCH_100_START_TIME + 50));
 
-        // Keep fetchRewards pending to prevent the machine from completing and attempting sendParent
+        // Keep fetchEpochRewards pending to prevent the machine from completing and attempting sendParent
         const rewardsPromise = createControllablePromise<void>();
-        (mockEpochController.fetchRewards as ReturnType<typeof vi.fn>).mockReturnValue(
+        (mockEpochController.fetchEpochRewards as ReturnType<typeof vi.fn>).mockReturnValue(
           rewardsPromise.promise,
         );
 
@@ -712,7 +713,9 @@ describe('epochProcessorMachine', () => {
         const epochEndTime = EPOCH_101_START_TIME + SLOTS_PER_EPOCH * SLOT_DURATION + 100;
         vi.setSystemTime(new Date(epochEndTime));
 
-        (mockEpochController.fetchRewards as ReturnType<typeof vi.fn>).mockResolvedValue(undefined);
+        (mockEpochController.fetchEpochRewards as ReturnType<typeof vi.fn>).mockResolvedValue(
+          undefined,
+        );
 
         const { actor, stateTransitions, subscription } = createAndStartActor(
           epochProcessorMachine,
@@ -738,7 +741,7 @@ describe('epochProcessorMachine', () => {
         expect(rewardsFetchedIndex).toBeGreaterThan(fetchingRewardsIndex);
 
         // Controller should have been called once prerequisites were met
-        expect(mockEpochController.fetchRewards).toHaveBeenCalledWith(100);
+        expect(mockEpochController.fetchEpochRewards).toHaveBeenCalledWith(100);
 
         actor.stop();
         subscription.unsubscribe();
@@ -809,7 +812,7 @@ describe('epochProcessorMachine', () => {
       expect(mockEpochController.fetchCommittees).toHaveBeenCalledWith(100);
       expect(mockEpochController.fetchSyncCommittees).toHaveBeenCalledWith(100);
       expect(mockEpochController.updateSlotsFetched).toHaveBeenCalledWith(100);
-      expect(mockEpochController.fetchRewards).toHaveBeenCalledWith(100);
+      expect(mockEpochController.fetchEpochRewards).toHaveBeenCalledWith(100);
       expect(mockEpochController.markEpochAsProcessed).toHaveBeenCalledWith(100);
       expect(mockValidatorsController.fetchValidatorsBalances).toHaveBeenCalled();
       expect(mockValidatorsController.trackTransitioningValidators).toHaveBeenCalled();

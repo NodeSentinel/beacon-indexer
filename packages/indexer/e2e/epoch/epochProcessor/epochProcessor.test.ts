@@ -46,7 +46,7 @@ import { BeaconTime } from '@/src/services/consensus/utils/beaconTime.js';
 // fetching.rewards parallel state:
 // - rewards.waitingForBalances: test guard 'areValidatorsBalancesFetched' and VALIDATORS_BALANCES_FETCHED event handling
 // - rewards.waitingForEpochEnd: test waitForEpochEnd actor invocation
-// - rewards.fetchingRewards: test fetchAttestationsRewards actor (fetchRewards method)
+// - rewards.fetchingRewards: test fetchAttestationsRewards actor (fetchEpochRewards method)
 // - rewards.rewardsFetched: test final state reached
 //
 // Guards to test:

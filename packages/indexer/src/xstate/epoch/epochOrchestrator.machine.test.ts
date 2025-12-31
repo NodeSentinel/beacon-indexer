@@ -102,6 +102,7 @@ describe.skip('epochOrchestratorMachine', () => {
     const actor = createActor(epochOrchestratorMachine, {
       input: {
         slotDuration: 0.1, // 100ms for faster tests
+        slotsPerEpoch: SLOTS_PER_EPOCH,
         lookbackSlot: 32,
         epochController: mockEpochController,
         partitionController: mockPartitionController,
@@ -158,6 +159,7 @@ describe.skip('epochOrchestratorMachine', () => {
     const actor = createActor(epochOrchestratorMachine, {
       input: {
         slotDuration: 0.1, // 100ms for faster tests
+        slotsPerEpoch: SLOTS_PER_EPOCH,
         lookbackSlot: 32,
         epochController: mockEpochController,
         partitionController: mockPartitionController,
@@ -219,6 +221,7 @@ describe.skip('epochOrchestratorMachine', () => {
     const actor = createActor(epochOrchestratorMachine, {
       input: {
         slotDuration: 0.1, // 100ms for faster tests
+        slotsPerEpoch: SLOTS_PER_EPOCH,
         lookbackSlot: 32,
         epochController: mockEpochController,
         partitionController: mockPartitionController,
@@ -304,6 +307,7 @@ describe.skip('epochOrchestratorMachine', () => {
     const epochOrchestratorActor = createActor(epochOrchestratorMachine, {
       input: {
         slotDuration: 0.1, // 100ms for faster tests
+        slotsPerEpoch: SLOTS_PER_EPOCH,
         lookbackSlot: 32,
         epochController: mockEpochController,
         partitionController: mockPartitionController,

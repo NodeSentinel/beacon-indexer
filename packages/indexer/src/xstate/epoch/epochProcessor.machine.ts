@@ -23,6 +23,7 @@ export const epochProcessorMachine = setup({
       // Config
       config: {
         slotDuration: number;
+        slotsPerEpoch: number;
         lookbackSlot: number;
       };
       // Services
@@ -52,6 +53,7 @@ export const epochProcessorMachine = setup({
       epoch: number;
       config: {
         slotDuration: number;
+        slotsPerEpoch: number;
         lookbackSlot: number;
       };
       services: {
@@ -150,15 +152,20 @@ export const epochProcessorMachine = setup({
     ),
     // Wait for epoch end
     waitForEpochEnd: fromPromise(
-      async ({ input }: { input: { beaconTime: BeaconTime; endSlot: number } }) => {
+      async ({
+        input,
+      }: {
+        input: { beaconTime: BeaconTime; endSlot: number; slotsPerEpoch: number };
+      }) => {
         // Wait until the slot after the last slot of the epoch has started
-        await input.beaconTime.waitUntilSlotStart(input.endSlot + 12);
+        // Add one epoch worth of slots to ensure the epoch has fully ended
+        await input.beaconTime.waitUntilSlotStart(input.endSlot + input.slotsPerEpoch);
       },
     ),
     // Fetch rewards after epoch has ended
     fetchAttestationsRewards: fromPromise(
       async ({ input }: { input: { epochController: EpochController; epoch: number } }) => {
-        await input.epochController.fetchRewards(input.epoch);
+        await input.epochController.fetchEpochRewards(input.epoch);
       },
     ),
     // Process slots with all prerequisites
@@ -661,6 +668,7 @@ export const epochProcessorMachine = setup({
                     input: ({ context }) => ({
                       beaconTime: context.services.beaconTime,
                       endSlot: context.endSlot,
+                      slotsPerEpoch: context.config.slotsPerEpoch,
                     }),
                     onDone: {
                       target: 'fetchingRewards',
