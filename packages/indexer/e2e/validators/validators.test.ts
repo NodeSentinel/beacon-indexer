@@ -4,19 +4,25 @@ import path from 'path';
 import { PrismaClient } from '@beacon-indexer/db';
 import { describe, it, expect, beforeAll, afterAll, vi, type MockedFunction } from 'vitest';
 
+import { gnosisConfig } from '@/src/config/chain.js';
 import { BeaconClient } from '@/src/services/consensus/beacon.js';
 import { ValidatorsController } from '@/src/services/consensus/controllers/validators.js';
 import { ValidatorsStorage } from '@/src/services/consensus/storage/validators.js';
 import { GetValidators } from '@/src/services/consensus/types.js';
+import { BeaconTime } from '@/src/services/consensus/utils/beaconTime.js';
 
 // Mock data file
 const MOCK_PATH = path.join(__dirname, 'mocks/validators.json');
+
+// Test constants for BeaconTime
+const TEST_LOOKBACK_SLOT = 0;
 
 describe('Validators E2E Tests', () => {
   let prisma: PrismaClient;
   let validatorsStorage: ValidatorsStorage;
   let validatorsController: ValidatorsController;
   let mockBeaconClient: Pick<BeaconClient, 'getValidators'>;
+  let beaconTime: BeaconTime;
 
   beforeAll(async () => {
     if (!process.env.DATABASE_URL) {
@@ -35,6 +41,15 @@ describe('Validators E2E Tests', () => {
     // Initialize storage and controller
     validatorsStorage = new ValidatorsStorage(prisma, process.env.DATABASE_URL!);
 
+    // Create BeaconTime instance for tests using Gnosis configuration
+    beaconTime = new BeaconTime({
+      genesisTimestamp: gnosisConfig.beacon.genesisTimestamp,
+      slotDurationMs: gnosisConfig.beacon.slotDuration,
+      slotsPerEpoch: gnosisConfig.beacon.slotsPerEpoch,
+      epochsPerSyncCommitteePeriod: gnosisConfig.beacon.epochsPerSyncCommitteePeriod,
+      lookbackSlot: TEST_LOOKBACK_SLOT,
+    });
+
     // Mock BeaconClient
     mockBeaconClient = {
       getValidators: vi.fn() as MockedFunction<BeaconClient['getValidators']>,
@@ -43,6 +58,7 @@ describe('Validators E2E Tests', () => {
     validatorsController = new ValidatorsController(
       mockBeaconClient as BeaconClient,
       validatorsStorage,
+      beaconTime,
     );
 
     // Clean database before tests
@@ -67,7 +83,7 @@ describe('Validators E2E Tests', () => {
     });
 
     it('should initialize validators successfully', async () => {
-      await validatorsController.initValidators();
+      await validatorsController.initValidatorsWithWait(TEST_LOOKBACK_SLOT);
 
       const count = await validatorsStorage.getValidatorsCount();
       expect(count).toBe(6);
