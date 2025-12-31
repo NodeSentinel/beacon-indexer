@@ -83,7 +83,7 @@ describe('Validators E2E Tests', () => {
     });
 
     it('should initialize validators successfully', async () => {
-      await validatorsController.initValidators(TEST_LOOKBACK_SLOT);
+      await validatorsController.initValidatorsWithWait(TEST_LOOKBACK_SLOT);
 
       const count = await validatorsStorage.getValidatorsCount();
       expect(count).toBe(6);
