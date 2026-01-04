@@ -1,51 +1,81 @@
-import { Epoch } from '@beacon-indexer/db';
-import { setup, assign, stopChild, ActorRefFrom, fromPromise } from 'xstate';
+import { setup, assign, stopChild, spawnChild, fromPromise, and } from 'xstate';
 
-import { epochProcessorMachine } from './epochProcessor.machine.js';
+import { epochWorkerMachine } from './epochWorker.machine.js';
 
-import type { CustomLogger } from '@/src/lib/pino.js';
 import { EpochController } from '@/src/services/consensus/controllers/epoch.js';
 import { PartitionController } from '@/src/services/consensus/controllers/partition.js';
 import { SlotController } from '@/src/services/consensus/controllers/slot.js';
 import { ValidatorsController } from '@/src/services/consensus/controllers/validators.js';
 import { BeaconTime } from '@/src/services/consensus/utils/beaconTime.js';
-import { logActor } from '@/src/xstate/multiMachineLogger.js';
 import { pinoLog } from '@/src/xstate/pinoLog.js';
 
 /**
- * @fileoverview The epoch orchestrator is a state machine that is responsible for orchestrating the processing of epochs.
+ * @fileoverview The epoch orchestrator manager is responsible for scheduling and managing parallel epoch processing.
  *
  * It is responsible for:
- * - Polling for the minimum unprocessed epoch
- * - Spawning the epoch processor machine when epoch data is available
- * - Monitoring epoch completion
+ * - Managing capacity (up to N epochs in parallel)
+ * - Polling for unprocessed epochs (excluding active ones)
+ * - Spawning worker machines for each epoch
+ * - Monitoring epoch completion and refilling capacity in order
  *
- * This machine processes one epoch at a time.
+ * This machine processes multiple epochs in parallel with polling-based status checking:
+ * - Polls periodically to check epoch status and capacity
+ * - Event handler only marks epochs as completed (doesn't trigger transitions)
+ * - Explicit states for orchestrating with internal states for releasing, spawning, and polling
  *
  * States:
- * - pollingEpoch: Invokes getMinEpochToProcess and transitions based on result
- * - processingEpoch: Spawns epoch processor actor and handles completion
- * - idleNoEpoch: Waits when no epoch is available before polling again
+ * - orchestrating: Main state with internal states:
+ *   - releasingCompletedEpochs: Removes completed epochs from active list
+ *   - spawningEpochs: Queries and spawns new epoch workers (loops to itself if more capacity)
+ *   - pollingDelay: Waits before checking again
  */
 
-// TODO: make this machine to process N epochs at a time.
+// Maximum number of epochs to process in parallel
+const MAX_PARALLEL_EPOCHS = 3;
+
+type EpochStatus = 'processing' | 'completed';
+
+// Helper function to get consecutive completed epochs from the lowest
+const getEpochsToRelease = (epochs: Record<number, EpochStatus>): number[] => {
+  const activeEpochs = Object.keys(epochs)
+    .map((e) => parseInt(e))
+    .sort((a, b) => a - b);
+
+  if (activeEpochs.length === 0) return [];
+
+  const epochsToRelease: number[] = [];
+  for (const epoch of activeEpochs) {
+    if (epochs[epoch] === 'completed') {
+      epochsToRelease.push(epoch);
+    } else {
+      break; // Stop at first non-completed epoch (ordered release)
+    }
+  }
+
+  return epochsToRelease;
+};
 
 export const epochOrchestratorMachine = setup({
   types: {} as {
     context: {
-      epochData: Epoch | null;
-      epochActor: ActorRefFrom<typeof epochProcessorMachine> | null;
-      logger?: CustomLogger;
-      slotDuration: number;
-      slotsPerEpoch: number;
-      lookbackSlot: number;
-      epochController: EpochController;
-      partitionController: PartitionController;
-      beaconTime: BeaconTime;
-      validatorsController?: ValidatorsController;
-      slotController: SlotController;
+      // Active epochs tracking with status
+      epochs: Record<number, EpochStatus>;
+      // Config
+      config: {
+        slotDuration: number;
+        slotsPerEpoch: number;
+        lookbackSlot: number;
+      };
+      // Services
+      services: {
+        epochController: EpochController;
+        partitionController: PartitionController;
+        beaconTime: BeaconTime;
+        validatorsController?: ValidatorsController;
+        slotController: SlotController;
+      };
     };
-    events: { type: 'EPOCH_COMPLETED'; machineId: string };
+    events: { type: 'EPOCH_COMPLETED'; epoch: number; machineId: string };
     input: {
       slotDuration: number;
       slotsPerEpoch: number;
@@ -58,165 +88,170 @@ export const epochOrchestratorMachine = setup({
     };
   },
   actors: {
-    getMinEpochToProcess: fromPromise(
-      async ({ input }: { input: { epochController: EpochController } }) => {
-        return input.epochController.getMinEpochToProcess();
+    getMinEpochToProcessExcluding: fromPromise(
+      async ({
+        input,
+      }: {
+        input: { epochController: EpochController; activeEpochs: number[] };
+      }) => {
+        return input.epochController.getMinEpochToProcessExcluding(input.activeEpochs);
       },
     ),
-    createPartitionsForTables: fromPromise(
-      async ({ input }: { input: { partitionController: PartitionController; epoch: number } }) => {
-        await input.partitionController.createPartitionsToProcessEpoch(input.epoch);
-      },
-    ),
-    epochProcessorMachine,
+    epochWorkerMachine,
   },
   guards: {
-    hasEpochData: ({ context }) => {
-      return context.epochData !== null;
+    hasEpochFound: ({ event }) => {
+      return 'output' in event && event.output !== null;
+    },
+    hasCapacity: ({ context }) => {
+      return Object.keys(context.epochs).length < MAX_PARALLEL_EPOCHS;
     },
   },
   delays: {
-    slotDuration: ({ context }) => context.slotDuration,
-    noMinEpochDelay: ({ context }) => context.slotDuration / 3,
+    pollingDelay: ({ context }) => context.config.slotDuration / 2,
   },
 }).createMachine({
   id: 'EpochOrchestrator',
-  initial: 'pollingEpoch',
+  initial: 'orchestrating',
   context: ({ input }) => ({
-    epochData: null,
-    epochActor: null,
-    slotDuration: input.slotDuration,
-    slotsPerEpoch: input.slotsPerEpoch,
-    lookbackSlot: input.lookbackSlot,
-    epochController: input.epochController,
-    partitionController: input.partitionController,
-    beaconTime: input.beaconTime,
-    validatorsController: input.validatorsController,
-    slotController: input.slotController,
+    epochs: {},
+    config: {
+      slotDuration: input.slotDuration,
+      slotsPerEpoch: input.slotsPerEpoch,
+      lookbackSlot: input.lookbackSlot,
+    },
+    services: {
+      epochController: input.epochController,
+      partitionController: input.partitionController,
+      beaconTime: input.beaconTime,
+      validatorsController: input.validatorsController,
+      slotController: input.slotController,
+    },
   }),
   states: {
-    pollingEpoch: {
-      invoke: {
-        src: 'getMinEpochToProcess',
-        input: ({ context }) => ({ epochController: context.epochController }),
-        onDone: [
-          {
-            guard: ({ event }) => event.output !== null,
-            target: 'creatingPartitionsForTables',
-            actions: [
-              assign({
-                epochData: ({ event }) => event.output,
-              }),
-              pinoLog(
-                ({ event }) => `Found epoch ${event.output?.epoch} to process`,
-                'EpochOrchestrator',
-              ),
-            ],
-          },
-          {
-            target: 'idleNoEpoch',
-            actions: pinoLog('No epoch to process, entering idle state', 'EpochOrchestrator'),
-          },
-        ],
-        onError: {
-          target: 'idleNoEpoch',
-          actions: pinoLog(
-            ({ event }) => `Error getting min epoch to process: ${event.error}`,
-            'EpochOrchestrator',
-            'error',
-          ),
-        },
-      },
-    },
-    creatingPartitionsForTables: {
-      entry: pinoLog(
-        ({ context }) =>
-          `Ensuring tables partitions for epoch ${context.epochData?.epoch} exist before processing`,
-        'EpochOrchestrator',
-      ),
-      invoke: {
-        src: 'createPartitionsForTables',
-        input: ({ context }) => ({
-          partitionController: context.partitionController,
-          epoch: context.epochData!.epoch,
-        }),
-        onDone: {
-          target: 'processingEpoch',
-          actions: pinoLog(
-            ({ context }) => `Partitions ensured for epoch ${context.epochData?.epoch}`,
-            'EpochOrchestrator',
-          ),
-        },
-        onError: {
-          target: 'idleNoEpoch',
-          actions: pinoLog(
-            ({ context, event }) =>
-              `Error ensuring partitions for epoch ${context.epochData?.epoch}: ${event.error}`,
-            'EpochOrchestrator',
-            'error',
-          ),
-        },
-      },
-    },
-    processingEpoch: {
-      entry: [
-        assign({
-          epochActor: ({ context, spawn }) => {
-            if (!context.epochData) return null;
-
-            const { epoch } = context.epochData;
-            const epochId = `epochProcessor:${epoch}`;
-
-            const actor = spawn('epochProcessorMachine', {
-              id: epochId,
-              input: {
-                epoch,
-                config: {
-                  slotDuration: context.slotDuration,
-                  slotsPerEpoch: context.slotsPerEpoch,
-                  lookbackSlot: context.lookbackSlot,
-                },
-                services: {
-                  beaconTime: context.beaconTime,
-                  epochController: context.epochController,
-                  validatorsController: context.validatorsController,
-                  slotController: context.slotController,
-                },
-              },
-            });
-
-            logActor(actor, epochId);
-
-            return actor;
-          },
-        }),
-        pinoLog(
-          ({ context }) => `Processing epoch ${context.epochData?.epoch}`,
-          'EpochOrchestrator',
-        ),
-      ],
-      on: {
-        EPOCH_COMPLETED: {
-          target: 'pollingEpoch',
-          actions: [
-            pinoLog(
-              ({ event }) => `Epoch processing completed for ${event.machineId}`,
-              'EpochOrchestrator',
-            ),
-            stopChild(({ event }) => event.machineId),
+    orchestrating: {
+      initial: 'spawningEpochs',
+      states: {
+        releasingCompletedEpochs: {
+          entry: [
+            pinoLog(({ context }) => {
+              const epochsToRelease = getEpochsToRelease(context.epochs);
+              if (epochsToRelease.length) {
+                return `Releasing epochs: [${epochsToRelease.join(', ')}]`;
+              }
+            }, 'EpochOrchestrator'),
             assign({
-              epochData: null,
-              epochActor: null,
+              epochs: ({ context }) => {
+                const epochsToRelease = getEpochsToRelease(context.epochs);
+
+                if (epochsToRelease.length === 0) return context.epochs;
+
+                const updatedEpochs = { ...context.epochs };
+                epochsToRelease.forEach((epoch) => {
+                  delete updatedEpochs[epoch];
+                });
+
+                return updatedEpochs;
+              },
             }),
           ],
+          after: {
+            0: { target: 'spawningEpochs' },
+          },
+        },
+        spawningEpochs: {
+          invoke: {
+            src: 'getMinEpochToProcessExcluding',
+            input: ({ context }) => {
+              const activeEpochs = Object.keys(context.epochs)
+                .map((e) => parseInt(e))
+                .sort((a, b) => a - b);
+              return {
+                epochController: context.services.epochController,
+                activeEpochs,
+              };
+            },
+            onDone: [
+              {
+                guard: and(['hasEpochFound', 'hasCapacity']),
+                target: 'pollingDelay',
+                actions: [
+                  spawnChild('epochWorkerMachine', {
+                    id: ({ event }) => {
+                      const epoch = (event as unknown as { output: { epoch: number } }).output
+                        .epoch;
+                      return `epochWorker:${epoch}`;
+                    },
+                    input: ({ context, event }) => {
+                      const epoch = (event as unknown as { output: { epoch: number } }).output
+                        .epoch;
+                      return {
+                        epoch,
+                        slotDuration: context.config.slotDuration,
+                        slotsPerEpoch: context.config.slotsPerEpoch,
+                        lookbackSlot: context.config.lookbackSlot,
+                        epochController: context.services.epochController,
+                        partitionController: context.services.partitionController,
+                        beaconTime: context.services.beaconTime,
+                        validatorsController: context.services.validatorsController,
+                        slotController: context.services.slotController,
+                      };
+                    },
+                  }),
+                  assign({
+                    epochs: ({ context, event }) => ({
+                      ...context.epochs,
+                      [event.output!.epoch]: 'processing' as EpochStatus,
+                    }),
+                  }),
+                  pinoLog(
+                    ({ event }) => `Spawned worker for epoch ${event.output!.epoch}`,
+                    'EpochOrchestrator',
+                  ),
+                ],
+              },
+              {
+                target: 'pollingDelay',
+              },
+            ],
+            onError: {
+              target: 'pollingDelay',
+              actions: pinoLog(
+                ({ event }) => `Error getting min epoch to process: ${event.error}`,
+                'EpochOrchestrator',
+                'error',
+              ),
+            },
+          },
+        },
+        pollingDelay: {
+          after: {
+            pollingDelay: 'releasingCompletedEpochs',
+          },
         },
       },
     },
-    idleNoEpoch: {
-      entry: pinoLog('No epoch available, waiting before next poll', 'EpochOrchestrator'),
-      after: {
-        noMinEpochDelay: 'pollingEpoch',
-      },
+  },
+  on: {
+    // Handle epoch completion from any state (global event handler)
+    // Marks epoch as completed and stops the worker
+    EPOCH_COMPLETED: {
+      actions: [
+        pinoLog(({ event }) => `Epoch ${event.epoch} completed`, 'EpochOrchestrator'),
+        stopChild(({ event }) => `epochWorker:${event.epoch}`),
+        assign({
+          epochs: ({ context, event }) => {
+            // Mark epoch as completed if it exists and is processing
+            if (context.epochs[event.epoch] === 'processing') {
+              return {
+                ...context.epochs,
+                [event.epoch]: 'completed' as EpochStatus,
+              };
+            }
+            return context.epochs;
+          },
+        }),
+      ],
     },
   },
 });

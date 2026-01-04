@@ -1,18 +1,38 @@
-import { test, expect, vi, beforeEach } from 'vitest';
-import { createActor, createMachine, sendParent, SnapshotFrom } from 'xstate';
+import { test, expect, vi, beforeEach, afterEach, describe } from 'vitest';
+import { createMachine, sendParent } from 'xstate';
 
-import { createControllablePromise } from '@/src/__tests__/utils.js';
+import {
+  createAndStartActor,
+  createControllablePromise,
+  getNestedState,
+} from '@/src/__tests__/utils.js';
+import { gnosisConfig } from '@/src/config/chain.js';
 import { EpochController } from '@/src/services/consensus/controllers/epoch.js';
 import { PartitionController } from '@/src/services/consensus/controllers/partition.js';
 import { SlotController } from '@/src/services/consensus/controllers/slot.js';
-// eslint-disable-next-line import/order
 import { BeaconTime } from '@/src/services/consensus/utils/beaconTime.js';
 
+// ============================================================================
+// Test Constants - Use Gnosis chain real values (except slotDuration for fast tests)
+// ============================================================================
+const SLOT_DURATION = 10; // 10ms - small for fast tests (real Gnosis: 5s)
+const {
+  slotsPerEpoch: SLOTS_PER_EPOCH,
+  genesisTimestamp: GENESIS_TIMESTAMP,
+  epochsPerSyncCommitteePeriod: EPOCHS_PER_SYNC_COMMITTEE_PERIOD,
+} = gnosisConfig.beacon;
+const LOOKBACK_SLOT = 32;
+const POLLING_DELAY = SLOT_DURATION / 2;
+
+// ============================================================================
+// Mock Controllers
+// ============================================================================
 const mockEpochController = {
   getLastCreated: vi.fn(),
   getEpochsToCreate: vi.fn(),
   createEpochs: vi.fn(),
   getMinEpochToProcess: vi.fn(),
+  getMinEpochToProcessExcluding: vi.fn(),
   markEpochAsProcessed: vi.fn(),
 } as unknown as EpochController;
 
@@ -20,25 +40,60 @@ const mockPartitionController = {
   createPartitionsToProcessEpoch: vi.fn(),
 } as unknown as PartitionController;
 
-// Mock BeaconTime instance for testing
-const GENESIS_TIMESTAMP = 1606824000000; // Example genesis timestamp
-const SLOT_DURATION_MS = 100; // 100ms per slot for fast tests
-const SLOTS_PER_EPOCH = 32;
 const mockBeaconTime = new BeaconTime({
   genesisTimestamp: GENESIS_TIMESTAMP,
-  slotDurationMs: SLOT_DURATION_MS,
+  slotDurationMs: SLOT_DURATION,
   slotsPerEpoch: SLOTS_PER_EPOCH,
-  epochsPerSyncCommitteePeriod: 256, // 256 epochs per sync committee period
-  lookbackSlot: 32,
+  epochsPerSyncCommitteePeriod: EPOCHS_PER_SYNC_COMMITTEE_PERIOD,
+  lookbackSlot: LOOKBACK_SLOT,
 });
 
-// Minimal SlotController mock for tests
 const mockSlotController = {} as unknown as SlotController;
 
-// Mock the logging functions - simple mocks that do nothing
-const mockLogActor = vi.fn();
+// ============================================================================
+// Helper Functions
+// ============================================================================
 
-// Mock the modules
+/** Create a mock epoch object with all required properties */
+function createMockEpoch(epoch: number) {
+  return {
+    epoch,
+    processed: false,
+    allSlotsProcessed: false,
+    committeesFetched: false,
+    syncCommitteesFetched: false,
+    validatorProposerDutiesFetched: false,
+    validatorsBalancesFetched: false,
+    validatorsActivationFetched: false,
+    rewardsFetched: false,
+  };
+}
+
+/** Create default input for the orchestrator machine */
+function createOrchestratorInput() {
+  return {
+    slotDuration: SLOT_DURATION,
+    slotsPerEpoch: SLOTS_PER_EPOCH,
+    lookbackSlot: LOOKBACK_SLOT,
+    epochController: mockEpochController,
+    partitionController: mockPartitionController,
+    beaconTime: mockBeaconTime,
+    slotController: mockSlotController,
+  };
+}
+
+/**
+ * Resolve a promise and advance timers past the polling delay
+ * to allow XState to process the result and cycle back to spawningEpochs.
+ */
+async function resolvePromiseAndAdvance<T>(promise: { resolve: (value: T) => void }, value: T) {
+  promise.resolve(value);
+  await vi.advanceTimersByTimeAsync(POLLING_DELAY + 1);
+}
+
+// ============================================================================
+// Mocks
+// ============================================================================
 vi.mock('@/src/xstate/pinoLog.js', () => ({
   pinoLog: vi.fn(() => () => {}),
 }));
@@ -47,336 +102,323 @@ vi.mock('@/src/xstate/multiMachineLogger.js', () => ({
   logActor: vi.fn(),
 }));
 
-// Mock the epoch processor machine to avoid database and network calls
-vi.mock('@/src/xstate/epoch/epochProcessor.machine.js', () => {
-  const mockMachine = createMachine({
-    id: 'EpochProcessor',
+// Mock the epoch worker machine
+vi.mock('@/src/xstate/epoch/epochWorker.machine.js', () => {
+  const mockWorkerMachine = createMachine({
+    id: 'EpochWorker',
     types: {} as {
-      events: { type: 'complete' };
+      input: { epoch: number };
+      events: { type: 'EPOCH_COMPLETED'; machineId: string } | { type: 'COMPLETE' };
     },
-    initial: 'idle',
+    initial: 'running',
+    context: ({ input }) => ({ epoch: input.epoch }),
     states: {
-      idle: {
+      running: {
         on: {
-          complete: 'completed',
+          COMPLETE: {
+            target: 'completed',
+            actions: sendParent(({ context }) => ({
+              type: 'EPOCH_COMPLETED',
+              epoch: context.epoch,
+              machineId: `epochProcessor:${context.epoch}`,
+            })),
+          },
         },
       },
       completed: {
-        entry: [
-          sendParent(() => ({
-            type: 'EPOCH_COMPLETED',
-            machineId: `epochProcessor:100`,
-          })),
-          () => console.log('Sending EPOCH_COMPLETED to parent'),
-        ],
         type: 'final',
       },
     },
   });
 
   return {
-    epochProcessorMachine: mockMachine,
+    epochWorkerMachine: mockWorkerMachine,
   };
 });
 
 // Import the orchestrator after mocks are set up
 import { epochOrchestratorMachine } from '@/src/xstate/epoch/epochOrchestrator.machine.js';
 
-// Reset mocks before each test
+// ============================================================================
+// Test Setup
+// ============================================================================
 beforeEach(() => {
+  vi.useFakeTimers();
   vi.clearAllMocks();
-  mockLogActor.mockReturnValue(undefined);
 });
 
-describe.skip('epochOrchestratorMachine', () => {
-  test('should initialize with correct context and transition to pollingEpoch', async () => {
-    // Arrange
-    const controllableGetMinEpochPromise = createControllablePromise<null>();
+afterEach(() => {
+  vi.useRealTimers();
+  vi.clearAllTimers();
+});
 
-    vi.mocked(mockEpochController.getMinEpochToProcess).mockImplementation(
-      () => controllableGetMinEpochPromise.promise,
+// ============================================================================
+// Tests
+// ============================================================================
+describe('epochOrchestratorMachine', () => {
+  test('should initialize and cycle through states when no epochs found', async () => {
+    // Arrange - first call returns null (no epochs), second call blocks
+    type EpochType = ReturnType<typeof createMockEpoch> | null;
+    const firstCallPromise = createControllablePromise<EpochType>();
+    const blockingPromise = createControllablePromise<EpochType>();
+
+    vi.mocked(mockEpochController.getMinEpochToProcessExcluding)
+      .mockReturnValueOnce(firstCallPromise.promise)
+      .mockReturnValue(blockingPromise.promise); // Never resolved, blocks the machine
+
+    const { actor, stateTransitions, subscription } = createAndStartActor(
+      epochOrchestratorMachine,
+      createOrchestratorInput(),
     );
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const stateTransitions: SnapshotFrom<any>[] = [];
-    const actor = createActor(epochOrchestratorMachine, {
-      input: {
-        slotDuration: 0.1, // 100ms for faster tests
-        slotsPerEpoch: SLOTS_PER_EPOCH,
-        lookbackSlot: 32,
-        epochController: mockEpochController,
-        partitionController: mockPartitionController,
-        beaconTime: mockBeaconTime,
-        slotController: mockSlotController,
-      },
-    });
+    // Assert initial state is spawningEpochs
+    expect(getNestedState(stateTransitions[0], 'orchestrating')).toBe('spawningEpochs');
 
-    const subscription = actor.subscribe((snapshot) => {
-      stateTransitions.push(snapshot.value);
-    });
+    // Resolve first call with null (no epoch found) and let XState process the transition
+    firstCallPromise.resolve(null);
+    await vi.advanceTimersByTimeAsync(0);
 
-    // Act
-    actor.start();
+    // stateTransitions[0] = spawningEpochs (initial)
+    // stateTransitions[1] = pollingDelay (after promise resolved with null)
+    expect(getNestedState(stateTransitions[1], 'orchestrating')).toBe('pollingDelay');
 
-    // Assert - Check initial state
-    expect(stateTransitions[0]).toBe('pollingEpoch');
+    // Verify getMinEpochToProcessExcluding was called with empty array
+    expect(vi.mocked(mockEpochController.getMinEpochToProcessExcluding)).toHaveBeenCalledWith([]);
 
-    // Verify that getMinEpochToProcess was called at least once
-    expect(vi.mocked(mockEpochController.getMinEpochToProcess)).toHaveBeenCalledTimes(1);
+    // Verify context remains empty
+    expect(actor.getSnapshot().context.epochs).toEqual({});
 
-    // Now resolve the promise to complete the async operation
-    controllableGetMinEpochPromise.resolve(null);
-
-    // Wait for the state transition to complete
-    await new Promise((resolve) => setTimeout(resolve, 50));
-
-    // Assert - Should transition to idleNoEpoch after resolving with null
-    const lastState = stateTransitions[stateTransitions.length - 1];
-    expect(lastState).toBe('idleNoEpoch');
-
-    // Verify context using final snapshot
-    const finalSnapshot = actor.getSnapshot();
-    expect(finalSnapshot.context.epochData).toBe(null);
-    expect(finalSnapshot.context.epochActor).toBe(null);
-    expect(finalSnapshot.context.slotDuration).toBe(0.1);
-    expect(finalSnapshot.context.lookbackSlot).toBe(32);
-
-    // Clean up
-    subscription.unsubscribe();
     actor.stop();
+    subscription.unsubscribe();
   });
 
-  test('should handle getMinEpochToProcess error and retry after delay', async () => {
+  test('should spawn up to 3 epochs in parallel and not exceed capacity', async () => {
     // Arrange
-    const controllableGetMinEpochPromise = createControllablePromise<null>();
+    type EpochType = ReturnType<typeof createMockEpoch> | null;
+    const epoch100Promise = createControllablePromise<EpochType>();
+    const epoch101Promise = createControllablePromise<EpochType>();
+    const epoch102Promise = createControllablePromise<EpochType>();
+    const epoch103Promise = createControllablePromise<EpochType>();
+    const blockingPromise = createControllablePromise<EpochType>(); // Never resolved
 
-    vi.mocked(mockEpochController.getMinEpochToProcess).mockImplementation(
-      () => controllableGetMinEpochPromise.promise,
+    vi.mocked(mockEpochController.getMinEpochToProcessExcluding)
+      .mockReturnValueOnce(epoch100Promise.promise)
+      .mockReturnValueOnce(epoch101Promise.promise)
+      .mockReturnValueOnce(epoch102Promise.promise)
+      .mockReturnValueOnce(epoch103Promise.promise) // Returns epoch but should NOT be spawned
+      .mockReturnValue(blockingPromise.promise);
+
+    const { actor, stateTransitions, subscription } = createAndStartActor(
+      epochOrchestratorMachine,
+      createOrchestratorInput(),
     );
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const stateTransitions: SnapshotFrom<any>[] = [];
-    const actor = createActor(epochOrchestratorMachine, {
-      input: {
-        slotDuration: 0.1, // 100ms for faster tests
-        slotsPerEpoch: SLOTS_PER_EPOCH,
-        lookbackSlot: 32,
-        epochController: mockEpochController,
-        partitionController: mockPartitionController,
-        beaconTime: mockBeaconTime,
-        slotController: mockSlotController,
-      },
-    });
+    // Machine starts in spawningEpochs, waiting for first promise
+    expect(getNestedState(stateTransitions[0], 'orchestrating')).toBe('spawningEpochs');
 
-    const subscription = actor.subscribe((snapshot) => {
-      stateTransitions.push(snapshot.value);
-    });
+    // Resolve first epoch and advance timers to complete polling cycle
+    await resolvePromiseAndAdvance(epoch100Promise, createMockEpoch(100));
 
-    // Act
-    actor.start();
+    // Should have spawned epoch 100
+    let snapshot = actor.getSnapshot();
+    expect(snapshot.context.epochs[100]).toBe('processing');
 
-    // Assert - Should be in pollingEpoch state initially
-    expect(stateTransitions[0]).toBe('pollingEpoch');
-    expect(vi.mocked(mockEpochController.getMinEpochToProcess)).toHaveBeenCalledTimes(1);
+    // Resolve second epoch
+    await resolvePromiseAndAdvance(epoch101Promise, createMockEpoch(101));
 
-    // Now reject the promise to trigger error handling
-    controllableGetMinEpochPromise.reject(new Error('Test error: failed to get min epoch'));
+    // Should have spawned epoch 101
+    snapshot = actor.getSnapshot();
+    expect(snapshot.context.epochs[100]).toBe('processing');
+    expect(snapshot.context.epochs[101]).toBe('processing');
 
-    // Wait for the state transition to complete
-    await new Promise((resolve) => setTimeout(resolve, 5));
+    // Resolve third epoch - now at capacity (3 epochs)
+    await resolvePromiseAndAdvance(epoch102Promise, createMockEpoch(102));
 
-    // Assert - Should transition to idleNoEpoch after error
-    const stateAfterError = stateTransitions[stateTransitions.length - 1];
-    expect(stateAfterError).toBe('idleNoEpoch');
+    // Should have 3 epochs processing
+    snapshot = actor.getSnapshot();
+    expect(Object.keys(snapshot.context.epochs).length).toBe(3);
+    expect(snapshot.context.epochs[100]).toBe('processing');
+    expect(snapshot.context.epochs[101]).toBe('processing');
+    expect(snapshot.context.epochs[102]).toBe('processing');
 
-    // Wait for retry (33ms delay + some buffer)
-    await new Promise((resolve) => setTimeout(resolve, 50));
+    // Resolve epoch 103 - query returns an epoch but it should NOT be spawned (at capacity)
+    await resolvePromiseAndAdvance(epoch103Promise, createMockEpoch(103));
 
-    // Assert - Should have been called at least 2 times (initial + retry)
-    expect(
-      vi.mocked(mockEpochController.getMinEpochToProcess).mock.calls.length,
-    ).toBeGreaterThanOrEqual(2);
+    // Should still have only 3 epochs (100, 101, 102) - epoch 103 was NOT spawned
+    snapshot = actor.getSnapshot();
+    expect(Object.keys(snapshot.context.epochs).length).toBe(3);
+    expect(snapshot.context.epochs[100]).toBe('processing');
+    expect(snapshot.context.epochs[101]).toBe('processing');
+    expect(snapshot.context.epochs[102]).toBe('processing');
+    expect(snapshot.context.epochs[103]).toBeUndefined();
 
-    // Verify state sequence includes expected states
-    const pollingCount = stateTransitions.filter((state) => state === 'pollingEpoch').length;
-    const idleCount = stateTransitions.filter((state) => state === 'idleNoEpoch').length;
-    expect(pollingCount).toBeGreaterThanOrEqual(1);
-    expect(idleCount).toBeGreaterThanOrEqual(1);
+    // Machine is blocked in spawningEpochs waiting for the blocking promise
+    expect(getNestedState(snapshot.value, 'orchestrating')).toBe('spawningEpochs');
 
-    // Clean up
-    subscription.unsubscribe();
     actor.stop();
+    subscription.unsubscribe();
   });
 
-  test('should handle null epoch data and transition to idleNoEpoch, then retry after delay', async () => {
+  test('should handle ordered release - only release consecutive completed epochs from lowest', async () => {
     // Arrange
-    const controllableGetMinEpochPromise = createControllablePromise<null>();
+    type EpochType = ReturnType<typeof createMockEpoch> | null;
+    const epoch100Promise = createControllablePromise<EpochType>();
+    const epoch101Promise = createControllablePromise<EpochType>();
+    const epoch102Promise = createControllablePromise<EpochType>();
+    const blockingPromise1 = createControllablePromise<EpochType>(); // Blocks at capacity
+    const epoch103Promise = createControllablePromise<EpochType>();
+    const blockingPromise2 = createControllablePromise<EpochType>(); // Blocks after new spawn
 
-    vi.mocked(mockEpochController.getMinEpochToProcess).mockImplementation(
-      () => controllableGetMinEpochPromise.promise,
+    vi.mocked(mockEpochController.getMinEpochToProcessExcluding)
+      .mockReturnValueOnce(epoch100Promise.promise)
+      .mockReturnValueOnce(epoch101Promise.promise)
+      .mockReturnValueOnce(epoch102Promise.promise)
+      .mockReturnValueOnce(blockingPromise1.promise) // Blocks when at capacity
+      .mockReturnValueOnce(epoch103Promise.promise) // After releasing 100
+      .mockReturnValue(blockingPromise2.promise); // Blocks after spawning 103
+
+    const { actor, subscription } = createAndStartActor(
+      epochOrchestratorMachine,
+      createOrchestratorInput(),
     );
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const stateTransitions: SnapshotFrom<any>[] = [];
-    const actor = createActor(epochOrchestratorMachine, {
-      input: {
-        slotDuration: 0.1, // 100ms for faster tests
-        slotsPerEpoch: SLOTS_PER_EPOCH,
-        lookbackSlot: 32,
-        epochController: mockEpochController,
-        partitionController: mockPartitionController,
-        beaconTime: mockBeaconTime,
-        slotController: mockSlotController,
-      },
-    });
+    // Spawn 3 epochs
+    await resolvePromiseAndAdvance(epoch100Promise, createMockEpoch(100));
+    await resolvePromiseAndAdvance(epoch101Promise, createMockEpoch(101));
+    await resolvePromiseAndAdvance(epoch102Promise, createMockEpoch(102));
 
-    const subscription = actor.subscribe((snapshot) => {
-      stateTransitions.push(snapshot.value);
-    });
+    // Should have 3 epochs processing, machine blocked on blockingPromise1
+    let snapshot = actor.getSnapshot();
+    expect(Object.keys(snapshot.context.epochs).length).toBe(3);
+    expect(snapshot.context.epochs[100]).toBe('processing');
+    expect(snapshot.context.epochs[101]).toBe('processing');
+    expect(snapshot.context.epochs[102]).toBe('processing');
 
-    // Act
-    actor.start();
+    // Complete epoch 102 (highest, not lowest) - global event handler updates context immediately
+    actor.send({ type: 'EPOCH_COMPLETED', epoch: 102, machineId: 'epochProcessor:102' });
 
-    // Assert - Should be in pollingEpoch state initially
-    expect(stateTransitions[0]).toBe('pollingEpoch');
-    expect(vi.mocked(mockEpochController.getMinEpochToProcess)).toHaveBeenCalledTimes(1);
+    // Epoch 102 should be marked as completed but NOT released yet (waiting for lowest)
+    snapshot = actor.getSnapshot();
+    expect(snapshot.context.epochs[102]).toBe('completed');
+    expect(snapshot.context.epochs[100]).toBe('processing');
+    expect(snapshot.context.epochs[101]).toBe('processing');
+    expect(Object.keys(snapshot.context.epochs).length).toBe(3);
 
-    // Now resolve the promise with null to trigger the null handling
-    controllableGetMinEpochPromise.resolve(null);
+    // Complete epoch 100 (lowest) - this triggers release cycle
+    actor.send({ type: 'EPOCH_COMPLETED', epoch: 100, machineId: 'epochProcessor:100' });
 
-    // Wait for the state transition to complete
-    await new Promise((resolve) => setTimeout(resolve, 5));
+    // Resolve blockingPromise1 to allow transition to pollingDelay then to releasing
+    await resolvePromiseAndAdvance(blockingPromise1, null);
 
-    // Assert - Should transition to idleNoEpoch after resolving with null
-    const stateAfterNull = stateTransitions[stateTransitions.length - 1];
-    expect(stateAfterNull).toBe('idleNoEpoch');
+    // After releasing epoch 100, machine should query for new epoch
+    await resolvePromiseAndAdvance(epoch103Promise, createMockEpoch(103));
 
-    // Wait for the 33ms delay to complete and retry
-    await new Promise((resolve) => setTimeout(resolve, 50));
+    // Epoch 100 should be released, epoch 103 spawned
+    snapshot = actor.getSnapshot();
+    expect(snapshot.context.epochs[100]).toBeUndefined(); // Released
+    expect(snapshot.context.epochs[101]).toBe('processing');
+    expect(snapshot.context.epochs[102]).toBe('completed'); // Still not released (waiting for 101)
+    expect(snapshot.context.epochs[103]).toBe('processing');
 
-    // Assert - Should have been called at least 2 times (initial + retry)
-    expect(
-      vi.mocked(mockEpochController.getMinEpochToProcess).mock.calls.length,
-    ).toBeGreaterThanOrEqual(2);
-
-    // Verify we went through the expected states at least the expected number of times
-    const pollingEpochCount = stateTransitions.filter((state) => state === 'pollingEpoch').length;
-    const idleNoEpochCount = stateTransitions.filter((state) => state === 'idleNoEpoch').length;
-
-    expect(pollingEpochCount).toBeGreaterThanOrEqual(2);
-    expect(idleNoEpochCount).toBeGreaterThanOrEqual(2);
-
-    // Clean up
-    subscription.unsubscribe();
     actor.stop();
+    subscription.unsubscribe();
   });
 
-  test('should complete full workflow: pollingEpoch -> processingEpoch -> EPOCH_COMPLETED -> pollingEpoch', async () => {
+  test('should handle global EPOCH_COMPLETED event from any state', async () => {
     // Arrange
-    const mockEpochData = {
-      epoch: 100,
-      processed: false,
-      validatorsBalancesFetched: false,
-      validatorsActivationFetched: false,
-      rewardsFetched: false,
-      validatorProposerDutiesFetched: false,
-      committeesFetched: false,
-      allSlotsProcessed: false,
-      syncCommitteesFetched: false,
-    };
+    type EpochType = ReturnType<typeof createMockEpoch> | null;
+    const epoch100Promise = createControllablePromise<EpochType>();
+    const blockingPromise1 = createControllablePromise<EpochType>();
+    const blockingPromise2 = createControllablePromise<EpochType>();
 
-    // Create a controllable promise for getMinEpochToProcess
-    const getMinEpochPromise = createControllablePromise<{
-      epoch: number;
-      processed: boolean;
-      validatorsBalancesFetched: boolean;
-      validatorsActivationFetched: boolean;
-      rewardsFetched: boolean;
-      validatorProposerDutiesFetched: boolean;
-      committeesFetched: boolean;
-      allSlotsProcessed: boolean;
-      syncCommitteesFetched: boolean;
-    } | null>();
+    vi.mocked(mockEpochController.getMinEpochToProcessExcluding)
+      .mockReturnValueOnce(epoch100Promise.promise)
+      .mockReturnValueOnce(blockingPromise1.promise) // Blocks after spawning 100
+      .mockReturnValue(blockingPromise2.promise); // Blocks after releasing 100
 
-    vi.mocked(mockEpochController.getMinEpochToProcess).mockImplementation(
-      () => getMinEpochPromise.promise,
+    const { actor, subscription } = createAndStartActor(
+      epochOrchestratorMachine,
+      createOrchestratorInput(),
     );
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const stateTransitions: SnapshotFrom<any>[] = [];
-    const epochOrchestratorActor = createActor(epochOrchestratorMachine, {
-      input: {
-        slotDuration: 0.1, // 100ms for faster tests
-        slotsPerEpoch: SLOTS_PER_EPOCH,
-        lookbackSlot: 32,
-        epochController: mockEpochController,
-        partitionController: mockPartitionController,
-        beaconTime: mockBeaconTime,
-        slotController: mockSlotController,
-      },
-    });
+    // Spawn first epoch
+    await resolvePromiseAndAdvance(epoch100Promise, createMockEpoch(100));
 
-    const subscription = epochOrchestratorActor.subscribe((snapshot) => {
-      stateTransitions.push(snapshot.value);
-    });
+    // Should have one active epoch processing, machine blocked on blockingPromise1
+    let snapshot = actor.getSnapshot();
+    expect(Object.keys(snapshot.context.epochs).length).toBe(1);
+    expect(snapshot.context.epochs[100]).toBe('processing');
 
-    // Act
-    epochOrchestratorActor.start();
+    // Send EPOCH_COMPLETED while machine is blocked - global handler updates context immediately
+    actor.send({ type: 'EPOCH_COMPLETED', epoch: 100, machineId: 'epochProcessor:100' });
 
-    // Assert - Should be in pollingEpoch state initially
-    expect(stateTransitions[0]).toBe('pollingEpoch');
+    // Should have marked the epoch as completed immediately
+    snapshot = actor.getSnapshot();
+    expect(snapshot.context.epochs[100]).toBe('completed');
 
-    // Now resolve the promise, providing the mock epoch data to continue the workflow
-    getMinEpochPromise.resolve(mockEpochData);
+    // Resolve blockingPromise1 to trigger pollingDelay -> releasingCompletedEpochs cycle
+    await resolvePromiseAndAdvance(blockingPromise1, null);
 
-    // Wait for the state transitions to complete (pollingEpoch -> processingEpoch)
-    await new Promise((resolve) => setTimeout(resolve, 5));
+    // Should have released the epoch after transition to releasingCompletedEpochs
+    snapshot = actor.getSnapshot();
+    expect(snapshot.context.epochs[100]).toBeUndefined();
 
-    // Assert - Should be in processingEpoch with epoch actor spawned
-    const stateAfterResolve = stateTransitions[stateTransitions.length - 1];
-    expect(stateAfterResolve).toBe('processingEpoch');
-
-    // Verify context from stored snapshot
-    const snapshotAtProcessing = epochOrchestratorActor.getSnapshot();
-    expect(snapshotAtProcessing.context.epochData).toEqual(mockEpochData);
-    expect(snapshotAtProcessing.context.epochActor).not.toBe(null);
-
-    // Update mock to return null for subsequent calls to prevent further processing
-    vi.mocked(mockEpochController.getMinEpochToProcess).mockResolvedValue(null);
-
-    // Send EPOCH_COMPLETED event directly to the orchestrator to simulate completion
-    epochOrchestratorActor.send({ type: 'EPOCH_COMPLETED', machineId: 'epochProcessor:100' });
-
-    // Wait for the epoch processor to complete and send EPOCH_COMPLETED event
-    await new Promise((resolve) => setTimeout(resolve, 10));
-
-    // Wait a bit more for any pending state transitions
-    await new Promise((resolve) => setTimeout(resolve, 5));
-
-    // Assert - Should be back to idleNoEpoch with cleaned context
-    const finalState = stateTransitions[stateTransitions.length - 1];
-    expect(finalState).toBe('idleNoEpoch');
-
-    // Verify cleanup using final snapshot
-    const finalSnapshot = epochOrchestratorActor.getSnapshot();
-    expect(finalSnapshot.context.epochData).toBe(null);
-    expect(finalSnapshot.context.epochActor).toBe(null);
-
-    // Note: markEpochAsProcessed is called by the epochProcessor, not the orchestrator
-    // The orchestrator just receives the EPOCH_COMPLETED event and cleans up
-
-    // Verify the state sequence
-    expect(stateTransitions.length).toBeGreaterThanOrEqual(3);
-    expect(stateTransitions[0]).toBe('pollingEpoch');
-    const processingIndex = stateTransitions.findIndex((state) => state === 'processingEpoch');
-    expect(processingIndex).toBeGreaterThan(0);
-    const idleIndex = stateTransitions.findIndex(
-      (state, idx) => state === 'idleNoEpoch' && idx > processingIndex,
-    );
-    expect(idleIndex).toBeGreaterThan(processingIndex);
-
-    // Clean up
+    actor.stop();
     subscription.unsubscribe();
-    epochOrchestratorActor.stop();
+  });
+
+  test('should release multiple consecutive completed epochs in order', async () => {
+    // Arrange
+    type EpochType = ReturnType<typeof createMockEpoch> | null;
+    const epoch100Promise = createControllablePromise<EpochType>();
+    const epoch101Promise = createControllablePromise<EpochType>();
+    const epoch102Promise = createControllablePromise<EpochType>();
+    const blockingPromise1 = createControllablePromise<EpochType>(); // Blocks at capacity
+    const blockingPromise2 = createControllablePromise<EpochType>(); // Blocks after release
+
+    vi.mocked(mockEpochController.getMinEpochToProcessExcluding)
+      .mockReturnValueOnce(epoch100Promise.promise)
+      .mockReturnValueOnce(epoch101Promise.promise)
+      .mockReturnValueOnce(epoch102Promise.promise)
+      .mockReturnValueOnce(blockingPromise1.promise) // Blocks when at capacity
+      .mockReturnValue(blockingPromise2.promise); // Blocks after release
+
+    const { actor, subscription } = createAndStartActor(
+      epochOrchestratorMachine,
+      createOrchestratorInput(),
+    );
+
+    // Spawn all 3 epochs
+    await resolvePromiseAndAdvance(epoch100Promise, createMockEpoch(100));
+    await resolvePromiseAndAdvance(epoch101Promise, createMockEpoch(101));
+    await resolvePromiseAndAdvance(epoch102Promise, createMockEpoch(102));
+
+    // Machine is now blocked on blockingPromise1 (at capacity)
+    let snapshot = actor.getSnapshot();
+    expect(Object.keys(snapshot.context.epochs).length).toBe(3);
+
+    // Complete all three epochs - global handler updates context immediately
+    actor.send({ type: 'EPOCH_COMPLETED', epoch: 100, machineId: 'epochProcessor:100' });
+    actor.send({ type: 'EPOCH_COMPLETED', epoch: 101, machineId: 'epochProcessor:101' });
+    actor.send({ type: 'EPOCH_COMPLETED', epoch: 102, machineId: 'epochProcessor:102' });
+
+    // All three should be marked as completed immediately
+    snapshot = actor.getSnapshot();
+    expect(snapshot.context.epochs[100]).toBe('completed');
+    expect(snapshot.context.epochs[101]).toBe('completed');
+    expect(snapshot.context.epochs[102]).toBe('completed');
+
+    // Resolve blockingPromise1 to trigger polling -> releasingCompletedEpochs cycle
+    await resolvePromiseAndAdvance(blockingPromise1, null);
+
+    // All three should be released since they completed consecutively from the lowest
+    snapshot = actor.getSnapshot();
+    expect(snapshot.context.epochs[100]).toBeUndefined();
+    expect(snapshot.context.epochs[101]).toBeUndefined();
+    expect(snapshot.context.epochs[102]).toBeUndefined();
+    expect(Object.keys(snapshot.context.epochs).length).toBe(0);
+
+    actor.stop();
+    subscription.unsubscribe();
   });
 });

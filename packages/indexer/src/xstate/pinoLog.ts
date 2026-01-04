@@ -3,7 +3,7 @@ import type { ActionArgs, EventObject, MachineContext, ParameterizedObject } fro
 import createLogger from '@/src/lib/pino.js';
 import { cleanContextForLogging } from '@/src/xstate/multiMachineLogger.js';
 
-// Define the log expression type that returns either string or log data object
+// Define the log expression type that returns either string, log data object, or undefined (skip logging)
 type PinoLogExpr<
   TContext extends MachineContext,
   TExpressionEvent extends EventObject,
@@ -12,7 +12,7 @@ type PinoLogExpr<
 > = (
   args: ActionArgs<TContext, TExpressionEvent, TEvent>,
   params: TParams,
-) => string | { message: string; data?: unknown };
+) => string | { message: string; data?: unknown } | undefined;
 
 // Define the action interface matching XState's LogAction
 export interface PinoLogAction<
@@ -70,9 +70,12 @@ export const pinoLog = <
       message = value;
       data = undefined;
     } else if (typeof value === 'function') {
-      // Function that returns either string or log data object
+      // Function that returns either string, log data object, or undefined (skip logging)
       const result = value(args, params);
-      if (typeof result === 'string') {
+      if (result === undefined) {
+        // Skip logging if function returns undefined
+        return;
+      } else if (typeof result === 'string') {
         message = result;
         // Don't include context/event by default for function-based logs
         data = undefined;
