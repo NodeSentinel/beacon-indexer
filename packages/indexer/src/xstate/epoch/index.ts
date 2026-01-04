@@ -54,19 +54,16 @@ export const getEpochOrchestratorActor = (
   actor.subscribe((snapshot) => {
     const { context } = snapshot;
 
-    // Get information about the current epoch actor if it exists
-    const epochActorInfo = context.epochActor
-      ? {
-          state: context.epochActor.getSnapshot().value,
-          epochData: context.epochData,
-        }
-      : null;
+    // Get information about active epochs
+    const activeEpochs = Object.keys(context.epochs)
+      .map((e) => parseInt(e))
+      .sort((a, b) => a - b);
 
     logMachine('epochOrchestrator', `State: ${JSON.stringify(snapshot.value)}`, {
-      // Current epoch being processed
-      currentEpoch: context.epochData?.epoch || null,
-      // Active epoch processor if any
-      spawnedEpochProcessor: epochActorInfo,
+      // Active epochs being processed
+      activeEpochs,
+      // Epochs status map
+      epochsStatus: context.epochs,
     });
   });
 

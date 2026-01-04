@@ -130,6 +130,33 @@ export class EpochStorage {
     };
   }
 
+  /**
+   * Get the minimum unprocessed epoch excluding the provided active epochs.
+   * This is useful when processing multiple epochs in parallel to avoid duplicates.
+   *
+   * @param activeEpochs - Array of epoch numbers that are currently being processed
+   * @returns The next epoch to process, or null if none available
+   */
+  async getMinEpochToProcessExcluding(activeEpochs: number[]) {
+    const nextEpoch = await this.prisma.epoch.findFirst({
+      where: {
+        processed: false,
+        epoch: {
+          notIn: activeEpochs.length > 0 ? activeEpochs : undefined,
+        },
+      },
+      orderBy: { epoch: 'asc' },
+    });
+
+    if (!nextEpoch) {
+      return null;
+    }
+
+    return {
+      ...nextEpoch,
+    };
+  }
+
   async markEpochAsProcessed(epoch: number) {
     await this.prisma.epoch.update({
       where: { epoch },

@@ -31,6 +31,17 @@ export class EpochController extends EpochControllerHelpers {
     return this.epochStorage.getMinEpochToProcess();
   }
 
+  /**
+   * Get the minimum unprocessed epoch excluding active epochs.
+   * Useful for parallel processing to avoid duplicates.
+   *
+   * @param activeEpochs - Array of epoch numbers currently being processed
+   * @returns The next epoch to process, or null if none available
+   */
+  async getMinEpochToProcessExcluding(activeEpochs: number[]) {
+    return this.epochStorage.getMinEpochToProcessExcluding(activeEpochs);
+  }
+
   getBeaconTime() {
     return this.beaconTime;
   }
