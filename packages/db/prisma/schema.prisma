@@ -76,6 +76,8 @@ model validatorConsolidationsRequests {
     @@map("validator_request_consolidations")
 }
 
+// TODO: unificar validatorBlockRewards y ExecutionRewards
+// el mismo validador recibe rewards de consensus y de execution
 model ValidatorBlockRewards {
     slot           Int    @map("slot")
     validatorIndex Int    @map("validator_index")
@@ -83,15 +85,6 @@ model ValidatorBlockRewards {
 
     @@id([slot, validatorIndex])
     @@map("validator_block_rewards")
-}
-
-model ValidatorSyncRewards {
-    slot           Int    @map("slot")
-    validatorIndex Int    @map("validator_index")
-    syncCommittee  BigInt @map("sync_committee")
-
-    @@id([slot, validatorIndex])
-    @@map("validator_sync_rewards")
 }
 
 model ExecutionRewards {
@@ -104,8 +97,19 @@ model ExecutionRewards {
     @@map("execution_rewards")
 }
 
+model ValidatorSyncRewards {
+    slot           Int    @map("slot")
+    validatorIndex Int    @map("validator_index")
+    syncCommittee  BigInt @map("sync_committee")
+
+    @@id([slot, validatorIndex])
+    @@map("validator_sync_rewards")
+}
+
+// TODO: flags could have been a json, so when we mark is as processed, we can set it to null
 model Epoch {
     epoch                          Int     @id @map("epoch")
+    // tokenPrice                     Decimal @map("token_price") @db.Decimal(18, 2)
     // processed flags
     processed                      Boolean @default(false) @map("processed")
     allSlotsProcessed              Boolean @default(false) @map("all_slots_processed")
@@ -138,6 +142,7 @@ model Committee {
     @@map("committee")
 }
 
+// TODO: flags could have been a json, so when we mark is as processed, we can set it to null
 model Slot {
     slot                     Int     @id @map("slot")
     proposerIndex            Int?    @map("proposer_index")

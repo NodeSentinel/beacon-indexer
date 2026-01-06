@@ -15,7 +15,7 @@ const __dirname = dirname(__filename);
 
 // FlatCompat instance scoped to the Next.js mini-app package
 const compatMiniApp = new FlatCompat({
-  baseDirectory: join(__dirname, 'packages/telegram-mini-app'),
+  baseDirectory: join(__dirname, 'packages/app'),
 });
 
 const nextMiniAppConfigs = compatMiniApp
@@ -46,7 +46,7 @@ const nextMiniAppConfigs = compatMiniApp
       ...rest,
       plugins: normalizedPlugins,
       rules: normalizedRules,
-      files: ['packages/telegram-mini-app/**/*'],
+      files: ['packages/app/**/*'],
     };
   });
 
@@ -103,7 +103,7 @@ export default tseslint.config(
       'prettier/prettier': 'warn',
     },
   },
-  // Next.js + TypeScript rules for the telegram-mini-app package
+  // Next.js + TypeScript rules for the app package
   ...nextMiniAppConfigs,
   prettierConfig,
   {

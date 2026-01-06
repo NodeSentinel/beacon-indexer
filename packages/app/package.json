@@ -1,5 +1,5 @@
 {
-  "name": "my-v0-project",
+  "name": "app",
   "version": "0.1.0",
   "private": true,
   "author": "Nicolás Domínguez <nf.dominguez.87@gmail.com>",
@@ -17,7 +17,7 @@
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "start": "next start",
-    "test": "echo \"No tests for telegram-mini-app\""
+    "test": "echo \"No tests for app\""
   },
   "dependencies": {
     "@emotion/is-prop-valid": "latest",

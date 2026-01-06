@@ -44,7 +44,7 @@ The code is written in TypeScript and uses XState to orchestrate the data fetchi
      - `packages/db/.env` (PostgreSQL connection for Prisma)
      - `packages/indexer/.env` (indexer service runtime)
      - `packages/telegram-bot/.env` (bot runtime)
-     - `packages/telegram-mini-app/.env.local` (Next.js dev)
+     - `packages/app/.env.local` (Next.js dev)
    - See "Environment variables" below for full templates.
 
 4. **Start the services**
@@ -132,7 +132,7 @@ DEBUG="false"
 LOG_LEVEL="info"
 ```
 
-### packages/telegram-mini-app/.env.local
+### packages/app/.env.local
 
 Next.js conventions: `.env.local` for local development. Only `NEXT_PUBLIC_*` are exposed to the browser.
 

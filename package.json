@@ -45,6 +45,7 @@
     "build": "pnpm --filter @beacon-indexer/db build && pnpm --filter indexer build",
     "dev:indexer": "pnpm --filter indexer run dev",
     "dev:api": "pnpm --filter api run dev",
+    "dev:app": "pnpm --filter app run dev",
     "db:danger:reset": "node scripts/db-danger-reset.js",
     "db:danger:recreate-migration": "node scripts/db-danger-recreate-migration.js",
     "docker:up": "docker compose --env-file packages/db/.env up -d",
@@ -102,8 +103,8 @@
     "packages/telegram-bot/**/*.ts": [
       "bash -c 'cd packages/telegram-bot && pnpm exec tsc --noEmit'"
     ],
-    "packages/telegram-mini-app/**/*.{ts,tsx}": [
-      "bash -c 'cd packages/telegram-mini-app && pnpm exec tsc --noEmit'"
+    "packages/app/**/*.{ts,tsx}": [
+      "bash -c 'cd packages/app && pnpm exec tsc --noEmit'"
     ]
   },
   "pnpm": {
