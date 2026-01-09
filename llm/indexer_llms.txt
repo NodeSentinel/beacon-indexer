@@ -68,7 +68,7 @@ The database schema is defined in `packages/db/prisma/schema.prisma`. Key models
 - **Validator**: Core validator information (id, status, balance, pubkey, withdrawal address)
 - **SyncCommittee**: Sync committee assignments for epoch ranges
 - **epochRewards**: Epoch-level rewards for validators (head, target, source, inactivity rewards)
-- **HourlyValidatorStats**: Aggregated hourly statistics for validators
+- **ValidatorHourlyArchive**: Aggregated hourly archive per validator with compact JSON payloads and aggregate columns
 - **ValidatorsStatusSummary**: Current status summary for each validator
 
 The Committee table uses PostgreSQL table partitioning by slot ranges (equivalent to one hour of slots) to improve query performance on large datasets.

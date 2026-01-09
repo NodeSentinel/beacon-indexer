@@ -5,16 +5,16 @@ import { env, chainConfig } from '@/src/lib/env.js';
 import createLogger from '@/src/lib/pino.js';
 import { BeaconClient } from '@/src/services/consensus/beacon.js';
 import { EpochController } from '@/src/services/consensus/controllers/epoch.js';
+import { HourlyArchiveController } from '@/src/services/consensus/controllers/hourlyArchive.js';
 import { IndexerConfigController } from '@/src/services/consensus/controllers/indexerConfig.js';
 import { PartitionController } from '@/src/services/consensus/controllers/partition.js';
 import { SlotController } from '@/src/services/consensus/controllers/slot.js';
-import { SummaryController } from '@/src/services/consensus/controllers/summary.js';
 import { ValidatorsController } from '@/src/services/consensus/controllers/validators.js';
 import { EpochStorage } from '@/src/services/consensus/storage/epoch.js';
+import { HourlyArchiveStorage } from '@/src/services/consensus/storage/hourlyArchive.js';
 import { IndexerConfigStorage } from '@/src/services/consensus/storage/indexerConfig.js';
 import { PartitionStorage } from '@/src/services/consensus/storage/partition.js';
 import { SlotStorage } from '@/src/services/consensus/storage/slot.js';
-import { SummaryStorage } from '@/src/services/consensus/storage/summary.js';
 import { ValidatorsStorage } from '@/src/services/consensus/storage/validators.js';
 import { BeaconTime } from '@/src/services/consensus/utils/beaconTime.js';
 import { ExecutionClient } from '@/src/services/execution/execution.js';
@@ -159,16 +159,23 @@ async function main() {
     executionClient,
   );
 
-  const summaryStorage = new SummaryStorage(prisma);
-  const summaryController = new SummaryController(summaryStorage, beaconTime);
-
   // Create partition controller
   const partitionStorage = new PartitionStorage(prisma);
   const partitionController = new PartitionController(partitionStorage, beaconTime);
 
+  // Create hourly archive storage and controller
+  const hourlyArchiveStorage = new HourlyArchiveStorage(prisma);
+  const hourlyArchiveController = new HourlyArchiveController(
+    hourlyArchiveStorage,
+    partitionController,
+    beaconTime,
+    chainConfig.beacon.maxAttestationDelay,
+  );
+
   // Start indexing the beacon chain
   await validatorsController.initValidatorsWithWait(env.CONSENSUS_LOOKBACK_SLOT);
 
+  // Initialize all XState machines (hourly archive controller is passed, actor created inside)
   await initXstateMachines(
     epochController,
     partitionController,
@@ -177,15 +184,8 @@ async function main() {
     chainConfig.beacon.slotsPerEpoch,
     slotController,
     validatorsController,
+    hourlyArchiveController,
   );
-
-  // Get validator inactivity status
-  // await summaryController.getValidatorInactivityStatus({
-  //   slotsPerEpoch: chainConfig.beacon.slotsPerEpoch,
-  //   maxAttestationDelay: chainConfig.beacon.maxAttestationDelay,
-  //   delaySlotsToHead: chainConfig.beacon.delaySlotsToHead,
-  //   missedAttestationsForInactivity: chainConfig.beacon.missedAttestationsForInactivity,
-  // });
 }
 
 main().catch((e) => {

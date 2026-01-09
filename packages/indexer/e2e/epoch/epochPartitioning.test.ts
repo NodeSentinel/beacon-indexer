@@ -2,9 +2,14 @@ import { PrismaClient } from '@beacon-indexer/db';
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 
 import { gnosisConfig } from '@/src/config/chain.js';
-import { PartitionController } from '@/src/services/consensus/controllers/partition.js';
+import { getPartitionName } from '@/src/services/consensus/controllers/helpers/partitionNaming.js';
+import {
+  PARTITION_TABLE_NAMES,
+  PartitionController,
+} from '@/src/services/consensus/controllers/partition.js';
 import { PartitionStorage } from '@/src/services/consensus/storage/partition.js';
 import { BeaconTime } from '@/src/services/consensus/utils/beaconTime.js';
+import { getUTCDatetimeFlooredToHour } from '@/src/utils/date/index.js';
 
 describe('Partitioning by epoch', () => {
   let prisma: PrismaClient;
@@ -67,9 +72,20 @@ describe('Partitioning by epoch', () => {
     it('should create partition aligned to UTC hour boundary', async () => {
       // Epoch 1586252: slots 25380032-25380047 (Dec-16-2025 13:58:20 - 13:59:35 UTC)
       // lookbackSlot: 25380000 (before this epoch)
-      // Expected partition: committee_25379332-25380051 (UTC hour boundary for 13:00 UTC)
+      // Expected partition: committee_25379332-25380051_YYYYMMDDHH (UTC hour boundary for 13:00 UTC)
       const epoch = 1586252;
-      const expectedPartitionName = 'committee_25379332-25380051';
+      const startSlot = 25379332;
+      const endSlot = 25380051;
+
+      // Calculate UTC hour timestamp from the start slot using real Gnosis chain data
+      const startSlotTimestamp = beaconTimeWithLookback.getTimestampFromSlotNumber(startSlot);
+      const hourTimestamp = getUTCDatetimeFlooredToHour(startSlotTimestamp);
+      const expectedPartitionName = getPartitionName(
+        'committee',
+        startSlot,
+        endSlot,
+        hourTimestamp,
+      );
 
       await partitionControllerWithLookback.createPartitionForCommittee(epoch);
 
@@ -109,11 +125,32 @@ describe('Partitioning by epoch', () => {
       // Epoch 1586253: slots 25380048-25380063 (Dec-16-2025 01:59:40 PM +UTC - 02:00:55 PM +UTC)
       // (crosses UTC hour boundary from 13:00 to 14:00)
       // Expected partitions:
-      // - committee_25379332-25380051 (13:00 UTC hour)
-      // - committee_25380052-25380771 (14:00 UTC hour)
+      // - committee_25379332-25380051_YYYYMMDDHH (13:00 UTC hour)
+      // - committee_25380052-25380771_YYYYMMDDHH (14:00 UTC hour)
       const epoch = 1586253;
-      const expectedPartition0Name = 'committee_25379332-25380051';
-      const expectedPartition1Name = 'committee_25380052-25380771';
+
+      // Calculate expected partition names using real Gnosis chain timestamps
+      const startSlot0 = 25379332;
+      const endSlot0 = 25380051;
+      const startSlot0Timestamp = beaconTimeWithLookback.getTimestampFromSlotNumber(startSlot0);
+      const hourTimestamp0 = getUTCDatetimeFlooredToHour(startSlot0Timestamp);
+      const expectedPartition0Name = getPartitionName(
+        'committee',
+        startSlot0,
+        endSlot0,
+        hourTimestamp0,
+      );
+
+      const startSlot1 = 25380052;
+      const endSlot1 = 25380771;
+      const startSlot1Timestamp = beaconTimeWithLookback.getTimestampFromSlotNumber(startSlot1);
+      const hourTimestamp1 = getUTCDatetimeFlooredToHour(startSlot1Timestamp);
+      const expectedPartition1Name = getPartitionName(
+        'committee',
+        startSlot1,
+        endSlot1,
+        hourTimestamp1,
+      );
 
       await partitionControllerWithLookback.createPartitionForCommittee(epoch);
 
@@ -154,9 +191,20 @@ describe('Partitioning by epoch', () => {
     });
 
     it('should be idempotent - calling multiple times should not cause errors', async () => {
-      // Epoch 1586252 should create partition committee_25379332-25380051
+      // Epoch 1586252 should create partition committee_25379332-25380051_YYYYMMDDHH
       const epoch = 1586252;
-      const expectedPartitionName = 'committee_25379332-25380051';
+      const startSlot = 25379332;
+      const endSlot = 25380051;
+
+      // Calculate expected partition name using real Gnosis chain timestamps
+      const startSlotTimestamp = beaconTimeWithLookback.getTimestampFromSlotNumber(startSlot);
+      const hourTimestamp = getUTCDatetimeFlooredToHour(startSlotTimestamp);
+      const expectedPartitionName = getPartitionName(
+        'committee',
+        startSlot,
+        endSlot,
+        hourTimestamp,
+      );
 
       // Call createPartitionForCommittee multiple times
       await partitionControllerWithLookback.createPartitionForCommittee(epoch);
@@ -203,10 +251,21 @@ describe('Partitioning by epoch', () => {
     it('should create partition aligned to UTC hour boundary using epochs', async () => {
       // Epoch 1586252: slots 25380032-25380047 (Dec-16-2025 13:58:20 - 13:59:35 UTC)
       // lookbackSlot: 25380000 (before this epoch)
-      // Expected partition: epoch_rewards_1586209-1586253 (UTC hour boundary for 13:00 UTC)
+      // Expected partition: epoch_rewards_1586209-1586253_YYYYMMDDHH (UTC hour boundary for 13:00 UTC)
       // Note: epoch 1586208 starts at 12:00 UTC, so first epoch in 13:00 UTC hour is 1586209
       const epoch = 1586252;
-      const expectedPartitionName = 'epoch_rewards_1586209-1586253';
+      const startEpoch = 1586209;
+      const endEpoch = 1586253;
+
+      // Calculate UTC hour timestamp from the start epoch using real Gnosis chain data
+      const startEpochTimestamp = beaconTimeWithLookback.getTimestampFromEpochNumber(startEpoch);
+      const hourTimestamp = getUTCDatetimeFlooredToHour(startEpochTimestamp);
+      const expectedPartitionName = getPartitionName(
+        PARTITION_TABLE_NAMES.EPOCH_REWARDS,
+        startEpoch,
+        endEpoch,
+        hourTimestamp,
+      );
 
       await partitionControllerWithLookback.createPartitionForEpochRewards(epoch);
 
@@ -239,13 +298,24 @@ describe('Partitioning by epoch', () => {
       `;
 
       expect(inheritanceInfo).toHaveLength(1);
-      expect(inheritanceInfo[0].parent).toBe('epoch_rewards');
+      expect(inheritanceInfo[0].parent).toBe(PARTITION_TABLE_NAMES.EPOCH_REWARDS);
     });
 
     it('should be idempotent - calling multiple times should not cause errors', async () => {
-      // Epoch 1586252 should create partition epoch_rewards_1586209-1586253
+      // Epoch 1586252 should create partition epoch_rewards_1586209-1586253_YYYYMMDDHH
       const epoch = 1586252;
-      const expectedPartitionName = 'epoch_rewards_1586209-1586253';
+      const startEpoch = 1586209;
+      const endEpoch = 1586253;
+
+      // Calculate expected partition name using real Gnosis chain timestamps
+      const startEpochTimestamp = beaconTimeWithLookback.getTimestampFromEpochNumber(startEpoch);
+      const hourTimestamp = getUTCDatetimeFlooredToHour(startEpochTimestamp);
+      const expectedPartitionName = getPartitionName(
+        PARTITION_TABLE_NAMES.EPOCH_REWARDS,
+        startEpoch,
+        endEpoch,
+        hourTimestamp,
+      );
 
       // Call createPartitionForEpochRewards multiple times
       await partitionControllerWithLookback.createPartitionForEpochRewards(epoch);
