@@ -1,4 +1,15 @@
-import { setup, assign, stopChild, spawnChild, fromPromise, and } from 'xstate';
+import {
+  setup,
+  assign,
+  stopChild,
+  spawnChild,
+  sendTo,
+  fromPromise,
+  and,
+  ActorRefFrom,
+} from 'xstate';
+
+import { hourlyArchiveMachine } from '../archive/hourlyArchive.machine.js';
 
 import { epochWorkerMachine } from './epochWorker.machine.js';
 
@@ -60,6 +71,8 @@ export const epochOrchestratorMachine = setup({
     context: {
       // Active epochs tracking with status
       epochs: Record<number, EpochStatus>;
+      // Hourly archive actor reference (passed from outside)
+      hourlyArchiveActor: ActorRefFrom<typeof hourlyArchiveMachine>;
       // Config
       config: {
         slotDuration: number;
@@ -85,6 +98,7 @@ export const epochOrchestratorMachine = setup({
       beaconTime: BeaconTime;
       validatorsController?: ValidatorsController;
       slotController: SlotController;
+      hourlyArchiveActor: ActorRefFrom<typeof hourlyArchiveMachine>;
     };
   },
   actors: {
@@ -115,6 +129,7 @@ export const epochOrchestratorMachine = setup({
   initial: 'orchestrating',
   context: ({ input }) => ({
     epochs: {},
+    hourlyArchiveActor: input.hourlyArchiveActor,
     config: {
       slotDuration: input.slotDuration,
       slotsPerEpoch: input.slotsPerEpoch,
@@ -234,7 +249,7 @@ export const epochOrchestratorMachine = setup({
   },
   on: {
     // Handle epoch completion from any state (global event handler)
-    // Marks epoch as completed and stops the worker
+    // Marks epoch as completed, stops the worker, and triggers hourly archive tick
     EPOCH_COMPLETED: {
       actions: [
         pinoLog(({ event }) => `Epoch ${event.epoch} completed`, 'EpochOrchestrator'),
@@ -251,6 +266,11 @@ export const epochOrchestratorMachine = setup({
             return context.epochs;
           },
         }),
+        // Forward EPOCH_PROCESSED to hourly archive actor to trigger archive check
+        sendTo(
+          ({ context }) => context.hourlyArchiveActor,
+          ({ event }) => ({ type: 'EPOCH_PROCESSED' as const, epoch: event.epoch }),
+        ),
       ],
     },
   },

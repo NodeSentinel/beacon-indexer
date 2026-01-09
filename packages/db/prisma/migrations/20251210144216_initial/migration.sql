@@ -189,16 +189,44 @@ CREATE TABLE "public"."epoch_rewards" (
     CONSTRAINT "epoch_rewards_pkey" PRIMARY KEY ("epoch","validator_index")
 ) PARTITION BY RANGE ("epoch");
 
--- CreateTable
-CREATE TABLE "public"."hourly_validator_stats" (
-    "datetime" TIMESTAMP NOT NULL,
+-- CreateTable (Partitioned by timestamp range)
+-- ValidatorHourlyArchive stores per-validator aggregated data for each UTC hour.
+-- This table archives detailed slot/epoch data in compact JSON format, enabling
+-- efficient historical queries while allowing raw tables (committee, epoch_rewards) to be pruned.
+-- Partitions are created dynamically per hour by the hourly archive service.
+-- Partition naming: validator_hourly_archive_YYYYMMDDHH
+CREATE TABLE "public"."validator_hourly_archive" (
+    "timestamp" TIMESTAMP NOT NULL,
     "validator_index" INTEGER NOT NULL,
-    "missed_attestations_count" SMALLINT,
-    "cl_rewards" BIGINT,
-    "cl_missed_rewards" BIGINT,
+    "data_by_slot" JSONB NOT NULL,
+    "data_by_epoch" JSONB NOT NULL,
+    "attestation_count" SMALLINT NOT NULL DEFAULT 0,
+    "missed_attestation_count" SMALLINT NOT NULL DEFAULT 0,
+    "sync_reward_total" BIGINT NOT NULL DEFAULT 0,
+    "exec_reward_total" BIGINT NOT NULL DEFAULT 0,
+    "block_reward_total" BIGINT NOT NULL DEFAULT 0,
+    "cl_reward_total" BIGINT NOT NULL DEFAULT 0,
+    "cl_missed_reward_total" BIGINT NOT NULL DEFAULT 0,
 
-    CONSTRAINT "hourly_validator_stats_pkey" PRIMARY KEY ("datetime","validator_index")
+    CONSTRAINT "validator_hourly_archive_pkey" PRIMARY KEY ("timestamp","validator_index")
+) PARTITION BY RANGE ("timestamp");
+
+-- CreateTable
+-- Archive master table: single-row table tracking last archived timestamps for each aggregation level.
+-- This serves as the source of truth for what has been archived, avoiding expensive queries on validator_hourly_archive.
+CREATE TABLE "public"."archive" (
+    "id" INTEGER NOT NULL DEFAULT 1,
+    "last_hour" TIMESTAMP,
+    "last_day" TIMESTAMP,
+    "last_week" TIMESTAMP,
+    "last_month" TIMESTAMP,
+
+    CONSTRAINT "archive_pkey" PRIMARY KEY ("id")
 );
+
+-- Insert initial archive row (single row, id=1)
+INSERT INTO "public"."archive" ("id", "last_hour", "last_day", "last_week", "last_month")
+VALUES (1, NULL, NULL, NULL, NULL);
 
 -- CreateTable
 CREATE TABLE "public"."validators_status_summary" (
@@ -265,6 +293,12 @@ CREATE INDEX "committee_validator_index_slot_attestation_delay_idx" ON "public".
 
 -- CreateIndex
 CREATE INDEX "slot_slot_processed_idx" ON "public"."slot"("slot", "processed");
+
+-- CreateIndex (for validator_hourly_archive - query validator history newest-first)
+CREATE INDEX "validator_hourly_archive_validator_timestamp_idx" ON "public"."validator_hourly_archive"("validator_index", "timestamp" DESC);
+
+-- CreateIndex (for validator_hourly_archive - query all validators for a specific hour)
+CREATE INDEX "validator_hourly_archive_timestamp_idx" ON "public"."validator_hourly_archive"("timestamp");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "user_user_id_key" ON "public"."user"("user_id");

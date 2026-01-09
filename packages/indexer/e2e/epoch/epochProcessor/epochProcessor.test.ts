@@ -173,7 +173,6 @@ describe('Epoch Processor E2E Tests', () => {
 
     beforeEach(async () => {
       // Clean up database
-      await prisma.hourlyValidatorStats.deleteMany();
       await prisma.epochRewards.deleteMany();
       await prisma.validator.deleteMany();
       await prisma.epoch.deleteMany();
@@ -225,7 +224,7 @@ describe('Epoch Processor E2E Tests', () => {
       await partitionController.createPartitionsToProcessEpoch(1525791);
     });
 
-    it('should process both epochs and verify HourlyValidatorData and HourlyValidatorStats', async () => {
+    it('should process both epochs and verify epoch rewards', async () => {
       // Process epoch 1525790
       mockBeaconClient.getAttestationRewards.mockResolvedValueOnce(rewardsAttestations1525790);
       await epochControllerWithMock.fetchEpochRewards(1525790);
@@ -238,23 +237,15 @@ describe('Epoch Processor E2E Tests', () => {
       const epoch1525791 = await epochControllerWithMock.getEpochByNumber(1525791);
       expect(epoch1525791?.rewardsFetched).toBe(true);
 
-      // Expected datetime for both epochs (should be 2025-10-21T14:00:00.000Z)
-      //const expectedDatetime = new Date('2025-10-21T14:00:00.000Z');
-
-      // Fetch validators data and stats from database
+      // Fetch validators data from database
       const validatorIndexes = [549417, 549418, 549419];
-      // Epoch rewards are now stored in epochRewards table
+      // Epoch rewards are stored in epochRewards table
       const dbEpochRewards = await prisma.epochRewards.findMany({
         where: {
           validatorIndex: { in: validatorIndexes },
           epoch: { in: [1525790, 1525791] },
         },
       });
-      // const dbHourlyStats = await prisma.hourlyValidatorStats.findMany({
-      //   where: {
-      //     validatorIndex: { in: validatorIndexes },
-      //   },
-      // });
 
       expect(dbEpochRewards.length).toBeGreaterThan(0);
 
@@ -290,28 +281,6 @@ describe('Epoch Processor E2E Tests', () => {
 
       // Verify that epoch 1525791 rewards exist for validator 549419
       expect(epoch1525791Reward549419).toBeDefined();
-
-      // NOTE: hourly_validator_stats aggregation is currently disabled (code commented out)
-      // The following assertions are commented out until aggregation is re-enabled
-      // expect(dbHourlyStats.length).toBeGreaterThan(0);
-
-      // // Verify validator 549417 stats
-      // const stats549417 = dbHourlyStats.find((s) => s.validatorIndex === 549417);
-      // expect(stats549417!.datetime.toISOString()).toBe(expectedDatetime.toISOString());
-      // // Verify validator 549417 rewards (87524+163524+87929+0) + (87314+163553+87978+0) = 338977 + 338845 = 677822
-      // expect(Number(stats549417!.clRewards?.toString())).toBe(677822);
-
-      // // Verify validator 549418 stats
-      // const stats549418 = dbHourlyStats.find((s) => s.validatorIndex === 549418);
-      // expect(stats549418!.datetime.toISOString()).toBe(expectedDatetime.toISOString());
-      // // Verify validator 549418 rewards (same as 549417)
-      // expect(Number(stats549418!.clRewards?.toString())).toBe(677822);
-
-      // // Verify validator 549419 stats
-      // const stats549419 = dbHourlyStats.find((s) => s.validatorIndex === 549419);
-      // expect(stats549419!.datetime.toISOString()).toBe(expectedDatetime.toISOString());
-      // // Verify validator 549419 rewards (37711+70458+37886+0) + (37621+70470+37907+0) = 146055 + 145998 = 292053
-      // expect(Number(stats549419!.clRewards?.toString())).toBe(292053);
     });
   });
 

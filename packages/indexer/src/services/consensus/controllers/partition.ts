@@ -1,5 +1,12 @@
-import { addHours } from 'date-fns';
+import { addHours, subHours } from 'date-fns';
 
+import {
+  getHourlyArchivePartitionName,
+  getPartitionName,
+  parseEpochPartitionName,
+  parseSlotPartitionName,
+  ParsedPartition,
+} from '@/src/services/consensus/controllers/helpers/partitionNaming.js';
 import { PartitionStorage } from '@/src/services/consensus/storage/partition.js';
 import { BeaconTime } from '@/src/services/consensus/utils/beaconTime.js';
 import { getUTCDatetimeFlooredToHour } from '@/src/utils/date/index.js';
@@ -7,7 +14,7 @@ import { getUTCDatetimeFlooredToHour } from '@/src/utils/date/index.js';
 /**
  * Partition information for a slot-based partition
  */
-interface SlotPartitionInfo {
+export interface SlotPartitionInfo {
   name: string;
   startSlot: number;
   endSlot: number; // Exclusive end for PostgreSQL
@@ -16,11 +23,28 @@ interface SlotPartitionInfo {
 /**
  * Partition information for an epoch-based partition
  */
-interface EpochPartitionInfo {
+export interface EpochPartitionInfo {
   name: string;
   startEpoch: number;
   endEpoch: number; // Exclusive end for PostgreSQL
 }
+export interface HourArchiveCandidate {
+  hourStart: Date;
+  committeePartitionName: string;
+  epochRewardsPartitionName: string;
+  startSlot: number;
+  endSlot: number; // Inclusive
+  startEpoch: number;
+  endEpoch: number; // Inclusive
+}
+
+/**
+ * Partition table names - centralized constants to avoid typos and ensure consistency
+ */
+export const PARTITION_TABLE_NAMES = {
+  COMMITTEE: 'committee',
+  EPOCH_REWARDS: 'epoch_rewards',
+} as const;
 
 /**
  * PartitionController - Business logic for partition management
@@ -39,11 +63,15 @@ export class PartitionController {
   // Helper to create a partition for a UTC hour
   private makeHourPartitionForSlot(tableNamePrefix: string, startSlot: number): SlotPartitionInfo {
     const hourStartTs = this.beaconTime.getTimestampFromSlotNumber(startSlot);
-    const hourEndTs = addHours(hourStartTs, 1).getTime(); // next UTC hour start
+    const hourEndTs = hourStartTs + 3_600_000; // add 1 hour in milliseconds
     const hourEndSlot = this.beaconTime.getSlotNumberFromTimestamp(hourEndTs);
 
+    // Calculate UTC hour timestamp for datetime suffix
+    const hourTimestamp = getUTCDatetimeFlooredToHour(hourStartTs);
+    const name = getPartitionName(tableNamePrefix, startSlot, hourEndSlot - 1, hourTimestamp);
+
     return {
-      name: `${tableNamePrefix}_${startSlot}-${hourEndSlot - 1}`,
+      name,
       startSlot,
       endSlot: hourEndSlot, // exclusive
     };
@@ -55,8 +83,19 @@ export class PartitionController {
     startEpochInclusive: number,
     endEpochExclusive: number,
   ): EpochPartitionInfo {
+    // Calculate UTC hour timestamp from start epoch for datetime suffix
+    const epochTimestamp = this.beaconTime.getTimestampFromEpochNumber(startEpochInclusive);
+    const hourTimestamp = getUTCDatetimeFlooredToHour(epochTimestamp);
+
+    const name = getPartitionName(
+      tableName,
+      startEpochInclusive,
+      endEpochExclusive - 1,
+      hourTimestamp,
+    );
+
     return {
-      name: `${tableName}_${startEpochInclusive}-${endEpochExclusive - 1}`,
+      name,
       startEpoch: startEpochInclusive,
       endEpoch: endEpochExclusive,
     };
@@ -99,12 +138,12 @@ export class PartitionController {
    * @param epoch - The epoch number
    */
   async createPartitionForCommittee(epoch: number): Promise<void> {
-    const partitions = this.calculateSlotPartitions(epoch, 'committee');
+    const partitions = this.calculateSlotPartitions(epoch, PARTITION_TABLE_NAMES.COMMITTEE);
 
     // Create all calculated partitions
     for (const partition of partitions) {
       await this.partitionStorage.createPartition(
-        'committee',
+        PARTITION_TABLE_NAMES.COMMITTEE,
         partition.name,
         partition.startSlot,
         partition.endSlot,
@@ -141,10 +180,10 @@ export class PartitionController {
    * Creates `epoch_rewards` table partition for the given epoch.
    */
   async createPartitionForEpochRewards(epoch: number): Promise<void> {
-    const partition = this.calculateEpochPartition(epoch, 'epoch_rewards');
+    const partition = this.calculateEpochPartition(epoch, PARTITION_TABLE_NAMES.EPOCH_REWARDS);
 
     await this.partitionStorage.createPartition(
-      'epoch_rewards',
+      PARTITION_TABLE_NAMES.EPOCH_REWARDS,
       partition.name,
       partition.startEpoch,
       partition.endEpoch,
@@ -171,5 +210,86 @@ export class PartitionController {
 
     // Create epoch_rewards partition
     await this.createPartitionForEpochRewards(epoch);
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // ARCHIVE CANDIDATE DISCOVERY
+  // ─────────────────────────────────────────────────────────────────────────────
+
+  /**
+   * Discover the oldest eligible hour for archiving by scanning active partitions.
+   *
+   * This method:
+   * 1. Queries the catalog for committee and epoch_rewards partitions
+   * 2. Parses partition names to extract bounds and datetime
+   * 3. Groups partitions by UTC hour using datetime from partition name
+   * 4. Intersects hours where both committee and epoch_rewards partitions exist
+   * 5. Filters to hours <= nowHour - 2h (to keep raw data for last hour)
+   * 6. Returns the oldest eligible hour with all partition info
+   *
+   * @returns The oldest eligible candidate or null if none found
+   */
+  async getHourToArchive(): Promise<HourArchiveCandidate | null> {
+    const eligibleCutoff = subHours(getUTCDatetimeFlooredToHour(Date.now()), 2);
+
+    // Discover partitions
+    const [committeeNames, epochRewardsNames] = await Promise.all([
+      this.partitionStorage.discoverPartitions(PARTITION_TABLE_NAMES.COMMITTEE),
+      this.partitionStorage.discoverPartitions(PARTITION_TABLE_NAMES.EPOCH_REWARDS),
+    ]);
+
+    // Parse and group by hour
+    const parseAndGroup = (
+      names: string[],
+      parseFn: (name: string) => ParsedPartition<number> | null,
+    ) => {
+      const byHour = new Map<string, { name: string; start: number; end: number }>();
+      for (const name of names) {
+        const parsed = parseFn(name);
+        if (!parsed?.datetime) {
+          throw new Error(`Invalid partition name: ${name}`);
+        }
+        if (parsed.datetime <= eligibleCutoff) {
+          const hourKey = parsed.datetime.toISOString();
+          byHour.set(hourKey, { name, start: parsed.start, end: parsed.end });
+        }
+      }
+      return byHour;
+    };
+
+    const committeeByHour = parseAndGroup(committeeNames, parseSlotPartitionName);
+    const epochRewardsByHour = parseAndGroup(epochRewardsNames, parseEpochPartitionName);
+
+    // Validate matching pairs
+    const allHours = new Set([...committeeByHour.keys(), ...epochRewardsByHour.keys()]);
+    for (const hourKey of allHours) {
+      if (!committeeByHour.has(hourKey)) {
+        throw new Error(`Missing committee partition for hour: ${new Date(hourKey).toISOString()}`);
+      }
+      if (!epochRewardsByHour.has(hourKey)) {
+        throw new Error(
+          `Missing epoch_rewards partition for hour: ${new Date(hourKey).toISOString()}`,
+        );
+      }
+    }
+
+    // Find oldest eligible hour
+    if (allHours.size === 0) {
+      return null;
+    }
+
+    const oldestHourKey = [...allHours].sort()[0];
+    const committee = committeeByHour.get(oldestHourKey)!;
+    const epochRewards = epochRewardsByHour.get(oldestHourKey)!;
+
+    return {
+      hourStart: new Date(oldestHourKey),
+      committeePartitionName: committee.name,
+      epochRewardsPartitionName: epochRewards.name,
+      startSlot: committee.start,
+      endSlot: committee.end,
+      startEpoch: epochRewards.start,
+      endEpoch: epochRewards.end,
+    };
   }
 }

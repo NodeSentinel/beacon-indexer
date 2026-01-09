@@ -1,10 +1,11 @@
-import { createActor } from 'xstate';
+import { createActor, ActorRefFrom } from 'xstate';
 
 import { EpochController } from '@/src/services/consensus/controllers/epoch.js';
 import { PartitionController } from '@/src/services/consensus/controllers/partition.js';
 import { SlotController } from '@/src/services/consensus/controllers/slot.js';
 import { ValidatorsController } from '@/src/services/consensus/controllers/validators.js';
 import { BeaconTime } from '@/src/services/consensus/utils/beaconTime.js';
+import { hourlyArchiveMachine } from '@/src/xstate/archive/hourlyArchive.machine.js';
 import { epochCreationMachine } from '@/src/xstate/epoch/epochCreator.machine.js';
 import { epochOrchestratorMachine } from '@/src/xstate/epoch/epochOrchestrator.machine.js';
 import { logMachine } from '@/src/xstate/multiMachineLogger.js';
@@ -37,6 +38,7 @@ export const getEpochOrchestratorActor = (
   slotsPerEpoch: number,
   slotController: SlotController,
   validatorsController: ValidatorsController,
+  hourlyArchiveActor: ActorRefFrom<typeof hourlyArchiveMachine>,
 ) => {
   const actor = createActor(epochOrchestratorMachine, {
     input: {
@@ -48,6 +50,7 @@ export const getEpochOrchestratorActor = (
       beaconTime,
       slotController,
       validatorsController,
+      hourlyArchiveActor,
     },
   });
 
