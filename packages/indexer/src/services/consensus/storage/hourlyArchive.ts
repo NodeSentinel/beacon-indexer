@@ -135,7 +135,7 @@ export class HourlyArchiveStorage {
                 c.slot,
                 c.attestation_delay
               FROM committee c
-              WHERE c.slot BETWEEN ${startSlot}::int AND ${endSlot}::int
+              WHERE c.slot >= ${startSlot}::int AND c.slot < ${endSlot}::int
             ),
 
             sync_rewards AS (
@@ -144,7 +144,7 @@ export class HourlyArchiveStorage {
                 slot,
                 sync_committee_reward
               FROM sync_committee_rewards
-              WHERE slot BETWEEN ${startSlot}::int AND ${endSlot}::int
+              WHERE slot >= ${startSlot}::int AND slot < ${endSlot}::int
             ),
 
             block_rewards AS (
@@ -153,7 +153,7 @@ export class HourlyArchiveStorage {
                 slot,
                 block_reward
               FROM validator_block_rewards
-              WHERE slot BETWEEN ${startSlot}::int AND ${endSlot}::int
+              WHERE slot >= ${startSlot}::int AND slot < ${endSlot}::int
             ),
 
             exec_rewards AS (
@@ -162,7 +162,7 @@ export class HourlyArchiveStorage {
                 slot,
                 COALESCE(execution_reward, 0) AS execution_reward
               FROM slot
-              WHERE slot BETWEEN ${startSlot}::int AND ${endSlot}::int
+              WHERE slot >= ${startSlot}::int AND slot < ${endSlot}::int
                 AND proposer_index IS NOT NULL
                 AND execution_reward IS NOT NULL
                 AND execution_reward > 0
@@ -192,7 +192,16 @@ export class HourlyArchiveStorage {
               GROUP BY validator_index, slot
             ),
 
-            slot_json AS (
+            attestation_agg AS (
+              SELECT
+                validator_index,
+                COUNT(*) FILTER (WHERE attestation_delay IS NOT NULL AND attestation_delay <= ${maxAttestationDelay}::int) AS attestation_count,
+                COUNT(*) FILTER (WHERE attestation_delay IS NULL OR attestation_delay > ${maxAttestationDelay}::int) AS missed_attestation_count
+              FROM attestations
+              GROUP BY validator_index
+            ),
+
+            slot_agg AS (
               SELECT
                 validator_index,
                 jsonb_agg(
@@ -204,8 +213,6 @@ export class HourlyArchiveStorage {
                     COALESCE(block_reward, 0)::text
                   ) ORDER BY slot
                 ) AS data_by_slot,
-                COUNT(*) FILTER (WHERE attestation_delay IS NOT NULL) AS attestation_count,
-                COUNT(*) FILTER (WHERE attestation_delay IS NULL OR attestation_delay > ${maxAttestationDelay}::int) AS missed_attestation_count,
                 COALESCE(SUM(sync_reward), 0) AS sync_reward_total,
                 COALESCE(SUM(exec_reward), 0) AS exec_reward_total,
                 COALESCE(SUM(block_reward), 0) AS block_reward_total
@@ -226,7 +233,7 @@ export class HourlyArchiveStorage {
                 missed_source,
                 missed_inactivity
               FROM epoch_rewards
-              WHERE epoch BETWEEN ${startEpoch}::int AND ${endEpoch}::int
+              WHERE epoch >= ${startEpoch}::int AND epoch < ${endEpoch}::int
             ),
 
             epoch_json AS (
@@ -266,18 +273,19 @@ export class HourlyArchiveStorage {
           )
           SELECT
             ${timestamp}::timestamp AS timestamp,
-            COALESCE(sj.validator_index, ej.validator_index) AS validator_index,
-            COALESCE(sj.data_by_slot, '[]'::jsonb) AS data_by_slot,
+            COALESCE(sa.validator_index, ej.validator_index) AS validator_index,
+            COALESCE(sa.data_by_slot, '[]'::jsonb) AS data_by_slot,
             COALESCE(ej.data_by_epoch, '[]'::jsonb) AS data_by_epoch,
-            COALESCE(sj.attestation_count, 0)::smallint AS attestation_count,
-            COALESCE(sj.missed_attestation_count, 0)::smallint AS missed_attestation_count,
-            COALESCE(sj.sync_reward_total, 0) AS sync_reward_total,
-            COALESCE(sj.exec_reward_total, 0) AS exec_reward_total,
-            COALESCE(sj.block_reward_total, 0) AS block_reward_total,
+            COALESCE(aa.attestation_count, 0)::smallint AS attestation_count,
+            COALESCE(aa.missed_attestation_count, 0)::smallint AS missed_attestation_count,
+            COALESCE(sa.sync_reward_total, 0) AS sync_reward_total,
+            COALESCE(sa.exec_reward_total, 0) AS exec_reward_total,
+            COALESCE(sa.block_reward_total, 0) AS block_reward_total,
             COALESCE(ej.cl_reward_total, 0) AS cl_reward_total,
             COALESCE(ej.cl_missed_reward_total, 0) AS cl_missed_reward_total
-          FROM slot_json sj
-          FULL OUTER JOIN epoch_json ej ON sj.validator_index = ej.validator_index
+          FROM slot_agg sa
+          FULL OUTER JOIN epoch_json ej ON sa.validator_index = ej.validator_index
+          LEFT JOIN attestation_agg aa ON COALESCE(sa.validator_index, ej.validator_index) = aa.validator_index
         `;
 
         // Drop committee partition

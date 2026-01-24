@@ -176,23 +176,73 @@ describe('Hourly Archive Process', () => {
     // Get candidate to know the endSlot (needed for cleanup and marking as processed)
     const candidate = await partitionController.getHourToArchive();
     expect(candidate).not.toBeNull();
+    expect(candidate?.hourStart).toStrictEqual(hourStart);
 
     // Insert mock data
 
     // Committee data (attestations)
     // Validator 100: slot 0 (delay=0), slot 1 (delay=3), slot 2 (delay=6 - missed), slot 3 (NULL - missed)
     // Validator 200: slot 0 (delay=2), slot 1 (delay=4), slot 2 (delay=1), slot 3 (delay=0)
-    await prisma.$executeRawUnsafe(`
-      INSERT INTO committee (slot, index, aggregation_bits_index, validator_index, attestation_delay) VALUES
-        (${testSlots[0]}, 0, 0, ${VALIDATOR_1}, 0),
-        (${testSlots[1]}, 0, 0, ${VALIDATOR_1}, 3),
-        (${testSlots[2]}, 0, 0, ${VALIDATOR_1}, 6),
-        (${testSlots[3]}, 0, 0, ${VALIDATOR_1}, NULL),
-        (${testSlots[0]}, 0, 1, ${VALIDATOR_2}, 2),
-        (${testSlots[1]}, 0, 1, ${VALIDATOR_2}, 4),
-        (${testSlots[2]}, 0, 1, ${VALIDATOR_2}, 1),
-        (${testSlots[3]}, 0, 1, ${VALIDATOR_2}, 0);
-    `);
+    await prisma.committee.createMany({
+      data: [
+        {
+          slot: testSlots[0],
+          index: 0,
+          aggregationBitsIndex: 0,
+          validatorIndex: VALIDATOR_1,
+          attestationDelay: 0,
+        },
+        {
+          slot: testSlots[1],
+          index: 0,
+          aggregationBitsIndex: 0,
+          validatorIndex: VALIDATOR_1,
+          attestationDelay: 3,
+        },
+        {
+          slot: testSlots[2],
+          index: 0,
+          aggregationBitsIndex: 0,
+          validatorIndex: VALIDATOR_1,
+          attestationDelay: 6,
+        },
+        {
+          slot: testSlots[3],
+          index: 0,
+          aggregationBitsIndex: 0,
+          validatorIndex: VALIDATOR_1,
+          attestationDelay: null,
+        },
+        {
+          slot: testSlots[0],
+          index: 0,
+          aggregationBitsIndex: 1,
+          validatorIndex: VALIDATOR_2,
+          attestationDelay: 2,
+        },
+        {
+          slot: testSlots[1],
+          index: 0,
+          aggregationBitsIndex: 1,
+          validatorIndex: VALIDATOR_2,
+          attestationDelay: 4,
+        },
+        {
+          slot: testSlots[2],
+          index: 0,
+          aggregationBitsIndex: 1,
+          validatorIndex: VALIDATOR_2,
+          attestationDelay: 1,
+        },
+        {
+          slot: testSlots[3],
+          index: 0,
+          aggregationBitsIndex: 1,
+          validatorIndex: VALIDATOR_2,
+          attestationDelay: 0,
+        },
+      ],
+    });
 
     // Sync committee rewards
     // Validator 100: slot 0 (1000), slot 1 (2000)
@@ -219,6 +269,7 @@ describe('Hourly Archive Process', () => {
     // Validator 100 proposes slot 0 (7000)
     // Validator 200 proposes slot 2 (8000)
     await prisma.slot.createMany({
+      skipDuplicates: true,
       data: [
         {
           slot: testSlots[0],
@@ -240,21 +291,11 @@ describe('Hourly Archive Process', () => {
           slot: testSlots[3],
           processed: true,
         },
+        {
+          slot: candidate!.endSlot,
+          processed: true,
+        },
       ],
-    });
-
-    // Mark all test slots as processed
-    await prisma.slot.updateMany({
-      where: { slot: { in: testSlots } },
-      data: { processed: true },
-    });
-
-    // Mark endSlot as processed (it's checked by allSlotsProcessed)
-    // The endSlot from candidate comes from parsed partition name, which contains
-    await prisma.slot.upsert({
-      where: { slot: candidate!.endSlot },
-      update: { processed: true },
-      create: { slot: candidate!.endSlot, processed: true },
     });
 
     // Epoch rewards
@@ -317,20 +358,17 @@ describe('Hourly Archive Process', () => {
 
     // Mark epochs as processed
     await prisma.epoch.createMany({
-      data: testEpochs.map((epoch) => ({
-        epoch,
-        processed: true,
-      })),
-    });
-
-    // Mark endEpoch as processed (it's checked by allEpochsProcessed)
-    await prisma.epoch.upsert({
-      where: { epoch: candidate!.endEpoch },
-      update: { processed: true },
-      create: {
-        epoch: candidate!.endEpoch,
-        processed: true,
-      },
+      skipDuplicates: true,
+      data: [
+        ...testEpochs.map((epoch) => ({
+          epoch,
+          processed: true,
+        })),
+        {
+          epoch: candidate!.endEpoch,
+          processed: true,
+        },
+      ],
     });
 
     // Step 3: Execute archive
@@ -352,13 +390,11 @@ describe('Hourly Archive Process', () => {
     expect(validator100).toBeDefined();
 
     // Attestation counts: Validator 100 has 2 successful (delay 0, 3) and 2 missed (delay 6, NULL)
-    // Note: endSlot is inclusive in SQL BETWEEN, so if endSlot is one of testSlots, it will be counted
     // We insert data for 4 slots: testSlots[0] (delay=0), testSlots[1] (delay=3), testSlots[2] (delay=6), testSlots[3] (NULL)
-    // If endSlot equals one of these, it will be counted. Otherwise, it should be 2 successful and 2 missed.
-    // For now, we verify it's at least 2 successful (the minimum expected)
-    expect(validator100.attestationCount).toBeGreaterThanOrEqual(2);
-    // Missed count should be at least 2 (slots with delay 6 and NULL)
-    expect(validator100.missedAttestationCount).toBeGreaterThanOrEqual(2);
+    // All 4 slots should be included since they are all < endSlot (exclusive)
+    expect(validator100.attestationCount).toBe(2); // 2 successful (delay 0, 3)
+    // Missed count should be 2 (slots with delay 6 and NULL)
+    expect(validator100.missedAttestationCount).toBe(2);
 
     // Rewards: sync=3000 (1000+2000 from slots 0,1), exec=7000 (from slot 0), block=5000 (from slot 1)
     expect(validator100.syncRewardTotal).toBe(BigInt(3000));
@@ -438,5 +474,135 @@ describe('Hourly Archive Process', () => {
     `;
     expect(archivePartitions.length).toBe(1);
     expect(archivePartitions[0].tablename).toBe(expectedArchivePartitionName);
+  });
+
+  it('should not count rewards as missed attestations when validator has no attestation duty for that slot but receives rewards', async () => {
+    // attestation counts if the validator doesn't have attestation duty in that slot
+
+    // Step 1: Create partitions
+    await partitionController.createPartitionForCommittee(TEST_EPOCH_1);
+    await partitionController.createPartitionForEpochRewards(TEST_EPOCH_1);
+
+    const committeePartitions = await partitionStorage.discoverPartitions(
+      PARTITION_TABLE_NAMES.COMMITTEE,
+    );
+    const epochRewardsPartitions = await partitionStorage.discoverPartitions(
+      PARTITION_TABLE_NAMES.EPOCH_REWARDS,
+    );
+
+    const committeePartition = parseSlotPartitionName(committeePartitions[0]);
+    const epochRewardsPartition = parseEpochPartitionName(epochRewardsPartitions[0]);
+
+    testSlots = [
+      committeePartition!.start,
+      committeePartition!.start + 1,
+      committeePartition!.start + 2,
+    ];
+    testEpochs = [epochRewardsPartition!.start];
+    hourStart = committeePartition!.datetime!;
+
+    const candidate = await partitionController.getHourToArchive();
+    expect(candidate).not.toBeNull();
+    expect(candidate?.hourStart).toStrictEqual(hourStart);
+
+    // Scenario: Validator 300 has NO attestation duty in any slot
+    // BUT receives sync committee reward in slot 0 and proposes block in slot 1
+    const VALIDATOR_3 = 300;
+
+    // Insert sync committee reward for validator 300 in slot 0
+    // BUT validator 300 has NO entry in committee table (no attestation duty)
+    await prisma.syncCommitteeRewards.createMany({
+      data: [
+        { slot: testSlots[0], validatorIndex: VALIDATOR_3, syncCommitteeReward: BigInt(5000) },
+      ],
+    });
+
+    // Insert block reward for validator 300 in slot 1
+    // BUT validator 300 has NO entry in committee table (no attestation duty)
+    await prisma.validatorBlockRewards.createMany({
+      data: [{ slot: testSlots[1], validatorIndex: VALIDATOR_3, blockReward: BigInt(10000) }],
+    });
+
+    // Insert execution reward for validator 300 in slot 2 (as proposer)
+    // BUT validator 300 has NO entry in committee table (no attestation duty)
+    await prisma.slot.createMany({
+      skipDuplicates: true,
+      data: [
+        {
+          slot: testSlots[0],
+          processed: true,
+        },
+        {
+          slot: testSlots[1],
+          processed: true,
+        },
+        {
+          slot: testSlots[2],
+          proposerIndex: VALIDATOR_3,
+          executionReward: BigInt(15000),
+          processed: true,
+        },
+        {
+          slot: candidate!.endSlot,
+          processed: true,
+        },
+      ],
+    });
+
+    // Insert epoch rewards for validator 300
+    await prisma.epochRewards.createMany({
+      data: [
+        {
+          epoch: testEpochs[0],
+          validatorIndex: VALIDATOR_3,
+          head: BigInt(1000),
+          target: BigInt(2000),
+          source: BigInt(3000),
+          inactivity: BigInt(500),
+          missedHead: BigInt(0),
+          missedTarget: BigInt(0),
+          missedSource: BigInt(0),
+          missedInactivity: BigInt(0),
+        },
+      ],
+    });
+
+    await prisma.epoch.createMany({
+      skipDuplicates: true,
+      data: [
+        ...testEpochs.map((epoch) => ({
+          epoch,
+          processed: true,
+        })),
+        {
+          epoch: candidate!.endEpoch,
+          processed: true,
+        },
+      ],
+    });
+
+    // Execute archive
+    const archivedHour = await hourlyArchiveController.archive();
+    expect(archivedHour).not.toBeNull();
+
+    // Verify results
+    const archivedData = await prisma.validatorHourlyArchive.findMany({
+      where: { timestamp: hourStart, validatorIndex: VALIDATOR_3 },
+      orderBy: { validatorIndex: 'asc' },
+    });
+
+    const validator300 = archivedData.find((d) => d.validatorIndex === VALIDATOR_3);
+    expect(validator300).toBeDefined();
+
+    // CRITICAL: Validator 300 has NO attestation duty, so counts should be 0
+    // This is the bug fix - rewards should NOT count as missed attestations
+    expect(validator300!.attestationCount).toBe(0);
+    expect(validator300!.missedAttestationCount).toBe(0);
+
+    // But rewards should still be aggregated correctly
+    expect(validator300!.syncRewardTotal).toBe(BigInt(5000));
+    expect(validator300!.blockRewardTotal).toBe(BigInt(10000));
+    expect(validator300!.execRewardTotal).toBe(BigInt(15000));
+    expect(validator300!.clRewardTotal).toBe(BigInt(6500)); // 1000+2000+3000+500
   });
 });
