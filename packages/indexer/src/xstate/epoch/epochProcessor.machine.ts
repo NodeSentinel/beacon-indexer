@@ -724,6 +724,7 @@ export const epochProcessorMachine = setup({
       onDone: 'markingEpochProcessed',
     },
     markingEpochProcessed: {
+      // TODO: we should check all the flags are set to true before marking the epoch as processed
       invoke: {
         src: 'markEpochAsProcessed',
         input: ({ context }) => ({
