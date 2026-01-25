@@ -11,7 +11,7 @@ export class PartitionStorage {
 
   /**
    * Query PostgreSQL catalog to discover existing partitions for a table
-   * @param tableName - Name of the partitioned table (e.g., 'committee', 'epoch_rewards')
+   * @param tableName - Name of the partitioned table (e.g., committee, epoch_rewards)
    * @returns Array of partition names
    */
   async discoverPartitions(tableName: string): Promise<string[]> {
@@ -43,13 +43,13 @@ export class PartitionStorage {
   }
 
   /**
-   * Create a partition for a table
+   * Create a partition for a table with numeric range (slot/epoch based)
    * This method only handles database operations, all business logic should be in the controller.
    *
    * @param tableName - Name of the partitioned table
    * @param partitionName - Name for the new partition
    * @param rangeStart - Start of the range (inclusive)
-   * @param rangeEnd - End of the range (exclusive for PostgreSQL)
+   * @param rangeEnd - End of the range (inclusive) - converted to exclusive internally for PostgreSQL
    */
   async createPartition(
     tableName: string,
@@ -58,10 +58,34 @@ export class PartitionStorage {
     rangeEnd: number,
   ): Promise<void> {
     // PostgreSQL partition ranges use FROM (inclusive) TO (exclusive)
+    // Convert inclusive end to exclusive for PostgreSQL
+    const pgRangeEnd = rangeEnd + 1;
     // Note: FOR VALUES FROM/TO must use literal values, not parameters
     // Using $executeRawUnsafe because partition range values must be literals
     await this.prisma.$executeRawUnsafe(
-      `CREATE TABLE IF NOT EXISTS "${partitionName}" PARTITION OF "${tableName}" FOR VALUES FROM (${rangeStart}) TO (${rangeEnd})`,
+      `CREATE TABLE IF NOT EXISTS "${partitionName}" PARTITION OF "${tableName}" FOR VALUES FROM (${rangeStart}) TO (${pgRangeEnd})`,
+    );
+  }
+
+  /**
+   * Create a partition for a table with timestamp range (UTC hour based)
+   * Used for tables partitioned by TIMESTAMP like validator_hourly_archive.
+   *
+   * @param tableName - Name of the partitioned table
+   * @param partitionName - Name for the new partition
+   * @param rangeStart - Start timestamp (inclusive) as ISO string
+   * @param rangeEnd - End timestamp (exclusive) as ISO string
+   */
+  async createTimestampPartition(
+    tableName: string,
+    partitionName: string,
+    rangeStart: string,
+    rangeEnd: string,
+  ): Promise<void> {
+    // PostgreSQL partition ranges use FROM (inclusive) TO (exclusive)
+    // Timestamp values must be quoted as literals
+    await this.prisma.$executeRawUnsafe(
+      `CREATE TABLE IF NOT EXISTS "${partitionName}" PARTITION OF "${tableName}" FOR VALUES FROM ('${rangeStart}') TO ('${rangeEnd}')`,
     );
   }
 
@@ -73,4 +97,3 @@ export class PartitionStorage {
     await this.prisma.$executeRawUnsafe(`DROP TABLE IF EXISTS "${partitionName}"`);
   }
 }
-

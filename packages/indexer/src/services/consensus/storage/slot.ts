@@ -85,56 +85,6 @@ export class SlotStorage {
   }
 
   /**
-   * Get hourly validator data for specific validators and datetime
-   */
-  async getHourlyValidatorData(validatorIndexes: number[], datetime: Date) {
-    return this.prisma.hourlyValidatorStats.findMany({
-      where: {
-        validatorIndex: { in: validatorIndexes },
-        datetime,
-      },
-      orderBy: [{ validatorIndex: 'asc' }],
-    });
-  }
-
-  /**
-   * Get hourly validator stats for specific validators and datetime
-   */
-  async getHourlyValidatorStats(validatorIndexes: number[], datetime: Date) {
-    return this.prisma.hourlyValidatorStats.findMany({
-      where: {
-        validatorIndex: { in: validatorIndexes },
-        datetime,
-      },
-      orderBy: [{ validatorIndex: 'asc' }],
-    });
-  }
-
-  /**
-   * Get a single hourly validator data record
-   */
-  async getHourlyValidatorDataForValidator(validatorIndex: number, datetime: Date) {
-    return this.prisma.hourlyValidatorStats.findFirst({
-      where: {
-        validatorIndex,
-        datetime,
-      },
-    });
-  }
-
-  /**
-   * Get a single hourly validator stats record
-   */
-  async getHourlyValidatorStatsForValidator(validatorIndex: number, datetime: Date) {
-    return this.prisma.hourlyValidatorStats.findFirst({
-      where: {
-        validatorIndex,
-        datetime,
-      },
-    });
-  }
-
-  /**
    * Find the first unprocessed slot in a range
    */
   async findMinUnprocessedSlotInEpoch(startSlot: number, endSlot: number) {
@@ -723,22 +673,6 @@ export class SlotStorage {
   //     create: data,
   //   });
   // }
-
-  /**
-   * Test helper: Create initial hourly validator stats for testing
-   */
-  async createTestHourlyValidatorStats(data: Prisma.HourlyValidatorStatsCreateInput) {
-    return this.prisma.hourlyValidatorStats.upsert({
-      where: {
-        datetime_validatorIndex: {
-          datetime: data.datetime,
-          validatorIndex: data.validatorIndex,
-        },
-      },
-      update: {},
-      create: data,
-    });
-  }
 
   /**
    * Test helper: Create slots for testing

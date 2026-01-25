@@ -24,7 +24,6 @@ import { ValidatorsStorage } from '@/src/services/consensus/storage/validators.j
 import { GetCommittees, GetValidators, Block } from '@/src/services/consensus/types.js';
 import { BeaconTime } from '@/src/services/consensus/utils/beaconTime.js';
 import { ExecutionClient } from '@/src/services/execution/execution.js';
-import { getUTCDatetimeFlooredToHour } from '@/src/utils/date/index.js';
 
 /**
  * Note: Mocked data from this tests was taken from Gnosis chain.
@@ -85,7 +84,6 @@ describe('Slot Processor E2E Tests', () => {
       await prisma.validator.deleteMany();
       await prisma.slot.deleteMany();
       await prisma.committee.deleteMany();
-      await prisma.hourlyValidatorStats.deleteMany();
       await prisma.syncCommitteeRewards.deleteMany();
       await prisma.validatorDeposits.deleteMany();
       await prisma.validatorWithdrawals.deleteMany();
@@ -178,27 +176,7 @@ describe('Slot Processor E2E Tests', () => {
       saveSpy.mockRestore();
     });
 
-    it('should process sync committee rewards and verify ValidatorSyncRewards table and HourlyValidatorStats', async () => {
-      // Calculate datetime for slots (both should be in the same hour)
-      const slot24497230Timestamp = beaconTime.getTimestampFromSlotNumber(24497230);
-      const datetime24497230 = getUTCDatetimeFlooredToHour(slot24497230Timestamp);
-
-      // Initialize existing values for multiple validators to test aggregation
-      await slotStorage.createTestHourlyValidatorStats({
-        datetime: datetime24497230,
-        validatorIndex: 458175,
-        clRewards: BigInt(10000),
-        clMissedRewards: BigInt(0),
-        attestationsCount: null,
-      });
-      await slotStorage.createTestHourlyValidatorStats({
-        datetime: datetime24497230,
-        validatorIndex: 272088,
-        clRewards: BigInt(20000),
-        clMissedRewards: BigInt(0),
-        attestationsCount: null,
-      });
-
+    it('should process sync committee rewards and verify ValidatorSyncRewards table', async () => {
       // Process slot 24497230
       mockBeaconClient.getSyncCommitteeRewards.mockResolvedValueOnce(rewardsSyncCommittee24497230);
       await slotControllerWithMock.fetchSyncCommitteeRewards(24497230);
@@ -232,16 +210,6 @@ describe('Slot Processor E2E Tests', () => {
         '10437',
       );
 
-      const hourlyStats458175 = await slotStorage.getHourlyValidatorStatsForValidator(
-        458175,
-        datetime24497230,
-      );
-      expect(hourlyStats458175).toBeDefined();
-      // NOTE: hourly_validator_stats aggregation is currently disabled (code commented out)
-      // The sync committee rewards are not being aggregated, so the value remains at the initial 10000
-      // Initial value 10000 + 10437 (slot 24497230) + 10437 (slot 24497231) = 30874 (when aggregation is enabled)
-      expect(hourlyStats458175?.clRewards?.toString()).toBe('10000');
-
       // ------------------------------------------------------------
       // Validator 272088
       // ------------------------------------------------------------
@@ -259,16 +227,6 @@ describe('Slot Processor E2E Tests', () => {
       expect(syncRewards272088.find((r) => r.slot === 24497231)?.syncCommittee.toString()).toBe(
         '10437',
       );
-
-      const hourlyStats272088 = await slotStorage.getHourlyValidatorStatsForValidator(
-        272088,
-        datetime24497230,
-      );
-      expect(hourlyStats272088).toBeDefined();
-      // NOTE: hourly_validator_stats aggregation is currently disabled (code commented out)
-      // The sync committee rewards are not being aggregated, so the value remains at the initial 20000
-      // Initial value 20000 + 10437 (slot 24497230) + 10437 (slot 24497231) = 40874 (when aggregation is enabled)
-      expect(hourlyStats272088?.clRewards?.toString()).toBe('20000');
     });
   });
 
@@ -280,7 +238,6 @@ describe('Slot Processor E2E Tests', () => {
 
     beforeEach(async () => {
       // Clean up database
-      await prisma.hourlyValidatorStats.deleteMany();
       await prisma.committee.deleteMany();
       await prisma.slot.deleteMany();
       await prisma.validator.deleteMany();
@@ -376,24 +333,7 @@ describe('Slot Processor E2E Tests', () => {
       saveSpy.mockRestore();
     });
 
-    it('should process block rewards and verify ValidatorBlockRewards table and HourlyValidatorStats', async () => {
-      // Calculate datetime for slots
-      const slot24519343Timestamp = beaconTime.getTimestampFromSlotNumber(24519343);
-      const datetime24519343 = getUTCDatetimeFlooredToHour(slot24519343Timestamp);
-      const slot24519344Timestamp = beaconTime.getTimestampFromSlotNumber(24519344);
-      const datetime24519344 = getUTCDatetimeFlooredToHour(slot24519344Timestamp);
-
-      // Initialize existing values for validator 536011 to test aggregation
-      await slotStorage.createTestHourlyValidatorStats({
-        datetime: datetime24519343,
-        validatorIndex: 536011,
-        clRewards: BigInt(1000000),
-        clMissedRewards: BigInt(0),
-        attestationsCount: null,
-      });
-
-      // For validator 550617, no initial values (starts from scratch)
-
+    it('should process block rewards and verify ValidatorBlockRewards table', async () => {
       // Process slot 24519343
       mockBeaconClient.getBlockRewards.mockResolvedValueOnce(blockRewards24519343);
       await slotControllerWithMock.fetchBlockRewards(24519343);
@@ -418,40 +358,6 @@ describe('Slot Processor E2E Tests', () => {
       const blockReward24519344 = await slotStorage.getBlockRewardForSlot(24519344, 550617);
       expect(blockReward24519344).toBeDefined();
       expect(blockReward24519344?.blockReward.toString()).toBe('20990521');
-
-      // ------------------------------------------------------------
-      // Validator 536011 (Proposer slot 24519343)
-      // ------------------------------------------------------------
-      // Get block reward from ValidatorBlockRewards table
-      const blockReward536011 = await slotStorage.getBlockRewardForSlot(24519343, 536011);
-      expect(blockReward536011).toBeDefined();
-      expect(blockReward536011?.blockReward.toString()).toBe('20546222');
-
-      const hourlyStats536011 = await slotStorage.getHourlyValidatorStatsForValidator(
-        536011,
-        datetime24519343,
-      );
-      expect(hourlyStats536011).toBeDefined();
-      // NOTE: hourly_validator_stats aggregation is currently disabled for block rewards
-      // The block rewards are not being aggregated, so the value remains at the initial 1000000
-      // Initial value 1000000 + block reward 20546222 = 21546222 (when aggregation is enabled)
-      expect(hourlyStats536011?.clRewards?.toString()).toBe('1000000');
-
-      // ------------------------------------------------------------
-      // Validator 550617 (Proposer slot 24519344)
-      // ------------------------------------------------------------
-      // Get block reward from ValidatorBlockRewards table
-      const blockReward550617 = await slotStorage.getBlockRewardForSlot(24519344, 550617);
-      expect(blockReward550617).toBeDefined();
-      expect(blockReward550617?.blockReward.toString()).toBe('20990521');
-
-      const hourlyStats550617 = await slotStorage.getHourlyValidatorStatsForValidator(
-        550617,
-        datetime24519344,
-      );
-      // NOTE: hourly_validator_stats aggregation is currently disabled for block rewards
-      // Since there's no initial value and aggregation is disabled, hourly stats should be null
-      expect(hourlyStats550617).toBeNull();
     });
   });
 

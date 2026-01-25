@@ -1,6 +1,8 @@
+import { getHourlyArchiveActor } from './archive/index.js';
 import { getCreateEpochActor, getEpochOrchestratorActor } from './epoch/index.js';
 
 import { EpochController } from '@/src/services/consensus/controllers/epoch.js';
+import { HourlyArchiveController } from '@/src/services/consensus/controllers/hourlyArchive.js';
 import { PartitionController } from '@/src/services/consensus/controllers/partition.js';
 import { SlotController } from '@/src/services/consensus/controllers/slot.js';
 import { ValidatorsController } from '@/src/services/consensus/controllers/validators.js';
@@ -14,9 +16,15 @@ export default function initXstateMachines(
   slotsPerEpoch: number,
   slotController: SlotController,
   validatorsController: ValidatorsController,
+  hourlyArchiveController: HourlyArchiveController,
 ) {
+  // Create and start hourly archive actor
+  const hourlyArchiveActor = getHourlyArchiveActor(hourlyArchiveController);
+  hourlyArchiveActor.start();
+
   getCreateEpochActor(epochController, slotDuration).start();
 
+  // Epoch orchestrator receives hourly archive actor to forward EPOCH_PROCESSED events
   getEpochOrchestratorActor(
     epochController,
     partitionController,
@@ -25,21 +33,6 @@ export default function initXstateMachines(
     slotsPerEpoch,
     slotController,
     validatorsController,
+    hourlyArchiveActor,
   ).start();
-
-  // committeeCleanup: {
-  //   invoke: {
-  //     src: 'cleanupOldCommittees',
-  //     input: ({ context }) => ({
-  //       slot: context.slot,
-  //     }),
-  //     onDone: {
-  //       target: 'complete',
-  //       actions: assign({}),
-  //     },
-  //     onError: {
-  //       target: 'committeeCleanup',
-  //     },
-  //   },
-  // },
 }

@@ -237,15 +237,87 @@ model IndexerConfig {
 //-------------------------------------
 // Aggregation tables
 //-------------------------------------
-model HourlyValidatorStats {
-    datetime          DateTime @map("datetime") @db.Timestamp // dd-mm-yyyy-hh
-    validatorIndex    Int      @map("validator_index")
-    attestationsCount Int?     @map("missed_attestations_count") @db.SmallInt // TODO: remove this field
-    clRewards         BigInt?  @map("cl_rewards")
-    clMissedRewards   BigInt?  @map("cl_missed_rewards")
 
-    @@id([datetime, validatorIndex])
-    @@map("hourly_validator_stats")
+// ValidatorHourlyArchive stores per-validator aggregated data for each UTC hour.
+// This table is used to archive detailed slot/epoch data in a compact format,
+// enabling efficient historical queries while allowing raw tables to be pruned.
+//
+// ─────────────────────────────────────────────────────────────────────────────
+// DATA CONTRACT (JSON PAYLOADS)
+// ─────────────────────────────────────────────────────────────────────────────
+//
+// dataBySlot: Slot-level data as array of tuples with absolute slot numbers.
+//   Shape: Array<SlotRow>
+//   SlotRow = [slot, attDelay, syncReward, execReward, blockReward]
+//     - slot: number (absolute slot number)
+//     - attDelay: number (-1 if no attestation info, otherwise delay in slots)
+//     - syncReward: string (decimal, "0" if none)
+//     - execReward: string (decimal, "0" if none)
+//     - blockReward: string (decimal, "0" if none)
+//   Example: [[800001, 1, "0", "0", "0"], [800033, 2, "5000", "0", "0"]]
+//
+// dataByEpoch: Epoch-level rewards data as array of tuples with absolute epoch numbers.
+//   Shape: Array<EpochRow>
+//   EpochRow = [epoch, head, target, source, inactivity, missedHead, missedTarget, missedSource, missedInactivity]
+//     - epoch: number (absolute epoch number)
+//     - head, target, source, inactivity: string (decimal rewards earned)
+//     - missedHead, missedTarget, missedSource, missedInactivity: string (decimal rewards missed)
+//   Example: [[25000, "12000", "12000", "12000", "0", "0", "0", "0", "0"]]
+//
+// ─────────────────────────────────────────────────────────────────────────────
+// RETENTION MODEL
+// ─────────────────────────────────────────────────────────────────────────────
+// Hourly archives are kept for ~25 hours (rolling window). When hour 24 completes,
+// data is aggregated to daily (aggregates only, no JSON detail) and the 24 hourly
+// archives are deleted. This allows detailed per-slot/epoch data for recent history
+// while keeping storage bounded.
+//
+// ─────────────────────────────────────────────────────────────────────────────
+// PARTITIONING
+// ─────────────────────────────────────────────────────────────────────────────
+// This table is partitioned by timestamp (UTC hour range) for efficient data
+// management and potential partition drops for very old data.
+// Partitions are created dynamically by the hourly archive service.
+// Partition naming: validator_hourly_archive_YYYYMMDDHH
+// Note: Prisma doesn't natively support partitioned tables, so actual partition
+// creation is handled via migrations.
+//
+model ValidatorHourlyArchive {
+    timestamp      DateTime @map("timestamp") @db.Timestamp // UTC hour (e.g., 2024-01-15 10:00:00)
+    validatorIndex Int      @map("validator_index")
+
+    // Compact JSON payloads (see data contract above)
+    dataBySlot  Json @map("data_by_slot") // [[slot, attDelay, sync, exec, block], ...]
+    dataByEpoch Json @map("data_by_epoch") // [[epoch, head, target, source, inactivity, mH, mT, mS, mI], ...]
+
+    // Aggregate columns for fast queries without JSON parsing
+    attestationCount       Int    @default(0) @map("attestation_count") @db.SmallInt // Total attestations in this hour
+    missedAttestationCount Int    @default(0) @map("missed_attestation_count") @db.SmallInt // Attestations with delay > threshold or null
+    syncRewardTotal        BigInt @default(0) @map("sync_reward_total") // Sum of sync committee rewards
+    execRewardTotal        BigInt @default(0) @map("exec_reward_total") // Sum of execution rewards (MEV/tips)
+    blockRewardTotal       BigInt @default(0) @map("block_reward_total") // Sum of block proposal rewards (derivable: proposed if > 0)
+    clRewardTotal          BigInt @default(0) @map("cl_reward_total") // Sum of consensus layer rewards (head+target+source+inactivity)
+    clMissedRewardTotal    BigInt @default(0) @map("cl_missed_reward_total") // Sum of missed CL rewards
+
+    @@id([timestamp, validatorIndex])
+    @@map("validator_hourly_archive")
+}
+
+/**
+ * Archive - Master table tracking the last archived timestamps for each aggregation level.
+ * This is a single-row table (id=1) that serves as the source of truth for what has been archived.
+ * Instead of querying validator_hourly_archive partitions to check if an hour is archived,
+ * we simply compare against lastHour timestamp.
+ * Future columns (lastDay, lastWeek, lastMonth) are prepared for daily/weekly/monthly aggregation.
+ */
+model Archive {
+    id        Int       @id @default(1) @map("id")
+    lastHour  DateTime? @map("last_hour") @db.Timestamp // UTC timestamp of last archived hour
+    lastDay   DateTime? @map("last_day") @db.Timestamp // UTC timestamp of last archived day (future use)
+    lastWeek  DateTime? @map("last_week") @db.Timestamp // UTC timestamp of last archived week (future use)
+    lastMonth DateTime? @map("last_month") @db.Timestamp // UTC timestamp of last archived month (future use)
+
+    @@map("archive")
 }
 
 model ValidatorsSnapshotStats {

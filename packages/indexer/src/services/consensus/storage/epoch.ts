@@ -11,13 +11,6 @@ import { from as copyFrom } from 'pg-copy-streams';
  * This class handles all database operations for epochs, following the principle
  * that storage classes should only contain persistence logic, not business logic.
  * All business logic, data conversion, and processing happens in the controller layer.
- *
- * NEW EPOCH REWARDS STRATEGY:
- * - processEpochRewardsAndAggregate() handles the complete rewards processing in a single atomic transaction
- * - No longer uses EpochRewards table (removed from schema)
- * - Directly stores epoch rewards in HourlyValidatorData.epochRewards using string format
- * - Aggregates rewards into HourlyValidatorStats in the same transaction
- * - rewardsAggregated flag is no longer needed
  */
 export class EpochStorage {
   private static pgPool: Pool | null = null;
@@ -462,31 +455,6 @@ export class EpochStorage {
     });
 
     return { success: true };
-  }
-
-  /**
-   * Get hourly validator attestation stats for specific validators and datetime
-   */
-  async getHourlyValidatorAttestationStats(validatorIndexes: number[], datetime: Date) {
-    return this.prisma.hourlyValidatorStats.findMany({
-      where: {
-        validatorIndex: { in: validatorIndexes },
-        datetime: datetime,
-      },
-      orderBy: [{ validatorIndex: 'asc' }],
-    });
-  }
-
-  /**
-   * Get all hourly validator attestation stats for a specific datetime
-   */
-  async getAllHourlyValidatorAttestationStats(datetime: Date) {
-    return this.prisma.hourlyValidatorStats.findMany({
-      where: {
-        datetime: datetime,
-      },
-      orderBy: [{ validatorIndex: 'asc' }],
-    });
   }
 
   /**
