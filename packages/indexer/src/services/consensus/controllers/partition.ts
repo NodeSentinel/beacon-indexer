@@ -17,7 +17,7 @@ import { getUTCDatetimeFlooredToHour } from '@/src/utils/date/index.js';
 export interface SlotPartitionInfo {
   name: string;
   startSlot: number;
-  endSlot: number; // Exclusive end for PostgreSQL
+  endSlot: number; // Inclusive
 }
 
 /**
@@ -26,7 +26,7 @@ export interface SlotPartitionInfo {
 export interface EpochPartitionInfo {
   name: string;
   startEpoch: number;
-  endEpoch: number; // Exclusive end for PostgreSQL
+  endEpoch: number; // Inclusive
 }
 export interface HourArchiveCandidate {
   hourStart: Date;
@@ -64,40 +64,36 @@ export class PartitionController {
   private makeHourPartitionForSlot(tableNamePrefix: string, startSlot: number): SlotPartitionInfo {
     const hourStartTs = this.beaconTime.getTimestampFromSlotNumber(startSlot);
     const hourEndTs = hourStartTs + 3_600_000; // add 1 hour in milliseconds
-    const hourEndSlot = this.beaconTime.getSlotNumberFromTimestamp(hourEndTs);
+    const hourEndSlotExclusive = this.beaconTime.getSlotNumberFromTimestamp(hourEndTs);
+    const endSlot = hourEndSlotExclusive - 1; // Convert to inclusive
 
     // Calculate UTC hour timestamp for datetime suffix
     const hourTimestamp = getUTCDatetimeFlooredToHour(hourStartTs);
-    const name = getPartitionName(tableNamePrefix, startSlot, hourEndSlot - 1, hourTimestamp);
+    const name = getPartitionName(tableNamePrefix, startSlot, endSlot, hourTimestamp);
 
     return {
       name,
       startSlot,
-      endSlot: hourEndSlot, // exclusive
+      endSlot, // inclusive
     };
   }
 
   // Helper to build an epoch-based partition info object
   private makeEpochPartition(
     tableName: string,
-    startEpochInclusive: number,
-    endEpochExclusive: number,
+    startEpoch: number,
+    endEpoch: number, // inclusive
   ): EpochPartitionInfo {
     // Calculate UTC hour timestamp from start epoch for datetime suffix
-    const epochTimestamp = this.beaconTime.getTimestampFromEpochNumber(startEpochInclusive);
+    const epochTimestamp = this.beaconTime.getTimestampFromEpochNumber(startEpoch);
     const hourTimestamp = getUTCDatetimeFlooredToHour(epochTimestamp);
 
-    const name = getPartitionName(
-      tableName,
-      startEpochInclusive,
-      endEpochExclusive - 1,
-      hourTimestamp,
-    );
+    const name = getPartitionName(tableName, startEpoch, endEpoch, hourTimestamp);
 
     return {
       name,
-      startEpoch: startEpochInclusive,
-      endEpoch: endEpochExclusive,
+      startEpoch,
+      endEpoch, // inclusive
     };
   }
 
@@ -171,7 +167,8 @@ export class PartitionController {
 
     // Get first epoch starting at or after each hour boundary
     const startEpoch = this.beaconTime.getFirstEpochStartingAtOrAfter(hourStartTimestamp);
-    const endEpoch = this.beaconTime.getFirstEpochStartingAtOrAfter(nextHourTimestamp); // exclusive
+    const endEpochExclusive = this.beaconTime.getFirstEpochStartingAtOrAfter(nextHourTimestamp);
+    const endEpoch = endEpochExclusive - 1; // Convert to inclusive
 
     return this.makeEpochPartition(tableNamePrefix, startEpoch, endEpoch);
   }

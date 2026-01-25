@@ -135,7 +135,7 @@ export class HourlyArchiveStorage {
                 c.slot,
                 c.attestation_delay
               FROM committee c
-              WHERE c.slot >= ${startSlot}::int AND c.slot < ${endSlot}::int
+              WHERE c.slot >= ${startSlot}::int AND c.slot <= ${endSlot}::int
             ),
 
             sync_rewards AS (
@@ -144,7 +144,7 @@ export class HourlyArchiveStorage {
                 slot,
                 sync_committee_reward
               FROM sync_committee_rewards
-              WHERE slot >= ${startSlot}::int AND slot < ${endSlot}::int
+              WHERE slot >= ${startSlot}::int AND slot <= ${endSlot}::int
             ),
 
             block_rewards AS (
@@ -153,7 +153,7 @@ export class HourlyArchiveStorage {
                 slot,
                 block_reward
               FROM validator_block_rewards
-              WHERE slot >= ${startSlot}::int AND slot < ${endSlot}::int
+              WHERE slot >= ${startSlot}::int AND slot <= ${endSlot}::int
             ),
 
             exec_rewards AS (
@@ -162,7 +162,7 @@ export class HourlyArchiveStorage {
                 slot,
                 COALESCE(execution_reward, 0) AS execution_reward
               FROM slot
-              WHERE slot >= ${startSlot}::int AND slot < ${endSlot}::int
+              WHERE slot >= ${startSlot}::int AND slot <= ${endSlot}::int
                 AND proposer_index IS NOT NULL
                 AND execution_reward IS NOT NULL
                 AND execution_reward > 0
@@ -233,7 +233,7 @@ export class HourlyArchiveStorage {
                 missed_source,
                 missed_inactivity
               FROM epoch_rewards
-              WHERE epoch >= ${startEpoch}::int AND epoch < ${endEpoch}::int
+              WHERE epoch >= ${startEpoch}::int AND epoch <= ${endEpoch}::int
             ),
 
             epoch_json AS (

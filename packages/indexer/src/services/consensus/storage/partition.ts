@@ -49,7 +49,7 @@ export class PartitionStorage {
    * @param tableName - Name of the partitioned table
    * @param partitionName - Name for the new partition
    * @param rangeStart - Start of the range (inclusive)
-   * @param rangeEnd - End of the range (exclusive for PostgreSQL)
+   * @param rangeEnd - End of the range (inclusive) - converted to exclusive internally for PostgreSQL
    */
   async createPartition(
     tableName: string,
@@ -58,10 +58,12 @@ export class PartitionStorage {
     rangeEnd: number,
   ): Promise<void> {
     // PostgreSQL partition ranges use FROM (inclusive) TO (exclusive)
+    // Convert inclusive end to exclusive for PostgreSQL
+    const pgRangeEnd = rangeEnd + 1;
     // Note: FOR VALUES FROM/TO must use literal values, not parameters
     // Using $executeRawUnsafe because partition range values must be literals
     await this.prisma.$executeRawUnsafe(
-      `CREATE TABLE IF NOT EXISTS "${partitionName}" PARTITION OF "${tableName}" FOR VALUES FROM (${rangeStart}) TO (${rangeEnd})`,
+      `CREATE TABLE IF NOT EXISTS "${partitionName}" PARTITION OF "${tableName}" FOR VALUES FROM (${rangeStart}) TO (${pgRangeEnd})`,
     );
   }
 
