@@ -334,22 +334,23 @@ export class SlotStorage {
   }
 
   /**
-   * Save execution rewards and update slot flag in a transaction
-   * TODO: move this to execution controller/storage.
+   * Save execution rewards directly to slot table
+   * Updates the slot with executionReward, feeRecipientAddress, and blockNumber
    */
   async saveExecutionRewardsAndUpdateSlot(
     slot: number,
-    data: Prisma.ExecutionRewardsUncheckedCreateInput,
+    executionReward: bigint,
+    feeRecipientAddress: string,
+    blockNumber: number,
   ) {
-    await this.prisma.$transaction(async (tx) => {
-      await tx.executionRewards.create({
-        data,
-      });
-
-      await tx.slot.update({
-        where: { slot },
-        data: { executionRewardsFetched: true },
-      });
+    await this.prisma.slot.update({
+      where: { slot },
+      data: {
+        executionRewardsFetched: true,
+        executionReward,
+        feeRecipientAddress,
+        blockNumber,
+      },
     });
   }
 
@@ -367,19 +368,13 @@ export class SlotStorage {
       throw new Error('Block reward is required');
     }
 
-    await this.prisma.$transaction(async (tx) => {
-      await tx.validatorBlockRewards.create({
-        data: {
-          slot,
-          validatorIndex: reward.validatorIndex,
-          blockReward: reward.blockReward,
-        },
-      });
-
-      await tx.slot.update({
-        where: { slot },
-        data: { consensusRewardsFetched: true, proposerIndex: reward.validatorIndex },
-      });
+    await this.prisma.slot.update({
+      where: { slot },
+      data: {
+        consensusRewardsFetched: true,
+        proposerIndex: reward.validatorIndex,
+        consensusReward: reward.blockReward,
+      },
     });
   }
 
@@ -736,38 +731,30 @@ export class SlotStorage {
   }
 
   /**
-   * Get block rewards for a validator in specific slots
-   */
-  async getBlockRewardsForValidatorInSlots(validatorIndex: number, slots: number[]) {
-    if (slots.length === 0) {
-      return [];
-    }
-
-    return this.prisma.validatorBlockRewards.findMany({
-      where: {
-        validatorIndex,
-        slot: {
-          in: slots,
-        },
-      },
-      orderBy: {
-        slot: 'asc',
-      },
-    });
-  }
-
-  /**
    * Get block reward for a specific slot and validator
+   * Reads from slot table where proposerIndex matches
    */
   async getBlockRewardForSlot(slot: number, validatorIndex: number) {
-    return this.prisma.validatorBlockRewards.findUnique({
+    const slotData = await this.prisma.slot.findFirst({
       where: {
-        slot_validatorIndex: {
-          slot,
-          validatorIndex,
-        },
+        slot,
+        proposerIndex: validatorIndex,
+      },
+      select: {
+        slot: true,
+        consensusReward: true,
       },
     });
+
+    if (!slotData || slotData.consensusReward === null) {
+      return null;
+    }
+
+    return {
+      slot: slotData.slot,
+      validatorIndex,
+      blockReward: slotData.consensusReward,
+    };
   }
 
   /**

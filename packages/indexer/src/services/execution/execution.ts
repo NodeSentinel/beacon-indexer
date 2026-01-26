@@ -1,4 +1,3 @@
-import { Decimal } from '@beacon-indexer/db';
 import axios, { AxiosInstance, AxiosResponse, InternalAxiosRequestConfig } from 'axios';
 import pLimit from 'p-limit';
 
@@ -8,7 +7,7 @@ import { Blockscout_Blocks, Etherscan_BlockReward } from '@/src/services/executi
 export type BlockResponse = {
   address: string;
   timestamp: Date;
-  amount: Decimal;
+  amount: string; // wei value as string (e.g. "5003150000000000000")
   blockNumber: number;
 };
 
@@ -65,7 +64,7 @@ export class ExecutionClient {
             const result: BlockResponse = {
               address: blockInfo.miner.hash,
               timestamp: new Date(blockInfo.timestamp),
-              amount: minerReward ? new Decimal(minerReward.reward) : new Decimal(0),
+              amount: minerReward?.reward ?? '0',
               blockNumber: blockInfo.height,
             };
             return result;
@@ -80,7 +79,7 @@ export class ExecutionClient {
             const result: BlockResponse = {
               address: blockInfo.result.blockMiner,
               timestamp: new Date(Number(blockInfo.result.timeStamp) * 1000),
-              amount: new Decimal(blockInfo.result.blockReward),
+              amount: blockInfo.result.blockReward,
               blockNumber: Number(blockInfo.result.blockNumber),
             };
             return result;

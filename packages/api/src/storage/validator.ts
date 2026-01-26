@@ -150,12 +150,12 @@ export class ValidatorStorage {
         c.index,
         c.aggregation_bits_index,
         c.attestation_delay,
-        vbr.block_reward::text AS block_reward,
+        s.consensus_reward::text AS block_reward,
         vsr.sync_committee::text AS sync_committee
       FROM committee c
-      LEFT JOIN validator_block_rewards vbr
-        ON vbr.validator_index = c.validator_index
-        AND vbr.slot = c.slot
+      LEFT JOIN slot s
+        ON s.slot = c.slot
+        AND s.proposer_index = c.validator_index
       LEFT JOIN validator_sync_rewards vsr
         ON vsr.validator_index = c.validator_index
         AND vsr.slot = c.slot

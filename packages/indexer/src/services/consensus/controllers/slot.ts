@@ -168,7 +168,15 @@ export class SlotController extends SlotControllerHelpers {
       throw new Error(`Block ${blockNumber} not found`);
     }
 
-    await this.slotStorage.saveExecutionRewardsAndUpdateSlot(slot, blockInfo);
+    // Convert wei string to BigInt
+    const executionReward = BigInt(blockInfo.amount);
+
+    await this.slotStorage.saveExecutionRewardsAndUpdateSlot(
+      slot,
+      executionReward,
+      blockInfo.address,
+      blockInfo.blockNumber,
+    );
   }
 
   /**

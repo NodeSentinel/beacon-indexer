@@ -333,7 +333,7 @@ describe('Slot Processor E2E Tests', () => {
       saveSpy.mockRestore();
     });
 
-    it('should process block rewards and verify ValidatorBlockRewards table', async () => {
+    it('should process block rewards and verify slot table consensusReward', async () => {
       // Process slot 24519343
       mockBeaconClient.getBlockRewards.mockResolvedValueOnce(blockRewards24519343);
       await slotControllerWithMock.fetchBlockRewards(24519343);
@@ -342,7 +342,7 @@ describe('Slot Processor E2E Tests', () => {
       const slotData24519343 = await slotStorage.getBaseSlot(24519343);
       expect(slotData24519343?.consensusRewardsFetched).toBe(true);
 
-      // Verify block reward is stored in ValidatorBlockRewards table
+      // Verify block reward is stored in slot.consensusReward
       const blockReward24519343 = await slotStorage.getBlockRewardForSlot(24519343, 536011);
       expect(blockReward24519343).toBeDefined();
       expect(blockReward24519343?.blockReward.toString()).toBe('20546222');
@@ -354,7 +354,7 @@ describe('Slot Processor E2E Tests', () => {
       const slotData24519344 = await slotStorage.getBaseSlot(24519344);
       expect(slotData24519344?.consensusRewardsFetched).toBe(true);
 
-      // Verify block reward is stored in ValidatorBlockRewards table
+      // Verify block reward is stored in slot.consensusReward
       const blockReward24519344 = await slotStorage.getBlockRewardForSlot(24519344, 550617);
       expect(blockReward24519344).toBeDefined();
       expect(blockReward24519344?.blockReward.toString()).toBe('20990521');

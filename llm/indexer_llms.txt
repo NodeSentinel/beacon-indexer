@@ -63,12 +63,12 @@ The dependency flow is strictly: XState → Controllers → Storage → Database
 The database schema is defined in `packages/db/prisma/schema.prisma`. Key models:
 
 - **Epoch**: Tracks epoch processing state with flags (processed, committeesFetched, syncCommitteesFetched, rewardsFetched, etc.)
-- **Slot**: Stores slot data including proposer, block number, rewards, and processing flags
+- **Slot**: Stores slot data including proposer, block number, consensus reward (`consensus_reward`), execution reward (`execution_reward`), fee recipient address, and processing flags. Block proposal rewards (consensus) and execution layer rewards (MEV/tips) are stored directly in this table.
 - **Committee**: Partitioned table storing validator committee assignments by slot (partitioned by slot ranges for performance)
 - **Validator**: Core validator information (id, status, balance, pubkey, withdrawal address)
 - **SyncCommittee**: Sync committee assignments for epoch ranges
 - **epochRewards**: Epoch-level rewards for validators (head, target, source, inactivity rewards)
-- **ValidatorHourlyArchive**: Aggregated hourly archive per validator with compact JSON payloads and aggregate columns
+- **ValidatorHourlyArchive**: Aggregated hourly archive per validator with compact JSON payloads and aggregate columns. Storage-optimized: `missedAttestationCount`, `execRewardTotal`, and `blockRewardTotal` are nullable (NULL when 0).
 - **ValidatorsStatusSummary**: Current status summary for each validator
 
 The Committee table uses PostgreSQL table partitioning by slot ranges (equivalent to one hour of slots) to improve query performance on large datasets.
@@ -130,8 +130,8 @@ The Committee table uses PostgreSQL table partitioning by slot ranges (equivalen
 3. SlotProcessor invokes SlotController methods:
    - `fetchBeaconBlock()` - Controller calls BeaconClient, gets block data
    - `processAttestations()` - Controller transforms attestation data, calculates delays, calls SlotStorage.saveAttestations()
-   - `fetchConsensusRewards()` - Controller fetches and processes rewards, calls SlotStorage
-   - `fetchExecutionRewards()` - Controller calls ExecutionClient, processes data, calls SlotStorage
+   - `fetchBlockRewards()` - Controller fetches consensus rewards from BeaconClient, stores in `slot.consensus_reward`
+   - `fetchExecutionRewards()` - Controller calls ExecutionClient, stores `execution_reward` and `fee_recipient_address` in slot table
 4. All data transformation happens in Controller, Storage only persists
 
 ## Package Structure
