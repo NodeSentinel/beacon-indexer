@@ -62,31 +62,12 @@ CREATE TABLE "public"."validator_request_consolidations" (
 );
 
 -- CreateTable
-CREATE TABLE "public"."validator_block_rewards" (
-    "slot" INTEGER NOT NULL,
-    "validator_index" INTEGER NOT NULL,
-    "block_reward" BIGINT NOT NULL,
-
-    CONSTRAINT "validator_block_rewards_pkey" PRIMARY KEY ("slot","validator_index")
-);
-
--- CreateTable
 CREATE TABLE "public"."validator_sync_rewards" (
     "slot" INTEGER NOT NULL,
     "validator_index" INTEGER NOT NULL,
     "sync_committee" BIGINT NOT NULL,
 
     CONSTRAINT "validator_sync_rewards_pkey" PRIMARY KEY ("slot","validator_index")
-);
-
--- CreateTable
-CREATE TABLE "public"."execution_rewards" (
-    "address" TEXT NOT NULL,
-    "timestamp" TIMESTAMP(3) NOT NULL,
-    "amount" DECIMAL(78,0) NOT NULL,
-    "block_number" INTEGER NOT NULL,
-
-    CONSTRAINT "execution_rewards_pkey" PRIMARY KEY ("block_number")
 );
 
 -- CreateTable
@@ -134,6 +115,7 @@ CREATE TABLE "public"."slot" (
     "block_number" INTEGER,
     "consensus_reward" BIGINT,
     "execution_reward" BIGINT,
+    "fee_recipient_address" VARCHAR(42),
     "committees_count_in_slot" JSONB,
     "attestations_fetched" BOOLEAN NOT NULL DEFAULT false,
     "sync_rewards_fetched" BOOLEAN NOT NULL DEFAULT false,
@@ -201,10 +183,10 @@ CREATE TABLE "public"."validator_hourly_archive" (
     "data_by_slot" JSONB NOT NULL,
     "data_by_epoch" JSONB NOT NULL,
     "attestation_count" SMALLINT NOT NULL DEFAULT 0,
-    "missed_attestation_count" SMALLINT NOT NULL DEFAULT 0,
+    "missed_attestation_count" SMALLINT,
     "sync_reward_total" BIGINT NOT NULL DEFAULT 0,
-    "exec_reward_total" BIGINT NOT NULL DEFAULT 0,
-    "block_reward_total" BIGINT NOT NULL DEFAULT 0,
+    "exec_reward_total" BIGINT,
+    "block_reward_total" BIGINT,
     "cl_reward_total" BIGINT NOT NULL DEFAULT 0,
     "cl_missed_reward_total" BIGINT NOT NULL DEFAULT 0,
 
@@ -284,9 +266,6 @@ CREATE INDEX "validator_status_idx" ON "public"."validator"("status");
 
 -- CreateIndex
 CREATE INDEX "validator_pubkey_idx" ON "public"."validator"("pubkey");
-
--- CreateIndex
-CREATE INDEX "execution_rewards_timestamp_address_idx" ON "public"."execution_rewards"("timestamp", "address");
 
 -- CreateIndex
 CREATE INDEX "committee_validator_index_slot_attestation_delay_idx" ON "public"."committee"("validator_index", "slot" DESC, "attestation_delay");

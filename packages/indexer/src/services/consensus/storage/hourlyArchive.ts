@@ -149,18 +149,21 @@ export class HourlyArchiveStorage {
 
             block_rewards AS (
               SELECT
-                validator_index,
+                proposer_index AS validator_index,
                 slot,
-                block_reward
-              FROM validator_block_rewards
+                consensus_reward AS block_reward
+              FROM slot
               WHERE slot >= ${startSlot}::int AND slot <= ${endSlot}::int
+                AND proposer_index IS NOT NULL
+                AND consensus_reward IS NOT NULL
+                AND consensus_reward > 0
             ),
 
             exec_rewards AS (
               SELECT
                 proposer_index AS validator_index,
                 slot,
-                COALESCE(execution_reward, 0) AS execution_reward
+                execution_reward
               FROM slot
               WHERE slot >= ${startSlot}::int AND slot <= ${endSlot}::int
                 AND proposer_index IS NOT NULL
@@ -214,8 +217,8 @@ export class HourlyArchiveStorage {
                   ) ORDER BY slot
                 ) AS data_by_slot,
                 COALESCE(SUM(sync_reward), 0) AS sync_reward_total,
-                COALESCE(SUM(exec_reward), 0) AS exec_reward_total,
-                COALESCE(SUM(block_reward), 0) AS block_reward_total
+                NULLIF(SUM(exec_reward), 0) AS exec_reward_total,
+                NULLIF(SUM(block_reward), 0) AS block_reward_total
               FROM slot_data
               GROUP BY validator_index
             ),
@@ -277,10 +280,10 @@ export class HourlyArchiveStorage {
             COALESCE(sa.data_by_slot, '[]'::jsonb) AS data_by_slot,
             COALESCE(ej.data_by_epoch, '[]'::jsonb) AS data_by_epoch,
             COALESCE(aa.attestation_count, 0)::smallint AS attestation_count,
-            COALESCE(aa.missed_attestation_count, 0)::smallint AS missed_attestation_count,
+            NULLIF(COALESCE(aa.missed_attestation_count, 0), 0)::smallint AS missed_attestation_count,
             COALESCE(sa.sync_reward_total, 0) AS sync_reward_total,
-            COALESCE(sa.exec_reward_total, 0) AS exec_reward_total,
-            COALESCE(sa.block_reward_total, 0) AS block_reward_total,
+            sa.exec_reward_total,
+            sa.block_reward_total,
             COALESCE(ej.cl_reward_total, 0) AS cl_reward_total,
             COALESCE(ej.cl_missed_reward_total, 0) AS cl_missed_reward_total
           FROM slot_agg sa

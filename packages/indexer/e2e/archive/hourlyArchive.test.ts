@@ -120,7 +120,6 @@ describe('Hourly Archive Process', () => {
     // Clean up test data - e2e tests always start with clean instances
     await prisma.$executeRawUnsafe(`DELETE FROM committee`);
     await prisma.$executeRawUnsafe(`DELETE FROM sync_committee_rewards`);
-    await prisma.$executeRawUnsafe(`DELETE FROM validator_block_rewards`);
     await prisma.$executeRawUnsafe(`DELETE FROM slot`);
     await prisma.$executeRawUnsafe(`DELETE FROM epoch_rewards`);
     await prisma.$executeRawUnsafe(`DELETE FROM epoch`);
@@ -255,19 +254,9 @@ describe('Hourly Archive Process', () => {
       ],
     });
 
-    // Block rewards
-    // Validator 100: slot 1 (5000)
-    // Validator 200: slot 3 (6000)
-    await prisma.validatorBlockRewards.createMany({
-      data: [
-        { slot: testSlots[1], validatorIndex: VALIDATOR_1, blockReward: BigInt(5000) },
-        { slot: testSlots[3], validatorIndex: VALIDATOR_2, blockReward: BigInt(6000) },
-      ],
-    });
-
-    // Execution rewards (via slot table)
-    // Validator 100 proposes slot 0 (7000)
-    // Validator 200 proposes slot 2 (8000)
+    // Block rewards + Execution rewards (all via slot table)
+    // Validator 100: slot 0 - executionReward: 7000, slot 1 - consensusReward: 5000
+    // Validator 200: slot 2 - executionReward: 8000, slot 3 - consensusReward: 6000
     await prisma.slot.createMany({
       skipDuplicates: true,
       data: [
@@ -279,6 +268,8 @@ describe('Hourly Archive Process', () => {
         },
         {
           slot: testSlots[1],
+          proposerIndex: VALIDATOR_1,
+          consensusReward: BigInt(5000),
           processed: true,
         },
         {
@@ -289,6 +280,8 @@ describe('Hourly Archive Process', () => {
         },
         {
           slot: testSlots[3],
+          proposerIndex: VALIDATOR_2,
+          consensusReward: BigInt(6000),
           processed: true,
         },
         {
@@ -411,7 +404,7 @@ describe('Hourly Archive Process', () => {
 
     // Attestation counts: all 4 successful (all delays <= 5)
     expect(validator200.attestationCount).toBe(4);
-    expect(validator200.missedAttestationCount).toBe(0);
+    expect(validator200.missedAttestationCount).toBeNull(); // NULL when 0 for storage optimization
 
     // Rewards: sync=3000 (from slot 2), exec=8000 (from slot 2), block=6000 (from slot 3)
     expect(validator200.syncRewardTotal).toBe(BigInt(3000));
@@ -517,13 +510,7 @@ describe('Hourly Archive Process', () => {
       ],
     });
 
-    // Insert block reward for validator 300 in slot 1
-    // BUT validator 300 has NO entry in committee table (no attestation duty)
-    await prisma.validatorBlockRewards.createMany({
-      data: [{ slot: testSlots[1], validatorIndex: VALIDATOR_3, blockReward: BigInt(10000) }],
-    });
-
-    // Insert execution reward for validator 300 in slot 2 (as proposer)
+    // Insert block reward (consensusReward) and execution reward for validator 300
     // BUT validator 300 has NO entry in committee table (no attestation duty)
     await prisma.slot.createMany({
       skipDuplicates: true,
@@ -534,6 +521,8 @@ describe('Hourly Archive Process', () => {
         },
         {
           slot: testSlots[1],
+          proposerIndex: VALIDATOR_3,
+          consensusReward: BigInt(10000),
           processed: true,
         },
         {
@@ -597,7 +586,7 @@ describe('Hourly Archive Process', () => {
     // CRITICAL: Validator 300 has NO attestation duty, so counts should be 0
     // This is the bug fix - rewards should NOT count as missed attestations
     expect(validator300!.attestationCount).toBe(0);
-    expect(validator300!.missedAttestationCount).toBe(0);
+    expect(validator300!.missedAttestationCount).toBeNull(); // NULL when 0 for storage optimization
 
     // But rewards should still be aggregated correctly
     expect(validator300!.syncRewardTotal).toBe(BigInt(5000));

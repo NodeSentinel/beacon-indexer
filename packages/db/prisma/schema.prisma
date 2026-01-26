@@ -72,8 +72,8 @@ model Slot {
     proposerIndex            Int?    @map("proposer_index")
     blockNumber              Int?    @map("block_number")
     consensusReward          BigInt? @map("consensus_reward")
-    // TODO: remember to also set execution rewards here when processing the execution rewards.
     executionReward          BigInt? @map("execution_reward")
+    feeRecipientAddress      String? @map("fee_recipient_address") @db.VarChar(42)
     // Stores the number of validators per committee index as an array: [350, 340, ...], required for attestation processing
     committeesCountInSlot    Json?   @map("committees_count_in_slot")
     // processed data flags
@@ -106,16 +106,6 @@ model Slot {
 
     @@index([slot, processed])
     @@map("slot")
-}
-
-model ExecutionRewards {
-    address     String   @map("address")
-    timestamp   DateTime @map("timestamp")
-    amount      Decimal  @map("amount") @db.Decimal(78, 0)
-    blockNumber Int      @id @map("block_number")
-
-    @@index([timestamp, address])
-    @@map("execution_rewards")
 }
 
 model SyncCommittee {
@@ -212,17 +202,6 @@ model validatorConsolidationsRequests {
     @@map("validator_request_consolidations")
 }
 
-// TODO: unificar validatorBlockRewards y ExecutionRewards
-// el mismo validador recibe rewards de consensus y de execution
-model ValidatorBlockRewards {
-    slot           Int    @map("slot")
-    validatorIndex Int    @map("validator_index")
-    blockReward    BigInt @map("block_reward")
-
-    @@id([slot, validatorIndex])
-    @@map("validator_block_rewards")
-}
-
 model ValidatorSyncRewards {
     slot           Int    @map("slot")
     validatorIndex Int    @map("validator_index")
@@ -264,7 +243,8 @@ model ValidatorHourlyArchive {
     //     - attDelay: number (-1 if no attestation info, otherwise delay in slots)
     //     - syncReward: string (decimal, "0" if none)
     //     - execReward: string (decimal, "0" if none)
-    //     - blockReward: string (decimal, "0" if none)
+    //     - blockReward: string (decimal, "0" if none) 
+    // TODO: optimize execReward y blockReward para q no existan esos items if 0. also, add the proposed slot number. 
     //   Example: [[800001, 1, "0", "0", "0"], [800033, 2, "5000", "0", "0"]]
     //
     // dataByEpoch: Epoch-level rewards data as array of tuples with absolute epoch numbers.
@@ -301,13 +281,13 @@ model ValidatorHourlyArchive {
     dataByEpoch Json @map("data_by_epoch") // [[epoch, head, target, source, inactivity, mH, mT, mS, mI], ...]
 
     // Aggregate columns for fast queries without JSON parsing
-    attestationCount       Int    @default(0) @map("attestation_count") @db.SmallInt // Total attestations in this hour
-    missedAttestationCount Int    @default(0) @map("missed_attestation_count") @db.SmallInt // Attestations with delay > threshold or null
-    syncRewardTotal        BigInt @default(0) @map("sync_reward_total") // Sum of sync committee rewards
-    execRewardTotal        BigInt @default(0) @map("exec_reward_total") // Sum of execution rewards (MEV/tips)
-    blockRewardTotal       BigInt @default(0) @map("block_reward_total") // Sum of block proposal rewards (derivable: proposed if > 0)
-    clRewardTotal          BigInt @default(0) @map("cl_reward_total") // Sum of consensus layer rewards (head+target+source+inactivity)
-    clMissedRewardTotal    BigInt @default(0) @map("cl_missed_reward_total") // Sum of missed CL rewards
+    attestationCount       Int     @default(0) @map("attestation_count") @db.SmallInt // Total attestations in this hour
+    missedAttestationCount Int?    @map("missed_attestation_count") @db.SmallInt // Attestations with delay > threshold or null (NULL if 0)
+    syncRewardTotal        BigInt  @default(0) @map("sync_reward_total") // Sum of sync committee rewards
+    execRewardTotal        BigInt? @map("exec_reward_total") // Sum of execution rewards (MEV/tips) - NULL if 0
+    blockRewardTotal       BigInt? @map("block_reward_total") // Sum of block proposal rewards - NULL if 0
+    clRewardTotal          BigInt  @default(0) @map("cl_reward_total") // Sum of consensus layer rewards (head+target+source+inactivity)
+    clMissedRewardTotal    BigInt  @default(0) @map("cl_missed_reward_total") // Sum of missed CL rewards
 
     @@id([timestamp, validatorIndex])
     @@map("validator_hourly_archive")
