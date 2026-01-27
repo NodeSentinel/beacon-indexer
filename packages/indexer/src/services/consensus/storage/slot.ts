@@ -339,7 +339,7 @@ export class SlotStorage {
    */
   async saveExecutionRewardsAndUpdateSlot(
     slot: number,
-    executionReward: bigint,
+    executionReward: string,
     feeRecipientAddress: string,
     blockNumber: number,
   ) {
