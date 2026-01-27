@@ -66,6 +66,17 @@ const getEpochsToRelease = (epochs: Record<number, EpochStatus>): number[] => {
   return epochsToRelease;
 };
 
+// Helper function to format queue state for logging
+const formatQueueState = (epochs: Record<number, EpochStatus>): string => {
+  const activeEpochs = Object.keys(epochs)
+    .map((e) => parseInt(e))
+    .sort((a, b) => a - b);
+
+  if (activeEpochs.length === 0) return '[]';
+
+  return `[${activeEpochs.map((e) => `${e}:${epochs[e]}`).join(', ')}]`;
+};
+
 export const epochOrchestratorMachine = setup({
   types: {} as {
     context: {
@@ -169,6 +180,9 @@ export const epochOrchestratorMachine = setup({
                 return updatedEpochs;
               },
             }),
+            pinoLog(({ context }) => {
+              return `Queue after dequeue: ${formatQueueState(context.epochs)}`;
+            }, 'EpochOrchestrator'),
           ],
           after: {
             0: { target: 'spawningEpochs' },
@@ -223,6 +237,9 @@ export const epochOrchestratorMachine = setup({
                     ({ event }) => `Spawned worker for epoch ${event.output!.epoch}`,
                     'EpochOrchestrator',
                   ),
+                  pinoLog(({ context }) => {
+                    return `Queue after enqueue: ${formatQueueState(context.epochs)}`;
+                  }, 'EpochOrchestrator'),
                 ],
               },
               {
@@ -266,6 +283,9 @@ export const epochOrchestratorMachine = setup({
             return context.epochs;
           },
         }),
+        pinoLog(({ context }) => {
+          return `Queue after epoch completed: ${formatQueueState(context.epochs)}`;
+        }, 'EpochOrchestrator'),
         // Forward EPOCH_PROCESSED to hourly archive actor to trigger archive check
         sendTo(
           ({ context }) => context.hourlyArchiveActor,
