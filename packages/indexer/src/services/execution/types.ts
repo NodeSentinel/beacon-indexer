@@ -48,6 +48,12 @@ export type Blockscout_Blocks = {
   withdrawals_count: number;
 };
 
+export type Etherscan_Uncle = {
+  miner: string;
+  unclePosition: string;
+  blockreward: string;
+};
+
 export type Etherscan_BlockReward = {
   status: string;
   message: string;
@@ -56,7 +62,7 @@ export type Etherscan_BlockReward = {
     timeStamp: string;
     blockMiner: string;
     blockReward: string;
-    uncles: string[];
+    uncles: Etherscan_Uncle[];
     uncleInclusionReward: string;
   };
 };

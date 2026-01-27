@@ -71,11 +71,24 @@ export class ExecutionClient {
           },
         },
         // Etherscan
-        // https://api.etherscan.io/api?module=block&action=getblockreward&blockno=2165403&apikey=YourApiKeyToken
+        // https://api.etherscan.io/v2/api?chainid=1&module=block&action=getblockreward&blockno=2165403&apikey=YourApiKeyToken
         {
           url: `${this.config.executionApiBkpUrl}/api?chainid=${this.config.chainId}&module=block&action=getblockreward&blockno=${blockNumber}&apikey=${this.config.executionApiBkpKey || ''}`,
           process: (response: AxiosResponse<Etherscan_BlockReward>) => {
             const blockInfo = response.data;
+
+            // Check if API call was successful
+            if (blockInfo.status !== '1' || blockInfo.message !== 'OK') {
+              throw new Error(
+                `Etherscan API error: ${blockInfo.message} (status: ${blockInfo.status})`,
+              );
+            }
+
+            // Validate required fields
+            if (!blockInfo.result?.blockMiner || !blockInfo.result?.blockReward) {
+              throw new Error(`Unexpected Etherscan block response: ${JSON.stringify(blockInfo)}`);
+            }
+
             const result: BlockResponse = {
               address: blockInfo.result.blockMiner,
               timestamp: new Date(Number(blockInfo.result.timeStamp) * 1000),
