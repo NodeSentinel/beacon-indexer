@@ -1,5 +1,7 @@
 import axios, { AxiosInstance, AxiosResponse, InternalAxiosRequestConfig } from 'axios';
+import ms from 'ms';
 import pLimit from 'p-limit';
+import pRetry from 'p-retry';
 
 import { logError, logRequest, logResponse } from '@/src/lib/httpPino.js';
 import { Blockscout_Blocks, Etherscan_BlockReward } from '@/src/services/execution/types.js';
@@ -18,6 +20,8 @@ export interface ExecutionClientConfig {
   chainId: number;
   slotDuration: number;
   requestsPerSecond: number;
+  retries?: number; // Number of retries per endpoint (default: 30, similar to archive node)
+  baseDelay?: number; // Base delay in milliseconds for exponential backoff (default: 1s)
 }
 
 /**
@@ -26,11 +30,18 @@ export interface ExecutionClientConfig {
  */
 export class ExecutionClient {
   private readonly axiosInstance: AxiosInstance;
-  private readonly config: ExecutionClientConfig;
+  private readonly config: ExecutionClientConfig & {
+    retries: number;
+    baseDelay: number;
+  };
   private readonly limiter: ReturnType<typeof pLimit>;
 
   constructor(config: ExecutionClientConfig) {
-    this.config = config;
+    this.config = {
+      ...config,
+      retries: config.retries ?? 30, // Default to 30 retries like archive node
+      baseDelay: config.baseDelay ?? ms('1s'), // Default to 1s base delay
+    };
     this.limiter = pLimit(config.requestsPerSecond);
     this.axiosInstance = axios.create();
 
@@ -45,14 +56,13 @@ export class ExecutionClient {
 
   async getBlock(blockNumber: number): Promise<BlockResponse | null> {
     return this.limiter(async () => {
-      let lastError: unknown;
-
-      // First endpoint is blockscout, second is etherscan
+      // Define endpoints
       const endpoints = [
         // Blockscout
         // https://eth.blockscout.com/api/v2/blocks
         {
           url: `${this.config.executionApiUrl}/api/v2/blocks/${blockNumber}`,
+          name: 'Blockscout',
           process: (response: AxiosResponse<Blockscout_Blocks>) => {
             const blockInfo = response.data;
             const minerReward = blockInfo.rewards.find((r) => r.type === 'Miner Reward');
@@ -74,6 +84,7 @@ export class ExecutionClient {
         // https://api.etherscan.io/v2/api?chainid=1&module=block&action=getblockreward&blockno=2165403&apikey=YourApiKeyToken
         {
           url: `${this.config.executionApiBkpUrl}/api?chainid=${this.config.chainId}&module=block&action=getblockreward&blockno=${blockNumber}&apikey=${this.config.executionApiBkpKey || ''}`,
+          name: 'Etherscan',
           process: (response: AxiosResponse<Etherscan_BlockReward>) => {
             const blockInfo = response.data;
 
@@ -100,24 +111,31 @@ export class ExecutionClient {
         },
       ];
 
-      // Try each endpoint
-      for (let i = 0; i < endpoints.length; i++) {
-        const endpoint = endpoints[i];
-        try {
-          const response = await this.axiosInstance.get(endpoint.url);
-          return endpoint.process(response);
-        } catch (error) {
-          lastError = error;
+      // Try all endpoints in each attempt, with exponential backoff between attempts
+      return await pRetry(
+        async () => {
+          let lastError: unknown;
 
-          // Wait one slot before trying the next endpoint
-          if (i < endpoints.length - 1) {
-            await new Promise((resolve) => setTimeout(resolve, this.config.slotDuration));
+          // Try all endpoints in sequence (first Blockscout, then Etherscan)
+          // Return immediately if any succeeds
+          for (const endpoint of endpoints) {
+            try {
+              const response = await this.axiosInstance.get(endpoint.url);
+              return endpoint.process(response);
+            } catch (error) {
+              lastError = error;
+              // Continue to next endpoint if this one fails
+            }
           }
-        }
-      }
 
-      // If all endpoints fail, throw the last error
-      throw lastError;
+          // If all endpoints failed, throw error to trigger retry with backoff
+          throw lastError || new Error(`All endpoints failed for block ${blockNumber}`);
+        },
+        {
+          retries: this.config.retries,
+          minTimeout: ms('1s'),
+        },
+      );
     });
   }
 }
