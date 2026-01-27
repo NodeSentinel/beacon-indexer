@@ -1,4 +1,4 @@
-import { format } from 'date-fns';
+import { formatInTimeZone } from 'date-fns-tz';
 
 import { PARTITION_TABLE_NAMES } from '@/src/services/consensus/controllers/partition.js';
 
@@ -95,7 +95,8 @@ export function getPartitionName(
 ): string {
   const range = `${start}-${end}`;
   const tableName = `${tableNamePrefix}_${range}`;
-  const datetimeSuffix = format(timestamp, 'yyyyMMddHH');
+  // Use UTC timezone to ensure consistent partition naming regardless of server timezone
+  const datetimeSuffix = formatInTimeZone(timestamp, 'UTC', 'yyyyMMddHH');
   return `${tableName}_${datetimeSuffix}`;
 }
 
@@ -108,6 +109,7 @@ export function getPartitionName(
  * @returns The full partition name.
  */
 export function getHourlyArchivePartitionName(tableNamePrefix: string, timestamp: Date): string {
-  const datetimeSuffix = format(timestamp, 'yyyyMMddHH');
+  // Use UTC timezone to ensure consistent partition naming regardless of server timezone
+  const datetimeSuffix = formatInTimeZone(timestamp, 'UTC', 'yyyyMMddHH');
   return `${tableNamePrefix}_${datetimeSuffix}`;
 }
