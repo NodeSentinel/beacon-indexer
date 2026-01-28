@@ -263,7 +263,7 @@ describe('Hourly Archive Process', () => {
         {
           slot: testSlots[0],
           proposerIndex: VALIDATOR_1,
-          executionReward: BigInt(7000),
+          executionReward: '7000',
           processed: true,
         },
         {
@@ -275,7 +275,7 @@ describe('Hourly Archive Process', () => {
         {
           slot: testSlots[2],
           proposerIndex: VALIDATOR_2,
-          executionReward: BigInt(8000),
+          executionReward: '8000',
           processed: true,
         },
         {
@@ -391,7 +391,7 @@ describe('Hourly Archive Process', () => {
 
     // Rewards: sync=3000 (1000+2000 from slots 0,1), exec=7000 (from slot 0), block=5000 (from slot 1)
     expect(validator100.syncRewardTotal).toBe(BigInt(3000));
-    expect(validator100.execRewardTotal).toBe(BigInt(7000));
+    expect(validator100.execRewardTotal?.toString()).toBe('7000');
     expect(validator100.blockRewardTotal).toBe(BigInt(5000));
 
     // CL rewards: epoch 0 (100+200+300+50=650), epoch 1 (150+250+350+75=825), total=1475
@@ -408,7 +408,7 @@ describe('Hourly Archive Process', () => {
 
     // Rewards: sync=3000 (from slot 2), exec=8000 (from slot 2), block=6000 (from slot 3)
     expect(validator200.syncRewardTotal).toBe(BigInt(3000));
-    expect(validator200.execRewardTotal).toBe(BigInt(8000));
+    expect(validator200.execRewardTotal?.toString()).toBe('8000');
     expect(validator200.blockRewardTotal).toBe(BigInt(6000));
 
     // CL rewards: epoch 0 (500+600+700+100=1900), epoch 1 (550+650+750+120=2070), total=3970
@@ -528,7 +528,7 @@ describe('Hourly Archive Process', () => {
         {
           slot: testSlots[2],
           proposerIndex: VALIDATOR_3,
-          executionReward: BigInt(15000),
+          executionReward: '15000',
           processed: true,
         },
         {
@@ -591,7 +591,7 @@ describe('Hourly Archive Process', () => {
     // But rewards should still be aggregated correctly
     expect(validator300!.syncRewardTotal).toBe(BigInt(5000));
     expect(validator300!.blockRewardTotal).toBe(BigInt(10000));
-    expect(validator300!.execRewardTotal).toBe(BigInt(15000));
+    expect(validator300!.execRewardTotal?.toString()).toBe('15000');
     expect(validator300!.clRewardTotal).toBe(BigInt(6500)); // 1000+2000+3000+500
   });
 });

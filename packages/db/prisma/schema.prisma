@@ -67,40 +67,39 @@ model Slot {
     // This table is partitioned by slot number (UTC hour range) for efficient data
     // Partitions are created dynamically by the epoch worker service when processing epochs.
     // Partition naming: slot_<start>-<end>_<YYYYMMDDHH>
-
-    slot                     Int     @id @map("slot")
-    proposerIndex            Int?    @map("proposer_index")
-    blockNumber              Int?    @map("block_number")
-    consensusReward          BigInt? @map("consensus_reward")
-    executionReward          BigInt? @map("execution_reward")
-    feeRecipientAddress      String? @map("fee_recipient_address") @db.VarChar(42)
+    slot                     Int      @id @map("slot")
+    proposerIndex            Int?     @map("proposer_index")
+    blockNumber              Int?     @map("block_number")
+    consensusReward          BigInt?  @map("consensus_reward")
+    executionReward          Decimal? @map("execution_reward") @db.Decimal(78, 0) // wei (integer, no decimals)
+    feeRecipientAddress      String?  @map("fee_recipient_address") @db.VarChar(42)
     // Stores the number of validators per committee index as an array: [350, 340, ...], required for attestation processing
-    committeesCountInSlot    Json?   @map("committees_count_in_slot")
+    committeesCountInSlot    Json?    @map("committees_count_in_slot")
     // processed data flags
-    attestationsFetched      Boolean @default(false) @map("attestations_fetched")
-    syncRewardsFetched       Boolean @default(false) @map("sync_rewards_fetched")
-    consensusRewardsFetched  Boolean @default(false) @map("consensus_rewards_fetched")
-    executionRewardsFetched  Boolean @default(false) @map("execution_rewards_fetched")
+    attestationsFetched      Boolean  @default(false) @map("attestations_fetched")
+    syncRewardsFetched       Boolean  @default(false) @map("sync_rewards_fetched")
+    consensusRewardsFetched  Boolean  @default(false) @map("consensus_rewards_fetched")
+    executionRewardsFetched  Boolean  @default(false) @map("execution_rewards_fetched")
     // block data
     // TODO: should we persist only one flag for all of the data. 
     // currently the xstate machine process this info in separate states
     // once all of these finish, we can pass the data to a single state which mark slotData (general) as processed
     // data.message.body.proposer_slashings
-    proposerSlashingsFetched Boolean @default(false) @map("proposer_slashings_fetched")
+    proposerSlashingsFetched Boolean  @default(false) @map("proposer_slashings_fetched")
     // data.message.body.attester_slashings
-    attesterSlashingsFetched Boolean @default(false) @map("attester_slashings_fetched")
+    attesterSlashingsFetched Boolean  @default(false) @map("attester_slashings_fetched")
     // data.message.body.deposits
-    depositsFetched          Boolean @default(false) @map("deposits_fetched")
+    depositsFetched          Boolean  @default(false) @map("deposits_fetched")
     // data.message.body.voluntary_exits
-    voluntaryExitsFetched    Boolean @default(false) @map("voluntary_exits_fetched")
+    voluntaryExitsFetched    Boolean  @default(false) @map("voluntary_exits_fetched")
     // data.message.body.execution_payload.withdrawals
-    epWithdrawalsFetched     Boolean @default(false) @map("ep_withdrawals_fetched")
+    epWithdrawalsFetched     Boolean  @default(false) @map("ep_withdrawals_fetched")
     // data.message.body.execution_requests.deposits
-    erDepositsFetched        Boolean @default(false) @map("er_deposits_fetched")
+    erDepositsFetched        Boolean  @default(false) @map("er_deposits_fetched")
     // data.message.body.execution_requests.withdrawals
-    erWithdrawalsFetched     Boolean @default(false) @map("er_withdrawals_fetched")
+    erWithdrawalsFetched     Boolean  @default(false) @map("er_withdrawals_fetched")
     // data.message.body.execution_requests.consolidations
-    erConsolidationsFetched  Boolean @default(false) @map("er_consolidations_fetched")
+    erConsolidationsFetched  Boolean  @default(false) @map("er_consolidations_fetched")
 
     processed Boolean @default(false) @map("processed")
 
@@ -281,13 +280,13 @@ model ValidatorHourlyArchive {
     dataByEpoch Json @map("data_by_epoch") // [[epoch, head, target, source, inactivity, mH, mT, mS, mI], ...]
 
     // Aggregate columns for fast queries without JSON parsing
-    attestationCount       Int     @default(0) @map("attestation_count") @db.SmallInt // Total attestations in this hour
-    missedAttestationCount Int?    @map("missed_attestation_count") @db.SmallInt // Attestations with delay > threshold or null (NULL if 0)
-    syncRewardTotal        BigInt  @default(0) @map("sync_reward_total") // Sum of sync committee rewards
-    execRewardTotal        BigInt? @map("exec_reward_total") // Sum of execution rewards (MEV/tips) - NULL if 0
-    blockRewardTotal       BigInt? @map("block_reward_total") // Sum of block proposal rewards - NULL if 0
-    clRewardTotal          BigInt  @default(0) @map("cl_reward_total") // Sum of consensus layer rewards (head+target+source+inactivity)
-    clMissedRewardTotal    BigInt  @default(0) @map("cl_missed_reward_total") // Sum of missed CL rewards
+    attestationCount       Int      @default(0) @map("attestation_count") @db.SmallInt // Total attestations in this hour
+    missedAttestationCount Int?     @map("missed_attestation_count") @db.SmallInt // Attestations with delay > threshold or null (NULL if 0)
+    syncRewardTotal        BigInt   @default(0) @map("sync_reward_total") // Sum of sync committee rewards
+    execRewardTotal        Decimal? @map("exec_reward_total") @db.Decimal(78, 0) // wei (integer, no decimals) - NULL if 0
+    blockRewardTotal       BigInt?  @map("block_reward_total") // Sum of block proposal rewards - NULL if 0
+    clRewardTotal          BigInt   @default(0) @map("cl_reward_total") // Sum of consensus layer rewards (head+target+source+inactivity)
+    clMissedRewardTotal    BigInt   @default(0) @map("cl_missed_reward_total") // Sum of missed CL rewards
 
     @@id([timestamp, validatorIndex])
     @@map("validator_hourly_archive")

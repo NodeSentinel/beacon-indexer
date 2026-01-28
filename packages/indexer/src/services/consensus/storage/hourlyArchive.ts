@@ -177,19 +177,19 @@ export class HourlyArchiveStorage {
                 slot,
                 MAX(attestation_delay) AS attestation_delay,
                 MAX(sync_committee_reward)::bigint AS sync_reward,
-                MAX(execution_reward)::bigint AS exec_reward,
+                MAX(execution_reward) AS exec_reward,
                 MAX(block_reward)::bigint AS block_reward
               FROM (
-                SELECT validator_index, slot, attestation_delay, NULL::bigint AS sync_committee_reward, NULL::bigint AS execution_reward, NULL::bigint AS block_reward
+                SELECT validator_index, slot, attestation_delay, NULL::bigint AS sync_committee_reward, NULL::numeric AS execution_reward, NULL::bigint AS block_reward
                 FROM attestations
                 UNION ALL
-                SELECT validator_index, slot, NULL::int, sync_committee_reward, NULL::bigint, NULL::bigint
+                SELECT validator_index, slot, NULL::int, sync_committee_reward, NULL::numeric, NULL::bigint
                 FROM sync_rewards
                 UNION ALL
                 SELECT validator_index, slot, NULL::int, NULL::bigint, execution_reward, NULL::bigint
                 FROM exec_rewards
                 UNION ALL
-                SELECT validator_index, slot, NULL::int, NULL::bigint, NULL::bigint, block_reward
+                SELECT validator_index, slot, NULL::int, NULL::bigint, NULL::numeric, block_reward
                 FROM block_rewards
               ) combined
               GROUP BY validator_index, slot
@@ -212,12 +212,12 @@ export class HourlyArchiveStorage {
                     slot,
                     COALESCE(attestation_delay, -1),
                     COALESCE(sync_reward, 0)::text,
-                    COALESCE(exec_reward, 0)::text,
+                    COALESCE(exec_reward, 0::numeric)::text,
                     COALESCE(block_reward, 0)::text
                   ) ORDER BY slot
                 ) AS data_by_slot,
                 COALESCE(SUM(sync_reward), 0) AS sync_reward_total,
-                NULLIF(SUM(exec_reward), 0) AS exec_reward_total,
+                NULLIF(SUM(exec_reward), 0::numeric) AS exec_reward_total,
                 NULLIF(SUM(block_reward), 0) AS block_reward_total
               FROM slot_data
               GROUP BY validator_index
