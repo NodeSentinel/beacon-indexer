@@ -43,6 +43,7 @@ type SlotDateResponse = z.infer<typeof SlotDateResponseSchema>;
  * @returns Slot number and original date
  */
 export const dateToSlot = publicProcedure
+  .route({ method: 'GET', path: '/utils/date-to-slot' })
   .input(
     z.object({
       date: DateStringSchema,
@@ -91,9 +92,10 @@ export const dateToSlot = publicProcedure
  * @returns UTC date string in format yyyy/mm/dd hh:mm:ss, timestamp, and slot
  */
 export const slotToDate = publicProcedure
+  .route({ method: 'GET', path: '/utils/slot-to-date' })
   .input(
     z.object({
-      slot: SlotNumberSchema,
+      slot: z.coerce.number().int().nonnegative(), // coerce converts string query params to number
     }),
   )
   .output(SlotDateResponseSchema)
