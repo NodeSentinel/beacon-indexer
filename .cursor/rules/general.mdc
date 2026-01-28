@@ -1,0 +1,41 @@
+---
+description: General project guidelines, coding standards, and project overview
+alwaysApply: true
+---
+
+## General
+
+- You are a senior full-stack developer.
+- Use TypeScript for all code. Prefer strict typing.
+- Search existing code before creating new components or API endpoints.
+
+## Project Overview
+
+This project is a lightweight beacon chain indexer designed to collect, normalize, and process validator-related data from **Ethereum** and **Gnosis** beacon chains.
+
+It primarily consumes data from the **Consensus Layer (Beacon Chain)** via standard Beacon node APIs, and enriches it with **Execution Layer** data when needed using public explorers/APIs such as **Etherscan** or **Blockscout**.
+
+The core logic and data model are driven by the Beacon Chain itself, so understanding Beacon Chain concepts is essential. The indexer is built around Beacon Chain entities and events such as:
+
+- Validators
+- Slots and Blocks
+- Epochs
+- Committees
+- Attestations
+- Rewards / penalties and validator performance
+
+Most of the indexed data is sourced from the standard Beacon API specification:
+https://ethereum.github.io/beacon-APIs/#/Beacon
+
+## Backend (Node.js/Prisma)
+
+- Validate inputs with Zod.
+- Use Prisma ORM where possible.
+
+## Database
+
+- We are in beta mode: keep only the initial migration. Any schema change must be applied by updating the initial migration.
+
+## Comments
+
+- Never add comments that reference temporary context, formatting preferences, or non-functional instructions.
