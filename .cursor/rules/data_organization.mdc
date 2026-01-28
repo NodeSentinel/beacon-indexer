@@ -1,0 +1,100 @@
+---
+description: Data organization architecture, dual-table pattern (raw + archive), and endpoint construction guidelines
+alwaysApply: false
+---
+
+# Rule: Data Organization and API Endpoints
+
+This rule guides agents on how data is structured in the database, enabling the creation of efficient API endpoints that correctly handle the dual-table architecture.
+
+## Core Data Architecture
+
+The system uses a **two-tier storage architecture** to manage large volumes of time-series beacon chain data:
+
+1. **Raw Tables (Temporary)**
+   - Store fine-grained events (one row per event: slots, epochs, attestations, etc.)
+   - Normalized relational structure with individual columns per data point
+   - Partitioned by time ranges, partitions are created and deleted dynamically
+   - Data is aggregated and then **immediately deleted** after archival - no duplication exists
+
+2. **Archive Tables (Permanent)**
+   - Store time-based aggregates (e.g., hourly, daily)
+   - Hybrid structure: aggregate columns for fast queries + JSON arrays with original event detail
+   - Partitioned by time ranges for long-term retention
+   - Data persists indefinitely
+
+## The Archival Process
+
+An automated process moves data from raw to archive tables atomically:
+
+1. Raw events accumulate in temporary partitions
+2. Once a time boundary is reached, the process:
+   - Aggregates all raw events from that period
+   - Stores aggregates and JSON detail in archive tables
+   - **Immediately deletes the raw partitions** (atomic operation)
+3. A control table tracks the archival boundary timestamp
+
+**Critical:** There is a **moving boundary** between raw and archived data. Data older than the boundary exists ONLY in archive tables. Data newer than the boundary exists ONLY in raw tables. **No data duplication occurs** - raw partitions are deleted atomically after archival.
+
+## Partition Discovery
+
+Tables are partitioned, and partition names encode the data they contain:
+
+- **Raw table partitions:** Format `{table}_{start}-{end}_{yyyyMMddHH}` (e.g., `committee_500-1599_2024011510`)
+  - Contains events with slot/epoch numbers in the `start-end` range
+  - The datetime suffix indicates the UTC hour when the partition was created
+- **Archive table partitions:** Format `{table}_{yyyyMMddHH}` (e.g., `validator_hourly_archive_2024011510`)
+  - Contains aggregated data for that UTC hour
+
+To discover available partitions, query PostgreSQL's catalog.
+
+Parse partition names to extract time ranges and determine which partitions contain data for your query.
+
+## Data Structure Differences
+
+**Raw Tables:**
+
+- One row per event
+- Direct relational queries: `WHERE slot = X AND validator_index = Y`
+- Simple joins between tables
+
+**Archive Tables:**
+
+- One row per time period per entity (e.g., one hour per validator)
+- Aggregate columns for fast filtering/summation
+- JSON arrays containing original event detail
+- Requires JSON parsing to access individual events
+- Query pattern: `WHERE timestamp >= X AND timestamp < Y` with JSON operations
+
+## Building Endpoints: Dual-Table Pattern
+
+When querying time-series data, endpoints **MUST** handle both data sources:
+
+### Step 1: Determine Data Location
+
+1. Query the control table to get the archival boundary timestamp
+2. Compare your time range against the boundary:
+   - Data older than boundary → archive tables only
+   - Data newer than boundary → raw tables only (check partitions exist)
+   - Range spanning boundary → query both sources
+
+### Step 2: Query Strategy
+
+**For ranges spanning the archival boundary:**
+
+1. **Query archive tables** for historical portion (older than boundary)
+   - Use aggregate columns for summaries
+   - Extract from JSON arrays for individual events
+   - Filter by timestamp ranges
+
+2. **Query raw tables** for recent portion (newer than boundary)
+   - List partitions to find which contain your data range
+   - Parse partition names to determine slot/epoch ranges
+   - Use standard relational queries filtered by those ranges
+
+3. **Transform and merge results**
+   - Raw tables: individual event rows
+   - Archive tables: aggregate rows + JSON arrays
+   - Transform both to a common format before merging
+   - Extract events from archive JSON arrays to match raw structure, or aggregate raw data to match archive structure
+   - Ensure consistent chronological ordering
