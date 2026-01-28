@@ -79,25 +79,8 @@ export function createHttpServer() {
       const isRPC = pathname.startsWith('/rpc');
       const handler = isRPC ? rpcHandler : openApiHandler;
 
-      // For RPC handler, remove /rpc prefix from pathname
-      // Create a modified request object with adjusted URL
-      let requestToHandle = req;
-      if (isRPC) {
-        const modifiedPathname = pathname.replace(/^\/rpc/, '') || '/';
-        const modifiedUrl = modifiedPathname + url.search;
-
-        // Create a proxy that intercepts url property access
-        requestToHandle = new Proxy(req, {
-          get(target, prop) {
-            if (prop === 'url') {
-              return modifiedUrl;
-            }
-            return Reflect.get(target, prop);
-          },
-        }) as typeof req;
-      }
-
-      const result = await handler.handle(requestToHandle, res, {
+      const result = await handler.handle(req, res, {
+        prefix: isRPC ? '/rpc' : undefined,
         context: {
           headers: req.headers,
           logger,
