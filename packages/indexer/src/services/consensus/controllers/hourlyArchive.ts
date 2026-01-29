@@ -1,3 +1,5 @@
+import { BeaconTime } from '@beacon-indexer/consensus-utils/beaconTime';
+
 import { HourlyArchiveStorage } from '../storage/hourlyArchive.js';
 
 import { getHourlyArchivePartitionName } from '@/src/services/consensus/controllers/helpers/partitionNaming.js';
@@ -5,7 +7,6 @@ import {
   PartitionController,
   HourArchiveCandidate,
 } from '@/src/services/consensus/controllers/partition.js';
-import { BeaconTime } from '@/src/services/consensus/utils/beaconTime.js';
 
 /**
  * HourlyArchiveController - Business logic for hourly archive aggregation.

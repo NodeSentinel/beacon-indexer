@@ -3,7 +3,7 @@
 
 import ms from 'ms';
 
-type ChainConfig = {
+export type ChainConfig = {
   // Blockchain Configuration
   blockchain: {
     chainId: number;

@@ -1,10 +1,10 @@
+import { BeaconTime } from '@beacon-indexer/consensus-utils/beaconTime';
 import { createActor, ActorRefFrom } from 'xstate';
 
 import { EpochController } from '@/src/services/consensus/controllers/epoch.js';
 import { PartitionController } from '@/src/services/consensus/controllers/partition.js';
 import { SlotController } from '@/src/services/consensus/controllers/slot.js';
 import { ValidatorsController } from '@/src/services/consensus/controllers/validators.js';
-import { BeaconTime } from '@/src/services/consensus/utils/beaconTime.js';
 import { hourlyArchiveMachine } from '@/src/xstate/archive/hourlyArchive.machine.js';
 import { epochCreationMachine } from '@/src/xstate/epoch/epochCreator.machine.js';
 import { epochOrchestratorMachine } from '@/src/xstate/epoch/epochOrchestrator.machine.js';

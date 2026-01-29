@@ -1,3 +1,4 @@
+import { BeaconTime } from '@beacon-indexer/consensus-utils/beaconTime';
 import { setup, assign, sendParent, raise, ActorRefFrom, fromPromise, stopChild } from 'xstate';
 
 import { slotOrchestratorMachine, SlotsCompletedEvent } from '../slot/slotOrchestrator.machine.js';
@@ -5,7 +6,6 @@ import { slotOrchestratorMachine, SlotsCompletedEvent } from '../slot/slotOrches
 import { EpochController } from '@/src/services/consensus/controllers/epoch.js';
 import { SlotController } from '@/src/services/consensus/controllers/slot.js';
 import { ValidatorsController } from '@/src/services/consensus/controllers/validators.js';
-import { BeaconTime } from '@/src/services/consensus/utils/beaconTime.js';
 import { logActor } from '@/src/xstate/multiMachineLogger.js';
 import { pinoLog } from '@/src/xstate/pinoLog.js';
 

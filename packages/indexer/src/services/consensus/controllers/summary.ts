@@ -1,7 +1,7 @@
+import { BeaconTime } from '@beacon-indexer/consensus-utils/beaconTime';
 import ms from 'ms';
 
 import { SummaryStorage } from '../storage/summary.js';
-import { BeaconTime } from '../utils/beaconTime.js';
 
 import createLogger from '@/src/lib/pino.js';
 

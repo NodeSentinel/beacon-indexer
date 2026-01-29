@@ -1,3 +1,4 @@
+import { BeaconTime } from '@beacon-indexer/consensus-utils/beaconTime';
 import ms from 'ms';
 import { test, expect, vi, beforeEach, afterEach, describe } from 'vitest';
 
@@ -10,7 +11,6 @@ import {
 import { EpochController } from '@/src/services/consensus/controllers/epoch.js';
 import { SlotController } from '@/src/services/consensus/controllers/slot.js';
 import { ValidatorsController } from '@/src/services/consensus/controllers/validators.js';
-import { BeaconTime } from '@/src/services/consensus/utils/beaconTime.js';
 import { epochProcessorMachine } from '@/src/xstate/epoch/epochProcessor.machine.js';
 
 // ============================================================================

@@ -1,3 +1,5 @@
+import { BeaconTime } from '@beacon-indexer/consensus-utils/beaconTime';
+import { gnosisConfig } from '@beacon-indexer/consensus-utils/config/chain';
 import { test, expect, vi, beforeEach, afterEach, describe } from 'vitest';
 import { createMachine, sendParent } from 'xstate';
 
@@ -6,11 +8,9 @@ import {
   createControllablePromise,
   getNestedState,
 } from '@/src/__tests__/utils.js';
-import { gnosisConfig } from '@/src/config/chain.js';
 import { EpochController } from '@/src/services/consensus/controllers/epoch.js';
 import { PartitionController } from '@/src/services/consensus/controllers/partition.js';
 import { SlotController } from '@/src/services/consensus/controllers/slot.js';
-import { BeaconTime } from '@/src/services/consensus/utils/beaconTime.js';
 
 // ============================================================================
 // Test Constants - Use Gnosis chain real values (except slotDuration for fast tests)

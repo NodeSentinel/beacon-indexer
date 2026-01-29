@@ -1,7 +1,8 @@
+import { BeaconTime } from '@beacon-indexer/consensus-utils/beaconTime';
+
 import { BeaconClient } from '../beacon.js';
 import { SlotStorage } from '../storage/slot.js';
 import type { Block, Attestation } from '../types.js';
-import { BeaconTime } from '../utils/beaconTime.js';
 
 import { SlotControllerHelpers } from './helpers/slotControllerHelpers.js';
 

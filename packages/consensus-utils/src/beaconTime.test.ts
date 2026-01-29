@@ -2,8 +2,7 @@ import ms from 'ms';
 import { describe, expect, test, vi } from 'vitest';
 
 import { BeaconTime } from './beaconTime.js';
-
-import { ethereumConfig, gnosisConfig } from '@/src/config/chain.js';
+import { ethereumConfig, gnosisConfig } from './config/chain.js';
 
 // Test data from actual nodes (converted to milliseconds)
 const TEST_DATA = {

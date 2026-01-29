@@ -1,3 +1,5 @@
+import { BeaconTime } from '@beacon-indexer/consensus-utils/beaconTime';
+import { gnosisConfig } from '@beacon-indexer/consensus-utils/config/chain';
 import { PrismaClient } from '@beacon-indexer/db';
 import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from 'vitest';
 
@@ -10,7 +12,6 @@ import syncCommittee1529347 from './mocks/syncCommittee_1529347.json' with { typ
 import validatorProposerDuties1534614 from './mocks/validatorProposerDuties_1534614.json' with { type: 'json' };
 import validatorsData from './mocks/validators.json' with { type: 'json' };
 
-import { gnosisConfig } from '@/src/config/chain.js';
 import { BeaconClient } from '@/src/services/consensus/beacon.js';
 import { EpochController } from '@/src/services/consensus/controllers/epoch.js';
 import { ValidatorControllerHelpers } from '@/src/services/consensus/controllers/helpers/validatorControllerHelpers.js';
@@ -19,7 +20,6 @@ import { EpochStorage } from '@/src/services/consensus/storage/epoch.js';
 import { PartitionStorage } from '@/src/services/consensus/storage/partition.js';
 import { ValidatorsStorage } from '@/src/services/consensus/storage/validators.js';
 import { GetCommittees, GetValidators } from '@/src/services/consensus/types.js';
-import { BeaconTime } from '@/src/services/consensus/utils/beaconTime.js';
 
 // TODO: Missing tests for epochProcessor.machine states:
 // Machine-level states:

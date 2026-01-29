@@ -1,3 +1,4 @@
+import { BeaconTime } from '@beacon-indexer/consensus-utils/beaconTime';
 import { PrismaClient } from '@beacon-indexer/db';
 import ms from 'ms';
 
@@ -16,7 +17,6 @@ import { IndexerConfigStorage } from '@/src/services/consensus/storage/indexerCo
 import { PartitionStorage } from '@/src/services/consensus/storage/partition.js';
 import { SlotStorage } from '@/src/services/consensus/storage/slot.js';
 import { ValidatorsStorage } from '@/src/services/consensus/storage/validators.js';
-import { BeaconTime } from '@/src/services/consensus/utils/beaconTime.js';
 import { ExecutionClient } from '@/src/services/execution/execution.js';
 import initXstateMachines from '@/src/xstate/index.js';
 import { getMultiMachineLogger } from '@/src/xstate/multiMachineLogger.js';

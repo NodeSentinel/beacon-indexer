@@ -1,3 +1,5 @@
+import { BeaconTime } from '@beacon-indexer/consensus-utils/beaconTime';
+import { gnosisConfig } from '@beacon-indexer/consensus-utils/config/chain';
 import { PrismaClient } from '@beacon-indexer/db';
 import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from 'vitest';
 
@@ -11,7 +13,6 @@ import rewardsSyncCommittee24497231 from './mocks/rewardsSyncCommittee_24497231.
 import blockRewards24519343 from './mocks/slotRewards_ 24519343.json' with { type: 'json' };
 import blockRewards24519344 from './mocks/slotRewards_ 24519344.json' with { type: 'json' };
 
-import { gnosisConfig } from '@/src/config/chain.js';
 import { BeaconClient } from '@/src/services/consensus/beacon.js';
 import { EpochController } from '@/src/services/consensus/controllers/epoch.js';
 import { ValidatorControllerHelpers } from '@/src/services/consensus/controllers/helpers/validatorControllerHelpers.js';
@@ -22,7 +23,6 @@ import { PartitionStorage } from '@/src/services/consensus/storage/partition.js'
 import { SlotStorage } from '@/src/services/consensus/storage/slot.js';
 import { ValidatorsStorage } from '@/src/services/consensus/storage/validators.js';
 import { GetCommittees, GetValidators, Block } from '@/src/services/consensus/types.js';
-import { BeaconTime } from '@/src/services/consensus/utils/beaconTime.js';
 import { ExecutionClient } from '@/src/services/execution/execution.js';
 
 /**

@@ -1,3 +1,4 @@
+import { BeaconTime } from '@beacon-indexer/consensus-utils/beaconTime';
 import chunk from 'lodash/chunk.js';
 
 import { EpochControllerHelpers } from './helpers/epochControllerHelpers.js';
@@ -5,7 +6,6 @@ import { EpochControllerHelpers } from './helpers/epochControllerHelpers.js';
 import { BeaconClient } from '@/src/services/consensus/beacon.js';
 import { EpochStorage } from '@/src/services/consensus/storage/epoch.js';
 import { ValidatorsStorage } from '@/src/services/consensus/storage/validators.js';
-import { BeaconTime } from '@/src/services/consensus/utils/beaconTime.js';
 
 export class EpochController extends EpochControllerHelpers {
   static readonly maxUnprocessedEpochs: number = 5;

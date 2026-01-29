@@ -1,9 +1,7 @@
-// Re-export BeaconTime and chain config from indexer to avoid duplication
-// Import from the indexer package using relative path (works in monorepo)
-import { getChainConfig } from '../../../indexer/src/config/chain.js';
-import { BeaconTime } from '../../../indexer/src/services/consensus/utils/beaconTime.js';
+// Re-export BeaconTime and chain config from consensus-utils
+import { getChainConfig, BeaconTime } from '@beacon-indexer/consensus-utils';
 
-import { env } from '@/config/env.js';
+import { env } from '../config/env.js';
 
 // Get chain configuration
 const chainConfig = getChainConfig(env.CHAIN);

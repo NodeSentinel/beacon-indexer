@@ -1,15 +1,15 @@
 import fs from 'fs';
 import path from 'path';
 
+import { BeaconTime } from '@beacon-indexer/consensus-utils/beaconTime';
+import { gnosisConfig } from '@beacon-indexer/consensus-utils/config/chain';
 import { PrismaClient } from '@beacon-indexer/db';
 import { describe, it, expect, beforeAll, afterAll, vi, type MockedFunction } from 'vitest';
 
-import { gnosisConfig } from '@/src/config/chain.js';
 import { BeaconClient } from '@/src/services/consensus/beacon.js';
 import { ValidatorsController } from '@/src/services/consensus/controllers/validators.js';
 import { ValidatorsStorage } from '@/src/services/consensus/storage/validators.js';
 import { GetValidators } from '@/src/services/consensus/types.js';
-import { BeaconTime } from '@/src/services/consensus/utils/beaconTime.js';
 
 // Mock data file
 const MOCK_PATH = path.join(__dirname, 'mocks/validators.json');

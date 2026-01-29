@@ -1,3 +1,4 @@
+import { BeaconTime } from '@beacon-indexer/consensus-utils/beaconTime';
 import { addHours, subHours } from 'date-fns';
 
 import {
@@ -8,7 +9,6 @@ import {
   ParsedPartition,
 } from '@/src/services/consensus/controllers/helpers/partitionNaming.js';
 import { PartitionStorage } from '@/src/services/consensus/storage/partition.js';
-import { BeaconTime } from '@/src/services/consensus/utils/beaconTime.js';
 import { getUTCDatetimeFlooredToHour } from '@/src/utils/date/index.js';
 
 /**

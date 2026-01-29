@@ -1,3 +1,4 @@
+import { BeaconTime } from '@beacon-indexer/consensus-utils/beaconTime';
 import chunk from 'lodash/chunk.js';
 
 import { ValidatorControllerHelpers } from './helpers/validatorControllerHelpers.js';
@@ -5,7 +6,6 @@ import { ValidatorControllerHelpers } from './helpers/validatorControllerHelpers
 import createLogger from '@/src/lib/pino.js';
 import { BeaconClient } from '@/src/services/consensus/beacon.js';
 import { ValidatorsStorage } from '@/src/services/consensus/storage/validators.js';
-import { BeaconTime } from '@/src/services/consensus/utils/beaconTime.js';
 
 export class ValidatorsController {
   private readonly logger = createLogger('ValidatorsController');

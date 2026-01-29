@@ -17,6 +17,7 @@
     "test": "echo \"No tests for @beacon-indexer/api\""
   },
   "dependencies": {
+    "@beacon-indexer/consensus-utils": "workspace:*",
     "@beacon-indexer/db": "workspace:*",
     "@orpc/client": "latest",
     "@orpc/experimental-pino": "^1.13.0",

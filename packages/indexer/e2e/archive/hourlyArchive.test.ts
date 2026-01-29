@@ -1,7 +1,8 @@
+import { BeaconTime } from '@beacon-indexer/consensus-utils/beaconTime';
+import { gnosisConfig } from '@beacon-indexer/consensus-utils/config/chain';
 import { PrismaClient } from '@beacon-indexer/db';
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 
-import { gnosisConfig } from '@/src/config/chain.js';
 import {
   parseSlotPartitionName,
   parseEpochPartitionName,
@@ -14,7 +15,6 @@ import {
 } from '@/src/services/consensus/controllers/partition.js';
 import { HourlyArchiveStorage } from '@/src/services/consensus/storage/hourlyArchive.js';
 import { PartitionStorage } from '@/src/services/consensus/storage/partition.js';
-import { BeaconTime } from '@/src/services/consensus/utils/beaconTime.js';
 
 describe('Hourly Archive Process', () => {
   let prisma: PrismaClient;

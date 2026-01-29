@@ -1,14 +1,14 @@
+import { BeaconTime } from '@beacon-indexer/consensus-utils/beaconTime';
+import { gnosisConfig } from '@beacon-indexer/consensus-utils/config/chain';
 import { PrismaClient } from '@beacon-indexer/db';
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 
-import { gnosisConfig } from '@/src/config/chain.js';
 import { getPartitionName } from '@/src/services/consensus/controllers/helpers/partitionNaming.js';
 import {
   PARTITION_TABLE_NAMES,
   PartitionController,
 } from '@/src/services/consensus/controllers/partition.js';
 import { PartitionStorage } from '@/src/services/consensus/storage/partition.js';
-import { BeaconTime } from '@/src/services/consensus/utils/beaconTime.js';
 import { getUTCDatetimeFlooredToHour } from '@/src/utils/date/index.js';
 
 describe('Partitioning by epoch', () => {

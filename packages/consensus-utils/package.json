@@ -1,0 +1,38 @@
+{
+  "name": "@beacon-indexer/consensus-utils",
+  "version": "1.0.0",
+  "description": "Shared beacon chain utilities for configuration and time calculations",
+  "type": "module",
+  "license": "SEE LICENSE IN LICENSE",
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
+    },
+    "./config/chain": {
+      "types": "./src/config/chain.ts",
+      "default": "./src/config/chain.ts"
+    },
+    "./beaconTime": {
+      "types": "./src/beaconTime.ts",
+      "default": "./src/beaconTime.ts"
+    }
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest --watch"
+  },
+  "dependencies": {
+    "ms": "^2.1.3"
+  },
+  "devDependencies": {
+    "@types/ms": "^2.1.0",
+    "@types/node": "^22.10.1",
+    "typescript": "^5.7.2",
+    "vitest": "^3.2.4"
+  }
+}
