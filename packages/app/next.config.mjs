@@ -10,6 +10,13 @@ const nextConfig = {
     unoptimized: true,
   },
   async headers() {
+    const isDevelopment = process.env.NODE_ENV === 'development';
+
+    // Allow localhost connections in development for API calls
+    const connectSrc = isDevelopment
+      ? "connect-src 'self' https: wss: http://localhost:* http://127.0.0.1:*"
+      : "connect-src 'self' https: wss:";
+
     return [
       {
         // Apply headers to all routes
@@ -23,7 +30,7 @@ const nextConfig = {
               "style-src 'self' 'unsafe-inline'",
               "script-src 'self' 'unsafe-eval' 'unsafe-inline'",
               'frame-ancestors https://*.telegram.org https://web.telegram.org https://*.web.telegram.org',
-              "connect-src 'self' https: wss:",
+              connectSrc,
               "font-src 'self' data:",
             ].join('; '),
           },
