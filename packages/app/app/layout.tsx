@@ -6,6 +6,7 @@ import type React from 'react';
 
 import { TelegramProvider } from '@/components/telegram/TelegramProvider';
 import ValidatorHeader from '@/components/validators/validator-header';
+import { QueryProvider } from '@/lib/query-provider';
 import { V0Provider } from '@/lib/v0-context';
 
 const robotoMono = Roboto_Mono({
@@ -23,8 +24,8 @@ const isV0 = process.env['VERCEL_URL']?.includes('vusercontent.net') ?? false;
 
 export const metadata: Metadata = {
   title: {
-    template: '%s – Validator Monitor',
-    default: 'Validator Monitor',
+    template: '%s – NodeSentinel',
+    default: 'NodeSentinel',
   },
   description: 'Beacon Chain validator monitoring dashboard',
   generator: 'v0.app',
@@ -59,12 +60,14 @@ export default function RootLayout({
         />
       </head>
       <body className={`${rebelGrotesk.variable} ${robotoMono.variable} antialiased`}>
-        <TelegramProvider>
-          <V0Provider isV0={isV0}>
-            <ValidatorHeader />
-            <div className="w-full max-w-7xl mx-auto px-4 lg:px-8">{children}</div>
-          </V0Provider>
-        </TelegramProvider>
+        <QueryProvider>
+          <TelegramProvider>
+            <V0Provider isV0={isV0}>
+              <ValidatorHeader />
+              <div className="w-full max-w-7xl mx-auto px-4 lg:px-8">{children}</div>
+            </V0Provider>
+          </TelegramProvider>
+        </QueryProvider>
       </body>
     </html>
   );
