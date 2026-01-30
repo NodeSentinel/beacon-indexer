@@ -30,8 +30,11 @@ export const env = createEnv({
     // Base URL for the application
     NEXT_PUBLIC_APP_URL: z.string().url().optional(),
 
-    // Add other public variables here
-    // Example: NEXT_PUBLIC_API_URL: z.string().url(),
+    // API URL for oRPC client
+    NEXT_PUBLIC_API_URL: z.string().url().default('http://localhost:3001'),
+
+    // Chain (determines token symbol: gnosis -> GNO, ethereum -> ETH)
+    NEXT_PUBLIC_CHAIN: z.enum(['gnosis', 'ethereum']).default('ethereum'),
   },
 
   /**
@@ -50,5 +53,7 @@ export const env = createEnv({
     // Client (must be prefixed with NEXT_PUBLIC_)
     NEXT_PUBLIC_TG_MOCK: process.env.NEXT_PUBLIC_TG_MOCK,
     NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL,
+    NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL,
+    NEXT_PUBLIC_CHAIN: process.env.NEXT_PUBLIC_CHAIN,
   },
 });

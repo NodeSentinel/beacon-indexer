@@ -7,6 +7,12 @@
   "engines": {
     "node": ">=22.0.0"
   },
+  "exports": {
+    "./routers": {
+      "types": "./dist/routers/index.d.ts",
+      "default": "./dist/routers/index.js"
+    }
+  },
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "start": "node dist/index.js",
@@ -19,10 +25,9 @@
   "dependencies": {
     "@beacon-indexer/consensus-utils": "workspace:*",
     "@beacon-indexer/db": "workspace:*",
-    "@orpc/client": "latest",
     "@orpc/experimental-pino": "^1.13.0",
-    "@orpc/openapi": "latest",
-    "@orpc/server": "latest",
+    "@orpc/openapi": "1.13.4",
+    "@orpc/server": "1.13.4",
     "date-fns": "^4.1.0",
     "dotenv": "^16.4.5",
     "ms": "^2.1.3",

@@ -5,7 +5,6 @@ import type {
   Epoch,
   Slot,
   Attestation,
-  EpochRewards,
 } from '@/routers/validator/schemas.js';
 import { ValidatorStorage } from '@/storage/validator.js';
 import { beaconTime, chainConfig } from '@/utils/beaconTime.js';
