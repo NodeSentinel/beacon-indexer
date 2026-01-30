@@ -1,3 +1,5 @@
+import type { ValidatorStatus } from '@beacon-indexer/consensus-utils';
+
 /**
  * Configuration for beacon URLs
  */
@@ -27,19 +29,6 @@ export type EndpointOptions = {
    */
   retries?: number;
 };
-
-// TODO: analyze when to use each status to do filtering for the beacon API.
-// https://docs.blockdaemon.com/docs/eth-validator-statuses
-export type ValidatorStatus =
-  | 'pending_initialized'
-  | 'pending_queued'
-  | 'active_ongoing'
-  | 'active_exiting'
-  | 'active_slashed'
-  | 'exited_unslashed'
-  | 'exited_slashed'
-  | 'withdrawal_possible'
-  | 'withdrawal_done';
 
 /**
  * Ideal reward data for a specific effective balance

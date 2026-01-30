@@ -1,13 +1,12 @@
 import { Readable } from 'stream';
 
+import { VALIDATOR_STATUS } from '@beacon-indexer/consensus-utils';
 import { PrismaClient, Validator, Decimal, Prisma } from '@beacon-indexer/db';
 import chunk from 'lodash/chunk.js';
 import ms from 'ms';
 import { Pool } from 'pg';
 // @ts-expect-error - pg-copy-streams doesn't have type definitions
 import { from as copyFrom } from 'pg-copy-streams';
-
-import { VALIDATOR_STATUS } from '@/src/services/consensus/constants.js';
 
 export class ValidatorsStorage {
   private static pgPool: Pool | null = null;

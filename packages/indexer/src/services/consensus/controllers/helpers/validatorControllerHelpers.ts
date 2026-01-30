@@ -1,8 +1,7 @@
+import { VALIDATOR_STATUS } from '@beacon-indexer/consensus-utils';
 import { Validator } from '@beacon-indexer/db';
 
 import { GetValidators } from '../../types.js';
-
-import { VALIDATOR_STATUS } from '@/src/services/consensus/constants.js';
 
 export abstract class ValidatorControllerHelpers {
   static mapValidatorDataToDBEntity(validatorData: GetValidators['data'][number]): Validator {

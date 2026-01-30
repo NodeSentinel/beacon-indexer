@@ -19,6 +19,10 @@
     "./beaconTime": {
       "types": "./src/beaconTime.ts",
       "default": "./src/beaconTime.ts"
+    },
+    "./validatorStatus": {
+      "types": "./src/validatorStatus.ts",
+      "default": "./src/validatorStatus.ts"
     }
   },
   "scripts": {

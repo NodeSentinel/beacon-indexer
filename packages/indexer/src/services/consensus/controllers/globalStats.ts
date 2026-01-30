@@ -1,6 +1,7 @@
+import { VALIDATOR_STATUS } from '@beacon-indexer/consensus-utils';
+
 import { GlobalStatsStorage } from '../storage/globalStats.js';
 
-import { VALIDATOR_STATUS } from '@/src/services/consensus/constants.js';
 import { convertToUTC } from '@/src/utils/date/index.js';
 
 export class GlobalStatsController {
