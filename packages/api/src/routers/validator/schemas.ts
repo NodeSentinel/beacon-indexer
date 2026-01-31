@@ -78,13 +78,23 @@ export const PerformanceSummarySchema = z.object({
 });
 
 /**
+ * Validator status schema - id (numeric) and value (Beacon API string)
+ */
+export const ValidatorStatusSchema = z
+  .object({
+    id: z.number().int(),
+    value: z.string(),
+  })
+  .nullable();
+
+/**
  * Validator info schema
  */
 export const ValidatorInfoSchema = z.object({
   id: z.number().int(),
   pubkey: z.string().nullable(),
   withdrawalAddress: z.string().nullable(),
-  status: z.number().int().nullable(),
+  status: ValidatorStatusSchema,
   balance: z.string(),
   effectiveBalance: z.string().nullable(),
 });

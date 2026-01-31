@@ -8,6 +8,14 @@ This project is a lightweight beacon chain indexer for **Ethereum** and **Gnosis
 
 Core concepts: Validators, Slots and Blocks, Epochs, Committees, Attestations, Rewards/penalties. Data is sourced from the [Beacon API](https://ethereum.github.io/beacon-APIs/#/Beacon).
 
+## Beacon chain domain (project-wide)
+
+Validator participation has different rhythms depending on duty type. When designing queries, timelines, or aggregations that mix multiple duty types, account for these differences.
+
+- **Attestation committees**: Validators are assigned to attestation committees per epoch. Each validator attests **once per epoch** (one slot per epoch, i.e. roughly one slot per 32 slots). Storage keyed by attestation (e.g. one row per attestation slot per validator) therefore has ~1 row per epoch per validator.
+- **Sync committee**: A fixed set of validators serves for a **sync committee period** (256 epochs). During that period they participate in **every slot** (sign the sync aggregate and may receive sync committee reward). So sync committee participation is **every slot** for the period (~256 slots per validator per period), not once per epoch.
+- **Implication**: Any result set or timeline that is **driven by attestation slots** (committee rows) will only include sync committee data when the same slot is both an attestation slot and a sync committee slot. Slots where the validator only had sync committee duty will not appear in attestation-centric views. Aggregations or UIs that must reflect both attestation and sync committee activity need to either union/join with sync-committee data or use a slot source that includes all relevant slots.
+
 ## Global setup
 
 - Install deps: `pnpm install`

@@ -13,7 +13,7 @@ interface ValidatorInfo {
   id: number;
   pubkey: string | null;
   withdrawalAddress: string | null;
-  status: number | null;
+  status: { id: number; value: string } | null;
   balance: string;
   effectiveBalance: string | null;
 }
@@ -22,20 +22,19 @@ interface ValidatorDetailsProps {
   info: ValidatorInfo;
 }
 
-// Status mapping based on beacon chain validator statuses
-const STATUS_MAP: Record<
-  number,
-  {
-    label: string;
-    variant: 'outline-success' | 'outline-warning' | 'outline-destructive' | 'outline';
-  }
+/** Badge variant by Beacon API status value (from API) */
+const STATUS_VARIANT: Partial<
+  Record<string, 'outline-success' | 'outline-warning' | 'outline-destructive' | 'outline'>
 > = {
-  0: { label: 'Pending', variant: 'outline' },
-  1: { label: 'Active', variant: 'outline-success' },
-  2: { label: 'Exiting', variant: 'outline-warning' },
-  3: { label: 'Slashed', variant: 'outline-destructive' },
-  4: { label: 'Exited', variant: 'outline' },
+  active_ongoing: 'outline-success',
+  active_exiting: 'outline-warning',
+  active_slashed: 'outline-destructive',
+  exited_slashed: 'outline-destructive',
 };
+
+function formatStatusLabel(value: string): string {
+  return value.replace(/_/g, ' ');
+}
 
 function truncateAddress(address: string, startChars = 10, endChars = 8): string {
   if (address.length <= startChars + endChars) return address;
@@ -51,17 +50,19 @@ export default function ValidatorDetails({ info }: ValidatorDetailsProps) {
     setTimeout(() => setCopiedField(null), 2000);
   };
 
-  const status = info.status !== null ? STATUS_MAP[info.status] : null;
+  const statusValue = info.status?.value;
+  const statusVariant = statusValue ? (STATUS_VARIANT[statusValue] ?? 'outline') : 'outline';
+  const statusLabel = statusValue ? formatStatusLabel(statusValue) : 'Unknown';
 
   return (
     <DashboardCard
       title={
         <div className="flex items-center gap-2">
           <span>Validator Details</span>
-          <Badge variant={status?.variant ?? 'outline'}>{status?.label ?? 'Unknown'}</Badge>
+          <Badge variant={statusVariant}>{statusLabel}</Badge>
         </div>
       }
-      intent={status?.variant === 'outline-success' ? 'success' : 'default'}
+      intent={statusVariant === 'outline-success' ? 'success' : 'default'}
     >
       <div className="space-y-4">
         {/* Validator Index and Pubkey */}

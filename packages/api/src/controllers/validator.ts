@@ -1,3 +1,5 @@
+import { VALIDATOR_STATUS } from '@beacon-indexer/consensus-utils';
+
 import type {
   ValidatorDetails,
   ValidatorInfo,
@@ -9,6 +11,11 @@ import type {
 import { ValidatorStorage } from '@/storage/validator.js';
 import { beaconTime, chainConfig } from '@/utils/beaconTime.js';
 import { convertRewardToGWei, formatBalance } from '@/utils/tokenFormat.js';
+
+/** Reverse map: numeric status id → Beacon API string */
+const STATUS_BY_ID: Record<number, string> = Object.fromEntries(
+  Object.entries(VALIDATOR_STATUS).map(([k, v]) => [v, k]),
+);
 
 /**
  * ValidatorController - Business logic layer for validator operations
@@ -56,7 +63,13 @@ export class ValidatorController {
       id: validatorInfoRow.id,
       pubkey: validatorInfoRow.pubkey,
       withdrawalAddress: validatorInfoRow.withdrawal_address,
-      status: validatorInfoRow.status,
+      status:
+        validatorInfoRow.status !== null
+          ? {
+              id: validatorInfoRow.status,
+              value: STATUS_BY_ID[validatorInfoRow.status] ?? 'unknown',
+            }
+          : null,
       balance: formatBalance(validatorInfoRow.balance),
       effectiveBalance: validatorInfoRow.effective_balance
         ? formatBalance(validatorInfoRow.effective_balance)
