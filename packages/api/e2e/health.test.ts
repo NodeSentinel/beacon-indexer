@@ -5,6 +5,23 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { createHttpServer } from '@/server.js';
 
+interface HealthResponse {
+  success: boolean;
+  data: {
+    status: 'healthy' | 'degraded' | 'unhealthy';
+    timestamp: string;
+    services: {
+      database: {
+        status: 'connected' | 'disconnected';
+        latencyMs?: number;
+      };
+    };
+  };
+  meta: {
+    timestamp: string;
+  };
+}
+
 describe('Health Endpoint E2E Tests', () => {
   let prisma: PrismaClient;
   let server: ReturnType<typeof createServer>;
@@ -56,7 +73,7 @@ describe('Health Endpoint E2E Tests', () => {
       expect(response.ok).toBe(true);
       expect(response.status).toBe(200);
 
-      const body = await response.json();
+      const body = (await response.json()) as HealthResponse;
 
       expect(body.success).toBe(true);
       expect(body.data).toBeDefined();
@@ -70,7 +87,7 @@ describe('Health Endpoint E2E Tests', () => {
 
     it('should include meta information in response', async () => {
       const response = await fetch(`${baseUrl}/health/check`);
-      const body = await response.json();
+      const body = (await response.json()) as HealthResponse;
 
       expect(body.meta).toBeDefined();
       expect(body.meta.timestamp).toBeDefined();

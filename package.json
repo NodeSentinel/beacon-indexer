@@ -108,6 +108,9 @@
     "packages/telegram-bot/**/*.ts": [
       "bash -c 'cd packages/telegram-bot && pnpm exec tsc --noEmit'"
     ],
+    "packages/api/**/*.{ts,tsx}": [
+      "bash -c 'cd packages/api && pnpm exec tsc --noEmit'"
+    ],
     "packages/app/**/*.{ts,tsx}": [
       "bash -c 'cd packages/app && pnpm exec tsc --noEmit'"
     ]
