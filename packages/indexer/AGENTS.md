@@ -14,22 +14,29 @@ Follow this order: **XState → Controllers → Storage → Database**.
 - Do not contain data transformation or business rules.
 - Coordinate the sequence of operations, not the logic.
 
+### Key machines
+
+- **Epoch orchestrator**: Coordinates epoch processing, emits `EPOCH_PROCESSED` events.
+- **Slot orchestrator**: Coordinates slot processing, emits `SLOT_PROCESSED` events.
+- **Hourly archive**: Triggered by `EPOCH_PROCESSED`, archives raw data to hourly.
+- **Daily/Weekly/Monthly archive**: Same pattern, cascade from previous tier.
+- **Snapshot updater**: Updates `validators_snapshot_stats` based on processed data.
+
 ## Controller layer
 
 - Controllers hold all business logic.
 - Fetch data from external APIs (BeaconClient, ExecutionClient).
 - Transform and validate data according to business rules.
 - Coordinate between multiple storage classes when needed.
-- Handle complex calculations (rewards, attestation delays, etc.) and decide what to fetch and when.
+- Handle complex calculations (rewards, attestation delays, etc.).
 
 ## Storage layer
 
 - Only database operations: Prisma queries, transactions, raw SQL.
 - No business logic, data transformation, or validation.
-- No decisions about what to fetch or how to process it.
 - Accept pre-processed data from controllers and store it as-is.
-- Return raw database records; storage classes are thin DAOs around Prisma.
-- When implementing or changing storage (read/write), follow data organization, partitions, and archival boundary in **`packages/db/AGENTS.md`**.
+- **Use raw SQL** for performance-critical operations.
+- For data organization, partitions, and archival, see **`packages/db/AGENTS.md`**.
 
 ## E2E tests
 

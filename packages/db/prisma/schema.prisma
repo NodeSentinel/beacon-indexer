@@ -61,12 +61,6 @@ model Committee {
 }
 
 model Slot {
-    // ─────────────────────────────────────────────────────────────────────────────
-    // PARTITIONING
-    // ─────────────────────────────────────────────────────────────────────────────
-    // This table is partitioned by slot number (UTC hour range) for efficient data
-    // Partitions are created dynamically by the epoch worker service when processing epochs.
-    // Partition naming: slot_<start>-<end>_<YYYYMMDDHH>
     slot                     Int      @id @map("slot")
     proposerIndex            Int?     @map("proposer_index")
     blockNumber              Int?     @map("block_number")

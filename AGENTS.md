@@ -2,19 +2,72 @@
 
 Instructions for AI coding agents working on this repository. Per-package guidance lives in each package's `AGENTS.md`; the closest file to the edited file wins ([AGENTS.md](https://agents.md/)).
 
+## Purpose of AGENTS.md
+
+This project uses AGENTS.md files to provide context to AI agents. The goal is that in the future, you can request features or bugfixes **without explaining how things work** - just describe the feature/problem, and the agent has sufficient context.
+
+**When completing tasks:**
+
+- Update AGENTS.md if you learn something relevant that would help future agents.
+- Add domain knowledge, architectural decisions, gotchas, and patterns.
+- Keep it concise and actionable.
+- Respect scope: storage details go in `packages/db/AGENTS.md`, indexer logic in `packages/indexer/AGENTS.md`, etc.
+
 ## Project overview
 
-This project is a lightweight beacon chain indexer for **Ethereum** and **Gnosis** beacon chains. It collects, normalizes, and processes validator-related data from the **Consensus Layer** via standard Beacon node APIs and enriches it with **Execution Layer** data when needed (e.g. Etherscan, Blockscout).
+**NodeSentinel** is a lightweight beacon chain indexer and monitoring platform for **Ethereum** and **Gnosis** beacon chains. It collects, normalizes, and processes validator-related data from the **Consensus Layer** via standard Beacon node APIs and enriches it with **Execution Layer** data when needed.
+
+### Deployment model
+
+- **Single-chain per instance**: Each deployment works with one chain (Ethereum or Gnosis), configured via environment variables.
+- The codebase is the same for both chains.
+
+### Core features
+
+- Real-time validator monitoring dashboard
+- Cluster-based validator grouping (User → Clusters → Validators)
+- Performance metrics (attestations, rewards, APY)
+- Event tracking (blocks, deposits, withdrawals, consolidations, incidents)
+- Telegram bot alerts
+
+## Beacon chain domain
 
 Core concepts: Validators, Slots and Blocks, Epochs, Committees, Attestations, Rewards/penalties. Data is sourced from the [Beacon API](https://ethereum.github.io/beacon-APIs/#/Beacon).
 
-## Beacon chain domain (project-wide)
+### Validator participation rhythms
 
-Validator participation has different rhythms depending on duty type. When designing queries, timelines, or aggregations that mix multiple duty types, account for these differences.
+- **Attestation committees**: Validators attest **once per epoch** (one slot per epoch, roughly one per 32 slots).
+- **Sync committee**: A fixed set serves for **256 epochs**, participating in **every slot** during that period.
+- **Block proposals**: Rare, random assignment. High reward when it happens.
 
-- **Attestation committees**: Validators are assigned to attestation committees per epoch. Each validator attests **once per epoch** (one slot per epoch, i.e. roughly one slot per 32 slots). Storage keyed by attestation (e.g. one row per attestation slot per validator) therefore has ~1 row per epoch per validator.
-- **Sync committee**: A fixed set of validators serves for a **sync committee period** (256 epochs). During that period they participate in **every slot** (sign the sync aggregate and may receive sync committee reward). So sync committee participation is **every slot** for the period (~256 slots per validator per period), not once per epoch.
-- **Implication**: Any result set or timeline that is **driven by attestation slots** (committee rows) will only include sync committee data when the same slot is both an attestation slot and a sync committee slot. Slots where the validator only had sync committee duty will not appear in attestation-centric views. Aggregations or UIs that must reflect both attestation and sync committee activity need to either union/join with sync-committee data or use a slot source that includes all relevant slots.
+### Tokens by chain
+
+- **Mainnet**: Consensus rewards in ETH, Execution rewards in ETH
+- **Gnosis**: Consensus rewards in GNO, Execution rewards in DAI
+
+## Data architecture
+
+### Clusters model
+
+```
+User → n Clusters → n Validators (via ClusterValidator)
+```
+
+- No direct User → Validator relationship. Everything goes through clusters.
+- A validator can be in multiple clusters of the same user.
+- Clusters are private by default, with option to share.
+
+### Storage
+
+For data organization (raw tables, archives, snapshots, partitioning), see **`packages/db/AGENTS.md`**.
+
+## Task separation
+
+When implementing features that span multiple packages:
+
+- Create **separate PRs per layer** (indexer, API, UI).
+- Each PR is atomic with its own tests.
+- Don't mix layers in the same PR.
 
 ## Global setup
 
@@ -27,7 +80,10 @@ Validator participation has different rhythms depending on duty type. When desig
 
 - TypeScript for all code; prefer strict typing.
 - Search existing code before adding new components or endpoints.
-- Write comments in English. Do not add comments for temporary context, formatting preferences, or non-functional instructions.
+- Write comments in English. No temporary or non-functional comments.
+- **camelCase** for Prisma models.
+- **snake_case** for table names (via `@@map`).
+- Raw SQL for performance-critical queries, not Prisma models.
 
 ## Database (project-wide)
 
@@ -35,7 +91,9 @@ Validator participation has different rhythms depending on duty type. When desig
 
 ## Packages
 
-- **`packages/db`**: Prisma schema and migrations. See `packages/db/AGENTS.md` for data organization and dual-table storage.
+- **`packages/db`**: Prisma schema and migrations. See `packages/db/AGENTS.md` for data organization.
+- **`packages/consensus-utils`**: Shared beacon chain utilities (BeaconTime, chain config, validator status types).
 - **`packages/indexer`**: Core indexing service. See `packages/indexer/AGENTS.md`.
 - **`packages/api`**: REST/API layer. See `packages/api/AGENTS.md`.
 - **`packages/app`**: Next.js frontend. See `packages/app/AGENTS.md`.
+- **`packages/telegram-bot`**: Telegram bot for alerts.
