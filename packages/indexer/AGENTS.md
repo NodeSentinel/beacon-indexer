@@ -40,5 +40,36 @@ Follow this order: **XState → Controllers → Storage → Database**.
 
 ## E2E tests
 
-- When changing indexer behavior, check whether e2e tests under `packages/indexer/e2e` need updates.
-- Run e2e from **outside a sandbox**, from repo root: `pnpm test:e2e:local`.
+Location: `packages/indexer/e2e/`
+
+### Running tests
+
+- Run from repo root: `pnpm test:e2e:local`
+- CI runs via `.github/workflows/e2e-indexer.yml`
+- Tests run against real PostgreSQL (Docker container in CI)
+
+### Test patterns
+
+- Use real beacon chain data (Gnosis chain) stored as JSON mocks in `e2e/**/mocks/*.json`
+- Mock `BeaconClient` methods with `vi.spyOn` to return JSON fixtures
+- Prefer real blockchain data over fabricated test data for accuracy
+- When existing mocks are insufficient, fetch real data from beacon chain and save as new JSON fixtures (ask to the user for help).
+
+### Structure
+
+```
+e2e/
+├── archive/          # Archive process tests
+├── epoch/            # Epoch processing tests
+│   └── mocks/        # JSON fixtures for epoch tests
+├── slot/             # Slot processing tests
+│   └── mocks/        # JSON fixtures for slot tests
+└── validators/       # Validator tests
+```
+
+### When to update e2e tests
+
+- Adding new XState machines or states
+- Changing controller business logic
+- Modifying storage layer queries
+- Adding new cron jobs

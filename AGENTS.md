@@ -73,8 +73,23 @@ When implementing features that span multiple packages:
 
 - Install deps: `pnpm install`
 - Run all tests: `pnpm test`
+- Run e2e tests: `pnpm test:e2e:local`
 - Lint: `pnpm lint`
 - Type-check: `pnpm type-check`
+
+## Testing strategy
+
+### Unit tests
+
+- Test individual functions and classes in isolation
+- Mock external dependencies
+
+### E2E tests
+
+- Test complete flows against real PostgreSQL
+- Use real beacon chain data (JSON fixtures) for accuracy
+- CI runs e2e tests via GitHub Actions workflows
+- See package-specific AGENTS.md for e2e patterns
 
 ## Global code style
 

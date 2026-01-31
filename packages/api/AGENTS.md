@@ -67,6 +67,16 @@ Only use pagination for UI listings (validators, events, history). Stats aggrega
 
 For data organization, table structure, and query patterns, see **`packages/db/AGENTS.md`**.
 
+## E2E tests
+
+Location: `packages/api/e2e/` (to be created)
+
+### Pattern (follow indexer approach)
+
+- Tests run against real PostgreSQL (Docker container in CI)
+- CI workflow at `.github/workflows/e2e-api.yml`
+- See `packages/indexer/e2e/` and `.github/workflows/e2e-indexer.yml` as reference
+
 ## Design document
 
 See `idea.md` in the repository root for complete endpoint specifications.
