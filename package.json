@@ -37,6 +37,8 @@
   "scripts": {
     "test": "pnpm -r run test",
     "test:e2e:local": "./scripts/run-e2e-local.sh",
+    "test:e2e:indexer": "./scripts/run-e2e-local.sh indexer",
+    "test:e2e:api": "./scripts/run-e2e-local.sh api",
     "lint": "pnpm -r run lint",
     "lint:fix": "pnpm -r run lint:fix",
     "type-check": "pnpm -r exec tsc --noEmit",

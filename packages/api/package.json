@@ -20,7 +20,8 @@
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
-    "test": "echo \"No tests for @beacon-indexer/api\""
+    "test": "vitest",
+    "test:e2e": "vitest run --config vitest.e2e.config.ts --no-coverage"
   },
   "dependencies": {
     "@beacon-indexer/consensus-utils": "workspace:*",
@@ -41,6 +42,7 @@
     "@types/node": "^22.10.1",
     "@types/node-cron": "^3.0.11",
     "tsx": "^4.19.2",
-    "typescript": "^5.7.2"
+    "typescript": "^5.7.2",
+    "vitest": "^3.2.4"
   }
 }
