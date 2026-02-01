@@ -313,6 +313,34 @@ model ValidatorsSnapshotStats {
     balance            BigInt   @map("balance") // From validator.balance
     updatedAt          DateTime @default(now()) @map("updated_at") @db.Timestamp
 
+    // Performance per timeframe (ratio attestationsOnTime/total)
+    performance1h      Decimal? @map("performance_1h") @db.Decimal(5, 4)
+    performance1d      Decimal? @map("performance_1d") @db.Decimal(5, 4)
+    performance1w      Decimal? @map("performance_1w") @db.Decimal(5, 4)
+    performance1m      Decimal? @map("performance_1m") @db.Decimal(5, 4)
+
+    // APY per timeframe
+    apy1h              Decimal? @map("apy_1h") @db.Decimal(5, 2)
+    apy1d              Decimal? @map("apy_1d") @db.Decimal(5, 2)
+    apy1w              Decimal? @map("apy_1w") @db.Decimal(5, 2)
+    apy1m              Decimal? @map("apy_1m") @db.Decimal(5, 2)
+
+    // Rewards totals per timeframe (no head/target/source breakdown)
+    consensusReward1h  BigInt?  @map("consensus_reward_1h")
+    consensusReward1d  BigInt?  @map("consensus_reward_1d")
+    consensusReward1w  BigInt?  @map("consensus_reward_1w")
+    consensusReward1m  BigInt?  @map("consensus_reward_1m")
+
+    missedReward1h     BigInt?  @map("missed_reward_1h")
+    missedReward1d     BigInt?  @map("missed_reward_1d")
+    missedReward1w     BigInt?  @map("missed_reward_1w")
+    missedReward1m     BigInt?  @map("missed_reward_1m")
+
+    executionReward1h  Decimal? @map("execution_reward_1h") @db.Decimal(78, 0)
+    executionReward1d  Decimal? @map("execution_reward_1d") @db.Decimal(78, 0)
+    executionReward1w  Decimal? @map("execution_reward_1w") @db.Decimal(78, 0)
+    executionReward1m  Decimal? @map("execution_reward_1m") @db.Decimal(78, 0)
+
     @@map("validators_status_summary")
 }
 
