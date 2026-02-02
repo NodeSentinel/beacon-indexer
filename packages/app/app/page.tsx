@@ -29,6 +29,10 @@ import type {
 
 const demoNotifications: Notification[] = [];
 
+// Format number with consistent locale (prevents SSR hydration mismatch)
+const formatNumber = (n: number, decimals = 0) =>
+  new Intl.NumberFormat('en-US', { maximumFractionDigits: decimals }).format(n);
+
 // Default stats while we don't have a stats API
 const defaultStats: Stats = {
   performance1h: 99.5,
@@ -95,18 +99,10 @@ export default function DashboardOverview() {
   const joiningStakedGno = joiningValidators * 32;
   const leavingStakedGno = leavingValidators * 32;
 
-  const totalStakedUsd = (totalStakedGno * gnoPrice).toLocaleString('en-US', {
-    maximumFractionDigits: 0,
-  });
-  const activeStakedUsd = (activeStakedGno * gnoPrice).toLocaleString('en-US', {
-    maximumFractionDigits: 0,
-  });
-  const joiningStakedUsd = (joiningStakedGno * gnoPrice).toLocaleString('en-US', {
-    maximumFractionDigits: 0,
-  });
-  const leavingStakedUsd = (leavingStakedGno * gnoPrice).toLocaleString('en-US', {
-    maximumFractionDigits: 0,
-  });
+  const totalStakedUsd = formatNumber(totalStakedGno * gnoPrice);
+  const activeStakedUsd = formatNumber(activeStakedGno * gnoPrice);
+  const joiningStakedUsd = formatNumber(joiningStakedGno * gnoPrice);
+  const leavingStakedUsd = formatNumber(leavingStakedGno * gnoPrice);
 
   return (
     <div className="py-3 md:py-8 space-y-4 md:space-y-8">
@@ -130,7 +126,7 @@ export default function DashboardOverview() {
                     Active
                   </p>
                   <p className="text-xl md:text-2xl font-display font-bold text-foreground truncate">
-                    {activeValidators.toLocaleString()}
+                    {formatNumber(activeValidators)}
                   </p>
                   <p className="text-[10px] md:text-xs text-muted-foreground/80 mt-0.5">
                     ${activeStakedUsd}
