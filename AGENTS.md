@@ -62,7 +62,31 @@ This project uses AGENTS.md files to provide context to AI agents. The goal is t
 - Run all tests: `pnpm test`
 - Run e2e tests: `pnpm test:e2e:local`
 - Lint: `pnpm lint`
-- Type-check: `pnpm type-check`
+- Type-check: `pnpm type-check` (all packages) or `pnpm --filter <package> typecheck` (single package)
+
+**IMPORTANT**: Always use existing scripts from package.json. Don't run raw commands like `tsc --noEmit` directly.
+
+## Database / Prisma commands
+
+**IMPORTANT**: Always run Prisma commands from the **root** directory using these scripts. They handle DATABASE_URL configuration automatically via `scripts/setDbUrl.js`.
+
+- `pnpm prisma:migrate` - Run migrations (creates new migration)
+- `pnpm prisma:deploy` - Deploy migrations (apply existing migrations)
+- `pnpm prisma:generate` - Generate Prisma client + build db package
+- `pnpm prisma:studio` - Open Prisma Studio
+- `pnpm prisma:push` - Push schema to DB (no migration file). If data loss warnings appear, run directly with flag:
+  ```bash
+  node scripts/setDbUrl.js pnpm --filter @beacon-indexer/db exec prisma db push --schema prisma/schema.prisma --accept-data-loss
+  ```
+- `pnpm prisma:reset` - Reset database
+
+**Never** run `pnpm prisma migrate dev` directly from `packages/db` - it won't have DATABASE_URL set.
+
+**Manual migrations**: If `prisma:migrate` has issues with drift, create migration files manually:
+
+1. Create folder: `packages/db/prisma/migrations/<timestamp>_<name>/`
+2. Create `migration.sql` with the SQL statements
+3. E2E tests use `prisma migrate deploy` which applies these migrations
 
 ## Testing strategy
 
