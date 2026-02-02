@@ -36,7 +36,6 @@ This project uses AGENTS.md files to provide context to AI agents. The goal is t
 - Add domain knowledge, architectural decisions, gotchas, and patterns.
 - Keep it concise and actionable.
 - Respect scope: storage details go in `packages/db/AGENTS.md`, indexer logic in `packages/indexer/AGENTS.md`, etc.
-- Do not commit changes or create a pull request until the user has reviewed the code and explicitly confirmed approval.
 
 ## Global setup
 
