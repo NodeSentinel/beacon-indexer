@@ -2,8 +2,8 @@ import { Prisma } from '@beacon-indexer/db';
 
 import {
   ClusterIdParamSchema,
-  RemoveValidatorsByAddressInputSchema,
-  RemoveValidatorsByAddressResponseSchema,
+  RemoveValidatorsInputSchema,
+  RemoveValidatorsResponseSchema,
 } from './schemas.js';
 
 import { publicProcedure } from '@/lib/orpc.js';
@@ -11,15 +11,17 @@ import { ClusterStorage } from '@/storage/cluster.js';
 import { ApiResponseSchema } from '@/utils/response.js';
 
 /**
- * Remove validators from cluster by withdrawal address
- * DELETE /clusters/:id/validators/by-address
+ * Remove validators from cluster
+ * DELETE /clusters/:id/validators
  *
- * Removes all validators with the given withdrawal address from the cluster (case-insensitive)
+ * Accepts either:
+ * - validatorIndexes: array of validator indexes to remove
+ * - withdrawalAddress: removes all validators with this withdrawal address (case-insensitive)
  */
-export const removeValidatorsByAddress = publicProcedure
-  .route({ method: 'DELETE', path: '/clusters/{id}/validators/by-address' })
-  .input(ClusterIdParamSchema.merge(RemoveValidatorsByAddressInputSchema))
-  .output(ApiResponseSchema(RemoveValidatorsByAddressResponseSchema))
+export const removeValidators = publicProcedure
+  .route({ method: 'DELETE', path: '/clusters/{id}/validators' })
+  .input(ClusterIdParamSchema.merge(RemoveValidatorsInputSchema))
+  .output(ApiResponseSchema(RemoveValidatorsResponseSchema))
   .handler(async ({ input }) => {
     try {
       const storage = new ClusterStorage();
@@ -34,10 +36,27 @@ export const removeValidatorsByAddress = publicProcedure
         };
       }
 
-      const removed = await storage.removeValidatorsByWithdrawalAddress(
-        input.id,
-        input.withdrawalAddress,
-      );
+      let removed: number;
+
+      if (input.withdrawalAddress) {
+        // Remove all validators with this withdrawal address
+        removed = await storage.removeValidatorsByWithdrawalAddress(
+          input.id,
+          input.withdrawalAddress,
+        );
+      } else if (input.validatorIndexes) {
+        // Remove specific validators by index
+        removed = await storage.removeValidatorsByIndexes(input.id, input.validatorIndexes);
+      } else {
+        return {
+          success: false,
+          error: {
+            code: 'INVALID_INPUT',
+            message: 'Either validatorIndexes or withdrawalAddress must be provided',
+          },
+          meta: { timestamp: new Date().toISOString() },
+        };
+      }
 
       return {
         success: true,

@@ -154,6 +154,21 @@ export class ClusterStorage {
   }
 
   /**
+   * Remove validators from cluster by indexes
+   * @returns Number of validators removed
+   */
+  async removeValidatorsByIndexes(clusterId: string, validatorIndexes: number[]) {
+    const result = await this.prisma.clusterValidator.deleteMany({
+      where: {
+        clusterId,
+        validatorIndex: { in: validatorIndexes },
+      },
+    });
+
+    return result.count;
+  }
+
+  /**
    * Find validator indexes by withdrawal address (case-insensitive)
    * Only returns validators that exist in the validator table
    */
