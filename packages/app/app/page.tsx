@@ -13,12 +13,12 @@ import {
 } from '@/components/ui/select';
 import { Sheet, SheetContent } from '@/components/ui/sheet';
 import { Skeleton } from '@/components/ui/skeleton';
+import ClusterForm from '@/components/validators/cluster-form';
+import ClusterList from '@/components/validators/cluster-list';
 import EventsFeed from '@/components/validators/events-feed';
-import GroupForm from '@/components/validators/group-form';
-import GroupList from '@/components/validators/group-list';
 import NotificationBanner, { type Notification } from '@/components/validators/notification-banner';
 import PerformanceMetrics from '@/components/validators/performance-metrics';
-import type { ValidatorData, GroupFilter } from '@/types/validator';
+import type { ValidatorData, ClusterFilter } from '@/types/validator';
 import validatorMockJson from '@/validator-mock.json';
 
 const validatorData = validatorMockJson as ValidatorData;
@@ -37,32 +37,32 @@ const demoNotifications: Notification[] = [
 ];
 
 export default function DashboardOverview() {
-  const [selectedGroup, setSelectedGroup] = useState<GroupFilter>('all');
-  const [groupFormOpen, setGroupFormOpen] = useState(false);
+  const [selectedCluster, setSelectedCluster] = useState<ClusterFilter>('all');
+  const [clusterFormOpen, setClusterFormOpen] = useState(false);
 
   const [chainStatsLoading, setChainStatsLoading] = useState(true);
   const [userDashboardLoading, setUserDashboardLoading] = useState(true);
-  const [groupDataLoading, setGroupDataLoading] = useState(true);
+  const [clusterDataLoading, setClusterDataLoading] = useState(true);
   const [metricsLoading, setMetricsLoading] = useState(true);
   const [eventsLoading, setEventsLoading] = useState(true);
 
   useEffect(() => {
     const chainStatsDelay = Math.random() * 2000 + 500;
     const userDashboardDelay = Math.random() * 2000 + 500;
-    const groupDataDelay = Math.random() * 2000 + 500;
+    const clusterDataDelay = Math.random() * 2000 + 500;
     const metricsDelay = Math.random() * 2000 + 500;
     const eventsDelay = Math.random() * 2000 + 500;
 
     const chainStatsTimer = setTimeout(() => setChainStatsLoading(false), chainStatsDelay);
     const userDashboardTimer = setTimeout(() => setUserDashboardLoading(false), userDashboardDelay);
-    const groupDataTimer = setTimeout(() => setGroupDataLoading(false), groupDataDelay);
+    const clusterDataTimer = setTimeout(() => setClusterDataLoading(false), clusterDataDelay);
     const metricsTimer = setTimeout(() => setMetricsLoading(false), metricsDelay);
     const eventsTimer = setTimeout(() => setEventsLoading(false), eventsDelay);
 
     return () => {
       clearTimeout(chainStatsTimer);
       clearTimeout(userDashboardTimer);
-      clearTimeout(groupDataTimer);
+      clearTimeout(clusterDataTimer);
       clearTimeout(metricsTimer);
       clearTimeout(eventsTimer);
     };
@@ -212,22 +212,22 @@ export default function DashboardOverview() {
             <div className="flex items-end gap-3">
               <div className="flex-1 min-w-0">
                 <label className="text-xs text-muted-foreground uppercase tracking-wide mb-1.5 md:mb-2 block">
-                  Select Group
+                  Select Cluster
                 </label>
                 <Select
-                  value={selectedGroup}
-                  onValueChange={(value) => setSelectedGroup(value as GroupFilter)}
+                  value={selectedCluster}
+                  onValueChange={(value) => setSelectedCluster(value as ClusterFilter)}
                 >
                   <SelectTrigger className="w-full h-10 text-base font-medium border-2 bg-background">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all" className="text-base">
-                      All Groups
+                      All Clusters
                     </SelectItem>
-                    {validatorData.groups.map((group) => (
-                      <SelectItem key={group.id} value={group.id} className="text-base">
-                        {group.name}
+                    {validatorData.groups.map((cluster) => (
+                      <SelectItem key={cluster.id} value={cluster.id} className="text-base">
+                        {cluster.name}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -237,23 +237,23 @@ export default function DashboardOverview() {
               <Button
                 variant="outline"
                 className="h-10 bg-transparent shrink-0"
-                onClick={() => setGroupFormOpen(true)}
+                onClick={() => setClusterFormOpen(true)}
               >
                 <Plus className="size-4 mr-2" />
-                Add Group
+                Add Cluster
               </Button>
             </div>
           </div>
         )}
       </div>
 
-      {/* Group Data with Skeleton */}
-      {groupDataLoading ? (
-        <GroupDataSkeleton />
+      {/* Cluster Data with Skeleton */}
+      {clusterDataLoading ? (
+        <ClusterDataSkeleton />
       ) : (
-        <GroupList
-          groups={validatorData.groups}
-          selectedFilter={selectedGroup}
+        <ClusterList
+          clusters={validatorData.groups}
+          selectedFilter={selectedCluster}
           stats={validatorData.stats}
           gnoPrice={validatorData.stats.gnoPrice}
         />
@@ -277,10 +277,10 @@ export default function DashboardOverview() {
         />
       )}
 
-      <Sheet open={groupFormOpen} onOpenChange={setGroupFormOpen}>
+      <Sheet open={clusterFormOpen} onOpenChange={setClusterFormOpen}>
         <SheetContent side="right" className="w-full sm:max-w-2xl overflow-y-auto">
           <div className="mt-6">
-            <GroupForm group={null} onClose={() => setGroupFormOpen(false)} />
+            <ClusterForm cluster={null} onClose={() => setClusterFormOpen(false)} />
           </div>
         </SheetContent>
       </Sheet>
@@ -309,7 +309,7 @@ function ChainStatsSkeleton() {
   );
 }
 
-function GroupDataSkeleton() {
+function ClusterDataSkeleton() {
   return (
     <div className="bg-card border border-border rounded-lg">
       <div className="px-4 py-3 min-h-[52px] flex items-center justify-between border-b border-border">

@@ -3,6 +3,8 @@
     {
       "id": "group-1",
       "name": "Group Alpha",
+      "visibility": "private",
+      "ownerId": "mock-user-123",
       "withdrawalAddresses": ["0x1234...5678", "0x9999...8888"],
       "feeRecipientAddress": "0xabcd...ef01",
       "validatorIndices": [123456, 123457],
@@ -38,6 +40,8 @@
     {
       "id": "group-2",
       "name": "Group Beta",
+      "visibility": "shared",
+      "ownerId": "mock-user-123",
       "withdrawalAddresses": ["0x2345...6789"],
       "feeRecipientAddress": "0xbcde...f012",
       "validatorIndices": [234567, 234568, 234569],
