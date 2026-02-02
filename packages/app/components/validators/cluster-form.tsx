@@ -40,6 +40,7 @@ import {
   useUpdateCluster,
   useDeleteCluster,
   useAddValidators,
+  useRemoveValidator,
 } from '@/hooks/use-clusters';
 import { useMediaQuery } from '@/hooks/use-mobile';
 import { useToast } from '@/hooks/use-toast';
@@ -97,6 +98,7 @@ export default function ClusterForm({ cluster, onClose, onSaved }: ClusterFormPr
   const { toast } = useToast();
   const [bulkAction, setBulkAction] = useState<BulkAction>(null);
   const [removeInputValue, setRemoveInputValue] = useState('');
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const isMobile = useMediaQuery('(max-width: 768px)');
   const [helpDialogOpen, setHelpDialogOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -109,6 +111,7 @@ export default function ClusterForm({ cluster, onClose, onSaved }: ClusterFormPr
   const updateCluster = useUpdateCluster();
   const deleteCluster = useDeleteCluster();
   const addValidators = useAddValidators();
+  const removeValidatorMutation = useRemoveValidator();
 
   const handleAddValidator = async () => {
     if (!inputValue.trim()) return;
@@ -356,9 +359,15 @@ export default function ClusterForm({ cluster, onClose, onSaved }: ClusterFormPr
         const newIndexes = new Set(validatorIndexes);
 
         const toAdd = validatorIndexes.filter((idx) => !existingIndexes.has(idx));
+        const toRemove = cluster.validatorIndices.filter((idx) => !newIndexes.has(idx));
 
         if (toAdd.length > 0) {
           await addValidators.mutateAsync({ clusterId: cluster.id, validatorIndexes: toAdd });
+        }
+
+        // Remove validators that were deleted from the list
+        for (const validatorIndex of toRemove) {
+          await removeValidatorMutation.mutateAsync({ clusterId: cluster.id, validatorIndex });
         }
 
         toast({ title: 'Cluster updated', description: `${name} has been updated` });
@@ -393,24 +402,19 @@ export default function ClusterForm({ cluster, onClose, onSaved }: ClusterFormPr
   const handleDelete = async () => {
     if (!cluster) return;
 
-    if (
-      confirm(
-        'Are you sure you want to delete this cluster? All validators and settings will be removed. You can recreate the cluster at any time.',
-      )
-    ) {
-      try {
-        await deleteCluster.mutateAsync(cluster.id);
-        toast({ title: 'Cluster deleted', description: `${cluster.name} has been deleted` });
-        onSaved?.();
-        onClose();
-      } catch (error) {
-        toast({
-          title: 'Error',
-          description: error instanceof Error ? error.message : 'Failed to delete cluster',
-          variant: 'destructive',
-        });
-      }
+    try {
+      await deleteCluster.mutateAsync(cluster.id);
+      toast({ title: 'Cluster deleted', description: `${cluster.name} has been deleted` });
+      onSaved?.();
+      onClose();
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: error instanceof Error ? error.message : 'Failed to delete cluster',
+        variant: 'destructive',
+      });
     }
+    setDeleteDialogOpen(false);
   };
 
   const HelpContent = () => (
@@ -667,8 +671,35 @@ export default function ClusterForm({ cluster, onClose, onSaved }: ClusterFormPr
             <Button
               type="button"
               variant="destructive"
-              onClick={handleDelete}
+              onClick={() => setDeleteDialogOpen(true)}
               className="w-full"
+              disabled={deleteCluster.isPending}
+            >
+              <Trash2 className="size-4 mr-2" />
+              Delete Cluster
+            </Button>
+          </div>
+        )}
+      </form>
+
+      {/* Delete Cluster Confirmation Dialog */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="size-5 text-destructive" />
+              Delete Cluster
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete this cluster? All validators and settings will be
+              removed. You can recreate the cluster at any time.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDelete}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               disabled={deleteCluster.isPending}
             >
               {deleteCluster.isPending ? (
@@ -677,15 +708,12 @@ export default function ClusterForm({ cluster, onClose, onSaved }: ClusterFormPr
                   Deleting...
                 </>
               ) : (
-                <>
-                  <Trash2 className="size-4 mr-2" />
-                  Delete Cluster
-                </>
+                'Delete'
               )}
-            </Button>
-          </div>
-        )}
-      </form>
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <AlertDialog open={bulkAction !== null} onOpenChange={(open) => !open && setBulkAction(null)}>
         <AlertDialogContent>

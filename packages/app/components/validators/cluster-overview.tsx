@@ -189,9 +189,7 @@ export default function ClusterOverview({
                   <div className="text-base font-mono font-semibold text-destructive">
                     {stats.missedDay.toFixed(2)} GNO
                   </div>
-                  <div className="text-xs text-muted-foreground">
-                    {Math.floor(Math.random() * 3) + 1} validators
-                  </div>
+                  <div className="text-xs text-muted-foreground">-</div>
                 </div>
                 <div className="space-y-0.5">
                   <div className="text-base font-mono font-semibold">
@@ -218,9 +216,7 @@ export default function ClusterOverview({
                   <div className="text-base font-mono font-semibold text-destructive">
                     {stats.missedWeek.toFixed(2)} GNO
                   </div>
-                  <div className="text-xs text-muted-foreground">
-                    {Math.floor(Math.random() * 4) + 2} validators
-                  </div>
+                  <div className="text-xs text-muted-foreground">-</div>
                 </div>
                 <div className="space-y-0.5">
                   <div className="text-base font-mono font-semibold">
@@ -247,9 +243,7 @@ export default function ClusterOverview({
                   <div className="text-base font-mono font-semibold text-destructive">
                     {stats.missedMonth.toFixed(2)} GNO
                   </div>
-                  <div className="text-xs text-muted-foreground">
-                    {Math.floor(Math.random() * 5) + 1} validators
-                  </div>
+                  <div className="text-xs text-muted-foreground">-</div>
                 </div>
                 <div className="space-y-0.5">
                   <div className="text-base font-mono font-semibold">
