@@ -1,3 +1,4 @@
+import { Prisma } from '@beacon-indexer/db';
 import { z } from 'zod';
 
 import { RemoveValidatorParamSchema } from './schemas.js';
@@ -36,12 +37,8 @@ export const removeValidator = publicProcedure
         meta: { timestamp: new Date().toISOString() },
       };
     } catch (error) {
-      // Handle case where validator wasn't in the cluster
-      // Prisma throws: "No record was found for a delete" or similar
-      if (
-        error instanceof Error &&
-        (error.message.includes('not found') || error.message.includes('No record was found'))
-      ) {
+      // Handle case where validator wasn't in the cluster (Prisma P2025)
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025') {
         return {
           success: false,
           error: {

@@ -37,14 +37,20 @@ export class ClusterStorage {
   }
 
   /**
-   * Find cluster by ID with validators
+   * Find cluster by ID with validators and their withdrawal addresses
+   * Optimized to fetch all data in a single query
    */
   async findByIdWithValidators(id: string) {
     return this.prisma.cluster.findUnique({
       where: { id },
       include: {
         validators: {
-          select: { validatorIndex: true },
+          select: {
+            validatorIndex: true,
+            validator: {
+              select: { withdrawalAddress: true },
+            },
+          },
         },
       },
     });
@@ -52,26 +58,21 @@ export class ClusterStorage {
 
   /**
    * Get unique withdrawal addresses from validators in a cluster
-   * Extracts addresses from withdrawal_credentials (0x01 prefix format)
+   * Uses distinct query for optimal performance
    */
   async getWithdrawalAddresses(clusterId: string): Promise<string[]> {
-    const validators = await this.prisma.clusterValidator.findMany({
-      where: { clusterId },
-      include: {
-        validator: {
-          select: { withdrawalAddress: true },
+    const results = await this.prisma.validator.findMany({
+      where: {
+        clusters: {
+          some: { clusterId },
         },
+        withdrawalAddress: { not: null },
       },
+      select: { withdrawalAddress: true },
+      distinct: ['withdrawalAddress'],
     });
 
-    const addresses = new Set<string>();
-    for (const cv of validators) {
-      const addr = cv.validator.withdrawalAddress;
-      if (addr) {
-        addresses.add(addr);
-      }
-    }
-    return Array.from(addresses);
+    return results.flatMap((r) => (r.withdrawalAddress ? [r.withdrawalAddress] : []));
   }
 
   /**
