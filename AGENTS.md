@@ -22,20 +22,39 @@ This project uses AGENTS.md files to provide context to AI agents. The goal is t
 - **`packages/app`**: Next.js frontend. See `packages/app/AGENTS.md`.
 - **`packages/telegram-bot`**: Telegram bot for alerts.
 
-## Task
+## Tasks
 
-**When implementing features that span multiple packages:**
+### Issue Definition
 
-- Create **separate PRs per layer** (indexer, API, UI).
-- Each PR is atomic with its own tests.
-- Don't mix layers in the same PR.
+**_Scope and Structure_**
 
-**When completing tasks:**
+- Each issue must have a single, clear, and well-defined goal.
+- Issues must be standalone and self-contained.
+- Descriptions should be self-explanatory and written as if implemented by an external contributor.
+- Explicitly define boundaries (package, module, or layer).
+- Issues should be designed to be implemented and reviewed independently.
 
-- Update AGENTS.md if you learn something relevant that would help future agents.
-- Add domain knowledge, architectural decisions, gotchas, and patterns.
-- Keep it concise and actionable.
-- Respect scope: storage details go in `packages/db/AGENTS.md`, indexer logic in `packages/indexer/AGENTS.md`, etc.
+**_Size and Complexity_**
+
+- Work that is too large, spans multiple layers, or mixes concerns must be defined as an **epic**.
+- Epics must be broken down into smaller, well-scoped sub-issues.
+
+### Issue Implementation
+
+**_Scope Adherence_**
+
+- Implement **only** what is defined in the issue.
+- Do not introduce changes outside the declared boundaries.
+
+**_Pull Requests and Commits_**
+
+- Pull requests must be atomic, self-contained, and independently mergeable.
+- Commits should be small and have a single, clear intent.
+
+**_Quality and Knowledge Sharing_**
+
+- Include relevant tests for the implemented scope.
+- Update the nearest relevant `AGENTS.md` if new knowledge is discovered that may help future agents.
 
 ## Global setup
 
