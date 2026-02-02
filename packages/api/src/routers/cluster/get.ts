@@ -25,14 +25,7 @@ export const getCluster = publicProcedure
         };
       }
 
-      // Extract unique withdrawal addresses from the included validator data
-      const withdrawalAddresses = Array.from(
-        new Set(
-          cluster.validators.flatMap((v) =>
-            v.validator.withdrawalAddress ? [v.validator.withdrawalAddress] : [],
-          ),
-        ),
-      );
+      const withdrawalAddresses = await storage.getWithdrawalAddresses(input.id);
 
       return {
         success: true,
@@ -43,7 +36,7 @@ export const getCluster = publicProcedure
           feeRecipientAddress: cluster.feeRecipientAddress,
           ownerId: cluster.ownerId.toString(),
           createdAt: cluster.createdAt.toISOString(),
-          validators: cluster.validators.map(({ validatorIndex }) => ({ validatorIndex })),
+          validators: cluster.validators,
           withdrawalAddresses,
         },
         meta: { timestamp: new Date().toISOString() },

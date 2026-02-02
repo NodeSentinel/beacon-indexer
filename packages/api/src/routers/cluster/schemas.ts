@@ -49,41 +49,23 @@ export const UpdateClusterInputSchema = z.object({
 export type UpdateClusterInput = z.infer<typeof UpdateClusterInputSchema>;
 
 /**
- * Add validators input schema (base object)
- * Either validatorIndexes OR withdrawalAddress must be provided (not both)
+ * Add validators input schema
  */
 export const AddValidatorsInputSchema = z.object({
-  validatorIndexes: z.array(z.number().int().nonnegative()).min(1).optional(),
-  withdrawalAddress: z.string().length(42).optional(),
+  validatorIndexes: z.array(z.number().int().nonnegative()).min(1),
 });
-
-/**
- * Refined version with validation (use this for validation after parsing)
- */
-export const AddValidatorsInputRefinedSchema = AddValidatorsInputSchema.refine(
-  (data) => (data.validatorIndexes !== undefined) !== (data.withdrawalAddress !== undefined),
-  { message: 'Exactly one of validatorIndexes or withdrawalAddress must be provided' },
-);
 
 export type AddValidatorsInput = z.infer<typeof AddValidatorsInputSchema>;
 
 /**
- * Remove validators input schema (base object)
- * Either validatorIndexes OR withdrawalAddress must be provided (not both)
+ * Remove validator path parameters schema
  */
-export const RemoveValidatorsInputSchema = z.object({
-  validatorIndexes: z.array(z.number().int().nonnegative()).min(1).optional(),
-  withdrawalAddress: z.string().length(42).optional(),
+export const RemoveValidatorParamSchema = z.object({
+  id: z.string(),
+  validatorIndex: z.coerce.number().int().nonnegative(),
 });
 
-export type RemoveValidatorsInput = z.infer<typeof RemoveValidatorsInputSchema>;
-
-/**
- * Remove validators response schema
- */
-export const RemoveValidatorsResponseSchema = z.object({
-  removed: z.number(),
-});
+export type RemoveValidatorParam = z.infer<typeof RemoveValidatorParamSchema>;
 
 /**
  * Base cluster response schema
