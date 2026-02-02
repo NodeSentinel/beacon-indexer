@@ -48,8 +48,7 @@ export class SummaryStorage {
       WITH
         user_validators AS (
           SELECT DISTINCT cv.validator_index
-          FROM cluster c
-          JOIN cluster_validator cv ON cv.cluster_id = c.id
+          FROM cluster_validator cv
           JOIN validator v ON v.id = cv.validator_index
           WHERE v.status IN (2, 3)
         ),

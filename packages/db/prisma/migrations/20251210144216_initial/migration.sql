@@ -1,6 +1,9 @@
 -- CreateEnum
 CREATE TYPE "public"."ValidatorExitEvent" AS ENUM ('voluntary', 'slashed');
 
+-- CreateEnum
+CREATE TYPE "public"."ClusterVisibility" AS ENUM ('private', 'shared');
+
 -- CreateTable
 CREATE TABLE "public"."validator" (
     "id" INTEGER NOT NULL,
@@ -250,7 +253,7 @@ CREATE TABLE "public"."cluster" (
     "id" TEXT NOT NULL,
     "name" TEXT NOT NULL,
     "owner_id" BIGINT NOT NULL,
-    "visibility" TEXT NOT NULL DEFAULT 'private',
+    "visibility" "public"."ClusterVisibility" NOT NULL DEFAULT 'private',
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT "cluster_pkey" PRIMARY KEY ("id")

@@ -168,6 +168,11 @@ enum ValidatorExitEvent {
     slashed
 }
 
+enum ClusterVisibility {
+    private
+    shared
+}
+
 model validatorExits {
     index Int                @id @map("index")
     epoch Int                @map("epoch")
@@ -343,13 +348,13 @@ model FeeRewardAddress {
 }
 
 model Cluster {
-    id         String   @id @default(cuid())
+    id         String            @id @default(cuid())
     name       String
-    ownerId    BigInt   @map("owner_id")
-    visibility String   @default("private") // 'private' | 'shared'
-    createdAt  DateTime @default(now()) @map("created_at")
+    ownerId    BigInt            @map("owner_id")
+    visibility ClusterVisibility @default(private)
+    createdAt  DateTime          @default(now()) @map("created_at")
 
-    owner      User               @relation(fields: [ownerId], references: [id])
+    owner      User               @relation(fields: [ownerId], references: [id], onDelete: Restrict)
     validators ClusterValidator[]
 
     @@map("cluster")
