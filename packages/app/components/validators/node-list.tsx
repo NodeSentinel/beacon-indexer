@@ -18,8 +18,10 @@ function getAggregatedNode(nodes: Node[]): Node {
     return {
       id: 'all',
       name: 'All Groups',
+      visibility: 'private',
+      ownerId: '',
       withdrawalAddresses: [],
-      feeRecipientAddress: '-',
+      feeRecipientAddress: null,
       validatorIndices: [],
       validators: [],
       totalBalance: 0,
@@ -39,8 +41,10 @@ function getAggregatedNode(nodes: Node[]): Node {
   return {
     id: 'all',
     name: 'All Groups',
+    visibility: 'private',
+    ownerId: '',
     withdrawalAddresses: [],
-    feeRecipientAddress: '-',
+    feeRecipientAddress: null,
     validatorIndices: [],
     validators: allValidators,
     totalBalance,

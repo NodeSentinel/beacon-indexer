@@ -59,7 +59,7 @@ export default function NodeDialog({ node, open, onOpenChange }: NodeDialogProps
               <Label htmlFor="fee-address">Fee Address</Label>
               <Input
                 id="fee-address"
-                defaultValue={node?.feeRecipientAddress}
+                defaultValue={node?.feeRecipientAddress ?? undefined}
                 placeholder="0x..."
                 className="font-mono text-sm"
               />

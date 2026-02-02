@@ -21,13 +21,18 @@ function getAggregatedGroup(groups: Group[]): Group {
   const totalBalance = groups.reduce((sum, group) => sum + group.totalBalance, 0);
   const totalEffectiveBalance = groups.reduce((sum, group) => sum + group.totalEffectiveBalance, 0);
   const totalClaimable = groups.reduce((sum, group) => sum + group.claimableRewards, 0);
-  const avgPerformance = groups.reduce((sum, group) => sum + group.performance, 0) / groups.length;
+  const avgPerformance =
+    groups.length > 0
+      ? groups.reduce((sum, group) => sum + group.performance, 0) / groups.length
+      : 0;
 
   return {
     id: 'all',
     name: 'All Groups',
+    visibility: 'private',
+    ownerId: '',
     withdrawalAddresses: [],
-    feeRecipientAddress: '-',
+    feeRecipientAddress: null,
     validatorIndices: [],
     validators: allValidators,
     totalBalance,
