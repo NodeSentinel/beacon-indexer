@@ -21,42 +21,45 @@ const HealthResponseSchema = ApiResponseSchema(
  * Health check endpoint
  * Public endpoint - no authentication required
  */
-export const healthCheck = publicProcedure.output(HealthResponseSchema).handler(async () => {
-  const prisma = getPrisma();
-  const startTime = Date.now();
+export const healthCheck = publicProcedure
+  .route({ method: 'GET', path: '/health/check' })
+  .output(HealthResponseSchema)
+  .handler(async () => {
+    const prisma = getPrisma();
+    const startTime = Date.now();
 
-  let dbStatus: 'connected' | 'disconnected' = 'disconnected';
-  let dbLatency: number | undefined;
+    let dbStatus: 'connected' | 'disconnected' = 'disconnected';
+    let dbLatency: number | undefined;
 
-  try {
-    // Simple database health check
-    await prisma.$queryRaw`SELECT 1`;
-    dbStatus = 'connected';
-    dbLatency = Date.now() - startTime;
-  } catch (error) {
-    console.error(`Database health check failed: ${error}`);
-    dbStatus = 'disconnected';
-  }
+    try {
+      // Simple database health check
+      await prisma.$queryRaw`SELECT 1`;
+      dbStatus = 'connected';
+      dbLatency = Date.now() - startTime;
+    } catch (error) {
+      console.error(`Database health check failed: ${error}`);
+      dbStatus = 'disconnected';
+    }
 
-  const overallStatus = dbStatus === 'connected' ? 'healthy' : 'unhealthy';
+    const overallStatus = dbStatus === 'connected' ? 'healthy' : 'unhealthy';
 
-  return {
-    success: true,
-    data: {
-      status: overallStatus,
-      timestamp: new Date().toISOString(),
-      services: {
-        database: {
-          status: dbStatus,
-          latencyMs: dbLatency,
+    return {
+      success: true,
+      data: {
+        status: overallStatus,
+        timestamp: new Date().toISOString(),
+        services: {
+          database: {
+            status: dbStatus,
+            latencyMs: dbLatency,
+          },
         },
       },
-    },
-    meta: {
-      timestamp: new Date().toISOString(),
-    },
-  };
-});
+      meta: {
+        timestamp: new Date().toISOString(),
+      },
+    };
+  });
 
 export const healthRouter = {
   check: healthCheck,

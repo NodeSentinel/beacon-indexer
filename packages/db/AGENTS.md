@@ -2,6 +2,8 @@
 
 This package holds the Prisma schema and migrations. Root project context: see repository root `AGENTS.md`.
 
+- Beta mode: keep only the initial migration. Apply schema changes by updating the initial migration, not by adding new migrations.
+
 ## Naming conventions
 
 - **camelCase** for Prisma model names (e.g., `ValidatorHourlyArchive`).
@@ -50,3 +52,13 @@ Discover partitions via PostgreSQL catalog; parse names to get time/slot/epoch r
 **Raw tables:** One row per event; direct relational queries (e.g., `WHERE slot = X AND validator_index = Y`).
 
 **Archive tables:** One row per time period per entity; aggregate columns for filtering/summation; JSON arrays for original event detail. Query by timestamp and use JSON operations for event-level access.
+
+### Clusters model
+
+```
+User → n Clusters → n Validators (via ClusterValidator)
+```
+
+- No direct User → Validator relationship. Everything goes through clusters.
+- A validator can be in multiple clusters of the same user.
+- Clusters are private by default, with option to share.
