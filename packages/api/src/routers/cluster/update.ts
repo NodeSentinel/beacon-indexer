@@ -1,3 +1,4 @@
+import { Prisma } from '@beacon-indexer/db';
 import { z } from 'zod';
 
 import { ClusterIdParamSchema, ClusterSchema, UpdateClusterInputSchema } from './schemas.js';
@@ -17,16 +18,6 @@ export const updateCluster = publicProcedure
   .handler(async ({ input }) => {
     try {
       const storage = new ClusterStorage();
-
-      // Check if cluster exists
-      const existing = await storage.findById(input.id);
-      if (!existing) {
-        return {
-          success: false,
-          error: { code: 'CLUSTER_NOT_FOUND', message: `Cluster with id ${input.id} not found` },
-          meta: { timestamp: new Date().toISOString() },
-        };
-      }
 
       // Build update data (only include provided fields)
       const updateData: z.infer<typeof UpdateClusterInputSchema> = {};
@@ -50,6 +41,14 @@ export const updateCluster = publicProcedure
         meta: { timestamp: new Date().toISOString() },
       };
     } catch (error) {
+      // Handle record not found (cluster doesn't exist)
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025') {
+        return {
+          success: false,
+          error: { code: 'CLUSTER_NOT_FOUND', message: `Cluster with id ${input.id} not found` },
+          meta: { timestamp: new Date().toISOString() },
+        };
+      }
       const message = error instanceof Error ? error.message : 'Failed to update cluster';
       return {
         success: false,

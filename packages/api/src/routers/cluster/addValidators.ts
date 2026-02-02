@@ -1,3 +1,5 @@
+import { Prisma } from '@beacon-indexer/db';
+
 import {
   AddValidatorsInputSchema,
   AddValidatorsResponseSchema,
@@ -19,17 +21,6 @@ export const addValidators = publicProcedure
   .handler(async ({ input }) => {
     try {
       const storage = new ClusterStorage();
-
-      // Check if cluster exists
-      const existing = await storage.findById(input.id);
-      if (!existing) {
-        return {
-          success: false,
-          error: { code: 'CLUSTER_NOT_FOUND', message: `Cluster with id ${input.id} not found` },
-          meta: { timestamp: new Date().toISOString() },
-        };
-      }
-
       const added = await storage.addValidators(input.id, input.validatorIndexes);
 
       return {
@@ -38,6 +29,14 @@ export const addValidators = publicProcedure
         meta: { timestamp: new Date().toISOString() },
       };
     } catch (error) {
+      // Handle foreign key constraint violation (cluster doesn't exist)
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2003') {
+        return {
+          success: false,
+          error: { code: 'CLUSTER_NOT_FOUND', message: `Cluster with id ${input.id} not found` },
+          meta: { timestamp: new Date().toISOString() },
+        };
+      }
       const message = error instanceof Error ? error.message : 'Failed to add validators';
       return {
         success: false,
