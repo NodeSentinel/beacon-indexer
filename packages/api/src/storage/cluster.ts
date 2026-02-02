@@ -124,6 +124,71 @@ export class ClusterStorage {
   }
 
   /**
+   * Remove validators from cluster by withdrawal address (case-insensitive)
+   * @returns Number of validators removed
+   */
+  async removeValidatorsByWithdrawalAddress(clusterId: string, withdrawalAddress: string) {
+    // Find validators in this cluster that have the given withdrawal address
+    const validatorsToRemove = await this.prisma.clusterValidator.findMany({
+      where: {
+        clusterId,
+        validator: {
+          withdrawalAddress: { equals: withdrawalAddress, mode: 'insensitive' },
+        },
+      },
+      select: { validatorIndex: true },
+    });
+
+    if (validatorsToRemove.length === 0) {
+      return 0;
+    }
+
+    const result = await this.prisma.clusterValidator.deleteMany({
+      where: {
+        clusterId,
+        validatorIndex: { in: validatorsToRemove.map((v) => v.validatorIndex) },
+      },
+    });
+
+    return result.count;
+  }
+
+  /**
+   * Find validator indexes by withdrawal address (case-insensitive)
+   * Only returns validators that exist in the validator table
+   */
+  async findValidatorIndexesByWithdrawalAddress(withdrawalAddress: string): Promise<number[]> {
+    const validators = await this.prisma.validator.findMany({
+      where: {
+        withdrawalAddress: { equals: withdrawalAddress, mode: 'insensitive' },
+      },
+      select: { id: true },
+      orderBy: { id: 'asc' },
+    });
+
+    return validators.map((v) => v.id);
+  }
+
+  /**
+   * Verify which validator indexes exist in the validator table
+   * @returns Object with existing and notFound arrays
+   */
+  async verifyValidatorIndexes(
+    indexes: number[],
+  ): Promise<{ existing: number[]; notFound: number[] }> {
+    const validators = await this.prisma.validator.findMany({
+      where: { id: { in: indexes } },
+      select: { id: true },
+    });
+
+    const existingSet = new Set(validators.map((v) => v.id));
+    const existing = indexes.filter((idx) => existingSet.has(idx));
+    const notFound = indexes.filter((idx) => !existingSet.has(idx));
+
+    return { existing, notFound };
+  }
+
+  /**
    * Check if cluster exists and belongs to owner
    */
   async existsForOwner(id: string, ownerId: bigint): Promise<boolean> {

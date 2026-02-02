@@ -13,6 +13,10 @@ import { ApiResponseSchema } from '@/utils/response.js';
 /**
  * Add validators to cluster
  * POST /clusters/:id/validators
+ *
+ * Accepts either:
+ * - validatorIndexes: array of validator indexes to add
+ * - withdrawalAddress: adds all validators with this withdrawal address (case-insensitive)
  */
 export const addValidators = publicProcedure
   .route({ method: 'POST', path: '/clusters/{id}/validators' })
@@ -21,7 +25,52 @@ export const addValidators = publicProcedure
   .handler(async ({ input }) => {
     try {
       const storage = new ClusterStorage();
-      const added = await storage.addValidators(input.id, input.validatorIndexes);
+      let validatorIndexes: number[];
+
+      if (input.withdrawalAddress) {
+        // Find all validators with this withdrawal address
+        validatorIndexes = await storage.findValidatorIndexesByWithdrawalAddress(
+          input.withdrawalAddress,
+        );
+
+        if (validatorIndexes.length === 0) {
+          return {
+            success: false,
+            error: {
+              code: 'VALIDATORS_NOT_FOUND',
+              message: `No validators found with withdrawal address ${input.withdrawalAddress}`,
+            },
+            meta: { timestamp: new Date().toISOString() },
+          };
+        }
+      } else if (input.validatorIndexes) {
+        // Verify all validator indexes exist
+        const { existing, notFound } = await storage.verifyValidatorIndexes(input.validatorIndexes);
+
+        if (notFound.length > 0) {
+          return {
+            success: false,
+            error: {
+              code: 'VALIDATORS_NOT_FOUND',
+              message: `Validators not found: ${notFound.join(', ')}`,
+            },
+            meta: { timestamp: new Date().toISOString() },
+          };
+        }
+
+        validatorIndexes = existing;
+      } else {
+        return {
+          success: false,
+          error: {
+            code: 'INVALID_INPUT',
+            message: 'Either validatorIndexes or withdrawalAddress must be provided',
+          },
+          meta: { timestamp: new Date().toISOString() },
+        };
+      }
+
+      const added = await storage.addValidators(input.id, validatorIndexes);
 
       return {
         success: true,
