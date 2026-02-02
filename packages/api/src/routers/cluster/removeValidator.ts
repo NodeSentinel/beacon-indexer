@@ -18,17 +18,6 @@ export const removeValidator = publicProcedure
   .handler(async ({ input }) => {
     try {
       const storage = new ClusterStorage();
-
-      // Check if cluster exists
-      const existing = await storage.findById(input.id);
-      if (!existing) {
-        return {
-          success: false,
-          error: { code: 'CLUSTER_NOT_FOUND', message: `Cluster with id ${input.id} not found` },
-          meta: { timestamp: new Date().toISOString() },
-        };
-      }
-
       await storage.removeValidator(input.id, input.validatorIndex);
 
       return {
@@ -37,8 +26,19 @@ export const removeValidator = publicProcedure
         meta: { timestamp: new Date().toISOString() },
       };
     } catch (error) {
-      // Handle case where validator wasn't in the cluster (Prisma P2025)
+      // Handle case where record not found (Prisma P2025)
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025') {
+        // Check if cluster exists to provide accurate error message
+        const storage = new ClusterStorage();
+        const clusterExists = await storage.findById(input.id);
+        if (!clusterExists) {
+          return {
+            success: false,
+            error: { code: 'CLUSTER_NOT_FOUND', message: `Cluster with id ${input.id} not found` },
+            meta: { timestamp: new Date().toISOString() },
+          };
+        }
+        // Cluster exists, so validator was not in it
         return {
           success: false,
           error: {
