@@ -16,7 +16,7 @@ model Validator {
     pubkey            String? @map("pubkey") @db.VarChar(98)
     withdrawalAddress String? @map("withdrawal_address") @db.VarChar(42)
 
-    users UserToValidator[] @relation("user_to_validator")
+    clusters ClusterValidator[]
 
     @@index([status])
     @@index([pubkey])
@@ -166,6 +166,11 @@ model validatorDeposits {
 enum ValidatorExitEvent {
     voluntary
     slashed
+}
+
+enum ClusterVisibility {
+    private
+    shared
 }
 
 model validatorExits {
@@ -328,7 +333,7 @@ model User {
     lastClaimed        DateTime?                @map("last_claimed")
     hasBlockedBot      Boolean                  @default(false) @map("has_blocked_bot")
     createdAt          DateTime                 @default(now()) @map("created_at")
-    validators         UserToValidator[]        @relation("user_to_validator")
+    clusters           Cluster[]
     feeRewardAddresses UserToFeeRewardAddress[] @relation("user_to_fee_reward_address")
 
     @@map("user")
@@ -342,17 +347,29 @@ model FeeRewardAddress {
     @@map("fee_reward_address")
 }
 
-// Explicit intermediate table for User-Validator many-to-many relationship
-model UserToValidator {
-    userId         BigInt @map("user_id")
+model Cluster {
+    id         String            @id @default(cuid())
+    name       String
+    ownerId    BigInt            @map("owner_id")
+    visibility ClusterVisibility @default(private)
+    createdAt  DateTime          @default(now()) @map("created_at")
+
+    owner      User               @relation(fields: [ownerId], references: [id], onDelete: Restrict)
+    validators ClusterValidator[]
+
+    @@map("cluster")
+}
+
+model ClusterValidator {
+    clusterId      String @map("cluster_id")
     validatorIndex Int    @map("validator_index")
 
-    user      User      @relation("user_to_validator", fields: [userId], references: [id], onDelete: Cascade)
-    validator Validator @relation("user_to_validator", fields: [validatorIndex], references: [id], onDelete: Cascade)
+    cluster   Cluster   @relation(fields: [clusterId], references: [id], onDelete: Cascade)
+    validator Validator @relation(fields: [validatorIndex], references: [id], onDelete: Cascade)
 
-    @@id([userId, validatorIndex])
+    @@id([clusterId, validatorIndex])
     @@index([validatorIndex])
-    @@map("_user_to_validator")
+    @@map("cluster_validator")
 }
 
 // Explicit intermediate table for User-FeeRewardAddress many-to-many relationship

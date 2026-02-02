@@ -1,6 +1,9 @@
 -- CreateEnum
 CREATE TYPE "public"."ValidatorExitEvent" AS ENUM ('voluntary', 'slashed');
 
+-- CreateEnum
+CREATE TYPE "public"."ClusterVisibility" AS ENUM ('private', 'shared');
+
 -- CreateTable
 CREATE TABLE "public"."validator" (
     "id" INTEGER NOT NULL,
@@ -246,11 +249,22 @@ CREATE TABLE "public"."fee_reward_address" (
 );
 
 -- CreateTable
-CREATE TABLE "public"."_user_to_validator" (
-    "user_id" BIGINT NOT NULL,
+CREATE TABLE "public"."cluster" (
+    "id" TEXT NOT NULL,
+    "name" TEXT NOT NULL,
+    "owner_id" BIGINT NOT NULL,
+    "visibility" "public"."ClusterVisibility" NOT NULL DEFAULT 'private',
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "cluster_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "public"."cluster_validator" (
+    "cluster_id" TEXT NOT NULL,
     "validator_index" INTEGER NOT NULL,
 
-    CONSTRAINT "_user_to_validator_pkey" PRIMARY KEY ("user_id","validator_index")
+    CONSTRAINT "cluster_validator_pkey" PRIMARY KEY ("cluster_id","validator_index")
 );
 
 -- CreateTable
@@ -286,16 +300,19 @@ CREATE UNIQUE INDEX "user_user_id_key" ON "public"."user"("user_id");
 CREATE UNIQUE INDEX "user_username_key" ON "public"."user"("username");
 
 -- CreateIndex
-CREATE INDEX "_user_to_validator_validator_index_idx" ON "public"."_user_to_validator"("validator_index");
+CREATE INDEX "cluster_validator_validator_index_idx" ON "public"."cluster_validator"("validator_index");
 
 -- CreateIndex
 CREATE INDEX "_user_to_fee_reward_address_user_id_idx" ON "public"."_user_to_fee_reward_address"("user_id");
 
 -- AddForeignKey
-ALTER TABLE "public"."_user_to_validator" ADD CONSTRAINT "_user_to_validator_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "public"."user"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "public"."cluster" ADD CONSTRAINT "cluster_owner_id_fkey" FOREIGN KEY ("owner_id") REFERENCES "public"."user"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "public"."_user_to_validator" ADD CONSTRAINT "_user_to_validator_validator_index_fkey" FOREIGN KEY ("validator_index") REFERENCES "public"."validator"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "public"."cluster_validator" ADD CONSTRAINT "cluster_validator_cluster_id_fkey" FOREIGN KEY ("cluster_id") REFERENCES "public"."cluster"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "public"."cluster_validator" ADD CONSTRAINT "cluster_validator_validator_index_fkey" FOREIGN KEY ("validator_index") REFERENCES "public"."validator"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "public"."_user_to_fee_reward_address" ADD CONSTRAINT "_user_to_fee_reward_address_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "public"."user"("id") ON DELETE CASCADE ON UPDATE CASCADE;

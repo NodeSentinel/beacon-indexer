@@ -45,11 +45,11 @@ export class SummaryStorage {
 
     // Calculate and insert validator status summary in a single query
     await this.prisma.$executeRaw`
-      WITH 
+      WITH
         user_validators AS (
-          SELECT DISTINCT utv.validator_index
-          FROM _user_to_validator utv
-          JOIN validator v ON v.id = utv.validator_index
+          SELECT DISTINCT cv.validator_index
+          FROM cluster_validator cv
+          JOIN validator v ON v.id = cv.validator_index
           WHERE v.status IN (2, 3)
         ),
 
