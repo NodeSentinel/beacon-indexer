@@ -115,3 +115,32 @@ export type Epoch = z.infer<typeof EpochSchema>;
 export type Slot = z.infer<typeof SlotSchema>;
 export type Attestation = z.infer<typeof AttestationSchema>;
 export type EpochRewards = z.infer<typeof EpochRewardsSchema>;
+
+/**
+ * Validator search input schema
+ * Supports searching by: index, pubkey, or withdrawalAddress
+ */
+export const ValidatorSearchInputSchema = z.object({
+  index: z.coerce.number().int().nonnegative().optional(),
+  pubkey: z.string().length(98).optional(),
+  withdrawalAddress: z.string().length(42).optional(),
+});
+
+export type ValidatorSearchInput = z.infer<typeof ValidatorSearchInputSchema>;
+
+/**
+ * Validator search result item schema
+ */
+export const ValidatorSearchResultSchema = z.object({
+  index: z.number().int(),
+  pubkey: z.string().nullable(),
+});
+
+export type ValidatorSearchResult = z.infer<typeof ValidatorSearchResultSchema>;
+
+/**
+ * Validator search response schema
+ */
+export const ValidatorSearchResponseSchema = z.object({
+  validators: z.array(ValidatorSearchResultSchema),
+});

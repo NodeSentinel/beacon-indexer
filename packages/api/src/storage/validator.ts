@@ -190,4 +190,53 @@ export class ValidatorStorage {
 
     return result;
   }
+
+  /**
+   * Search validators by withdrawal address
+   * @param withdrawalAddress - Withdrawal address (0x prefixed, 42 chars)
+   * @returns Array of validators with basic info
+   */
+  async findByWithdrawalAddress(
+    withdrawalAddress: string,
+  ): Promise<Array<{ index: number; pubkey: string | null; balance: bigint }>> {
+    const validators = await this.prisma.validator.findMany({
+      where: { withdrawalAddress: withdrawalAddress.toLowerCase() },
+      select: { id: true, pubkey: true, balance: true },
+      orderBy: { id: 'asc' },
+    });
+
+    return validators.map((v) => ({ index: v.id, pubkey: v.pubkey, balance: v.balance }));
+  }
+
+  /**
+   * Check if validator exists by index
+   * @param validatorIndex - Validator index
+   * @returns Validator basic info or null if not found
+   */
+  async existsByIndex(
+    validatorIndex: number,
+  ): Promise<{ index: number; pubkey: string | null } | null> {
+    const validator = await this.prisma.validator.findUnique({
+      where: { id: validatorIndex },
+      select: { id: true, pubkey: true },
+    });
+
+    if (!validator) return null;
+    return { index: validator.id, pubkey: validator.pubkey };
+  }
+
+  /**
+   * Search validator by pubkey
+   * @param pubkey - Validator pubkey (0x prefixed, 98 chars)
+   * @returns Validator basic info or null if not found
+   */
+  async findByPubkey(pubkey: string): Promise<{ index: number; pubkey: string } | null> {
+    const validator = await this.prisma.validator.findFirst({
+      where: { pubkey },
+      select: { id: true, pubkey: true },
+    });
+
+    if (!validator || !validator.pubkey) return null;
+    return { index: validator.id, pubkey: validator.pubkey };
+  }
 }

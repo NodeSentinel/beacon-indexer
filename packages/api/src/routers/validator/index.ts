@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
 import { ValidatorDetailsSchema } from './schemas.js';
+import { searchValidators } from './search.js';
 
 import { ValidatorController } from '@/controllers/validator.js';
 import { publicProcedure } from '@/lib/orpc.js';
@@ -59,4 +60,5 @@ export const getValidator = publicProcedure
 
 export const validatorRouter = {
   getValidator,
+  search: searchValidators,
 };
