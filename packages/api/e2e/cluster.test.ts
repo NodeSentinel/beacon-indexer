@@ -3,70 +3,22 @@ import { createServer } from 'node:http';
 import { PrismaClient } from '@beacon-indexer/db';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 
+import type {
+  Cluster,
+  ClusterDetail,
+  ClusterWithCount,
+  AddValidatorsResponse as AddValidatorsData,
+} from '@/routers/cluster/schemas.js';
 import { createHttpServer } from '@/server.js';
+import type { ApiResponse } from '@/utils/response.js';
 
-interface ClusterResponse {
-  success: boolean;
-  data?: {
-    id: string;
-    name: string;
-    visibility: 'private' | 'shared';
-    feeRecipientAddress: string | null;
-    ownerId: string;
-    createdAt: string;
-    validatorCount?: number;
-    validators?: Array<{ validatorIndex: number }>;
-    withdrawalAddresses?: string[];
-  };
-  error?: {
-    code: string;
-    message: string;
-  };
-  meta?: {
-    timestamp: string;
-  };
-}
-
-interface ClusterListResponse {
-  success: boolean;
-  data?: Array<{
-    id: string;
-    name: string;
-    visibility: 'private' | 'shared';
-    feeRecipientAddress: string | null;
-    ownerId: string;
-    createdAt: string;
-    validatorCount: number;
-  }>;
-  error?: {
-    code: string;
-    message: string;
-  };
-  meta?: {
-    timestamp: string;
-  };
-}
-
-interface AddValidatorsResponse {
-  success: boolean;
-  data?: { added: number };
-  error?: { code: string; message: string };
-  meta?: { timestamp: string };
-}
-
-interface DeleteResponse {
-  success: boolean;
-  data?: { deleted: boolean };
-  error?: { code: string; message: string };
-  meta?: { timestamp: string };
-}
-
-interface RemoveValidatorResponse {
-  success: boolean;
-  data?: { removed: boolean };
-  error?: { code: string; message: string };
-  meta?: { timestamp: string };
-}
+// Response types using ApiResponse wrapper with schema types
+type ClusterResponse = ApiResponse<Cluster>;
+type ClusterDetailResponse = ApiResponse<ClusterDetail>;
+type ClusterListResponse = ApiResponse<ClusterWithCount[]>;
+type AddValidatorsResponse = ApiResponse<AddValidatorsData>;
+type DeleteResponse = ApiResponse<{ deleted: boolean }>;
+type RemoveValidatorResponse = ApiResponse<{ removed: boolean }>;
 
 describe('Cluster API E2E Tests', () => {
   let prisma: PrismaClient;
@@ -243,7 +195,7 @@ describe('Cluster API E2E Tests', () => {
       const response = await fetch(`${baseUrl}/clusters/${cluster.id}`);
 
       expect(response.ok).toBe(true);
-      const body = (await response.json()) as ClusterResponse;
+      const body = (await response.json()) as ClusterDetailResponse;
 
       expect(body.success).toBe(true);
       expect(body.data!.id).toBe(cluster.id);
