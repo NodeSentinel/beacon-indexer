@@ -3,8 +3,7 @@ import { createCluster } from './create.js';
 import { deleteCluster } from './delete.js';
 import { getCluster } from './get.js';
 import { listClusters } from './list.js';
-import { removeValidator } from './removeValidator.js';
-import { removeValidatorsByAddress } from './removeValidatorsByAddress.js';
+import { removeValidators } from './removeValidators.js';
 import { updateCluster } from './update.js';
 
 export const clusterRouter = {
@@ -14,6 +13,5 @@ export const clusterRouter = {
   update: updateCluster,
   delete: deleteCluster,
   addValidators,
-  removeValidator,
-  removeValidatorsByAddress,
+  removeValidators,
 };
