@@ -13,16 +13,7 @@ interface ClusterListProps {
   selectedFilter: ClusterFilter;
   stats: Stats;
   gnoPrice: number;
-  onSaveCluster?: (
-    clusterId: string | null,
-    data: {
-      name: string;
-      visibility: 'private' | 'shared';
-      feeRecipientAddress: string | null;
-      validatorIndexes: number[];
-    },
-  ) => void;
-  onDeleteCluster?: (id: string) => void;
+  onClusterChanged?: () => void;
 }
 
 function getAggregatedCluster(clusters: Cluster[]): Cluster {
@@ -59,8 +50,7 @@ export default function ClusterList({
   selectedFilter,
   stats,
   gnoPrice,
-  onSaveCluster,
-  onDeleteCluster,
+  onClusterChanged,
 }: ClusterListProps) {
   const [selectedCluster, setSelectedCluster] = useState<Cluster | null>(null);
   const [isFormOpen, setIsFormOpen] = useState(false);
@@ -74,25 +64,6 @@ export default function ClusterList({
     selectedFilter === 'all'
       ? getAggregatedCluster(clusters)
       : clusters.find((c) => c.id === selectedFilter) || clusters[0];
-
-  const handleSave = (data: {
-    name: string;
-    visibility: 'private' | 'shared';
-    feeRecipientAddress: string | null;
-    validatorIndexes: number[];
-  }) => {
-    if (onSaveCluster) {
-      onSaveCluster(selectedCluster?.id || null, data);
-    }
-    setIsFormOpen(false);
-  };
-
-  const handleDelete = (id: string) => {
-    if (onDeleteCluster) {
-      onDeleteCluster(id);
-    }
-    setIsFormOpen(false);
-  };
 
   if (!displayCluster) {
     return (
@@ -117,8 +88,7 @@ export default function ClusterList({
             <ClusterForm
               cluster={selectedCluster}
               onClose={() => setIsFormOpen(false)}
-              onSave={handleSave}
-              onDelete={handleDelete}
+              onSaved={onClusterChanged}
             />
           </div>
         </SheetContent>

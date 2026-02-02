@@ -35,26 +35,32 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { TooltipContent, TooltipTrigger, Tooltip, TooltipProvider } from '@/components/ui/tooltip';
+import {
+  useCreateCluster,
+  useUpdateCluster,
+  useDeleteCluster,
+  useAddValidators,
+} from '@/hooks/use-clusters';
 import { useMediaQuery } from '@/hooks/use-mobile';
 import { useToast } from '@/hooks/use-toast';
+import {
+  useSearchByIndex,
+  useSearchByPubkey,
+  useSearchByWithdrawalAddress,
+} from '@/hooks/use-validator-search';
 import type { Cluster } from '@/types/validator';
 
 interface ClusterFormProps {
   cluster: Cluster | null;
   onClose: () => void;
-  onSave?: (data: {
-    name: string;
-    visibility: 'private' | 'shared';
-    feeRecipientAddress: string | null;
-    validatorIndexes: number[];
-  }) => void;
-  onDelete?: (id: string) => void;
+  onSaved?: () => void;
 }
 
 type ValidatorItem = {
   id: string;
   type: 'withdrawal' | 'pubkey' | 'index';
   value: string;
+  index: number;
   displayName: string;
 };
 
@@ -67,7 +73,7 @@ type BulkAction = {
   validators: ValidatorItem[];
 } | null;
 
-export default function ClusterForm({ cluster, onClose, onSave, onDelete }: ClusterFormProps) {
+export default function ClusterForm({ cluster, onClose, onSaved }: ClusterFormProps) {
   const [name, setName] = useState(cluster?.name || '');
   const [visibility, setVisibility] = useState<'private' | 'shared'>(
     cluster?.visibility || 'private',
@@ -75,20 +81,13 @@ export default function ClusterForm({ cluster, onClose, onSave, onDelete }: Clus
   const [feeRecipient, setFeeRecipient] = useState(cluster?.feeRecipientAddress || '');
   const [validators, setValidators] = useState<ValidatorItem[]>(
     cluster
-      ? [
-          ...cluster.withdrawalAddresses.map((addr, i) => ({
-            id: `w-${i}`,
-            type: 'withdrawal' as const,
-            value: addr,
-            displayName: `${addr.slice(0, 10)}...${addr.slice(-8)}`,
-          })),
-          ...cluster.validatorIndices.map((idx, i) => ({
-            id: `i-${i}`,
-            type: 'index' as const,
-            value: idx.toString(),
-            displayName: `Validator #${idx}`,
-          })),
-        ]
+      ? cluster.validatorIndices.map((idx, i) => ({
+          id: `i-${i}`,
+          type: 'index' as const,
+          value: idx.toString(),
+          index: idx,
+          displayName: `Validator #${idx}`,
+        }))
       : [],
   );
 
@@ -100,75 +99,16 @@ export default function ClusterForm({ cluster, onClose, onSave, onDelete }: Clus
   const [removeInputValue, setRemoveInputValue] = useState('');
   const isMobile = useMediaQuery('(max-width: 768px)');
   const [helpDialogOpen, setHelpDialogOpen] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
 
-  const getValidatorsByWithdrawal = async (
-    _withdrawalAddress: string,
-  ): Promise<ValidatorItem[]> => {
-    await new Promise((resolve) => setTimeout(resolve, 800));
-    const count = Math.floor(Math.random() * 20) + 5;
-    const mockValidators: ValidatorItem[] = [];
-    for (let i = 0; i < count; i++) {
-      mockValidators.push({
-        id: `${Date.now()}-${i}`,
-        type: 'index',
-        value: (100000 + i).toString(),
-        displayName: `Validator #${100000 + i}`,
-      });
-    }
-    return mockValidators;
-  };
+  const searchByIndex = useSearchByIndex();
+  const searchByPubkey = useSearchByPubkey();
+  const searchByWithdrawal = useSearchByWithdrawalAddress();
 
-  const detectAndValidate = async (
-    value: string,
-  ): Promise<{
-    type: string;
-    isValid: boolean;
-    message: string;
-    validators?: ValidatorItem[];
-  }> => {
-    const trimmed = value.trim();
-
-    if (/^\d+$/.test(trimmed)) {
-      await new Promise((resolve) => setTimeout(resolve, 500));
-      const index = Number.parseInt(trimmed);
-      if (index >= 0 && index < 1000000) {
-        return { type: 'index', isValid: true, message: `Validator #${index}` };
-      }
-      return { type: 'index', isValid: false, message: 'Validator index not found' };
-    }
-
-    if (/^0x[0-9a-fA-F]{96}$/.test(trimmed)) {
-      await new Promise((resolve) => setTimeout(resolve, 500));
-      return {
-        type: 'pubkey',
-        isValid: true,
-        message: `${trimmed.slice(0, 10)}...${trimmed.slice(-8)}`,
-      };
-    }
-
-    if (/^0x[0-9a-fA-F]{40}$/.test(trimmed)) {
-      const foundValidators = await getValidatorsByWithdrawal(trimmed);
-      if (foundValidators.length > 0) {
-        return {
-          type: 'withdrawal',
-          isValid: true,
-          message: `${trimmed.slice(0, 10)}...${trimmed.slice(-8)}`,
-          validators: foundValidators,
-        };
-      }
-      return {
-        type: 'withdrawal',
-        isValid: false,
-        message: 'No validators found for this withdrawal address',
-      };
-    }
-
-    return {
-      type: 'unknown',
-      isValid: false,
-      message: 'Invalid format. Enter validator index, public key, or withdrawal address',
-    };
-  };
+  const createCluster = useCreateCluster();
+  const updateCluster = useUpdateCluster();
+  const deleteCluster = useDeleteCluster();
+  const addValidators = useAddValidators();
 
   const handleAddValidator = async () => {
     if (!inputValue.trim()) return;
@@ -176,40 +116,123 @@ export default function ClusterForm({ cluster, onClose, onSave, onDelete }: Clus
     setValidationState('validating');
     setErrorMessage('');
 
-    const result = await detectAndValidate(inputValue);
+    const trimmed = inputValue.trim();
 
-    if (result.isValid) {
-      if (result.type === 'withdrawal' && result.validators && result.validators.length > 1) {
-        setBulkAction({
-          action: 'add',
-          withdrawalAddress: inputValue.trim(),
-          validatorCount: result.validators.length,
-          validators: result.validators,
-        });
-        setValidationState('valid');
+    try {
+      // Check if it's a validator index (number)
+      if (/^\d+$/.test(trimmed)) {
+        const index = Number.parseInt(trimmed);
+        const result = await searchByIndex.mutateAsync(index);
+
+        if (result) {
+          const newValidator: ValidatorItem = {
+            id: Date.now().toString(),
+            type: 'index',
+            value: trimmed,
+            index: result.index,
+            displayName: `Validator #${result.index}`,
+          };
+
+          if (validators.some((v) => v.index === result.index)) {
+            setValidationState('invalid');
+            setErrorMessage('Validator already added');
+            return;
+          }
+
+          setValidators([...validators, newValidator]);
+          setValidationState('valid');
+          setInputValue('');
+          toast({ title: 'Validator added', description: `Validator #${result.index}` });
+          setTimeout(() => setValidationState('idle'), 1000);
+        } else {
+          setValidationState('invalid');
+          setErrorMessage('Validator index not found');
+        }
         return;
       }
 
-      const newValidator: ValidatorItem = {
-        id: Date.now().toString(),
-        type: result.type as 'withdrawal' | 'pubkey' | 'index',
-        value: inputValue.trim(),
-        displayName: result.message,
-      };
+      // Check if it's a pubkey (0x + 96 hex chars)
+      if (/^0x[0-9a-fA-F]{96}$/.test(trimmed)) {
+        const result = await searchByPubkey.mutateAsync(trimmed);
 
-      setValidators([...validators, newValidator]);
-      setValidationState('valid');
-      setInputValue('');
+        if (result) {
+          const newValidator: ValidatorItem = {
+            id: Date.now().toString(),
+            type: 'pubkey',
+            value: trimmed,
+            index: result.index,
+            displayName: `Validator #${result.index}`,
+          };
 
-      toast({
-        title: 'Validator added',
-        description: result.message,
-      });
+          if (validators.some((v) => v.index === result.index)) {
+            setValidationState('invalid');
+            setErrorMessage('Validator already added');
+            return;
+          }
 
-      setTimeout(() => setValidationState('idle'), 1000);
-    } else {
+          setValidators([...validators, newValidator]);
+          setValidationState('valid');
+          setInputValue('');
+          toast({ title: 'Validator added', description: `Validator #${result.index}` });
+          setTimeout(() => setValidationState('idle'), 1000);
+        } else {
+          setValidationState('invalid');
+          setErrorMessage('Validator pubkey not found');
+        }
+        return;
+      }
+
+      // Check if it's a withdrawal address (0x + 40 hex chars)
+      if (/^0x[0-9a-fA-F]{40}$/.test(trimmed)) {
+        const results = await searchByWithdrawal.mutateAsync(trimmed);
+
+        if (results.length === 0) {
+          setValidationState('invalid');
+          setErrorMessage('No validators found for this withdrawal address');
+          return;
+        }
+
+        const existingIndexes = new Set(validators.map((v) => v.index));
+        const newValidators = results
+          .filter((r) => !existingIndexes.has(r.index))
+          .map((r, i) => ({
+            id: `${Date.now()}-${i}`,
+            type: 'index' as const,
+            value: r.index.toString(),
+            index: r.index,
+            displayName: `Validator #${r.index}`,
+          }));
+
+        if (newValidators.length === 0) {
+          setValidationState('invalid');
+          setErrorMessage('All validators from this address are already added');
+          return;
+        }
+
+        if (newValidators.length > 1) {
+          setBulkAction({
+            action: 'add',
+            withdrawalAddress: trimmed,
+            validatorCount: newValidators.length,
+            validators: newValidators,
+          });
+          setValidationState('valid');
+          return;
+        }
+
+        setValidators([...validators, ...newValidators]);
+        setValidationState('valid');
+        setInputValue('');
+        toast({ title: 'Validator added', description: `Validator #${newValidators[0].index}` });
+        setTimeout(() => setValidationState('idle'), 1000);
+        return;
+      }
+
       setValidationState('invalid');
-      setErrorMessage(result.message);
+      setErrorMessage('Invalid format. Enter validator index, public key, or withdrawal address');
+    } catch {
+      setValidationState('invalid');
+      setErrorMessage('Failed to search validator');
     }
   };
 
@@ -243,39 +266,47 @@ export default function ClusterForm({ cluster, onClose, onSave, onDelete }: Clus
 
     setValidationState('validating');
 
-    const foundValidators = await getValidatorsByWithdrawal(trimmed);
+    try {
+      const results = await searchByWithdrawal.mutateAsync(trimmed);
 
-    if (foundValidators.length === 0) {
+      if (results.length === 0) {
+        toast({
+          title: 'No validators found',
+          description: 'No validators are associated with this withdrawal address',
+          variant: 'destructive',
+        });
+        setValidationState('idle');
+        return;
+      }
+
+      const resultIndexes = new Set(results.map((r) => r.index));
+      const validatorsToRemove = validators.filter((v) => resultIndexes.has(v.index));
+
+      if (validatorsToRemove.length === 0) {
+        toast({
+          title: 'No validators to remove',
+          description: 'None of these validators are in your cluster',
+          variant: 'destructive',
+        });
+        setValidationState('idle');
+        return;
+      }
+
+      setBulkAction({
+        action: 'remove',
+        withdrawalAddress: trimmed,
+        validatorCount: validatorsToRemove.length,
+        validators: validatorsToRemove,
+      });
+      setValidationState('idle');
+    } catch {
       toast({
-        title: 'No validators found',
-        description: 'No validators are associated with this withdrawal address',
+        title: 'Error',
+        description: 'Failed to search validators',
         variant: 'destructive',
       });
       setValidationState('idle');
-      return;
     }
-
-    const validatorsToRemove = validators.filter((v) =>
-      foundValidators.some((fv) => fv.value === v.value),
-    );
-
-    if (validatorsToRemove.length === 0) {
-      toast({
-        title: 'No validators to remove',
-        description: 'None of these validators are in your cluster',
-        variant: 'destructive',
-      });
-      setValidationState('idle');
-      return;
-    }
-
-    setBulkAction({
-      action: 'remove',
-      withdrawalAddress: trimmed,
-      validatorCount: validatorsToRemove.length,
-      validators: validatorsToRemove,
-    });
-    setValidationState('idle');
   };
 
   const handleConfirmBulkRemove = () => {
@@ -304,33 +335,81 @@ export default function ClusterForm({ cluster, onClose, onSave, onDelete }: Clus
     setValidators(validators.filter((v) => v.id !== id));
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const validatorIndexes = validators
-      .filter((v) => v.type === 'index')
-      .map((v) => parseInt(v.value));
+    setIsSaving(true);
 
-    if (onSave) {
-      onSave({
-        name,
-        visibility,
-        feeRecipientAddress: feeRecipient || null,
-        validatorIndexes,
+    try {
+      const validatorIndexes = validators.map((v) => v.index);
+
+      if (cluster) {
+        // Update existing cluster
+        await updateCluster.mutateAsync({
+          id: cluster.id,
+          name,
+          visibility,
+          feeRecipientAddress: feeRecipient || null,
+        });
+
+        // Calculate validators to add/remove
+        const existingIndexes = new Set(cluster.validatorIndices);
+        const newIndexes = new Set(validatorIndexes);
+
+        const toAdd = validatorIndexes.filter((idx) => !existingIndexes.has(idx));
+
+        if (toAdd.length > 0) {
+          await addValidators.mutateAsync({ clusterId: cluster.id, validatorIndexes: toAdd });
+        }
+
+        toast({ title: 'Cluster updated', description: `${name} has been updated` });
+      } else {
+        // Create new cluster
+        const newCluster = await createCluster.mutateAsync({
+          name,
+          visibility,
+          feeRecipientAddress: feeRecipient || null,
+        });
+
+        if (newCluster && validatorIndexes.length > 0) {
+          await addValidators.mutateAsync({ clusterId: newCluster.id, validatorIndexes });
+        }
+
+        toast({ title: 'Cluster created', description: `${name} has been created` });
+      }
+
+      onSaved?.();
+      onClose();
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: error instanceof Error ? error.message : 'Failed to save cluster',
+        variant: 'destructive',
       });
+    } finally {
+      setIsSaving(false);
     }
-    onClose();
   };
 
-  const handleDelete = () => {
+  const handleDelete = async () => {
+    if (!cluster) return;
+
     if (
       confirm(
         'Are you sure you want to delete this cluster? All validators and settings will be removed. You can recreate the cluster at any time.',
       )
     ) {
-      if (onDelete && cluster?.id) {
-        onDelete(cluster.id);
+      try {
+        await deleteCluster.mutateAsync(cluster.id);
+        toast({ title: 'Cluster deleted', description: `${cluster.name} has been deleted` });
+        onSaved?.();
+        onClose();
+      } catch (error) {
+        toast({
+          title: 'Error',
+          description: error instanceof Error ? error.message : 'Failed to delete cluster',
+          variant: 'destructive',
+        });
       }
-      onClose();
     }
   };
 
@@ -342,10 +421,6 @@ export default function ClusterForm({ cluster, onClose, onSave, onDelete }: Clus
           <strong>Validator Index:</strong> Single number (e.g., 12345)
         </li>
         <li>
-          <strong>Batch Range:</strong> Add multiple validators at once (e.g., 100-150 adds
-          validators 100 through 150)
-        </li>
-        <li>
           <strong>Public Key:</strong> 0x followed by 96 hex characters
         </li>
         <li>
@@ -355,6 +430,9 @@ export default function ClusterForm({ cluster, onClose, onSave, onDelete }: Clus
       </ul>
     </div>
   );
+
+  const isSearching =
+    searchByIndex.isPending || searchByPubkey.isPending || searchByWithdrawal.isPending;
 
   return (
     <div className="space-y-6 p-4 sm:p-6">
@@ -473,10 +551,12 @@ export default function ClusterForm({ cluster, onClose, onSave, onDelete }: Clus
                   }`}
                 />
                 <div className="absolute right-3 top-1/2 -translate-y-1/2">
-                  {validationState === 'validating' && (
+                  {(validationState === 'validating' || isSearching) && (
                     <Loader2 className="size-4 animate-spin text-muted-foreground" />
                   )}
-                  {validationState === 'valid' && <Check className="size-4 text-green-500" />}
+                  {validationState === 'valid' && !isSearching && (
+                    <Check className="size-4 text-green-500" />
+                  )}
                   {validationState === 'invalid' && <X className="size-4 text-destructive" />}
                 </div>
               </div>
@@ -486,11 +566,13 @@ export default function ClusterForm({ cluster, onClose, onSave, onDelete }: Clus
               <Button
                 type="button"
                 onClick={handleAddValidator}
-                disabled={!inputValue.trim() || validationState === 'validating'}
+                disabled={!inputValue.trim() || validationState === 'validating' || isSearching}
                 className="w-full bg-transparent"
                 variant="outline"
               >
-                {validationState === 'validating' ? 'Validating...' : 'Add Validator'}
+                {validationState === 'validating' || isSearching
+                  ? 'Validating...'
+                  : 'Add Validator'}
               </Button>
               <p className="text-xs text-muted-foreground">
                 Withdrawal addresses will add all associated validators
@@ -512,7 +594,9 @@ export default function ClusterForm({ cluster, onClose, onSave, onDelete }: Clus
                     <Button
                       type="button"
                       onClick={handleRemoveByWithdrawal}
-                      disabled={!removeInputValue.trim() || validationState === 'validating'}
+                      disabled={
+                        !removeInputValue.trim() || validationState === 'validating' || isSearching
+                      }
                       variant="outline"
                     >
                       Remove
@@ -554,8 +638,17 @@ export default function ClusterForm({ cluster, onClose, onSave, onDelete }: Clus
         </DashboardCard>
 
         <div className="pt-2">
-          <Button type="submit" className="w-full" disabled={!name.trim()}>
-            {cluster ? 'Save Changes' : 'Create Cluster'}
+          <Button type="submit" className="w-full" disabled={!name.trim() || isSaving}>
+            {isSaving ? (
+              <>
+                <Loader2 className="size-4 mr-2 animate-spin" />
+                Saving...
+              </>
+            ) : cluster ? (
+              'Save Changes'
+            ) : (
+              'Create Cluster'
+            )}
           </Button>
         </div>
 
@@ -571,9 +664,24 @@ export default function ClusterForm({ cluster, onClose, onSave, onDelete }: Clus
                 </p>
               </div>
             </div>
-            <Button type="button" variant="destructive" onClick={handleDelete} className="w-full">
-              <Trash2 className="size-4 mr-2" />
-              Delete Cluster
+            <Button
+              type="button"
+              variant="destructive"
+              onClick={handleDelete}
+              className="w-full"
+              disabled={deleteCluster.isPending}
+            >
+              {deleteCluster.isPending ? (
+                <>
+                  <Loader2 className="size-4 mr-2 animate-spin" />
+                  Deleting...
+                </>
+              ) : (
+                <>
+                  <Trash2 className="size-4 mr-2" />
+                  Delete Cluster
+                </>
+              )}
             </Button>
           </div>
         )}
