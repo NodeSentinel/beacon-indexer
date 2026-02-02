@@ -119,23 +119,12 @@ export type EpochRewards = z.infer<typeof EpochRewardsSchema>;
 /**
  * Validator search input schema
  * Supports searching by: index, pubkey, or withdrawalAddress
- * Exactly one parameter must be provided
  */
-export const ValidatorSearchInputSchema = z
-  .object({
-    index: z.coerce.number().int().nonnegative().optional(),
-    pubkey: z.string().length(98).optional(),
-    withdrawalAddress: z.string().length(42).optional(),
-  })
-  .refine(
-    (data) => {
-      const providedFields = [data.index, data.pubkey, data.withdrawalAddress].filter(
-        (field) => field !== undefined,
-      ).length;
-      return providedFields === 1;
-    },
-    { message: 'Exactly one of index, pubkey, or withdrawalAddress must be provided.' },
-  );
+export const ValidatorSearchInputSchema = z.object({
+  index: z.coerce.number().int().nonnegative().optional(),
+  pubkey: z.string().length(98).optional(),
+  withdrawalAddress: z.string().length(42).optional(),
+});
 
 export type ValidatorSearchInput = z.infer<typeof ValidatorSearchInputSchema>;
 

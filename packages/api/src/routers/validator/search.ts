@@ -30,15 +30,6 @@ export const searchValidators = publicProcedure
       } else if (input.withdrawalAddress) {
         const results = await storage.findByWithdrawalAddress(input.withdrawalAddress);
         validators.push(...results.map((r) => ({ index: r.index, pubkey: r.pubkey })));
-      } else {
-        return {
-          success: false,
-          error: {
-            code: 'INVALID_INPUT',
-            message: 'Exactly one of index, pubkey, or withdrawalAddress must be provided',
-          },
-          meta: { timestamp: new Date().toISOString() },
-        };
       }
 
       return {
