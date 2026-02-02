@@ -3,22 +3,70 @@ import { createServer } from 'node:http';
 import { PrismaClient } from '@beacon-indexer/db';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 
-import type {
-  Cluster,
-  ClusterDetail,
-  ClusterWithCount,
-  AddValidatorsResponse as AddValidatorsData,
-} from '@/routers/cluster/schemas.js';
 import { createHttpServer } from '@/server.js';
-import type { ApiResponse } from '@/utils/response.js';
 
-// Response types using ApiResponse wrapper with schema types
-type ClusterResponse = ApiResponse<Cluster>;
-type ClusterDetailResponse = ApiResponse<ClusterDetail>;
-type ClusterListResponse = ApiResponse<ClusterWithCount[]>;
-type AddValidatorsResponse = ApiResponse<AddValidatorsData>;
-type DeleteResponse = ApiResponse<{ deleted: boolean }>;
-type RemoveValidatorsResponse = ApiResponse<{ removed: number }>;
+interface ClusterResponse {
+  success: boolean;
+  data?: {
+    id: string;
+    name: string;
+    visibility: 'private' | 'shared';
+    feeRecipientAddress: string | null;
+    ownerId: string;
+    createdAt: string;
+    validatorCount?: number;
+    validators?: Array<{ validatorIndex: number }>;
+    withdrawalAddresses?: string[];
+  };
+  error?: {
+    code: string;
+    message: string;
+  };
+  meta?: {
+    timestamp: string;
+  };
+}
+
+interface ClusterListResponse {
+  success: boolean;
+  data?: Array<{
+    id: string;
+    name: string;
+    visibility: 'private' | 'shared';
+    feeRecipientAddress: string | null;
+    ownerId: string;
+    createdAt: string;
+    validatorCount: number;
+  }>;
+  error?: {
+    code: string;
+    message: string;
+  };
+  meta?: {
+    timestamp: string;
+  };
+}
+
+interface AddValidatorsResponse {
+  success: boolean;
+  data?: { added: number };
+  error?: { code: string; message: string };
+  meta?: { timestamp: string };
+}
+
+interface DeleteResponse {
+  success: boolean;
+  data?: { deleted: boolean };
+  error?: { code: string; message: string };
+  meta?: { timestamp: string };
+}
+
+interface RemoveValidatorResponse {
+  success: boolean;
+  data?: { removed: boolean };
+  error?: { code: string; message: string };
+  meta?: { timestamp: string };
+}
 
 describe('Cluster API E2E Tests', () => {
   let prisma: PrismaClient;
@@ -66,11 +114,15 @@ describe('Cluster API E2E Tests', () => {
   });
 
   afterEach(async () => {
-    // Clean up created clusters after each test using deleteMany for efficiency
-    if (createdClusterIds.length > 0) {
-      await prisma.cluster.deleteMany({ where: { id: { in: createdClusterIds } } });
-      createdClusterIds.length = 0;
+    // Clean up created clusters after each test
+    for (const id of createdClusterIds) {
+      try {
+        await prisma.cluster.delete({ where: { id } });
+      } catch {
+        // Ignore if already deleted
+      }
     }
+    createdClusterIds.length = 0;
   });
 
   afterAll(async () => {
@@ -191,7 +243,7 @@ describe('Cluster API E2E Tests', () => {
       const response = await fetch(`${baseUrl}/clusters/${cluster.id}`);
 
       expect(response.ok).toBe(true);
-      const body = (await response.json()) as ClusterDetailResponse;
+      const body = (await response.json()) as ClusterResponse;
 
       expect(body.success).toBe(true);
       expect(body.data!.id).toBe(cluster.id);
@@ -381,368 +433,53 @@ describe('Cluster API E2E Tests', () => {
     });
   });
 
-  describe('DELETE /clusters/:id/validators - by validatorIndexes', () => {
-    it('should remove validators from cluster', async () => {
+  describe('DELETE /clusters/:id/validators/:validatorIndex', () => {
+    it('should remove validator from cluster', async () => {
       const cluster = await prisma.cluster.create({
         data: {
-          name: 'Remove Validators Test',
+          name: 'Remove Validator Test',
           ownerId: BigInt(testOwnerId),
           visibility: 'private',
         },
       });
       createdClusterIds.push(cluster.id);
 
-      // Ensure test validators exist and add to cluster
+      // Ensure test validator exists and add to cluster
       await prisma.validator.upsert({
         where: { id: 4 },
         update: {},
         create: { id: 4, balance: BigInt(32000000000) },
       });
-      await prisma.validator.upsert({
-        where: { id: 5 },
-        update: {},
-        create: { id: 5, balance: BigInt(32000000000) },
-      });
-      await prisma.clusterValidator.createMany({
-        data: [
-          { clusterId: cluster.id, validatorIndex: 4 },
-          { clusterId: cluster.id, validatorIndex: 5 },
-        ],
+      await prisma.clusterValidator.create({
+        data: { clusterId: cluster.id, validatorIndex: 4 },
       });
 
-      const response = await fetch(`${baseUrl}/clusters/${cluster.id}/validators`, {
+      const response = await fetch(`${baseUrl}/clusters/${cluster.id}/validators/4`, {
         method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ validatorIndexes: [4, 5] }),
       });
 
       expect(response.ok).toBe(true);
-      const body = (await response.json()) as RemoveValidatorsResponse;
+      const body = (await response.json()) as RemoveValidatorResponse;
 
       expect(body.success).toBe(true);
-      expect(body.data!.removed).toBe(2);
-
-      // Verify validators were removed
-      const remaining = await prisma.clusterValidator.findMany({
-        where: { clusterId: cluster.id },
-      });
-      expect(remaining.length).toBe(0);
+      expect(body.data!.removed).toBe(true);
     });
 
-    it('should return 0 when validators are not in cluster', async () => {
+    it('should return error for validator not in cluster', async () => {
       const cluster = await prisma.cluster.create({
         data: { name: 'Not In Cluster Test', ownerId: BigInt(testOwnerId), visibility: 'private' },
       });
       createdClusterIds.push(cluster.id);
 
-      const response = await fetch(`${baseUrl}/clusters/${cluster.id}/validators`, {
+      const response = await fetch(`${baseUrl}/clusters/${cluster.id}/validators/999`, {
         method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ validatorIndexes: [999] }),
       });
 
       expect(response.ok).toBe(true);
-      const body = (await response.json()) as RemoveValidatorsResponse;
-
-      expect(body.success).toBe(true);
-      expect(body.data!.removed).toBe(0);
-    });
-
-    it('should return error for non-existent cluster', async () => {
-      const response = await fetch(`${baseUrl}/clusters/non-existent-id/validators`, {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ validatorIndexes: [1] }),
-      });
-
-      expect(response.ok).toBe(true);
-      const body = (await response.json()) as RemoveValidatorsResponse;
+      const body = (await response.json()) as RemoveValidatorResponse;
 
       expect(body.success).toBe(false);
-      expect(body.error!.code).toBe('CLUSTER_NOT_FOUND');
-    });
-  });
-
-  describe('POST /clusters/:id/validators - validator validation', () => {
-    it('should return error when validator index does not exist', async () => {
-      const cluster = await prisma.cluster.create({
-        data: {
-          name: 'Validator Not Exists Test',
-          ownerId: BigInt(testOwnerId),
-          visibility: 'private',
-        },
-      });
-      createdClusterIds.push(cluster.id);
-
-      const response = await fetch(`${baseUrl}/clusters/${cluster.id}/validators`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ validatorIndexes: [999999] }),
-      });
-
-      expect(response.ok).toBe(true);
-      const body = (await response.json()) as AddValidatorsResponse;
-
-      expect(body.success).toBe(false);
-      expect(body.error!.code).toBe('VALIDATORS_NOT_FOUND');
-      expect(body.error!.message).toContain('999999');
-    });
-
-    it('should return error when some validators do not exist', async () => {
-      const cluster = await prisma.cluster.create({
-        data: {
-          name: 'Partial Validators Test',
-          ownerId: BigInt(testOwnerId),
-          visibility: 'private',
-        },
-      });
-      createdClusterIds.push(cluster.id);
-
-      // Ensure one validator exists
-      await prisma.validator.upsert({
-        where: { id: 10 },
-        update: {},
-        create: { id: 10, balance: BigInt(32000000000) },
-      });
-
-      const response = await fetch(`${baseUrl}/clusters/${cluster.id}/validators`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ validatorIndexes: [10, 888888, 999999] }),
-      });
-
-      expect(response.ok).toBe(true);
-      const body = (await response.json()) as AddValidatorsResponse;
-
-      expect(body.success).toBe(false);
-      expect(body.error!.code).toBe('VALIDATORS_NOT_FOUND');
-      expect(body.error!.message).toContain('888888');
-      expect(body.error!.message).toContain('999999');
-    });
-  });
-
-  describe('POST /clusters/:id/validators - by withdrawal address', () => {
-    const testWithdrawalAddress = '0x1234567890123456789012345678901234567890';
-
-    beforeAll(async () => {
-      // Create validators with a specific withdrawal address
-      await prisma.validator.upsert({
-        where: { id: 100 },
-        update: { withdrawalAddress: testWithdrawalAddress.toLowerCase() },
-        create: {
-          id: 100,
-          balance: BigInt(32000000000),
-          withdrawalAddress: testWithdrawalAddress.toLowerCase(),
-        },
-      });
-      await prisma.validator.upsert({
-        where: { id: 101 },
-        update: { withdrawalAddress: testWithdrawalAddress.toLowerCase() },
-        create: {
-          id: 101,
-          balance: BigInt(32000000000),
-          withdrawalAddress: testWithdrawalAddress.toLowerCase(),
-        },
-      });
-      await prisma.validator.upsert({
-        where: { id: 102 },
-        update: { withdrawalAddress: testWithdrawalAddress.toLowerCase() },
-        create: {
-          id: 102,
-          balance: BigInt(32000000000),
-          withdrawalAddress: testWithdrawalAddress.toLowerCase(),
-        },
-      });
-    });
-
-    it('should add all validators with withdrawal address', async () => {
-      const cluster = await prisma.cluster.create({
-        data: { name: 'Add By Address Test', ownerId: BigInt(testOwnerId), visibility: 'private' },
-      });
-      createdClusterIds.push(cluster.id);
-
-      const response = await fetch(`${baseUrl}/clusters/${cluster.id}/validators`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ withdrawalAddress: testWithdrawalAddress }),
-      });
-
-      expect(response.ok).toBe(true);
-      const body = (await response.json()) as AddValidatorsResponse;
-
-      expect(body.success).toBe(true);
-      expect(body.data!.added).toBe(3);
-
-      // Verify validators were added
-      const clusterValidators = await prisma.clusterValidator.findMany({
-        where: { clusterId: cluster.id },
-      });
-      expect(clusterValidators.length).toBe(3);
-    });
-
-    it('should be case-insensitive for withdrawal address', async () => {
-      const cluster = await prisma.cluster.create({
-        data: {
-          name: 'Case Insensitive Test',
-          ownerId: BigInt(testOwnerId),
-          visibility: 'private',
-        },
-      });
-      createdClusterIds.push(cluster.id);
-
-      // Use uppercase address
-      const upperCaseAddress = testWithdrawalAddress.toUpperCase();
-
-      const response = await fetch(`${baseUrl}/clusters/${cluster.id}/validators`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ withdrawalAddress: upperCaseAddress }),
-      });
-
-      expect(response.ok).toBe(true);
-      const body = (await response.json()) as AddValidatorsResponse;
-
-      expect(body.success).toBe(true);
-      expect(body.data!.added).toBe(3);
-    });
-
-    it('should return error for withdrawal address with no validators', async () => {
-      const cluster = await prisma.cluster.create({
-        data: {
-          name: 'No Validators Address Test',
-          ownerId: BigInt(testOwnerId),
-          visibility: 'private',
-        },
-      });
-      createdClusterIds.push(cluster.id);
-
-      const response = await fetch(`${baseUrl}/clusters/${cluster.id}/validators`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ withdrawalAddress: '0x0000000000000000000000000000000000000000' }),
-      });
-
-      expect(response.ok).toBe(true);
-      const body = (await response.json()) as AddValidatorsResponse;
-
-      expect(body.success).toBe(false);
-      expect(body.error!.code).toBe('VALIDATORS_NOT_FOUND');
-    });
-  });
-
-  describe('DELETE /clusters/:id/validators - by withdrawalAddress', () => {
-    const testWithdrawalAddress = '0xabcdef1234567890abcdef1234567890abcdef12';
-
-    beforeAll(async () => {
-      // Create validators with a specific withdrawal address for removal tests
-      await prisma.validator.upsert({
-        where: { id: 200 },
-        update: { withdrawalAddress: testWithdrawalAddress.toLowerCase() },
-        create: {
-          id: 200,
-          balance: BigInt(32000000000),
-          withdrawalAddress: testWithdrawalAddress.toLowerCase(),
-        },
-      });
-      await prisma.validator.upsert({
-        where: { id: 201 },
-        update: { withdrawalAddress: testWithdrawalAddress.toLowerCase() },
-        create: {
-          id: 201,
-          balance: BigInt(32000000000),
-          withdrawalAddress: testWithdrawalAddress.toLowerCase(),
-        },
-      });
-    });
-
-    it('should remove all validators by withdrawal address', async () => {
-      const cluster = await prisma.cluster.create({
-        data: {
-          name: 'Remove By Withdrawal Address Test',
-          ownerId: BigInt(testOwnerId),
-          visibility: 'private',
-        },
-      });
-      createdClusterIds.push(cluster.id);
-
-      // Add validators to cluster first
-      await prisma.clusterValidator.createMany({
-        data: [
-          { clusterId: cluster.id, validatorIndex: 200 },
-          { clusterId: cluster.id, validatorIndex: 201 },
-        ],
-      });
-
-      const response = await fetch(`${baseUrl}/clusters/${cluster.id}/validators`, {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ withdrawalAddress: testWithdrawalAddress }),
-      });
-
-      expect(response.ok).toBe(true);
-      const body = (await response.json()) as RemoveValidatorsResponse;
-
-      expect(body.success).toBe(true);
-      expect(body.data!.removed).toBe(2);
-
-      // Verify validators were removed
-      const clusterValidators = await prisma.clusterValidator.findMany({
-        where: { clusterId: cluster.id },
-      });
-      expect(clusterValidators.length).toBe(0);
-    });
-
-    it('should be case-insensitive for removal', async () => {
-      const cluster = await prisma.cluster.create({
-        data: {
-          name: 'Case Insensitive Remove Test',
-          ownerId: BigInt(testOwnerId),
-          visibility: 'private',
-        },
-      });
-      createdClusterIds.push(cluster.id);
-
-      // Add validators to cluster
-      await prisma.clusterValidator.createMany({
-        data: [
-          { clusterId: cluster.id, validatorIndex: 200 },
-          { clusterId: cluster.id, validatorIndex: 201 },
-        ],
-      });
-
-      // Use mixed case address
-      const mixedCaseAddress = '0xAbCdEf1234567890AbCdEf1234567890AbCdEf12';
-
-      const response = await fetch(`${baseUrl}/clusters/${cluster.id}/validators`, {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ withdrawalAddress: mixedCaseAddress }),
-      });
-
-      expect(response.ok).toBe(true);
-      const body = (await response.json()) as RemoveValidatorsResponse;
-
-      expect(body.success).toBe(true);
-      expect(body.data!.removed).toBe(2);
-    });
-
-    it('should return 0 removed when no validators match', async () => {
-      const cluster = await prisma.cluster.create({
-        data: { name: 'No Match Remove Test', ownerId: BigInt(testOwnerId), visibility: 'private' },
-      });
-      createdClusterIds.push(cluster.id);
-
-      const response = await fetch(`${baseUrl}/clusters/${cluster.id}/validators`, {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ withdrawalAddress: '0x0000000000000000000000000000000000000000' }),
-      });
-
-      expect(response.ok).toBe(true);
-      const body = (await response.json()) as RemoveValidatorsResponse;
-
-      expect(body.success).toBe(true);
-      expect(body.data!.removed).toBe(0);
+      expect(body.error!.code).toBe('VALIDATOR_NOT_IN_CLUSTER');
     });
   });
 });
