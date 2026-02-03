@@ -1,4 +1,4 @@
-import type { ValidatorStatus } from '@beacon-indexer/consensus-utils';
+import type { ValidatorStatus } from '@beacon-indexer/beacon-utils';
 
 /**
  * Configuration for beacon URLs

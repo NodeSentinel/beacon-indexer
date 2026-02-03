@@ -24,7 +24,7 @@
     "test:e2e": "vitest run --config vitest.e2e.config.ts --no-coverage"
   },
   "dependencies": {
-    "@beacon-indexer/consensus-utils": "workspace:*",
+    "@beacon-indexer/beacon-utils": "workspace:*",
     "@beacon-indexer/db": "workspace:*",
     "@orpc/experimental-pino": "^1.13.0",
     "@orpc/openapi": "1.13.4",

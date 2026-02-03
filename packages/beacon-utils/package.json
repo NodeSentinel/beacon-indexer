@@ -1,5 +1,5 @@
 {
-  "name": "@beacon-indexer/consensus-utils",
+  "name": "@beacon-indexer/beacon-utils",
   "version": "1.0.0",
   "description": "Shared beacon chain utilities for configuration and time calculations",
   "type": "module",

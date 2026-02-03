@@ -1,5 +1,5 @@
 {
-  "name": "app",
+  "name": "@beacon-indexer/webapp",
   "version": "0.1.0",
   "private": true,
   "author": "Nicolás Domínguez <nf.dominguez.87@gmail.com>",

@@ -1,4 +1,4 @@
-import { getChainConfig } from '@beacon-indexer/consensus-utils/config/chain';
+import { getChainConfig } from '@beacon-indexer/beacon-utils/config/chain';
 import { createEnv } from '@t3-oss/env-core';
 import { config } from 'dotenv';
 import { z } from 'zod';

@@ -1,5 +1,5 @@
-import { BeaconTime } from '@beacon-indexer/consensus-utils/beaconTime';
-import { gnosisConfig } from '@beacon-indexer/consensus-utils/config/chain';
+import { BeaconTime } from '@beacon-indexer/beacon-utils/beaconTime';
+import { gnosisConfig } from '@beacon-indexer/beacon-utils/config/chain';
 import { test, expect, vi, beforeEach, afterEach, describe } from 'vitest';
 import { createMachine, sendParent } from 'xstate';
 

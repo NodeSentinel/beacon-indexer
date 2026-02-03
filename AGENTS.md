@@ -5,10 +5,10 @@
 ## Packages
 
 - **`packages/db`**: Prisma schema and migrations. See `packages/db/AGENTS.md` for data organization and storage.
-- **`packages/consensus-utils`**: Shared beacon chain utilities (BeaconTime, chain config, validator status types).
+- **`packages/beacon-utils`**: Shared beacon chain utilities (BeaconTime, chain config, validator status types).
 - **`packages/indexer`**: Core indexing service. See `packages/indexer/AGENTS.md`.
 - **`packages/api`**: REST/API layer. See `packages/api/AGENTS.md`.
-- **`packages/app`**: Next.js frontend. See `packages/app/AGENTS.md`.
+- **`packages/webapp`**: Next.js frontend. See `packages/webapp/AGENTS.md`.
 - **`packages/telegram-bot`**: Telegram bot for alerts.
 
 ## Tasks

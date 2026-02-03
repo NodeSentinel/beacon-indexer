@@ -46,10 +46,10 @@
     "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,json,md}\"",
     "build": "pnpm --filter @beacon-indexer/db build && pnpm --filter indexer build",
     "build:api": "pnpm --filter @beacon-indexer/api build",
-    "build:app": "pnpm --filter @beacon-indexer/api build && pnpm --filter app build",
+    "build:app": "pnpm --filter @beacon-indexer/api build && pnpm --filter @beacon-indexer/webapp build",
     "dev:indexer": "pnpm --filter indexer run dev",
     "dev:api": "pnpm --filter api run dev",
-    "dev:app": "pnpm --filter app run dev",
+    "dev:app": "pnpm --filter @beacon-indexer/webapp run dev",
     "db:danger:reset": "node scripts/db-danger-reset.js",
     "db:danger:recreate-migration": "node scripts/db-danger-recreate-migration.js",
     "docker:up": "docker compose --env-file packages/db/.env up -d",
@@ -111,8 +111,8 @@
     "packages/api/**/*.{ts,tsx}": [
       "bash -c 'cd packages/api && pnpm exec tsc --noEmit'"
     ],
-    "packages/app/**/*.{ts,tsx}": [
-      "bash -c 'pnpm --filter @beacon-indexer/api build && pnpm --filter app exec tsc --noEmit'"
+    "packages/webapp/**/*.{ts,tsx}": [
+      "bash -c 'pnpm --filter @beacon-indexer/api build && pnpm --filter @beacon-indexer/webapp exec tsc --noEmit'"
     ]
   },
   "pnpm": {

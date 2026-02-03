@@ -1,6 +1,6 @@
 import { Readable } from 'stream';
 
-import { VALIDATOR_STATUS } from '@beacon-indexer/consensus-utils';
+import { VALIDATOR_STATUS } from '@beacon-indexer/beacon-utils';
 import { PrismaClient, Validator, Decimal, Prisma } from '@beacon-indexer/db';
 import chunk from 'lodash/chunk.js';
 import ms from 'ms';

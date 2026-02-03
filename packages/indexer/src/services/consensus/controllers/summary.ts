@@ -1,4 +1,4 @@
-import { BeaconTime } from '@beacon-indexer/consensus-utils/beaconTime';
+import { BeaconTime } from '@beacon-indexer/beacon-utils/beaconTime';
 import ms from 'ms';
 
 import { SummaryStorage } from '../storage/summary.js';

@@ -2,8 +2,8 @@
 
 ## Páginas principales
 
-- **Dashboard** (`packages/app/app/page.tsx`): Para usuarios que registran validadores en clusters/grupos. Pueden ver stats de un cluster en particular o todos.
-- **Validator page** (`packages/app/app/validator/[id]/page.tsx`): Información detallada de un validador individual.
+- **Dashboard** (`packages/webapp/app/page.tsx`): Para usuarios que registran validadores en clusters/grupos. Pueden ver stats de un cluster en particular o todos.
+- **Validator page** (`packages/webapp/app/validator/[id]/page.tsx`): Información detallada de un validador individual.
 
 ---
 
@@ -388,8 +388,8 @@ Fórmula simple anualizada, sin compound.
 
 ### maxAttestationDelay
 
-Definido en `packages/consensus-utils/src/config/chain.ts`. Una attestation con delay mayor se considera "missed".
+Definido en `packages/beacon-utils/src/config/chain.ts`. Una attestation con delay mayor se considera "missed".
 
 ### missedAttestationsForInactivity
 
-Definido en `packages/consensus-utils/src/config/chain.ts`. Cantidad de attestations consecutivas perdidas para considerar un validador "inactivo".
+Definido en `packages/beacon-utils/src/config/chain.ts`. Cantidad de attestations consecutivas perdidas para considerar un validador "inactivo".

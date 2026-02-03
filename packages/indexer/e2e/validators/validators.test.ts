@@ -1,8 +1,8 @@
 import fs from 'fs';
 import path from 'path';
 
-import { BeaconTime } from '@beacon-indexer/consensus-utils/beaconTime';
-import { gnosisConfig } from '@beacon-indexer/consensus-utils/config/chain';
+import { BeaconTime } from '@beacon-indexer/beacon-utils/beaconTime';
+import { gnosisConfig } from '@beacon-indexer/beacon-utils/config/chain';
 import { PrismaClient } from '@beacon-indexer/db';
 import { describe, it, expect, beforeAll, afterAll, vi, type MockedFunction } from 'vitest';
 

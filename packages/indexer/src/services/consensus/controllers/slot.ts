@@ -1,4 +1,4 @@
-import { BeaconTime } from '@beacon-indexer/consensus-utils/beaconTime';
+import { BeaconTime } from '@beacon-indexer/beacon-utils/beaconTime';
 
 import { BeaconClient } from '../beacon.js';
 import { SlotStorage } from '../storage/slot.js';

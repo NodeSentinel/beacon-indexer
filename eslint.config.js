@@ -15,7 +15,7 @@ const __dirname = dirname(__filename);
 
 // FlatCompat instance scoped to the Next.js mini-app package
 const compatMiniApp = new FlatCompat({
-  baseDirectory: join(__dirname, 'packages/app'),
+  baseDirectory: join(__dirname, 'packages/webapp'),
 });
 
 const nextMiniAppConfigs = compatMiniApp
@@ -46,7 +46,7 @@ const nextMiniAppConfigs = compatMiniApp
       ...rest,
       plugins: normalizedPlugins,
       rules: normalizedRules,
-      files: ['packages/app/**/*'],
+      files: ['packages/webapp/**/*'],
     };
   });
 

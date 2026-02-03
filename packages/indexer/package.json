@@ -24,7 +24,7 @@
     "type-check": "tsc --noEmit"
   },
   "dependencies": {
-    "@beacon-indexer/consensus-utils": "workspace:*",
+    "@beacon-indexer/beacon-utils": "workspace:*",
     "@beacon-indexer/db": "workspace:*",
     "@t3-oss/env-core": "^0.10.1",
     "axios": "^1.7.2",

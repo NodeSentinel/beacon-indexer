@@ -1,4 +1,4 @@
-import { VALIDATOR_STATUS } from '@beacon-indexer/consensus-utils';
+import { VALIDATOR_STATUS } from '@beacon-indexer/beacon-utils';
 
 import { GlobalStatsStorage } from '../storage/globalStats.js';
 

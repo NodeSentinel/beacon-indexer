@@ -1,4 +1,4 @@
-import { VALIDATOR_STATUS } from '@beacon-indexer/consensus-utils';
+import { VALIDATOR_STATUS } from '@beacon-indexer/beacon-utils';
 import { Validator } from '@beacon-indexer/db';
 
 import { GetValidators } from '../../types.js';
