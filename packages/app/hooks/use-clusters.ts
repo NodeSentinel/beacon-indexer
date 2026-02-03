@@ -150,9 +150,9 @@ export function useRemoveValidator() {
 
   return useMutation({
     mutationFn: async (data: { clusterId: string; validatorIndex: number }) => {
-      const response = await orpcClient.cluster.removeValidator({
+      const response = await orpcClient.cluster.removeValidators({
         id: data.clusterId,
-        validatorIndex: data.validatorIndex,
+        validatorIndexes: [data.validatorIndex],
       });
       if (!response.success) {
         throw new Error(response.error?.message || 'Failed to remove validator');
