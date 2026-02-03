@@ -3,6 +3,7 @@
 import { Trash2, AlertTriangle, Check, X, Loader2, Users, HelpCircle } from 'lucide-react';
 import type React from 'react';
 import { useState } from 'react';
+import { isAddress } from 'viem';
 
 import DashboardCard from '@/components/dashboard/card';
 import {
@@ -78,6 +79,7 @@ export default function GroupForm({ group, onClose }: GroupFormProps) {
   const [inputValue, setInputValue] = useState('');
   const [validationState, setValidationState] = useState<ValidationState>('idle');
   const [errorMessage, setErrorMessage] = useState('');
+  const [feeRecipientError, setFeeRecipientError] = useState('');
   const { toast } = useToast();
   const [bulkAction, setBulkAction] = useState<BulkAction>(null);
   const [removeInputValue, setRemoveInputValue] = useState('');
@@ -351,10 +353,21 @@ export default function GroupForm({ group, onClose }: GroupFormProps) {
               <Input
                 id="feeRecipient"
                 value={feeRecipient}
-                onChange={(e) => setFeeRecipient(e.target.value)}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  setFeeRecipient(value);
+                  if (value && !isAddress(value)) {
+                    setFeeRecipientError('Invalid Ethereum address');
+                  } else {
+                    setFeeRecipientError('');
+                  }
+                }}
                 placeholder="0x..."
                 required
+                aria-invalid={!!feeRecipientError}
+                className={feeRecipientError ? 'border-destructive' : ''}
               />
+              {feeRecipientError && <p className="text-sm text-destructive">{feeRecipientError}</p>}
             </div>
           </div>
         </DashboardCard>
@@ -507,7 +520,11 @@ export default function GroupForm({ group, onClose }: GroupFormProps) {
         </DashboardCard>
 
         <div className="pt-2">
-          <Button type="submit" className="w-full" disabled={validators.length === 0}>
+          <Button
+            type="submit"
+            className="w-full"
+            disabled={validators.length === 0 || !!feeRecipientError}
+          >
             {group ? 'Save Changes' : 'Add Group'}
           </Button>
         </div>

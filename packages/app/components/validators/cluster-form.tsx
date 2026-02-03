@@ -3,6 +3,7 @@
 import { Trash2, AlertTriangle, Check, X, Loader2, Users, HelpCircle } from 'lucide-react';
 import type React from 'react';
 import { useState } from 'react';
+import { isAddress } from 'viem';
 
 import DashboardCard from '@/components/dashboard/card';
 import {
@@ -95,6 +96,7 @@ export default function ClusterForm({ cluster, onClose, onSaved }: ClusterFormPr
   const [inputValue, setInputValue] = useState('');
   const [validationState, setValidationState] = useState<ValidationState>('idle');
   const [errorMessage, setErrorMessage] = useState('');
+  const [feeRecipientError, setFeeRecipientError] = useState('');
   const { toast } = useToast();
   const [bulkAction, setBulkAction] = useState<BulkAction>(null);
   const [removeInputValue, setRemoveInputValue] = useState('');
@@ -481,9 +483,20 @@ export default function ClusterForm({ cluster, onClose, onSaved }: ClusterFormPr
               <Input
                 id="feeRecipient"
                 value={feeRecipient}
-                onChange={(e) => setFeeRecipient(e.target.value)}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  setFeeRecipient(value);
+                  if (value && !isAddress(value)) {
+                    setFeeRecipientError('Invalid Ethereum address');
+                  } else {
+                    setFeeRecipientError('');
+                  }
+                }}
                 placeholder="0x..."
+                aria-invalid={!!feeRecipientError}
+                className={feeRecipientError ? 'border-destructive' : ''}
               />
+              {feeRecipientError && <p className="text-sm text-destructive">{feeRecipientError}</p>}
             </div>
           </div>
         </DashboardCard>
@@ -642,7 +655,11 @@ export default function ClusterForm({ cluster, onClose, onSaved }: ClusterFormPr
         </DashboardCard>
 
         <div className="pt-2">
-          <Button type="submit" className="w-full" disabled={!name.trim() || isSaving}>
+          <Button
+            type="submit"
+            className="w-full"
+            disabled={!name.trim() || isSaving || !!feeRecipientError}
+          >
             {isSaving ? (
               <>
                 <Loader2 className="size-4 mr-2 animate-spin" />
