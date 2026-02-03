@@ -1,4 +1,12 @@
+import { isAddress } from 'viem';
 import { z } from 'zod';
+
+/**
+ * Ethereum address schema using viem's isAddress
+ */
+const ethereumAddressSchema = z
+  .string()
+  .refine((val) => isAddress(val), { message: 'Invalid Ethereum address' });
 
 /**
  * Cluster visibility enum
@@ -13,7 +21,7 @@ export type ClusterVisibility = z.infer<typeof ClusterVisibilitySchema>;
 export const CreateClusterInputSchema = z.object({
   name: z.string().min(1).max(100),
   visibility: ClusterVisibilitySchema.default('private'),
-  feeRecipientAddress: z.string().max(42).nullable().optional(),
+  feeRecipientAddress: ethereumAddressSchema.nullable().optional(),
   ownerId: z.string(),
 });
 
@@ -43,7 +51,7 @@ export type ClusterIdParam = z.infer<typeof ClusterIdParamSchema>;
 export const UpdateClusterInputSchema = z.object({
   name: z.string().min(1).max(100).optional(),
   visibility: ClusterVisibilitySchema.optional(),
-  feeRecipientAddress: z.string().max(42).nullable().optional(),
+  feeRecipientAddress: ethereumAddressSchema.nullable().optional(),
 });
 
 export type UpdateClusterInput = z.infer<typeof UpdateClusterInputSchema>;
