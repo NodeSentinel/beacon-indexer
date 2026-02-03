@@ -112,7 +112,7 @@
       "bash -c 'cd packages/api && pnpm exec tsc --noEmit'"
     ],
     "packages/app/**/*.{ts,tsx}": [
-      "bash -c 'cd packages/app && pnpm exec tsc --noEmit'"
+      "bash -c 'pnpm --filter @beacon-indexer/api build && pnpm --filter app exec tsc --noEmit'"
     ]
   },
   "pnpm": {
