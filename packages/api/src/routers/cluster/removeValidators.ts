@@ -36,6 +36,16 @@ export const removeValidators = publicProcedure
         };
       }
 
+      // Check if cluster exists (deleteMany doesn't throw for non-existent clusters)
+      const cluster = await storage.findById(input.id);
+      if (!cluster) {
+        return {
+          success: false,
+          error: { code: 'CLUSTER_NOT_FOUND', message: `Cluster with id ${input.id} not found` },
+          meta: { timestamp: new Date().toISOString() },
+        };
+      }
+
       let removed: number;
 
       if (input.withdrawalAddress) {
