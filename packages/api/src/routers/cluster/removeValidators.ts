@@ -1,5 +1,3 @@
-import { Prisma } from '@beacon-indexer/db';
-
 import {
   ClusterIdParamSchema,
   RemoveValidatorsInputSchema,
@@ -26,12 +24,14 @@ export const removeValidators = publicProcedure
     try {
       const storage = new ClusterStorage();
 
-      // Check if cluster exists first
-      const cluster = await storage.findById(input.id);
-      if (!cluster) {
+      // Validate that exactly one input type is provided
+      if (input.withdrawalAddress && input.validatorIndexes) {
         return {
           success: false,
-          error: { code: 'CLUSTER_NOT_FOUND', message: `Cluster with id ${input.id} not found` },
+          error: {
+            code: 'INVALID_INPUT',
+            message: 'Only one of validatorIndexes or withdrawalAddress can be provided, not both',
+          },
           meta: { timestamp: new Date().toISOString() },
         };
       }
@@ -64,13 +64,6 @@ export const removeValidators = publicProcedure
         meta: { timestamp: new Date().toISOString() },
       };
     } catch (error) {
-      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025') {
-        return {
-          success: false,
-          error: { code: 'CLUSTER_NOT_FOUND', message: `Cluster with id ${input.id} not found` },
-          meta: { timestamp: new Date().toISOString() },
-        };
-      }
       const message = error instanceof Error ? error.message : 'Failed to remove validators';
       return {
         success: false,
