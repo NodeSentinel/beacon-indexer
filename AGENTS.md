@@ -1,17 +1,6 @@
-# AGENTS.md
-
-Instructions for AI coding agents working on this repository. Per-package guidance lives in each package's `AGENTS.md`; the closest file to the edited file wins ([AGENTS.md](https://agents.md/)).
-
-## Purpose of AGENTS.md
-
-This project uses AGENTS.md files to provide context to AI agents. The goal is that in the future, you can request features or bugfixes **without explaining how things work** - just describe the feature/problem, and the agent has sufficient context.
-
 ## Project overview
 
 **NodeSentinel** is a lightweight beacon chain indexer and monitoring platform for **Ethereum** and **Gnosis** beacon chains. It collects, normalizes, and processes validator-related data from the **Consensus Layer** via standard Beacon node APIs and enriches it with **Execution Layer** data when needed.
-
-- **Single-chain per instance**: Each deployment works with one chain (Ethereum or Gnosis), configured via environment variables.
-- The codebase is the same for both chains.
 
 ## Packages
 
@@ -50,11 +39,12 @@ This project uses AGENTS.md files to provide context to AI agents. The goal is t
 
 - Pull requests must be atomic, self-contained, and independently mergeable.
 - Commits should be small and have a single, clear intent.
+- Before pushing a commit, ask for the user permission.
 
 **_Quality and Knowledge Sharing_**
 
 - Include relevant tests for the implemented scope.
-- Update the nearest relevant `AGENTS.md` if new knowledge is discovered that may help future agents.
+- Update the relevant `AGENTS.md` files if new knowledge is discovered that may help future agents. We should update hight level definitions that help the agent understand how the system works, relay on relative paths and code is rule to learn the low level definitions.
 
 ## Global setup
 
@@ -62,7 +52,7 @@ This project uses AGENTS.md files to provide context to AI agents. The goal is t
 - Run all tests: `pnpm test`
 - Run e2e tests: `pnpm test:e2e:local`
 - Lint: `pnpm lint`
-- Type-check: `pnpm type-check` (all packages) or `pnpm --filter <package> typecheck` (single package)
+- Type-check: `pnpm type-check` is defined in the root and also on each package.
 
 **IMPORTANT**: Always use existing scripts from package.json. Don't run raw commands like `tsc --noEmit` directly.
 
