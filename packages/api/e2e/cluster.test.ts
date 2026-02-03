@@ -66,15 +66,11 @@ describe('Cluster API E2E Tests', () => {
   });
 
   afterEach(async () => {
-    // Clean up created clusters after each test
-    for (const id of createdClusterIds) {
-      try {
-        await prisma.cluster.delete({ where: { id } });
-      } catch {
-        // Ignore if already deleted
-      }
+    // Clean up created clusters after each test using deleteMany for efficiency
+    if (createdClusterIds.length > 0) {
+      await prisma.cluster.deleteMany({ where: { id: { in: createdClusterIds } } });
+      createdClusterIds.length = 0;
     }
-    createdClusterIds.length = 0;
   });
 
   afterAll(async () => {

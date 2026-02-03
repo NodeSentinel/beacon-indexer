@@ -72,7 +72,7 @@ export class ClusterStorage {
       distinct: ['withdrawalAddress'],
     });
 
-    return results.flatMap((r) => (r.withdrawalAddress ? [r.withdrawalAddress] : []));
+    return results.map((r) => r.withdrawalAddress as string);
   }
 
   /**

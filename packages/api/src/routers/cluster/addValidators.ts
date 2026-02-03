@@ -27,6 +27,18 @@ export const addValidators = publicProcedure
       const storage = new ClusterStorage();
       let validatorIndexes: number[];
 
+      // Validate that exactly one input type is provided
+      if (input.withdrawalAddress && input.validatorIndexes) {
+        return {
+          success: false,
+          error: {
+            code: 'INVALID_INPUT',
+            message: 'Only one of validatorIndexes or withdrawalAddress can be provided, not both',
+          },
+          meta: { timestamp: new Date().toISOString() },
+        };
+      }
+
       if (input.withdrawalAddress) {
         // Find all validators with this withdrawal address
         validatorIndexes = await storage.findValidatorIndexesByWithdrawalAddress(

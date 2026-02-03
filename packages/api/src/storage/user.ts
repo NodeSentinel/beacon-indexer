@@ -39,13 +39,23 @@ export class UserStorage {
   }
 
   /**
-   * Get or create anonymous user
+   * Get or create anonymous user using upsert to avoid race conditions
    */
   async getOrCreateAnonymous(sessionId: string) {
-    const existing = await this.findBySessionId(sessionId);
-    if (existing) {
-      return existing;
-    }
-    return this.createAnonymous(sessionId);
+    // Generate a deterministic BigInt from the UUID
+    const hexPart = sessionId.replace(/-/g, '').slice(0, 15);
+    const genUserId = BigInt(`0x${hexPart}`);
+    const username = `anon:${sessionId}`;
+
+    return this.prisma.user.upsert({
+      where: { username },
+      update: {},
+      create: {
+        id: genUserId,
+        userId: genUserId,
+        username,
+      },
+      select: { id: true, username: true },
+    });
   }
 }

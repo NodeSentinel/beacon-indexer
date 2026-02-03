@@ -198,14 +198,14 @@ export class ValidatorStorage {
    */
   async findByWithdrawalAddress(
     withdrawalAddress: string,
-  ): Promise<Array<{ index: number; pubkey: string | null; balance: bigint }>> {
+  ): Promise<Array<{ index: number; pubkey: string | null }>> {
     const validators = await this.prisma.validator.findMany({
       where: { withdrawalAddress: withdrawalAddress.toLowerCase() },
-      select: { id: true, pubkey: true, balance: true },
+      select: { id: true, pubkey: true },
       orderBy: { id: 'asc' },
     });
 
-    return validators.map((v) => ({ index: v.id, pubkey: v.pubkey, balance: v.balance }));
+    return validators.map((v) => ({ index: v.id, pubkey: v.pubkey }));
   }
 
   /**
