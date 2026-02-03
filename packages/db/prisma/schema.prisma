@@ -348,11 +348,12 @@ model FeeRewardAddress {
 }
 
 model Cluster {
-    id         String            @id @default(cuid())
-    name       String
-    ownerId    BigInt            @map("owner_id")
-    visibility ClusterVisibility @default(private)
-    createdAt  DateTime          @default(now()) @map("created_at")
+    id                  String            @id @default(cuid())
+    name                String
+    ownerId             BigInt            @map("owner_id")
+    visibility          ClusterVisibility @default(private)
+    feeRecipientAddress String?           @map("fee_recipient_address") @db.VarChar(42)
+    createdAt           DateTime          @default(now()) @map("created_at")
 
     owner      User               @relation(fields: [ownerId], references: [id], onDelete: Restrict)
     validators ClusterValidator[]
