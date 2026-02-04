@@ -10,6 +10,7 @@ import type { ValidatorItem } from '@/hooks/use-validator-input';
 // Approximate chips per row based on average chip width (~70px) + gap (6px)
 const APPROX_CHIP_WIDTH = 76;
 const ROW_HEIGHT = 24;
+const VIRTUALIZATION_THRESHOLD = 50;
 
 interface VirtualizedChipListProps {
   validators: ValidatorItem[];
@@ -38,7 +39,7 @@ export function VirtualizedChipList({
   }, []);
 
   // For small lists, don't virtualize
-  if (validators.length <= 50) {
+  if (validators.length <= VIRTUALIZATION_THRESHOLD) {
     return (
       <div ref={parentRef} className="max-h-32 overflow-y-auto pr-2" style={{ maxHeight }}>
         <div className="flex flex-wrap gap-1.5">

@@ -136,12 +136,22 @@ export const ValidatorSearchInputSchema = z
     pubkey: z.string().length(98).optional(),
     pubkeys: z
       .string()
-      .transform((s) => s.split(',').map((v) => v.trim()))
+      .transform((s) =>
+        s
+          .split(',')
+          .map((v) => v.trim())
+          .filter(Boolean),
+      )
       .optional(),
     withdrawalAddress: z.string().length(42).optional(),
     withdrawalAddresses: z
       .string()
-      .transform((s) => s.split(',').map((v) => v.trim()))
+      .transform((s) =>
+        s
+          .split(',')
+          .map((v) => v.trim())
+          .filter(Boolean),
+      )
       .optional(),
   })
   .refine(

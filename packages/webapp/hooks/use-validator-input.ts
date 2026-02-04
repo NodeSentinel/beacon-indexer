@@ -34,6 +34,8 @@ export type BulkAction = {
 
 type InputType = 'index' | 'pubkey' | 'withdrawalAddress' | 'unknown';
 
+const BULK_ADD_THRESHOLD = 10;
+
 interface UseValidatorInputProps {
   initialValidators?: ValidatorItem[];
   withdrawalAddresses?: string[];
@@ -357,7 +359,7 @@ export function useValidatorInput({
       }
 
       // For bulk add with many validators, show confirmation dialog
-      if (newValidators.length > 10) {
+      if (newValidators.length > BULK_ADD_THRESHOLD) {
         setBulkAction({
           action: 'add',
           withdrawalAddress: parsed.type === 'withdrawalAddress' ? parsed.values[0] : '',
