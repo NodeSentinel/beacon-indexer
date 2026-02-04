@@ -6,7 +6,8 @@ import GroupForm from './group-form';
 import GroupOverview from './group-overview';
 
 import { Sheet, SheetContent } from '@/components/ui/sheet';
-import type { Group, GroupFilter, Stats } from '@/types/validator';
+import type { Group, GroupFilter } from '@/types/cluster';
+import type { Stats } from '@/types/validator';
 
 interface GroupListProps {
   groups: Group[];

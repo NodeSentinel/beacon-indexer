@@ -4,13 +4,15 @@ import { Settings } from 'lucide-react';
 
 import DashboardCard from '@/components/dashboard/card';
 import { Button } from '@/components/ui/button';
-import type { Cluster, Stats } from '@/types/validator';
+import type { Cluster } from '@/types/cluster';
+import type { Stats } from '@/types/validator';
 
 interface ClusterOverviewProps {
   cluster: Cluster;
   stats: Stats;
   gnoPrice: number;
   onManage: () => void;
+  showManageButton?: boolean;
 }
 
 export default function ClusterOverview({
@@ -18,6 +20,7 @@ export default function ClusterOverview({
   stats,
   gnoPrice,
   onManage,
+  showManageButton = true,
 }: ClusterOverviewProps) {
   const statusCounts = cluster.validators.reduce(
     (acc, v) => {
@@ -83,10 +86,17 @@ export default function ClusterOverview({
     <DashboardCard
       title={cluster.name}
       action={
-        <Button variant="outline" size="sm" className="bg-transparent shrink-0" onClick={onManage}>
-          <Settings className="size-4 mr-2" />
-          <span className="hidden sm:inline">Manage</span>
-        </Button>
+        showManageButton ? (
+          <Button
+            variant="outline"
+            size="sm"
+            className="bg-transparent shrink-0"
+            onClick={onManage}
+          >
+            <Settings className="size-4 mr-2" />
+            <span className="hidden sm:inline">Manage Cluster</span>
+          </Button>
+        ) : undefined
       }
       intent={cluster.performance >= 98 ? 'success' : 'default'}
     >

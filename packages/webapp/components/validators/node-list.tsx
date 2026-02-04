@@ -6,7 +6,7 @@ import NodeCard from './node-card';
 import NodeDialog from './node-dialog';
 
 import { Badge } from '@/components/ui/badge';
-import type { Node, NodeFilter } from '@/types/validator';
+import type { Node, NodeFilter } from '@/types/cluster';
 
 interface NodeListProps {
   nodes: Node[];

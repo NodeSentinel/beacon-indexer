@@ -1,3 +1,5 @@
+import type { Cluster, Group } from './cluster';
+
 export interface Validator {
   id: string;
   index: number;
@@ -10,27 +12,6 @@ export interface Validator {
   groupId: string;
   clusterId?: string;
 }
-
-export interface Cluster {
-  id: string;
-  name: string;
-  visibility: 'private' | 'shared';
-  ownerId: string;
-  withdrawalAddresses: string[];
-  feeRecipientAddress: string | null;
-  validatorIndices: number[];
-  validators: Validator[];
-  totalBalance: number;
-  totalEffectiveBalance: number;
-  claimableRewards: number;
-  performance: number;
-  // From API response
-  validatorCount?: number;
-  createdAt?: string;
-}
-
-// Backward compatibility alias
-export type Group = Cluster;
 
 export interface AlertConfig {
   performanceThreshold: number; // percentage below which to alert
@@ -103,10 +84,3 @@ export interface ValidatorData {
   missedAttestations: MissedAttestation[];
   events: ValidatorEvent[];
 }
-
-export type GroupFilter = 'all' | string; // "all" or group id
-export type ClusterFilter = 'all' | string; // "all" or cluster id
-
-// Align UI types: a "Node" in the UI matches "Cluster" shape.
-export type Node = Cluster;
-export type NodeFilter = ClusterFilter;

@@ -118,23 +118,59 @@ export type EpochRewards = z.infer<typeof EpochRewardsSchema>;
 
 /**
  * Validator search input schema
- * Supports searching by: index, pubkey, or withdrawalAddress
- * Exactly one parameter must be provided
+ * Supports searching by: index, pubkey, or withdrawalAddress (single or multiple)
+ * Exactly one type of parameter must be provided
  */
 export const ValidatorSearchInputSchema = z
   .object({
     index: z.coerce.number().int().nonnegative().optional(),
+    indexes: z
+      .string()
+      .transform((s) =>
+        s
+          .split(',')
+          .map((v) => parseInt(v.trim(), 10))
+          .filter((n) => !isNaN(n)),
+      )
+      .optional(),
     pubkey: z.string().length(98).optional(),
+    pubkeys: z
+      .string()
+      .transform((s) =>
+        s
+          .split(',')
+          .map((v) => v.trim())
+          .filter(Boolean),
+      )
+      .optional(),
     withdrawalAddress: z.string().length(42).optional(),
+    withdrawalAddresses: z
+      .string()
+      .transform((s) =>
+        s
+          .split(',')
+          .map((v) => v.trim())
+          .filter(Boolean),
+      )
+      .optional(),
   })
   .refine(
     (data) => {
-      const providedFields = [data.index, data.pubkey, data.withdrawalAddress].filter(
-        (field) => field !== undefined,
+      const providedFields = [
+        data.index,
+        data.indexes,
+        data.pubkey,
+        data.pubkeys,
+        data.withdrawalAddress,
+        data.withdrawalAddresses,
+      ].filter(
+        (field) => field !== undefined && (Array.isArray(field) ? field.length > 0 : true),
       ).length;
       return providedFields === 1;
     },
-    { message: 'Exactly one of index, pubkey, or withdrawalAddress must be provided.' },
+    {
+      message: 'Exactly one of indexe/s, pubkey/s or withdrawalAddress/es must be provided.',
+    },
   );
 
 export type ValidatorSearchInput = z.infer<typeof ValidatorSearchInputSchema>;
@@ -145,6 +181,7 @@ export type ValidatorSearchInput = z.infer<typeof ValidatorSearchInputSchema>;
 export const ValidatorSearchResultSchema = z.object({
   index: z.number().int(),
   pubkey: z.string().nullable(),
+  withdrawalAddress: z.string().nullable(),
 });
 
 export type ValidatorSearchResult = z.infer<typeof ValidatorSearchResultSchema>;

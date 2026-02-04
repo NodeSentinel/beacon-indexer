@@ -3,7 +3,7 @@
 import DashboardCard from '@/components/dashboard/card';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
-import type { Node } from '@/types/validator';
+import type { Node } from '@/types/cluster';
 
 interface NodeCardProps {
   node: Node;

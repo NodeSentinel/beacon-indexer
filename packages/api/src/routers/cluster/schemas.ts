@@ -120,7 +120,12 @@ export type ClusterWithCount = z.infer<typeof ClusterWithCountSchema>;
  * Cluster detail schema (for get endpoint) - includes validators and derived withdrawalAddresses
  */
 export const ClusterDetailSchema = ClusterSchema.extend({
-  validators: z.array(z.object({ validatorIndex: z.number() })),
+  validators: z.array(
+    z.object({
+      validatorIndex: z.number(),
+      withdrawalAddress: z.string().nullable(),
+    }),
+  ),
   withdrawalAddresses: z.array(z.string()),
 });
 
