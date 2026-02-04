@@ -3,7 +3,8 @@
 import { useState } from 'react';
 
 import GroupList from '@/components/validators/group-list';
-import type { ValidatorData, NodeFilter } from '@/types/validator';
+import type { NodeFilter } from '@/types/cluster';
+import type { ValidatorData } from '@/types/validator';
 import validatorMockJson from '@/validator-mock.json';
 
 const validatorData = validatorMockJson as ValidatorData;

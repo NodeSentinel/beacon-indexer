@@ -43,7 +43,10 @@ export const getCluster = publicProcedure
           feeRecipientAddress: cluster.feeRecipientAddress,
           ownerId: cluster.ownerId.toString(),
           createdAt: cluster.createdAt.toISOString(),
-          validators: cluster.validators.map(({ validatorIndex }) => ({ validatorIndex })),
+          validators: cluster.validators.map((cv) => ({
+            validatorIndex: cv.validatorIndex,
+            withdrawalAddress: cv.validator.withdrawalAddress,
+          })),
           withdrawalAddresses,
         },
         meta: { timestamp: new Date().toISOString() },

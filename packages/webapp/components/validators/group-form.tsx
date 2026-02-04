@@ -31,7 +31,7 @@ import { Label } from '@/components/ui/label';
 import { TooltipContent, TooltipTrigger, Tooltip, TooltipProvider } from '@/components/ui/tooltip';
 import { useMediaQuery } from '@/hooks/use-mobile';
 import { useToast } from '@/hooks/use-toast';
-import type { Group } from '@/types/validator';
+import type { Group } from '@/types/cluster';
 
 interface GroupFormProps {
   group: Group | null;

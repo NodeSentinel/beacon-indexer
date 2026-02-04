@@ -5,7 +5,7 @@ import { Settings } from 'lucide-react';
 import DashboardCard from '@/components/dashboard/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import type { Cluster } from '@/types/validator';
+import type { Cluster } from '@/types/cluster';
 
 interface ClusterCardProps {
   cluster: Cluster;

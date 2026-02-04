@@ -1,7 +1,8 @@
 'use client';
 
 import DashboardCard from '@/components/dashboard/card';
-import type { Stats, Group, GroupFilter } from '@/types/validator';
+import type { Group, GroupFilter } from '@/types/cluster';
+import type { Stats } from '@/types/validator';
 
 interface StatsOverviewProps {
   stats: Stats;

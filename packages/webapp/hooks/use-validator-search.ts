@@ -1,12 +1,13 @@
 'use client';
 
-import { useMutation } from '@tanstack/react-query';
+import { useMutation, useQueries } from '@tanstack/react-query';
 
 import { orpcClient } from '@/lib/orpc';
 
 export interface ValidatorSearchResult {
   index: number;
   pubkey: string | null;
+  withdrawalAddress: string | null;
 }
 
 /**
@@ -20,6 +21,22 @@ export function useSearchByIndex() {
         return null;
       }
       return response.data.validators[0];
+    },
+  });
+}
+
+/**
+ * Hook to search validators by multiple indexes (bulk)
+ */
+export function useSearchByIndexes() {
+  return useMutation({
+    mutationFn: async (indexes: number[]): Promise<ValidatorSearchResult[]> => {
+      if (indexes.length === 0) return [];
+      const response = await orpcClient.validator.search({ indexes: indexes.join(',') });
+      if (!response.success || !response.data) {
+        throw new Error('Failed to search validators');
+      }
+      return response.data.validators;
     },
   });
 }
@@ -40,7 +57,23 @@ export function useSearchByPubkey() {
 }
 
 /**
- * Hook to search validators by withdrawal address
+ * Hook to search validators by multiple pubkeys (bulk)
+ */
+export function useSearchByPubkeys() {
+  return useMutation({
+    mutationFn: async (pubkeys: string[]): Promise<ValidatorSearchResult[]> => {
+      if (pubkeys.length === 0) return [];
+      const response = await orpcClient.validator.search({ pubkeys: pubkeys.join(',') });
+      if (!response.success || !response.data) {
+        throw new Error('Failed to search validators');
+      }
+      return response.data.validators;
+    },
+  });
+}
+
+/**
+ * Hook to search validators by withdrawal address (for user-triggered searches)
  */
 export function useSearchByWithdrawalAddress() {
   return useMutation({
@@ -52,4 +85,54 @@ export function useSearchByWithdrawalAddress() {
       return response.data.validators;
     },
   });
+}
+
+/**
+ * Hook to search validators by multiple withdrawal addresses (bulk)
+ */
+export function useSearchByWithdrawalAddresses() {
+  return useMutation({
+    mutationFn: async (withdrawalAddresses: string[]): Promise<ValidatorSearchResult[]> => {
+      if (withdrawalAddresses.length === 0) return [];
+      const response = await orpcClient.validator.search({
+        withdrawalAddresses: withdrawalAddresses.join(','),
+      });
+      if (!response.success || !response.data) {
+        throw new Error('Failed to search validators');
+      }
+      return response.data.validators;
+    },
+  });
+}
+
+/**
+ * Hook to fetch validators for multiple withdrawal addresses (for background data fetching)
+ * Uses useQueries for automatic caching and deduplication
+ */
+export function useGetValidatorsFromWithdrawalAddresses(withdrawalAddresses: string[]) {
+  const results = useQueries({
+    queries: withdrawalAddresses.map((waAddress) => ({
+      queryKey: ['validators', 'byWithdrawalAddress', waAddress],
+      queryFn: async (): Promise<ValidatorSearchResult[]> => {
+        const response = await orpcClient.validator.search({ withdrawalAddress: waAddress });
+        if (!response.success || !response.data) {
+          throw new Error('Failed to search validators');
+        }
+        return response.data.validators;
+      },
+      staleTime: 5 * 60 * 1000, // 5 minutes
+    })),
+  });
+
+  const isLoading = results.some((r) => r.isLoading);
+  const validatorsByWithdrawalAddress: Record<string, ValidatorSearchResult[]> = {};
+
+  for (let i = 0; i < withdrawalAddresses.length; i++) {
+    const result = results[i];
+    if (result.data) {
+      validatorsByWithdrawalAddress[withdrawalAddresses[i]] = result.data;
+    }
+  }
+
+  return { validatorsByWithdrawalAddress, isLoading };
 }

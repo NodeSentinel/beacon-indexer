@@ -5,7 +5,7 @@ import { Settings } from 'lucide-react';
 import DashboardCard from '@/components/dashboard/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import type { Group } from '@/types/validator';
+import type { Group } from '@/types/cluster';
 
 interface GroupCardProps {
   group: Group;

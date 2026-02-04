@@ -4,7 +4,8 @@ import { Settings } from 'lucide-react';
 
 import DashboardCard from '@/components/dashboard/card';
 import { Button } from '@/components/ui/button';
-import type { Group, Stats } from '@/types/validator';
+import type { Group } from '@/types/cluster';
+import type { Stats } from '@/types/validator';
 
 interface GroupOverviewProps {
   group: Group;
