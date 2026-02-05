@@ -4,14 +4,14 @@ import { useState } from 'react';
 
 import ChainStatistics from '@/components/dashboard/chain-statistics';
 import { Sheet, SheetContent, SheetTitle } from '@/components/ui/sheet';
-import ClusterControls from '@/components/validators/cluster-controls';
 import ClusterForm from '@/components/validators/cluster-form';
-import ClusterList from '@/components/validators/cluster-list';
-import EventsFeed from '@/components/validators/events-feed';
+import ClusterOverviewContent from '@/components/validators/cluster-overview-content';
+import EventsFeedContent from '@/components/validators/events-feed-content';
 import NotificationBanner, { type Notification } from '@/components/validators/notification-banner';
-import PerformanceMetrics from '@/components/validators/performance-metrics';
+import PerformanceMetricsContent from '@/components/validators/performance-metrics-content';
+import UserDashboard from '@/components/validators/user-dashboard';
 import { useClusters } from '@/hooks/use-clusters';
-import type { Cluster, ClusterFilter } from '@/types/cluster';
+import type { Cluster } from '@/types/cluster';
 import type { Stats, MissedAttestation, ValidatorEvent } from '@/types/validator';
 
 const demoNotifications: Notification[] = [];
@@ -47,8 +47,8 @@ const emptyMissedAttestations: MissedAttestation[] = [];
 const emptyEvents: ValidatorEvent[] = [];
 
 export default function DashboardOverview() {
-  const [selectedCluster, setSelectedCluster] = useState<ClusterFilter>('all');
   const [clusterFormOpen, setClusterFormOpen] = useState(false);
+  const [managingClusterId, setManagingClusterId] = useState<string | null>(null);
 
   const { data: apiClusters, isLoading: clustersLoading, refetch: refetchClusters } = useClusters();
 
@@ -78,28 +78,27 @@ export default function DashboardOverview() {
 
       <ChainStatistics gnoPrice={gnoPrice} />
 
-      <ClusterControls
+      <UserDashboard
         clusters={clusters}
-        selectedCluster={selectedCluster}
-        onClusterChange={setSelectedCluster}
-        onAddCluster={() => setClusterFormOpen(true)}
-      />
-
-      <ClusterList
-        clusters={clusters}
-        selectedFilter={selectedCluster}
-        stats={defaultStats}
-        gnoPrice={gnoPrice}
         isLoading={clustersLoading}
-        onClusterEdited={() => refetchClusters()}
         onAddCluster={() => setClusterFormOpen(true)}
-      />
-
-      {/* Performance Metrics */}
-      <PerformanceMetrics data={emptyMissedAttestations} />
-
-      {/* Events Feed */}
-      <EventsFeed events={emptyEvents} validators={[]} gnoPrice={gnoPrice} />
+      >
+        {({ displayCluster, isAllSelected }) => (
+          <>
+            {displayCluster && (
+              <ClusterOverviewContent
+                cluster={displayCluster}
+                stats={defaultStats}
+                gnoPrice={gnoPrice}
+                showManageButton={!isAllSelected}
+                onManage={() => setManagingClusterId(displayCluster.id)}
+              />
+            )}
+            <PerformanceMetricsContent data={emptyMissedAttestations} />
+            <EventsFeedContent events={emptyEvents} validators={[]} gnoPrice={gnoPrice} />
+          </>
+        )}
+      </UserDashboard>
 
       <Sheet open={clusterFormOpen} onOpenChange={setClusterFormOpen}>
         <SheetContent side="right" className="w-full sm:max-w-2xl overflow-y-auto">
@@ -108,6 +107,22 @@ export default function DashboardOverview() {
             <ClusterForm
               clusterId={null}
               onClose={() => setClusterFormOpen(false)}
+              onSaved={() => refetchClusters()}
+            />
+          </div>
+        </SheetContent>
+      </Sheet>
+
+      <Sheet
+        open={!!managingClusterId}
+        onOpenChange={(open) => !open && setManagingClusterId(null)}
+      >
+        <SheetContent side="right" className="w-full sm:max-w-2xl overflow-y-auto">
+          <SheetTitle className="sr-only">Manage Cluster</SheetTitle>
+          <div className="mt-6">
+            <ClusterForm
+              clusterId={managingClusterId}
+              onClose={() => setManagingClusterId(null)}
               onSaved={() => refetchClusters()}
             />
           </div>
