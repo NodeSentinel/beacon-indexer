@@ -74,9 +74,7 @@ export default function EventsFeedContent({
     <div className="border-t border-border/50 p-4 md:p-6">
       {/* Header with title and filter */}
       <div className="flex items-center justify-between gap-4 mb-4">
-        <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wide">
-          EVENTS
-        </h3>
+        <h3 className="text-xs font-medium text-muted-foreground tracking-wider">EVENTS</h3>
         <Input
           placeholder="Filter validators (e.g., 123, 456)"
           value={validatorFilter}
