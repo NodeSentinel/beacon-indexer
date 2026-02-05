@@ -3,7 +3,6 @@
 import { Plus } from 'lucide-react';
 import { useState, useEffect, useRef, useMemo } from 'react';
 
-import { Card, CardContent } from '@/components/ui/card';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { cn } from '@/lib/utils';
 import { CLUSTER_FILTER_ALL, type Cluster, type ClusterFilter } from '@/types/cluster';
@@ -87,7 +86,7 @@ export default function UserDashboard({
   }
 
   return (
-    <Card>
+    <div className="bg-card rounded-lg">
       {/* Sentinel element for intersection observer */}
       <div ref={sentinelRef} className="h-0" />
 
@@ -98,7 +97,7 @@ export default function UserDashboard({
       >
         <div
           className={cn(
-            'sticky top-0 z-10 bg-pop rounded-t-lg transition-shadow duration-200 overflow-x-auto scrollbar-none',
+            'sticky top-0 z-10 bg-card rounded-t-lg transition-shadow duration-200 overflow-x-auto scrollbar-none',
             isSticky && 'shadow-md',
           )}
         >
@@ -122,33 +121,29 @@ export default function UserDashboard({
           </TabsList>
         </div>
 
-        <CardContent className="p-0">
-          <TabsContent value={selectedCluster} className="m-0">
-            {children({ selectedCluster, displayCluster, isAllSelected })}
-          </TabsContent>
-        </CardContent>
+        <TabsContent value={selectedCluster} className="m-0">
+          {children({ selectedCluster, displayCluster, isAllSelected })}
+        </TabsContent>
       </Tabs>
-    </Card>
+    </div>
   );
 }
 
 function UserDashboardSkeleton() {
   return (
-    <Card>
-      <div className="p-2">
+    <div className="bg-card rounded-lg">
+      <div className="p-3">
         <div className="flex gap-2">
           <div className="h-9 w-16 bg-foreground/5 rounded-md animate-pulse" />
           <div className="h-9 w-24 bg-foreground/5 rounded-md animate-pulse" />
           <div className="h-9 w-24 bg-foreground/5 rounded-md animate-pulse" />
         </div>
       </div>
-      <CardContent>
-        <div className="space-y-4">
-          <div className="h-32 bg-foreground/5 rounded animate-pulse" />
-          <div className="h-64 bg-foreground/5 rounded animate-pulse" />
-          <div className="h-48 bg-foreground/5 rounded animate-pulse" />
-        </div>
-      </CardContent>
-    </Card>
+      <div className="p-4 space-y-4">
+        <div className="h-32 bg-foreground/5 rounded animate-pulse" />
+        <div className="h-64 bg-foreground/5 rounded animate-pulse" />
+        <div className="h-48 bg-foreground/5 rounded animate-pulse" />
+      </div>
+    </div>
   );
 }
