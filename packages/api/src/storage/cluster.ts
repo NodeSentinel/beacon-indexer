@@ -37,7 +37,7 @@ export class ClusterStorage {
   }
 
   /**
-   * Find cluster by ID with validators and their withdrawal addresses
+   * Find cluster by ID with validators and their details
    * Optimized to fetch all data in a single query
    */
   async findByIdWithValidators(id: string) {
@@ -48,7 +48,13 @@ export class ClusterStorage {
           select: {
             validatorIndex: true,
             validator: {
-              select: { withdrawalAddress: true },
+              select: {
+                withdrawalAddress: true,
+                status: true,
+                balance: true,
+                effectiveBalance: true,
+                pubkey: true,
+              },
             },
           },
         },

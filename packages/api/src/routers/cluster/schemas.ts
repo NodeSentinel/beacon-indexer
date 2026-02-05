@@ -117,16 +117,28 @@ export const ClusterWithCountSchema = ClusterSchema.extend({
 export type ClusterWithCount = z.infer<typeof ClusterWithCountSchema>;
 
 /**
+ * Cluster validator detail schema
+ */
+export const ClusterValidatorDetailSchema = z.object({
+  validatorIndex: z.number(),
+  withdrawalAddress: z.string().nullable(),
+  status: z.number().nullable(),
+  balance: z.string(),
+  effectiveBalance: z.string().nullable(),
+  pubkey: z.string().nullable(),
+});
+
+export type ClusterValidatorDetail = z.infer<typeof ClusterValidatorDetailSchema>;
+
+/**
  * Cluster detail schema (for get endpoint) - includes validators and derived withdrawalAddresses
  */
 export const ClusterDetailSchema = ClusterSchema.extend({
-  validators: z.array(
-    z.object({
-      validatorIndex: z.number(),
-      withdrawalAddress: z.string().nullable(),
-    }),
-  ),
+  validators: z.array(ClusterValidatorDetailSchema),
   withdrawalAddresses: z.array(z.string()),
+  // Aggregated stats
+  totalBalance: z.string(),
+  totalEffectiveBalance: z.string(),
 });
 
 export type ClusterDetail = z.infer<typeof ClusterDetailSchema>;

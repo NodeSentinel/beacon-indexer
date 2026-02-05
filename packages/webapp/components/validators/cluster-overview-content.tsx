@@ -83,34 +83,42 @@ export default function ClusterOverviewContent({
 
   return (
     <div className="border-t border-border/50 p-4 md:p-6">
-      {/* Header with optional Manage button */}
-      {showManageButton && onManage && (
-        <div className="flex justify-end mb-4">
-          <Button
-            variant="outline"
-            size="sm"
-            className="bg-transparent shrink-0"
-            onClick={onManage}
-          >
-            <Settings className="size-4 mr-2" />
-            <span className="hidden sm:inline">Manage Cluster</span>
-          </Button>
-        </div>
-      )}
-
       <div className="space-y-4 md:space-y-6">
-        {/* Validators status badges */}
-        <div className="flex items-center gap-3 md:gap-4 flex-wrap pb-2.5 md:pb-3 border-b border-border/50">
-          <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-primary/10 text-primary border border-primary/20 font-semibold text-xs md:text-sm">
-            {totalValidators} VALIDATOR{totalValidators !== 1 ? 'S' : ''}
-          </span>
-          {getStatusDisplay().map((status) => (
-            <div key={status.label} className="flex items-center gap-1.5">
-              <span className="text-sm">{status.emoji}</span>
-              <span className={`text-sm font-semibold ${status.color}`}>{status.count}</span>
-              <span className="text-xs text-muted-foreground capitalize">{status.label}</span>
-            </div>
-          ))}
+        {/* Unified header: Cluster name, validators status, and manage button */}
+        <div className="flex items-center justify-between gap-3 pb-2.5 md:pb-3 border-b border-border/50">
+          <div className="flex items-center gap-3 md:gap-4 flex-wrap min-w-0">
+            {/* Cluster name */}
+            <h2 className="text-lg md:text-xl font-semibold truncate">{cluster.name}</h2>
+
+            {/* Validator count badge */}
+            <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-primary/10 text-primary border border-primary/20 font-semibold text-xs md:text-sm shrink-0">
+              {totalValidators} VALIDATOR{totalValidators !== 1 ? 'S' : ''}
+            </span>
+
+            {/* Status badges */}
+            {getStatusDisplay().map((status) => (
+              <div key={status.label} className="flex items-center gap-1.5 shrink-0">
+                <span className="text-sm">{status.emoji}</span>
+                <span className={`text-sm font-semibold ${status.color}`}>{status.count}</span>
+                <span className="text-xs text-muted-foreground capitalize hidden sm:inline">
+                  {status.label}
+                </span>
+              </div>
+            ))}
+          </div>
+
+          {/* Manage button */}
+          {showManageButton && onManage && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="bg-transparent shrink-0"
+              onClick={onManage}
+            >
+              <Settings className="size-4 md:mr-2" />
+              <span className="hidden md:inline">Manage</span>
+            </Button>
+          )}
         </div>
 
         {/* Balances section */}

@@ -3,6 +3,7 @@ import { ClusterDetailSchema, ClusterIdParamSchema } from './schemas.js';
 import { publicProcedure } from '@/lib/orpc.js';
 import { ClusterStorage } from '@/storage/cluster.js';
 import { ApiResponseSchema } from '@/utils/response.js';
+import { formatBalance } from '@/utils/tokenFormat.js';
 
 /**
  * Get cluster details with validators
@@ -34,6 +35,17 @@ export const getCluster = publicProcedure
         ),
       );
 
+      // Calculate aggregated balances
+      let totalBalance = BigInt(0);
+      let totalEffectiveBalance = BigInt(0);
+
+      for (const cv of cluster.validators) {
+        totalBalance += cv.validator.balance;
+        if (cv.validator.effectiveBalance) {
+          totalEffectiveBalance += cv.validator.effectiveBalance;
+        }
+      }
+
       return {
         success: true,
         data: {
@@ -46,8 +58,16 @@ export const getCluster = publicProcedure
           validators: cluster.validators.map((cv) => ({
             validatorIndex: cv.validatorIndex,
             withdrawalAddress: cv.validator.withdrawalAddress,
+            status: cv.validator.status,
+            balance: formatBalance(cv.validator.balance),
+            effectiveBalance: cv.validator.effectiveBalance
+              ? formatBalance(cv.validator.effectiveBalance)
+              : null,
+            pubkey: cv.validator.pubkey,
           })),
           withdrawalAddresses,
+          totalBalance: formatBalance(totalBalance),
+          totalEffectiveBalance: formatBalance(totalEffectiveBalance),
         },
         meta: { timestamp: new Date().toISOString() },
       };

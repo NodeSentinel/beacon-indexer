@@ -11,6 +11,9 @@ interface UserDashboardProps {
   clusters: Cluster[];
   isLoading?: boolean;
   onAddCluster: () => void;
+  hideAllTab?: boolean;
+  selectedCluster?: ClusterFilter;
+  onClusterChange?: (clusterId: ClusterFilter) => void;
   children: (props: {
     selectedCluster: ClusterFilter;
     displayCluster: Cluster | null;
@@ -52,11 +55,30 @@ export default function UserDashboard({
   clusters,
   isLoading,
   onAddCluster,
+  hideAllTab = false,
+  selectedCluster: controlledSelectedCluster,
+  onClusterChange,
   children,
 }: UserDashboardProps) {
-  const [selectedCluster, setSelectedCluster] = useState<ClusterFilter>(CLUSTER_FILTER_ALL);
+  // Internal state for uncontrolled mode
+  const [internalSelectedCluster, setInternalSelectedCluster] =
+    useState<ClusterFilter>(CLUSTER_FILTER_ALL);
   const [isSticky, setIsSticky] = useState(false);
   const sentinelRef = useRef<HTMLDivElement>(null);
+
+  // Use controlled or uncontrolled state
+  const isControlled = controlledSelectedCluster !== undefined;
+  const selectedCluster = isControlled ? controlledSelectedCluster : internalSelectedCluster;
+  const setSelectedCluster = isControlled
+    ? (value: ClusterFilter) => onClusterChange?.(value)
+    : setInternalSelectedCluster;
+
+  // Auto-select first cluster when hideAllTab is true and clusters are loaded
+  useEffect(() => {
+    if (hideAllTab && clusters.length > 0 && selectedCluster === CLUSTER_FILTER_ALL) {
+      setSelectedCluster(clusters[0].id);
+    }
+  }, [hideAllTab, clusters, selectedCluster, setSelectedCluster]);
 
   // Intersection Observer for sticky detection
   useEffect(() => {
@@ -102,7 +124,7 @@ export default function UserDashboard({
           )}
         >
           <TabsList className="bg-transparent p-3 gap-2 h-auto">
-            <TabsTrigger value={CLUSTER_FILTER_ALL}>All</TabsTrigger>
+            {!hideAllTab && <TabsTrigger value={CLUSTER_FILTER_ALL}>All</TabsTrigger>}
             {clusters.map((cluster) => (
               <TabsTrigger key={cluster.id} value={cluster.id}>
                 {cluster.name}
