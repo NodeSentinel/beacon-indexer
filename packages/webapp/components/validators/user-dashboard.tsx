@@ -102,13 +102,11 @@ export default function UserDashboard({
             isSticky && 'shadow-md',
           )}
         >
-          <div className="overflow-x-auto scrollbar-none">
-            <TabsList className="w-auto min-w-full justify-start bg-transparent p-2 gap-1">
-              <TabsTrigger value={CLUSTER_FILTER_ALL} className="shrink-0">
-                All
-              </TabsTrigger>
+          <div className="overflow-x-auto scrollbar-none p-3">
+            <TabsList className="w-fit gap-1">
+              <TabsTrigger value={CLUSTER_FILTER_ALL}>All</TabsTrigger>
               {clusters.map((cluster) => (
-                <TabsTrigger key={cluster.id} value={cluster.id} className="shrink-0">
+                <TabsTrigger key={cluster.id} value={cluster.id}>
                   {cluster.name}
                 </TabsTrigger>
               ))}
@@ -118,7 +116,7 @@ export default function UserDashboard({
                   onAddCluster();
                 }}
                 aria-label="Add cluster"
-                className="shrink-0 inline-flex h-[calc(100%-1px)] items-center justify-center gap-1.5 rounded-md px-3 py-2 text-sm font-medium text-foreground/60 hover:text-foreground hover:bg-foreground/5 transition-colors"
+                className="inline-flex h-full items-center justify-center rounded-md px-3 text-sm font-medium text-foreground/60 hover:text-foreground hover:bg-foreground/10 transition-colors"
               >
                 <Plus className="size-4" />
               </button>
