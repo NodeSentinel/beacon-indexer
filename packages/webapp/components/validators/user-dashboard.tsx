@@ -1,7 +1,7 @@
 'use client';
 
 import { Plus } from 'lucide-react';
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 
 import { Card, CardContent } from '@/components/ui/card';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
@@ -33,7 +33,7 @@ function getAggregatedCluster(clusters: Cluster[]): Cluster {
       : 0;
 
   return {
-    id: 'all',
+    id: CLUSTER_FILTER_ALL,
     name: 'All Clusters',
     visibility: 'private',
     ownerId: '',
@@ -57,7 +57,6 @@ export default function UserDashboard({
 }: UserDashboardProps) {
   const [selectedCluster, setSelectedCluster] = useState<ClusterFilter>(CLUSTER_FILTER_ALL);
   const [isSticky, setIsSticky] = useState(false);
-  const tabsRef = useRef<HTMLDivElement>(null);
   const sentinelRef = useRef<HTMLDivElement>(null);
 
   // Intersection Observer for sticky detection
@@ -77,9 +76,11 @@ export default function UserDashboard({
   }, []);
 
   const isAllSelected = selectedCluster === CLUSTER_FILTER_ALL;
-  const displayCluster = isAllSelected
-    ? getAggregatedCluster(clusters)
-    : clusters.find((c) => c.id === selectedCluster) || null;
+  const displayCluster = useMemo(() => {
+    return isAllSelected
+      ? getAggregatedCluster(clusters)
+      : clusters.find((c) => c.id === selectedCluster) || null;
+  }, [isAllSelected, clusters, selectedCluster]);
 
   if (isLoading) {
     return <UserDashboardSkeleton />;
@@ -96,7 +97,6 @@ export default function UserDashboard({
         className="flex flex-col"
       >
         <div
-          ref={tabsRef}
           className={cn(
             'sticky top-0 z-10 bg-pop rounded-t-lg transition-shadow duration-200',
             isSticky && 'shadow-md',
@@ -117,6 +117,7 @@ export default function UserDashboard({
                   e.preventDefault();
                   onAddCluster();
                 }}
+                aria-label="Add cluster"
                 className="shrink-0 inline-flex h-[calc(100%-1px)] items-center justify-center gap-1.5 rounded-md px-3 py-2 text-sm font-medium text-foreground/60 hover:text-foreground hover:bg-foreground/5 transition-colors"
               >
                 <Plus className="size-4" />
