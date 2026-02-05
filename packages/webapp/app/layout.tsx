@@ -28,7 +28,13 @@ export const metadata: Metadata = {
     default: 'NodeSentinel',
   },
   description: 'Beacon Chain validator monitoring dashboard',
-  generator: 'v0.app',
+  icons: {
+    icon: [
+      { url: '/favicon.ico', sizes: '48x48' },
+      { url: '/icon.png', sizes: '32x32', type: 'image/png' },
+    ],
+    apple: '/apple-icon.png',
+  },
 };
 
 export default function RootLayout({
