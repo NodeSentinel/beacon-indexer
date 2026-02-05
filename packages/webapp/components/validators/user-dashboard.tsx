@@ -98,30 +98,28 @@ export default function UserDashboard({
       >
         <div
           className={cn(
-            'sticky top-0 z-10 bg-pop rounded-t-lg transition-shadow duration-200',
+            'sticky top-0 z-10 bg-pop rounded-t-lg transition-shadow duration-200 overflow-x-auto scrollbar-none',
             isSticky && 'shadow-md',
           )}
         >
-          <div className="overflow-x-auto scrollbar-none p-3">
-            <TabsList className="w-fit gap-1">
-              <TabsTrigger value={CLUSTER_FILTER_ALL}>All</TabsTrigger>
-              {clusters.map((cluster) => (
-                <TabsTrigger key={cluster.id} value={cluster.id}>
-                  {cluster.name}
-                </TabsTrigger>
-              ))}
-              <button
-                onClick={(e) => {
-                  e.preventDefault();
-                  onAddCluster();
-                }}
-                aria-label="Add cluster"
-                className="inline-flex h-full items-center justify-center rounded-md px-3 text-sm font-medium text-foreground/60 hover:text-foreground hover:bg-foreground/10 transition-colors"
-              >
-                <Plus className="size-4" />
-              </button>
-            </TabsList>
-          </div>
+          <TabsList className="bg-transparent p-3 gap-2 h-auto">
+            <TabsTrigger value={CLUSTER_FILTER_ALL}>All</TabsTrigger>
+            {clusters.map((cluster) => (
+              <TabsTrigger key={cluster.id} value={cluster.id}>
+                {cluster.name}
+              </TabsTrigger>
+            ))}
+            <button
+              onClick={(e) => {
+                e.preventDefault();
+                onAddCluster();
+              }}
+              aria-label="Add cluster"
+              className="inline-flex items-center justify-center rounded-md px-3 py-2 text-sm font-medium text-foreground/60 hover:text-foreground hover:bg-foreground/10 transition-colors"
+            >
+              <Plus className="size-4" />
+            </button>
+          </TabsList>
         </div>
 
         <CardContent className="p-0">
