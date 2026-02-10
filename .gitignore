@@ -102,3 +102,7 @@ jspm_packages/
 # Temporary folders
 tmp/
 temp/
+
+thoughts/*
+!thoughts/shared/
+!thoughts/global/
