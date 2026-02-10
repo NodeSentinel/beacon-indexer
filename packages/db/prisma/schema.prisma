@@ -321,6 +321,17 @@ model ValidatorsSnapshotStats {
     @@map("validators_status_summary")
 }
 
+model ChainEpochStats {
+    epoch                   Int    @id @map("epoch")
+    totalActiveValidators   Int    @map("total_active_validators")
+    totalStaked             BigInt @map("total_staked") // sum of effective balances
+    validatorsEntering      Int    @map("validators_entering") // pending activation
+    validatorsExiting       Int    @map("validators_exiting") // pending exit
+    validatorsConsolidating Int    @map("validators_consolidating")
+
+    @@map("chain_epoch_stats")
+}
+
 //-------------------------------------
 // API
 //-------------------------------------

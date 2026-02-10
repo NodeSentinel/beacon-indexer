@@ -227,6 +227,18 @@ CREATE TABLE "public"."validators_status_summary" (
 );
 
 -- CreateTable
+CREATE TABLE "public"."chain_epoch_stats" (
+    "epoch" INTEGER NOT NULL,
+    "total_active_validators" INTEGER NOT NULL,
+    "total_staked" BIGINT NOT NULL,
+    "validators_entering" INTEGER NOT NULL,
+    "validators_exiting" INTEGER NOT NULL,
+    "validators_consolidating" INTEGER NOT NULL,
+
+    CONSTRAINT "chain_epoch_stats_pkey" PRIMARY KEY ("epoch")
+);
+
+-- CreateTable
 CREATE TABLE "public"."user" (
     "id" BIGINT NOT NULL,
     "user_id" BIGINT NOT NULL,
