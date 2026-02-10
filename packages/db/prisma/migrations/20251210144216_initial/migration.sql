@@ -97,7 +97,6 @@ CREATE TABLE "public"."indexer_config" (
 
     CONSTRAINT "indexer_config_pkey" PRIMARY KEY ("id")
 );
-
 -- CreateTable (Partitioned by slot range)
 -- Committee table is partitioned by slot number to improve query performance
 -- Partitions are created dynamically per hour when processing epochs
@@ -254,6 +253,7 @@ CREATE TABLE "public"."cluster" (
     "name" TEXT NOT NULL,
     "owner_id" BIGINT NOT NULL,
     "visibility" "public"."ClusterVisibility" NOT NULL DEFAULT 'private',
+    "fee_recipient_address" VARCHAR(42),
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT "cluster_pkey" PRIMARY KEY ("id")
