@@ -33,3 +33,13 @@ You are tasked with creating git commits for the changes made during this sessio
 - Keep commits focused and atomic when possible
 - The user trusts your judgment - they asked you to commit
 - **IMPORTANT**: - never stop and ask for feedback from the user.
+
+## Completion
+
+After all commits are created, present the following:
+
+```
+Commits created successfully.
+
+Next step: run `/describe_pr` or `/ci_describe_pr` to generate the PR description.
+```

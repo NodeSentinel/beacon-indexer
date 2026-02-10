@@ -87,3 +87,13 @@ You are tasked with generating a comprehensive pull request description followin
 - If the PR touches multiple components, organize the description accordingly
 - Always attempt to run verification commands when possible
 - Clearly communicate which verification steps need manual testing
+
+## Completion
+
+After the PR description is updated, present the following:
+
+```
+PR description updated successfully.
+
+The pipeline is complete. You can now push your branch and request review.
+```

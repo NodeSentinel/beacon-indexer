@@ -177,7 +177,7 @@ After structure approval:
      - TICKET-ID is the ticket number (omit if no ticket)
      - description is a brief kebab-case description
    - Examples:
-     - With ticket: `2025-01-08-TICKET-ID-parent-child-tracking.md`
+     - With ticket: `2025-01-08-GH-42-parent-child-tracking.md`
      - Without ticket: `2025-01-08-improve-error-handling.md`
 2. **Use this template structure**:
 
@@ -458,3 +458,18 @@ Based on the ticket, I understand we need to track parent-child relationships fo
 
 [Interactive process continues...]
 ```
+
+## Completion
+
+When the plan is written and the user has approved the structure, present the following:
+
+```
+Plan complete. Document saved to: `{path to plan file}`
+
+Please review the generated plan. You can:
+
+1. **No changes needed** — start a new session and run `/implement_plan` to begin implementation.
+2. **Provide feedback** — tell me what to adjust and I'll update the plan. You can also run `/iterate_plan` in a new session to revise it later.
+```
+
+Do NOT continue to the next pipeline step in this session. The user should start `/implement_plan` in a fresh session so it gets full context from the plan artifact.

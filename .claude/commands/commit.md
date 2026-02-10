@@ -44,3 +44,13 @@ You are tasked with creating git commits for the changes made during this sessio
 - Group related changes together
 - Keep commits focused and atomic when possible
 - The user trusts your judgment - they asked you to commit
+
+## Completion
+
+After all commits are created, present the following:
+
+```
+Commits created successfully.
+
+Next step: run `/describe_pr` in a new session to generate the PR description.
+```

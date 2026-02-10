@@ -89,3 +89,18 @@ If the plan has existing checkmarks:
 - Verify previous work only if something seems off
 
 Remember: You're implementing a solution, not just checking boxes. Keep the end goal in mind and maintain forward momentum.
+
+## Completion
+
+When all phases are implemented and verified, present the following:
+
+```
+Implementation complete. All phases have been executed and verified.
+
+You can:
+
+1. **No changes needed** — start a new session and run `/validate_plan` to verify the full implementation, then `/commit` to create commits.
+2. **Provide feedback** — tell me what to adjust and I'll make changes.
+```
+
+Do NOT continue to the next pipeline step in this session. The user should start `/validate_plan` in a fresh session so it gets full context.

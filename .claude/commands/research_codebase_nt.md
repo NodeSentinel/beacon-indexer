@@ -86,7 +86,7 @@ Then wait for the user's research query.
        - TICKET-ID is the ticket number (omit if no ticket)
        - description is a brief kebab-case description of the research topic
      - Examples:
-       - With ticket: `2025-01-08-TICKET-ID-parent-child-tracking.md`
+       - With ticket: `2025-01-08-GH-42-parent-child-tracking.md`
        - Without ticket: `2025-01-08-authentication-flow.md`
 
 6. **Generate research document:**
@@ -200,3 +200,16 @@ Then wait for the user's research query.
   - Update frontmatter when adding follow-up research
   - Use snake_case for multi-word field names (e.g., `last_updated`, `git_commit`)
   - Tags should be relevant to the research topic and components studied
+
+## Completion
+
+When the research is complete, present the following to the user:
+
+```
+Research complete.
+
+You can:
+
+1. **No changes needed** — the research output is in this conversation. Run `/create_plan_nt` to plan the implementation, or start a new session with `/create_plan` if you prefer a persistent plan.
+2. **Provide feedback** — tell me what to adjust and I'll update the research.
+```

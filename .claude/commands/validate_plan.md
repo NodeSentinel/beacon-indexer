@@ -177,3 +177,16 @@ Recommended workflow:
 The validation works best after commits are made, as it can analyze the git history to understand what was implemented.
 
 Remember: Good validation catches issues before they reach production. Be constructive but thorough in identifying gaps or improvements.
+
+## Completion
+
+When validation is complete, present the following:
+
+```
+Validation complete. Results: {X passed, Y failed}
+
+You can:
+
+1. **All checks passed** — start a new session and run `/commit` to create atomic commits, then `/describe_pr` to generate the PR description.
+2. **Issues found** — review the validation report above. Fix the issues and re-run `/validate_plan`, or run `/implement_plan` to address specific phases.
+```

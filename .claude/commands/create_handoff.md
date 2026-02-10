@@ -10,7 +10,7 @@ You are tasked with writing a handoff document to hand off your work to another 
 
 ### 1. Filepath & Metadata
 
-Use the following information to understand how to create your document: - create your file under `thoughts/shared/handoffs/TICKET-ID/YYYY-MM-DD_HH-MM-SS_TICKET-ID_description.md`, where: - YYYY-MM-DD is today's date - HH-MM-SS is the hours, minutes and seconds based on the current time, in 24-hour format (i.e. use `13:00` for `1:00 pm`) - TICKET-ID is the ticket number (replace with `general` if no ticket) - TICKET-ID is the ticket number (omit if no ticket) - description is a brief kebab-case description - Run `git rev-parse HEAD`, `git branch --show-current`, and `date` to gather metadata - Examples: - With ticket: `2025-01-08_13-55-22_TICKET-ID_create-context-compaction.md` - Without ticket: `2025-01-08_13-55-22_create-context-compaction.md`
+Use the following information to understand how to create your document: - create your file under `thoughts/shared/handoffs/TICKET-ID/YYYY-MM-DD_HH-MM-SS_TICKET-ID_description.md`, where: - YYYY-MM-DD is today's date - HH-MM-SS is the hours, minutes and seconds based on the current time, in 24-hour format (i.e. use `13:00` for `1:00 pm`) - TICKET-ID is the ticket number (replace with `general` if no ticket) - TICKET-ID is the ticket number (omit if no ticket) - description is a brief kebab-case description - Run `git rev-parse HEAD`, `git branch --show-current`, and `date` to gather metadata - Examples: - With ticket: `2025-01-08_13-55-22_GH-42_create-context-compaction.md` - Without ticket: `2025-01-08_13-55-22_create-context-compaction.md`
 
 ### 2. Handoff writing.
 
@@ -85,7 +85,7 @@ for example (between <example_response></example_response> XML tags - do NOT inc
 Handoff created and synced! You can resume from this handoff in a new session with the following command:
 
 ```bash
-/resume_handoff thoughts/shared/handoffs/TICKET-ID/2025-01-08_13-44-55_TICKET-ID_create-context-compaction.md
+/resume_handoff thoughts/shared/handoffs/GH-42/2025-01-08_13-44-55_GH-42_create-context-compaction.md
 ```
 
 </example_response>

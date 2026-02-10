@@ -172,7 +172,7 @@ After structure approval:
      - TICKET-ID is the ticket number (omit if no ticket)
      - description is a brief kebab-case description
    - Examples:
-     - With ticket: `2025-01-08-TICKET-ID-parent-child-tracking.md`
+     - With ticket: `2025-01-08-GH-42-parent-child-tracking.md`
      - Without ticket: `2025-01-08-improve-error-handling.md`
 2. **Use this template structure**:
 
@@ -452,4 +452,17 @@ Assistant: Let me read that ticket file completely first...
 Based on the ticket, I understand we need to track parent-child relationships for Claude sub-task events in the hld daemon. Before I start planning, I have some questions...
 
 [Interactive process continues...]
+```
+
+## Completion
+
+When the plan is complete and the user has approved the structure, present the following:
+
+```
+Plan complete.
+
+You can:
+
+1. **No changes needed** — the plan is in this conversation. You can run `/implement_plan` here, or start a new session if you prefer a fresh context.
+2. **Provide feedback** — tell me what to adjust and I'll update the plan. You can also run `/iterate_plan_nt` to revise it.
 ```
