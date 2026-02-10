@@ -218,14 +218,12 @@ After structure approval:
 
 ### Changes Required:
 
-#### 1. [Component/File Group]
-
-**File**: `path/to/file.ext`
-**Changes**: [Summary of changes]
-
-```[language]
-// Specific code to add/modify
-```
+- [ ] **1. [Component/File Group]**
+      **File**: `path/to/file.ext`
+      **Changes**: [Summary of changes]
+  ```[language]
+  // Specific code to add/modify
+  ```
 
 ### Success Criteria:
 

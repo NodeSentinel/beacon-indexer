@@ -26,7 +26,8 @@ Plans are carefully designed, but reality can be messy. Your job is to:
 - Follow the plan's intent while adapting to what you find
 - Implement each phase fully before moving to the next
 - Verify your work makes sense in the broader codebase context
-- Update checkboxes in the plan as you complete sections
+- **Check off each item in "Changes Required" immediately after applying it** (change `- [ ]` to `- [x]`)
+- Check off each item in "Success Criteria" after verifying it passes
 
 When things don't match the plan exactly, think about why and communicate clearly. The plan is your guide, but your judgment matters too.
 
@@ -82,11 +83,12 @@ Use sub-tasks sparingly - mainly for targeted debugging or exploring unfamiliar 
 
 ## Resuming Work
 
-If the plan has existing checkmarks:
+If the plan has existing checkmarks (`- [x]`):
 
-- Trust that completed work is done
-- Pick up from the first unchecked item
+- Trust that completed changes and verifications are done
+- Pick up from the first unchecked item in "Changes Required" or "Success Criteria"
 - Verify previous work only if something seems off
+- Do NOT re-apply changes that are already checked off
 
 Remember: You're implementing a solution, not just checking boxes. Keep the end goal in mind and maintain forward momentum.
 
