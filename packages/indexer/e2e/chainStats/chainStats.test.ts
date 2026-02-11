@@ -1,7 +1,7 @@
 import { BeaconTime } from '@beacon-indexer/beacon-utils/beaconTime';
 import { gnosisConfig } from '@beacon-indexer/beacon-utils/config/chain';
 import { PrismaClient } from '@beacon-indexer/db';
-import { describe, it, expect, afterAll, beforeEach } from 'vitest';
+import { describe, it, expect, afterAll, beforeAll, beforeEach } from 'vitest';
 
 import { ChainStatsController } from '@/src/services/consensus/controllers/chainStats.js';
 import { ChainStatsStorage } from '@/src/services/consensus/storage/chainStats.js';
@@ -17,7 +17,7 @@ describe('Chain Stats', () => {
   const TEST_EPOCH = 100;
   const LOOKBACK_SLOT = 0;
 
-  beforeEach(async () => {
+  beforeAll(async () => {
     if (!process.env.DATABASE_URL) {
       throw new Error('DATABASE_URL is not set');
     }
@@ -25,7 +25,9 @@ describe('Chain Stats', () => {
     prisma = new PrismaClient({
       datasources: { db: { url: process.env.DATABASE_URL } },
     });
+  });
 
+  beforeEach(async () => {
     beaconTime = new BeaconTime({
       genesisTimestamp: gnosisConfig.beacon.genesisTimestamp,
       slotDurationMs: gnosisConfig.beacon.slotDuration,

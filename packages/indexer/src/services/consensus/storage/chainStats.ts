@@ -36,28 +36,25 @@ export class ChainStatsStorage {
       )
       SELECT
         ${epoch}::int AS "epoch",
-
-        -- Active validators: active_ongoing + active_exiting + active_slashed
-        (SELECT COUNT(*)::int FROM "validator" WHERE "status" IN (${Prisma.join(activeStatuses)}))
-          AS "total_active_validators",
-
-        -- Total staked: sum of effective_balance for active validators
-        (SELECT COALESCE(SUM("effective_balance"), 0) FROM "validator" WHERE "status" IN (${Prisma.join(activeStatuses)}))
-          AS "total_staked",
-
-        -- Validators entering: pending_initialized + pending_queued
-        (SELECT COUNT(*)::int FROM "validator" WHERE "status" IN (${Prisma.join(enteringStatuses)}))
-          AS "validators_entering",
-
-        -- Validators exiting: active_exiting only
-        (SELECT COUNT(*)::int FROM "validator" WHERE "status" = ${exitingStatus})
-          AS "validators_exiting",
-
-        -- Validators consolidating: distinct source pubkeys in consolidation requests for this epoch's slot range
-        (SELECT COUNT(DISTINCT "source_pubkey")::int FROM "validator_request_consolidations"
-         WHERE "slot" >= ${startSlot} AND "slot" <= ${endSlot})
-          AS "validators_consolidating"
-
+        v.total_active_validators,
+        v.total_staked,
+        v.validators_entering,
+        v.validators_exiting,
+        c.validators_consolidating
+      FROM
+        (
+          SELECT
+            COUNT(CASE WHEN "status" IN (${Prisma.join(activeStatuses)}) THEN 1 END)::int AS "total_active_validators",
+            COALESCE(SUM(CASE WHEN "status" IN (${Prisma.join(activeStatuses)}) THEN "effective_balance" END), 0) AS "total_staked",
+            COUNT(CASE WHEN "status" IN (${Prisma.join(enteringStatuses)}) THEN 1 END)::int AS "validators_entering",
+            COUNT(CASE WHEN "status" = ${exitingStatus} THEN 1 END)::int AS "validators_exiting"
+          FROM "validator"
+        ) AS v,
+        (
+          SELECT COUNT(DISTINCT "source_pubkey")::int AS "validators_consolidating"
+          FROM "validator_request_consolidations"
+          WHERE "slot" >= ${startSlot} AND "slot" <= ${endSlot}
+        ) AS c
       ON CONFLICT ("epoch") DO NOTHING;
     `;
   }
