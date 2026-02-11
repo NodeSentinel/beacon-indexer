@@ -5,12 +5,14 @@ import ms from 'ms';
 import { env, chainConfig } from '@/src/lib/env.js';
 import createLogger from '@/src/lib/pino.js';
 import { BeaconClient } from '@/src/services/consensus/beacon.js';
+import { ChainStatsController } from '@/src/services/consensus/controllers/chainStats.js';
 import { EpochController } from '@/src/services/consensus/controllers/epoch.js';
 import { HourlyArchiveController } from '@/src/services/consensus/controllers/hourlyArchive.js';
 import { IndexerConfigController } from '@/src/services/consensus/controllers/indexerConfig.js';
 import { PartitionController } from '@/src/services/consensus/controllers/partition.js';
 import { SlotController } from '@/src/services/consensus/controllers/slot.js';
 import { ValidatorsController } from '@/src/services/consensus/controllers/validators.js';
+import { ChainStatsStorage } from '@/src/services/consensus/storage/chainStats.js';
 import { EpochStorage } from '@/src/services/consensus/storage/epoch.js';
 import { HourlyArchiveStorage } from '@/src/services/consensus/storage/hourlyArchive.js';
 import { IndexerConfigStorage } from '@/src/services/consensus/storage/indexerConfig.js';
@@ -172,11 +174,15 @@ async function main() {
     chainConfig.beacon.maxAttestationDelay,
   );
 
+  // Create chain stats storage and controller
+  const chainStatsStorage = new ChainStatsStorage(prisma);
+  const chainStatsController = new ChainStatsController(chainStatsStorage, beaconTime);
+
   // Start indexing the beacon chain
   await validatorsController.initValidatorsWithWait(env.CONSENSUS_LOOKBACK_SLOT);
 
-  // Initialize all XState machines (hourly archive controller is passed, actor created inside)
-  await initXstateMachines(
+  // Initialize all XState machines (hourly archive and chain stats controllers are passed, actors created inside)
+  initXstateMachines(
     epochController,
     partitionController,
     beaconTime,
@@ -185,6 +191,7 @@ async function main() {
     slotController,
     validatorsController,
     hourlyArchiveController,
+    chainStatsController,
   );
 }
 
