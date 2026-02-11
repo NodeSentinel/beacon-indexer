@@ -156,6 +156,32 @@ Then wait for the user's research query.
    - Spawn new sub-agents as needed for additional investigation
    - Continue updating the document and syncing
 
+10. **Update global knowledge index (if applicable):**
+
+    After synthesizing findings, review the documents in `thoughts/global/` and determine if the research uncovered **structural knowledge** that is missing from the index.
+
+    **What qualifies for `thoughts/global/` (add it):**
+    - A new file, class, or component that isn't listed in the service map (e.g., new controller, storage, machine)
+    - A new table or model added to the database schema
+    - A new architectural pattern that didn't exist before (e.g., a new type of triggered job)
+    - A correction to existing global docs (e.g., a component was renamed, moved, or removed)
+    - A new status grouping, enum value, or constant that other features will need
+
+    **What does NOT qualify (do not add it):**
+    - Task-specific details (what a particular ticket requires)
+    - Information already captured in the research document
+    - Implementation plans or recommendations
+    - Verbose explanations — global docs are indices, not documentation
+    - Anything that only matters for the current research topic and won't help future ones
+
+    **How to update:**
+    - Add rows to existing tables, entries to existing lists — do not rewrite sections
+    - If no existing document fits, do NOT create a new global doc — flag it to the user as a suggestion
+    - Keep the same concise style: table rows, bullet points, file paths with line numbers
+    - Each addition should answer: "If a future research agent reads this, will it know WHERE to look and WHAT exists, without having to scan the whole codebase?"
+
+    **If nothing new was learned that isn't already in `thoughts/global/`, skip this step entirely.**
+
 ## Important notes:
 
 - Always use parallel Task agents to maximize efficiency and minimize context usage
