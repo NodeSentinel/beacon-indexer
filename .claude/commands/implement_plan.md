@@ -8,6 +8,14 @@ You are tasked with implementing an approved technical plan from `thoughts/share
 
 ## Getting Started
 
+**Before anything else**, confirm the feature branch with the user:
+
+- Run `git branch --show-current` to see the current branch
+- Extract the ticket ID (if present) and description from the plan filename (e.g., `2025-01-08-GH-42-parent-child-tracking.md` → ticket `GH-42`, feature `parent-child-tracking`)
+- If the current branch name appears to reference the plan (matches ticket ID or feature description), ask the user to confirm it's the correct branch before proceeding.
+- If the current branch does NOT appear to reference this plan, suggest a feature branch name based on the plan (e.g., `feat/GH-42-parent-child-tracking` or `feat/improve-error-handling` if there's no ticket). Then ask the user whether to create it or if they prefer to create it themselves.
+- Do NOT start implementing until the branch is confirmed.
+
 When given a plan path:
 
 - Read the plan completely and check for any existing checkmarks (- [x])
