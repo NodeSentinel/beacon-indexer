@@ -1,9 +1,10 @@
 {
-  "enabledPlugins": {
-    "superpowers@superpowers-marketplace": true,
-    "vercel@claude-plugins-official": true
-  },
   "permissions": {
     "allow": ["Read(thoughts/**)", "Edit(thoughts/**)", "Write(thoughts/**)"]
+  },
+  "enabledPlugins": {
+    "superpowers@superpowers-marketplace": true,
+    "vercel@claude-plugins-official": true,
+    "ai-dev-rails@ai-dev-rails": true
   }
 }
