@@ -19,12 +19,15 @@ export class ChainStatsController {
 
     await this.storage.insertChainEpochStats(
       epoch,
+      // active
       [
         VALIDATOR_STATUS.active_ongoing,
         VALIDATOR_STATUS.active_exiting,
         VALIDATOR_STATUS.active_slashed,
       ],
-      [VALIDATOR_STATUS.pending_initialized, VALIDATOR_STATUS.pending_queued],
+      //entering
+      [VALIDATOR_STATUS.pending_queued],
+      // exiting
       VALIDATOR_STATUS.active_exiting,
       startSlot,
       endSlot,

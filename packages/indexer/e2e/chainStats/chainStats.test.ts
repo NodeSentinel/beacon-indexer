@@ -52,7 +52,7 @@ describe('Chain Stats', () => {
   it('should compute and insert chain stats for an epoch', async () => {
     // Insert validators with various statuses
     // Active: 3 ongoing (status=2) + 1 exiting (status=3) + 1 slashed (status=4) = 5 total
-    // Entering: 1 pending_initialized (status=0) + 1 pending_queued (status=1) = 2
+    // Entering: 1 pending_queued (status=1) = 1 (pending_initialized is not counted)
     // Exiting: 1 active_exiting (status=3) = 1
     // Other: 1 exited_unslashed (status=5) - should not be counted
     await prisma.validator.createMany({
@@ -92,7 +92,7 @@ describe('Chain Stats', () => {
     expect(row!.totalActiveValidators).toBe(5);
     // 3 * 32B + 1 * 32B + 1 * 16B = 144B
     expect(row!.totalStaked).toBe(BigInt(144000000000));
-    expect(row!.validatorsEntering).toBe(2);
+    expect(row!.validatorsEntering).toBe(1);
     expect(row!.validatorsExiting).toBe(1);
     expect(row!.validatorsConsolidating).toBe(2);
   });
