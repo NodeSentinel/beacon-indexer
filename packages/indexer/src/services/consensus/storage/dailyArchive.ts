@@ -1,4 +1,5 @@
 import { PrismaClient } from '@beacon-indexer/db';
+import { formatInTimeZone } from 'date-fns-tz';
 import ms from 'ms';
 
 /**
@@ -52,32 +53,55 @@ export class DailyArchiveStorage {
   }
 
   /**
-   * Discover hourly archive partition names for a given day range.
+   * Get the oldest hourly archive partition timestamp.
+   * Returns null if no hourly partitions exist.
    */
-  async discoverHourlyPartitionsForDay(dayStart: Date, dayEnd: Date): Promise<string[]> {
+  async getOldestArchivedHour(): Promise<Date | null> {
     const result = await this.prisma.$queryRaw<{ relname: string }[]>`
       SELECT c.relname
       FROM pg_class c
       JOIN pg_inherits i ON c.oid = i.inhrelid
       JOIN pg_class p ON i.inhparent = p.oid
       WHERE p.relname = 'validator_hourly_archive'
+      ORDER BY c.relname ASC
+      LIMIT 1
+    `;
+
+    if (result.length === 0) return null;
+
+    const match = result[0].relname.match(/validator_hourly_archive_(\d{10})$/);
+    if (!match) return null;
+
+    const suffix = match[1];
+    const year = parseInt(suffix.slice(0, 4), 10);
+    const month = parseInt(suffix.slice(4, 6), 10) - 1;
+    const day = parseInt(suffix.slice(6, 8), 10);
+    const hour = parseInt(suffix.slice(8, 10), 10);
+    return new Date(Date.UTC(year, month, day, hour, 0, 0, 0));
+  }
+
+  /**
+   * Discover hourly archive partition names for a given day range.
+   * Filters directly in the database query using lexicographic partition name comparison.
+   */
+  async discoverHourlyPartitionsForDay(dayStart: Date, dayEnd: Date): Promise<string[]> {
+    const startSuffix = formatInTimeZone(dayStart, 'UTC', 'yyyyMMddHH');
+    const endSuffix = formatInTimeZone(dayEnd, 'UTC', 'yyyyMMddHH');
+    const startPartitionName = `validator_hourly_archive_${startSuffix}`;
+    const endPartitionName = `validator_hourly_archive_${endSuffix}`;
+
+    const result = await this.prisma.$queryRaw<{ relname: string }[]>`
+      SELECT c.relname
+      FROM pg_class c
+      JOIN pg_inherits i ON c.oid = i.inhrelid
+      JOIN pg_class p ON i.inhparent = p.oid
+      WHERE p.relname = 'validator_hourly_archive'
+        AND c.relname >= ${startPartitionName}
+        AND c.relname < ${endPartitionName}
       ORDER BY c.relname
     `;
 
-    // Filter to partitions within the day range by parsing the YYYYMMDDHH suffix
-    return result
-      .map((r) => r.relname)
-      .filter((name) => {
-        const match = name.match(/validator_hourly_archive_(\d{10})$/);
-        if (!match) return false;
-        const suffix = match[1];
-        const year = parseInt(suffix.slice(0, 4), 10);
-        const month = parseInt(suffix.slice(4, 6), 10) - 1;
-        const day = parseInt(suffix.slice(6, 8), 10);
-        const hour = parseInt(suffix.slice(8, 10), 10);
-        const partitionDate = new Date(Date.UTC(year, month, day, hour, 0, 0, 0));
-        return partitionDate >= dayStart && partitionDate < dayEnd;
-      });
+    return result.map((r) => r.relname);
   }
 
   /**

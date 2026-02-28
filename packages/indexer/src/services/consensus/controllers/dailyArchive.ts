@@ -86,15 +86,12 @@ export class DailyArchiveController {
     if (lastDay) {
       candidateDayStart = new Date(lastDay.getTime() + 24 * 3600 * 1000);
     } else {
-      // No day archived yet - use the floor of lastHour's date minus enough buffer
-      // to ensure we have a full day. Start from the oldest possible day.
-      // Find the oldest hourly archive day by looking at the earliest partition.
-      candidateDayStart = floorToUTCDay(lastHour);
-      // Go back to find the actual first day with data
-      // For now, start from lastHour's day and check if we have enough data
-      // We need lastHour to be at least 24h after the candidate day start
-      const earliestPossibleDay = new Date(lastHour.getTime() - 30 * 24 * 3600 * 1000);
-      candidateDayStart = floorToUTCDay(earliestPossibleDay);
+      // No day archived yet — find the oldest hourly partition to determine the starting day
+      const oldestHour = await this.storage.getOldestArchivedHour();
+      if (!oldestHour) {
+        return null;
+      }
+      candidateDayStart = floorToUTCDay(oldestHour);
     }
 
     const candidateDayEnd = new Date(candidateDayStart.getTime() + 24 * 3600 * 1000);
