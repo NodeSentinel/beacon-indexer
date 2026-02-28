@@ -12,6 +12,7 @@ import {
 
 import { dailyArchiveMachine } from '../archive/dailyArchive.machine.js';
 import { hourlyArchiveMachine } from '../archive/hourlyArchive.machine.js';
+import { weeklyArchiveMachine } from '../archive/weeklyArchive.machine.js';
 import { chainStatsMachine } from '../chainStats/chainStats.machine.js';
 
 import { epochWorkerMachine } from './epochWorker.machine.js';
@@ -88,6 +89,8 @@ export const epochOrchestratorMachine = setup({
       hourlyArchiveActor: ActorRefFrom<typeof hourlyArchiveMachine>;
       // Daily archive actor reference (passed from outside)
       dailyArchiveActor: ActorRefFrom<typeof dailyArchiveMachine>;
+      // Weekly archive actor reference (passed from outside)
+      weeklyArchiveActor: ActorRefFrom<typeof weeklyArchiveMachine>;
       // Chain stats actor reference (passed from outside)
       chainStatsActor: ActorRefFrom<typeof chainStatsMachine>;
       // Config
@@ -117,6 +120,7 @@ export const epochOrchestratorMachine = setup({
       slotController: SlotController;
       hourlyArchiveActor: ActorRefFrom<typeof hourlyArchiveMachine>;
       dailyArchiveActor: ActorRefFrom<typeof dailyArchiveMachine>;
+      weeklyArchiveActor: ActorRefFrom<typeof weeklyArchiveMachine>;
       chainStatsActor: ActorRefFrom<typeof chainStatsMachine>;
     };
   },
@@ -150,6 +154,7 @@ export const epochOrchestratorMachine = setup({
     epochs: {},
     hourlyArchiveActor: input.hourlyArchiveActor,
     dailyArchiveActor: input.dailyArchiveActor,
+    weeklyArchiveActor: input.weeklyArchiveActor,
     chainStatsActor: input.chainStatsActor,
     config: {
       slotDuration: input.slotDuration,
@@ -304,6 +309,11 @@ export const epochOrchestratorMachine = setup({
         // Forward EPOCH_PROCESSED to daily archive actor to trigger daily archive check
         sendTo(
           ({ context }) => context.dailyArchiveActor,
+          ({ event }) => ({ type: 'EPOCH_PROCESSED' as const, epoch: event.epoch }),
+        ),
+        // Forward EPOCH_PROCESSED to weekly archive actor to trigger weekly archive check
+        sendTo(
+          ({ context }) => context.weeklyArchiveActor,
           ({ event }) => ({ type: 'EPOCH_PROCESSED' as const, epoch: event.epoch }),
         ),
         // Forward EPOCH_PROCESSED to chain stats actor to compute chain stats

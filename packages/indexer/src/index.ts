@@ -13,6 +13,7 @@ import { IndexerConfigController } from '@/src/services/consensus/controllers/in
 import { PartitionController } from '@/src/services/consensus/controllers/partition.js';
 import { SlotController } from '@/src/services/consensus/controllers/slot.js';
 import { ValidatorsController } from '@/src/services/consensus/controllers/validators.js';
+import { WeeklyArchiveController } from '@/src/services/consensus/controllers/weeklyArchive.js';
 import { ChainStatsStorage } from '@/src/services/consensus/storage/chainStats.js';
 import { DailyArchiveStorage } from '@/src/services/consensus/storage/dailyArchive.js';
 import { EpochStorage } from '@/src/services/consensus/storage/epoch.js';
@@ -21,6 +22,7 @@ import { IndexerConfigStorage } from '@/src/services/consensus/storage/indexerCo
 import { PartitionStorage } from '@/src/services/consensus/storage/partition.js';
 import { SlotStorage } from '@/src/services/consensus/storage/slot.js';
 import { ValidatorsStorage } from '@/src/services/consensus/storage/validators.js';
+import { WeeklyArchiveStorage } from '@/src/services/consensus/storage/weeklyArchive.js';
 import { ExecutionClient } from '@/src/services/execution/execution.js';
 import initXstateMachines from '@/src/xstate/index.js';
 import { getMultiMachineLogger } from '@/src/xstate/multiMachineLogger.js';
@@ -180,6 +182,10 @@ async function main() {
   const dailyArchiveStorage = new DailyArchiveStorage(prisma);
   const dailyArchiveController = new DailyArchiveController(dailyArchiveStorage);
 
+  // Create weekly archive storage and controller
+  const weeklyArchiveStorage = new WeeklyArchiveStorage(prisma);
+  const weeklyArchiveController = new WeeklyArchiveController(weeklyArchiveStorage);
+
   // Create chain stats storage and controller
   const chainStatsStorage = new ChainStatsStorage(prisma);
   const chainStatsController = new ChainStatsController(chainStatsStorage, beaconTime);
@@ -198,6 +204,7 @@ async function main() {
     validatorsController,
     hourlyArchiveController,
     dailyArchiveController,
+    weeklyArchiveController,
     chainStatsController,
   );
 }
