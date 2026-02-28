@@ -331,7 +331,7 @@ model ValidatorWeeklyArchive {
   validatorIndex Int      @map("validator_index")
 
   attestationCount       Int  @default(0) @map("attestation_count")
-  missedAttestationCount Int? @map("missed_attestation_count") @db.SmallInt
+  missedAttestationCount Int? @map("missed_attestation_count")
 
   headReward        BigInt @default(0) @map("head_reward")
   targetReward      BigInt @default(0) @map("target_reward")
@@ -361,7 +361,7 @@ model ValidatorMonthlyArchive {
   validatorIndex Int      @map("validator_index")
 
   attestationCount       Int  @default(0) @map("attestation_count")
-  missedAttestationCount Int? @map("missed_attestation_count") @db.SmallInt
+  missedAttestationCount Int? @map("missed_attestation_count")
 
   headReward        BigInt @default(0) @map("head_reward")
   targetReward      BigInt @default(0) @map("target_reward")
