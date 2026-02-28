@@ -85,9 +85,12 @@ export class WeeklyArchiveController {
     if (lastWeek) {
       candidateWeekStart = new Date(lastWeek.getTime() + 7 * 24 * 3600 * 1000);
     } else {
-      // No week archived yet - find the Monday of the oldest possible week
-      const earliestPossibleWeek = new Date(lastDay.getTime() - 30 * 24 * 3600 * 1000);
-      candidateWeekStart = floorToUTCMonday(earliestPossibleWeek);
+      // No week archived yet — find the oldest daily partition to determine the starting week
+      const oldestDay = await this.storage.getOldestDailyPartition();
+      if (!oldestDay) {
+        return null;
+      }
+      candidateWeekStart = floorToUTCMonday(oldestDay);
     }
 
     const candidateWeekEnd = new Date(candidateWeekStart.getTime() + 7 * 24 * 3600 * 1000);
