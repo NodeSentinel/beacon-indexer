@@ -1,4 +1,5 @@
 import { PrismaClient } from '@beacon-indexer/db';
+import { formatInTimeZone } from 'date-fns-tz';
 import ms from 'ms';
 
 /**
@@ -52,31 +53,54 @@ export class MonthlyArchiveStorage {
   }
 
   /**
-   * Discover daily archive partition names for a given month range.
+   * Get the oldest daily archive partition timestamp.
+   * Returns null if no daily partitions exist.
    */
-  async discoverDailyPartitionsForMonth(monthStart: Date, monthEnd: Date): Promise<string[]> {
+  async getOldestDailyPartition(): Promise<Date | null> {
     const result = await this.prisma.$queryRaw<{ relname: string }[]>`
       SELECT c.relname
       FROM pg_class c
       JOIN pg_inherits i ON c.oid = i.inhrelid
       JOIN pg_class p ON i.inhparent = p.oid
       WHERE p.relname = 'validator_daily_archive'
+      ORDER BY c.relname ASC
+      LIMIT 1
+    `;
+
+    if (result.length === 0) return null;
+
+    const match = result[0].relname.match(/validator_daily_archive_(\d{8})$/);
+    if (!match) return null;
+
+    const suffix = match[1];
+    const year = parseInt(suffix.slice(0, 4), 10);
+    const month = parseInt(suffix.slice(4, 6), 10) - 1;
+    const day = parseInt(suffix.slice(6, 8), 10);
+    return new Date(Date.UTC(year, month, day, 0, 0, 0, 0));
+  }
+
+  /**
+   * Discover daily archive partition names for a given month range.
+   * Filters directly in the database query using lexicographic partition name comparison.
+   */
+  async discoverDailyPartitionsForMonth(monthStart: Date, monthEnd: Date): Promise<string[]> {
+    const startSuffix = formatInTimeZone(monthStart, 'UTC', 'yyyyMMdd');
+    const endSuffix = formatInTimeZone(monthEnd, 'UTC', 'yyyyMMdd');
+    const startPartitionName = `validator_daily_archive_${startSuffix}`;
+    const endPartitionName = `validator_daily_archive_${endSuffix}`;
+
+    const result = await this.prisma.$queryRaw<{ relname: string }[]>`
+      SELECT c.relname
+      FROM pg_class c
+      JOIN pg_inherits i ON c.oid = i.inhrelid
+      JOIN pg_class p ON i.inhparent = p.oid
+      WHERE p.relname = 'validator_daily_archive'
+        AND c.relname >= ${startPartitionName}
+        AND c.relname < ${endPartitionName}
       ORDER BY c.relname
     `;
 
-    // Filter to partitions within the month range by parsing the YYYYMMDD suffix
-    return result
-      .map((r) => r.relname)
-      .filter((name) => {
-        const match = name.match(/validator_daily_archive_(\d{8})$/);
-        if (!match) return false;
-        const suffix = match[1];
-        const year = parseInt(suffix.slice(0, 4), 10);
-        const month = parseInt(suffix.slice(4, 6), 10) - 1;
-        const day = parseInt(suffix.slice(6, 8), 10);
-        const partitionDate = new Date(Date.UTC(year, month, day, 0, 0, 0, 0));
-        return partitionDate >= monthStart && partitionDate < monthEnd;
-      });
+    return result.map((r) => r.relname);
   }
 
   /**
@@ -123,7 +147,7 @@ export class MonthlyArchiveStorage {
             ${monthStart}::timestamp AS timestamp,
             validator_index,
             SUM(attestation_count)::int AS attestation_count,
-            NULLIF(SUM(COALESCE(missed_attestation_count, 0)), 0)::smallint AS missed_attestation_count,
+            NULLIF(SUM(COALESCE(missed_attestation_count, 0)), 0)::int AS missed_attestation_count,
             SUM(head_reward) AS head_reward,
             SUM(target_reward) AS target_reward,
             SUM(source_reward) AS source_reward,

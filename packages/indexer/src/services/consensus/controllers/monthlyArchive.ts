@@ -86,9 +86,12 @@ export class MonthlyArchiveController {
     if (lastMonth) {
       candidateMonthStart = getNextMonthStart(lastMonth);
     } else {
-      // No month archived yet - find the earliest possible month
-      const earliestPossible = new Date(lastDay.getTime() - 90 * 24 * 3600 * 1000);
-      candidateMonthStart = floorToUTCMonth(earliestPossible);
+      // No month archived yet — find the oldest daily partition to determine the starting month
+      const oldestDay = await this.storage.getOldestDailyPartition();
+      if (!oldestDay) {
+        return null;
+      }
+      candidateMonthStart = floorToUTCMonth(oldestDay);
     }
 
     const candidateMonthEnd = getNextMonthStart(candidateMonthStart);
