@@ -10,6 +10,7 @@ import { DailyArchiveController } from '@/src/services/consensus/controllers/dai
 import { EpochController } from '@/src/services/consensus/controllers/epoch.js';
 import { HourlyArchiveController } from '@/src/services/consensus/controllers/hourlyArchive.js';
 import { IndexerConfigController } from '@/src/services/consensus/controllers/indexerConfig.js';
+import { MonthlyArchiveController } from '@/src/services/consensus/controllers/monthlyArchive.js';
 import { PartitionController } from '@/src/services/consensus/controllers/partition.js';
 import { SlotController } from '@/src/services/consensus/controllers/slot.js';
 import { ValidatorsController } from '@/src/services/consensus/controllers/validators.js';
@@ -19,6 +20,7 @@ import { DailyArchiveStorage } from '@/src/services/consensus/storage/dailyArchi
 import { EpochStorage } from '@/src/services/consensus/storage/epoch.js';
 import { HourlyArchiveStorage } from '@/src/services/consensus/storage/hourlyArchive.js';
 import { IndexerConfigStorage } from '@/src/services/consensus/storage/indexerConfig.js';
+import { MonthlyArchiveStorage } from '@/src/services/consensus/storage/monthlyArchive.js';
 import { PartitionStorage } from '@/src/services/consensus/storage/partition.js';
 import { SlotStorage } from '@/src/services/consensus/storage/slot.js';
 import { ValidatorsStorage } from '@/src/services/consensus/storage/validators.js';
@@ -186,6 +188,10 @@ async function main() {
   const weeklyArchiveStorage = new WeeklyArchiveStorage(prisma);
   const weeklyArchiveController = new WeeklyArchiveController(weeklyArchiveStorage);
 
+  // Create monthly archive storage and controller
+  const monthlyArchiveStorage = new MonthlyArchiveStorage(prisma);
+  const monthlyArchiveController = new MonthlyArchiveController(monthlyArchiveStorage);
+
   // Create chain stats storage and controller
   const chainStatsStorage = new ChainStatsStorage(prisma);
   const chainStatsController = new ChainStatsController(chainStatsStorage, beaconTime);
@@ -205,6 +211,7 @@ async function main() {
     hourlyArchiveController,
     dailyArchiveController,
     weeklyArchiveController,
+    monthlyArchiveController,
     chainStatsController,
   );
 }

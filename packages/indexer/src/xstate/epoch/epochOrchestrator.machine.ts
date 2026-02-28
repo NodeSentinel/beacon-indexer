@@ -12,6 +12,7 @@ import {
 
 import { dailyArchiveMachine } from '../archive/dailyArchive.machine.js';
 import { hourlyArchiveMachine } from '../archive/hourlyArchive.machine.js';
+import { monthlyArchiveMachine } from '../archive/monthlyArchive.machine.js';
 import { weeklyArchiveMachine } from '../archive/weeklyArchive.machine.js';
 import { chainStatsMachine } from '../chainStats/chainStats.machine.js';
 
@@ -91,6 +92,8 @@ export const epochOrchestratorMachine = setup({
       dailyArchiveActor: ActorRefFrom<typeof dailyArchiveMachine>;
       // Weekly archive actor reference (passed from outside)
       weeklyArchiveActor: ActorRefFrom<typeof weeklyArchiveMachine>;
+      // Monthly archive actor reference (passed from outside)
+      monthlyArchiveActor: ActorRefFrom<typeof monthlyArchiveMachine>;
       // Chain stats actor reference (passed from outside)
       chainStatsActor: ActorRefFrom<typeof chainStatsMachine>;
       // Config
@@ -121,6 +124,7 @@ export const epochOrchestratorMachine = setup({
       hourlyArchiveActor: ActorRefFrom<typeof hourlyArchiveMachine>;
       dailyArchiveActor: ActorRefFrom<typeof dailyArchiveMachine>;
       weeklyArchiveActor: ActorRefFrom<typeof weeklyArchiveMachine>;
+      monthlyArchiveActor: ActorRefFrom<typeof monthlyArchiveMachine>;
       chainStatsActor: ActorRefFrom<typeof chainStatsMachine>;
     };
   },
@@ -155,6 +159,7 @@ export const epochOrchestratorMachine = setup({
     hourlyArchiveActor: input.hourlyArchiveActor,
     dailyArchiveActor: input.dailyArchiveActor,
     weeklyArchiveActor: input.weeklyArchiveActor,
+    monthlyArchiveActor: input.monthlyArchiveActor,
     chainStatsActor: input.chainStatsActor,
     config: {
       slotDuration: input.slotDuration,
@@ -314,6 +319,11 @@ export const epochOrchestratorMachine = setup({
         // Forward EPOCH_PROCESSED to weekly archive actor to trigger weekly archive check
         sendTo(
           ({ context }) => context.weeklyArchiveActor,
+          ({ event }) => ({ type: 'EPOCH_PROCESSED' as const, epoch: event.epoch }),
+        ),
+        // Forward EPOCH_PROCESSED to monthly archive actor to trigger monthly archive check
+        sendTo(
+          ({ context }) => context.monthlyArchiveActor,
           ({ event }) => ({ type: 'EPOCH_PROCESSED' as const, epoch: event.epoch }),
         ),
         // Forward EPOCH_PROCESSED to chain stats actor to compute chain stats
