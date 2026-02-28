@@ -1,6 +1,10 @@
 import { BeaconTime } from '@beacon-indexer/beacon-utils/beaconTime';
 
-import { getDailyArchiveActor, getHourlyArchiveActor } from './archive/index.js';
+import {
+  getDailyArchiveActor,
+  getHourlyArchiveActor,
+  getWeeklyArchiveActor,
+} from './archive/index.js';
 import { getChainStatsActor } from './chainStats/index.js';
 import { getCreateEpochActor, getEpochOrchestratorActor } from './epoch/index.js';
 
@@ -11,6 +15,7 @@ import { HourlyArchiveController } from '@/src/services/consensus/controllers/ho
 import { PartitionController } from '@/src/services/consensus/controllers/partition.js';
 import { SlotController } from '@/src/services/consensus/controllers/slot.js';
 import { ValidatorsController } from '@/src/services/consensus/controllers/validators.js';
+import { WeeklyArchiveController } from '@/src/services/consensus/controllers/weeklyArchive.js';
 
 export default function initXstateMachines(
   epochController: EpochController,
@@ -22,6 +27,7 @@ export default function initXstateMachines(
   validatorsController: ValidatorsController,
   hourlyArchiveController: HourlyArchiveController,
   dailyArchiveController: DailyArchiveController,
+  weeklyArchiveController: WeeklyArchiveController,
   chainStatsController: ChainStatsController,
 ) {
   // Create and start hourly archive actor
@@ -31,6 +37,10 @@ export default function initXstateMachines(
   // Create and start daily archive actor
   const dailyArchiveActor = getDailyArchiveActor(dailyArchiveController);
   dailyArchiveActor.start();
+
+  // Create and start weekly archive actor
+  const weeklyArchiveActor = getWeeklyArchiveActor(weeklyArchiveController);
+  weeklyArchiveActor.start();
 
   // Create and start chain stats actor
   const chainStatsActor = getChainStatsActor(chainStatsController);
@@ -49,6 +59,7 @@ export default function initXstateMachines(
     validatorsController,
     hourlyArchiveActor,
     dailyArchiveActor,
+    weeklyArchiveActor,
     chainStatsActor,
   ).start();
 }
