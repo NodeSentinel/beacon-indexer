@@ -130,7 +130,7 @@ export default function DashboardOverview() {
     <div className="py-3 md:py-8 space-y-4 md:space-y-8">
       <NotificationBanner notifications={demoNotifications} />
 
-      <ChainStatistics gnoPrice={gnoPrice} />
+      <ChainStatistics />
 
       <UserDashboard
         clusters={clusters}

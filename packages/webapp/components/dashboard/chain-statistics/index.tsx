@@ -1,28 +1,73 @@
 'use client';
 
-import { Users, Coins, ArrowUpCircle, ArrowDownCircle } from 'lucide-react';
+import { Users, Coins, ArrowUpCircle, ArrowDownCircle, GitMerge, AlertCircle } from 'lucide-react';
 
-import { formatNumber } from '@/lib/utils';
+import { env } from '@/env';
+import { useChainStats } from '@/hooks/use-chain-stats';
+import { formatNumber, getTokenSymbol } from '@/lib/utils';
 
-interface ChainStatisticsProps {
-  gnoPrice: number;
+function formatStaked(value: string): string {
+  const num = parseFloat(value);
+  if (num >= 1_000_000) return `${formatNumber(num / 1_000_000)}M`;
+  if (num >= 1_000) return `${formatNumber(num / 1_000)}k`;
+  return formatNumber(num);
 }
 
-export default function ChainStatistics({ gnoPrice }: ChainStatisticsProps) {
-  // Chain stats (placeholder - these would come from a chain stats API)
-  const totalStakedGno = 350000;
-  const activeValidators = 450450;
-  const joiningValidators = 2300;
-  const leavingValidators = 500;
+function StatSkeleton() {
+  return (
+    <div className="bg-background border border-border/60 rounded-lg p-2.5 md:p-4">
+      <div className="animate-pulse space-y-2">
+        <div className="h-3 bg-foreground/5 rounded w-1/3" />
+        <div className="h-7 bg-foreground/5 rounded w-2/3" />
+        <div className="h-3 bg-foreground/5 rounded w-1/2" />
+      </div>
+    </div>
+  );
+}
 
-  const activeStakedGno = activeValidators * 32;
-  const joiningStakedGno = joiningValidators * 32;
-  const leavingStakedGno = leavingValidators * 32;
+export default function ChainStatistics() {
+  const { data, isLoading, isError, refetch } = useChainStats();
+  const tokenSymbol = getTokenSymbol(env.NEXT_PUBLIC_CHAIN);
 
-  const totalStakedUsd = formatNumber(totalStakedGno * gnoPrice);
-  const activeStakedUsd = formatNumber(activeStakedGno * gnoPrice);
-  const joiningStakedUsd = formatNumber(joiningStakedGno * gnoPrice);
-  const leavingStakedUsd = formatNumber(leavingStakedGno * gnoPrice);
+  if (isLoading) {
+    return (
+      <div className="space-y-2">
+        <h2 className="text-[10px] md:text-xs font-display text-muted-foreground uppercase tracking-wider">
+          Chain Statistics
+        </h2>
+        <div className="bg-muted/30 border border-border/50 rounded-lg p-2.5 md:p-5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5 md:gap-5">
+            <StatSkeleton />
+            <StatSkeleton />
+            <StatSkeleton />
+            <StatSkeleton />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (isError || !data) {
+    return (
+      <div className="space-y-2">
+        <h2 className="text-[10px] md:text-xs font-display text-muted-foreground uppercase tracking-wider">
+          Chain Statistics
+        </h2>
+        <div className="bg-muted/30 border border-border/50 rounded-lg p-2.5 md:p-5">
+          <div className="flex items-center justify-center gap-2 py-4 text-muted-foreground">
+            <AlertCircle className="w-4 h-4" />
+            <span className="text-sm">Failed to load chain statistics.</span>
+            <button
+              onClick={() => refetch()}
+              className="text-sm text-primary underline hover:no-underline"
+            >
+              Retry
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-2">
@@ -30,7 +75,7 @@ export default function ChainStatistics({ gnoPrice }: ChainStatisticsProps) {
         Chain Statistics
       </h2>
       <div className="bg-muted/30 border border-border/50 rounded-lg p-2.5 md:p-5">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5 md:gap-5">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5 md:gap-5">
           {/* Active Validators Card */}
           <div className="bg-background border border-border/60 rounded-lg p-2.5 md:p-4">
             <div className="flex items-start gap-2 md:gap-3">
@@ -39,19 +84,19 @@ export default function ChainStatistics({ gnoPrice }: ChainStatisticsProps) {
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-[10px] md:text-xs text-muted-foreground uppercase tracking-wide mb-0.5 md:mb-1">
-                  Active
+                  Active Validators
                 </p>
                 <p className="text-xl md:text-2xl font-display font-bold text-foreground truncate">
-                  {formatNumber(activeValidators)}
+                  {formatNumber(data.totalActiveValidators)}
                 </p>
                 <p className="text-[10px] md:text-xs text-muted-foreground/80 mt-0.5">
-                  ${activeStakedUsd}
+                  Epoch {formatNumber(data.epoch)}
                 </p>
               </div>
             </div>
           </div>
 
-          {/* Staked GNO Card */}
+          {/* Staked Card */}
           <div className="bg-background border border-border/60 rounded-lg p-2.5 md:p-4">
             <div className="flex items-start gap-2 md:gap-3">
               <div className="p-1.5 md:p-2 bg-primary/10 rounded-lg">
@@ -59,23 +104,22 @@ export default function ChainStatistics({ gnoPrice }: ChainStatisticsProps) {
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-[10px] md:text-xs text-muted-foreground uppercase tracking-wide mb-0.5 md:mb-1">
-                  Staked
+                  Total Staked
                 </p>
                 <div className="flex items-baseline gap-1.5">
                   <span className="text-xl md:text-2xl font-display font-bold text-foreground">
-                    {(totalStakedGno / 1000).toFixed(0)}k
+                    {formatStaked(data.totalStaked)}
                   </span>
-                  <span className="text-xs md:text-sm text-muted-foreground font-medium">GNO</span>
+                  <span className="text-xs md:text-sm text-muted-foreground font-medium">
+                    {tokenSymbol}
+                  </span>
                 </div>
-                <p className="text-[10px] md:text-xs text-muted-foreground/80 mt-0.5">
-                  ${totalStakedUsd}
-                </p>
               </div>
             </div>
           </div>
 
           {/* Joining/Leaving Card */}
-          <div className="bg-background border border-border/60 rounded-lg p-2.5 md:p-4 sm:col-span-2 lg:col-span-1">
+          <div className="bg-background border border-border/60 rounded-lg p-2.5 md:p-4">
             <div className="grid grid-cols-2 gap-3 md:gap-4">
               <div className="flex flex-col gap-1.5 md:gap-2">
                 <div className="flex items-center gap-1.5 md:gap-2">
@@ -86,15 +130,9 @@ export default function ChainStatistics({ gnoPrice }: ChainStatisticsProps) {
                     Joining
                   </span>
                 </div>
-                <div>
-                  <div className="flex items-baseline gap-1">
-                    <p className="text-lg md:text-2xl font-display font-bold text-white">2.3k</p>
-                    <span className="text-xs text-white/80">GNO</span>
-                  </div>
-                  <p className="text-[10px] md:text-xs text-muted-foreground/80 mt-0.5">
-                    ${joiningStakedUsd}
-                  </p>
-                </div>
+                <p className="text-lg md:text-2xl font-display font-bold text-foreground">
+                  {formatNumber(data.validatorsEntering)}
+                </p>
               </div>
               <div className="flex flex-col gap-1.5 md:gap-2">
                 <div className="flex items-center gap-1.5 md:gap-2">
@@ -105,15 +143,26 @@ export default function ChainStatistics({ gnoPrice }: ChainStatisticsProps) {
                     Leaving
                   </span>
                 </div>
-                <div>
-                  <div className="flex items-baseline gap-1">
-                    <p className="text-lg md:text-2xl font-display font-bold text-white">500</p>
-                    <span className="text-xs text-white/80">GNO</span>
-                  </div>
-                  <p className="text-[10px] md:text-xs text-muted-foreground/80 mt-0.5">
-                    ${leavingStakedUsd}
-                  </p>
-                </div>
+                <p className="text-lg md:text-2xl font-display font-bold text-foreground">
+                  {formatNumber(data.validatorsExiting)}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Consolidating Card */}
+          <div className="bg-background border border-border/60 rounded-lg p-2.5 md:p-4">
+            <div className="flex items-start gap-2 md:gap-3">
+              <div className="p-1.5 md:p-2 bg-chart-4/10 rounded-lg">
+                <GitMerge className="w-3.5 h-3.5 md:w-4 md:h-4 text-chart-4" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-[10px] md:text-xs text-muted-foreground uppercase tracking-wide mb-0.5 md:mb-1">
+                  Consolidating
+                </p>
+                <p className="text-xl md:text-2xl font-display font-bold text-foreground truncate">
+                  {formatNumber(data.validatorsConsolidating)}
+                </p>
               </div>
             </div>
           </div>
