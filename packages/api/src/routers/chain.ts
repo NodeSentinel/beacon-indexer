@@ -16,37 +16,17 @@ const ChainStatsDataSchema = z.object({
 
 const ChainStatsResponseSchema = ApiResponseSchema(ChainStatsDataSchema);
 
-interface ChainEpochStatsRow {
-  epoch: number;
-  total_active_validators: number;
-  total_staked: bigint;
-  validators_entering: number;
-  validators_exiting: number;
-  validators_consolidating: number;
-}
-
 const getStats = publicProcedure
   .route({ method: 'GET', path: '/chain/stats' })
   .output(ChainStatsResponseSchema)
   .handler(async () => {
     const prisma = getPrisma();
 
-    const result = await prisma.$queryRaw<ChainEpochStatsRow[]>`
-      SELECT
-        epoch,
-        total_active_validators,
-        total_staked,
-        validators_entering,
-        validators_exiting,
-        validators_consolidating
-      FROM chain_epoch_stats
-      ORDER BY epoch DESC
-      LIMIT 1
-    `;
+    const latestStats = await prisma.chainEpochStats.findFirst({
+      orderBy: { epoch: 'desc' },
+    });
 
-    const row = result[0];
-
-    if (!row) {
+    if (!latestStats) {
       return {
         success: false,
         error: {
@@ -62,12 +42,12 @@ const getStats = publicProcedure
     return {
       success: true,
       data: {
-        epoch: row.epoch,
-        totalActiveValidators: row.total_active_validators,
-        totalStaked: formatBalance(row.total_staked),
-        validatorsEntering: row.validators_entering,
-        validatorsExiting: row.validators_exiting,
-        validatorsConsolidating: row.validators_consolidating,
+        epoch: latestStats.epoch,
+        totalActiveValidators: latestStats.totalActiveValidators,
+        totalStaked: formatBalance(latestStats.totalStaked),
+        validatorsEntering: latestStats.validatorsEntering,
+        validatorsExiting: latestStats.validatorsExiting,
+        validatorsConsolidating: latestStats.validatorsConsolidating,
       },
       meta: {
         timestamp: new Date().toISOString(),

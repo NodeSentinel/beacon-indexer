@@ -71,7 +71,6 @@ describe('Chain Stats Endpoint E2E Tests', () => {
 
   describe('GET /chain/stats', () => {
     it('should return 200 with error payload when no stats exist', async () => {
-      // Ensure no stats exist for our test range
       await prisma.$executeRaw`DELETE FROM chain_epoch_stats WHERE epoch >= 900000`;
 
       const response = await fetch(`${baseUrl}/chain/stats`);
@@ -83,7 +82,7 @@ describe('Chain Stats Endpoint E2E Tests', () => {
     });
 
     it('should return stats when data exists', async () => {
-      // Insert test data
+      await prisma.$executeRaw`DELETE FROM chain_epoch_stats WHERE epoch >= 900000`;
       await prisma.$executeRaw`
         INSERT INTO chain_epoch_stats (epoch, total_active_validators, total_staked, validators_entering, validators_exiting, validators_consolidating)
         VALUES (999999, 450000, 14400000000000000, 2300, 500, 50)
@@ -108,10 +107,12 @@ describe('Chain Stats Endpoint E2E Tests', () => {
     });
 
     it('should return the latest epoch stats', async () => {
-      // Insert two epochs
+      await prisma.$executeRaw`DELETE FROM chain_epoch_stats WHERE epoch >= 900000`;
       await prisma.$executeRaw`
         INSERT INTO chain_epoch_stats (epoch, total_active_validators, total_staked, validators_entering, validators_exiting, validators_consolidating)
-        VALUES (999998, 440000, 14080000000000000, 2100, 450, 40)
+        VALUES
+          (999998, 440000, 14080000000000000, 2100, 450, 40),
+          (999999, 450000, 14400000000000000, 2300, 500, 50)
         ON CONFLICT (epoch) DO NOTHING
       `;
 
@@ -123,6 +124,13 @@ describe('Chain Stats Endpoint E2E Tests', () => {
     });
 
     it('should include meta information', async () => {
+      await prisma.$executeRaw`DELETE FROM chain_epoch_stats WHERE epoch >= 900000`;
+      await prisma.$executeRaw`
+        INSERT INTO chain_epoch_stats (epoch, total_active_validators, total_staked, validators_entering, validators_exiting, validators_consolidating)
+        VALUES (999999, 450000, 14400000000000000, 2300, 500, 50)
+        ON CONFLICT (epoch) DO NOTHING
+      `;
+
       const response = await fetch(`${baseUrl}/chain/stats`);
       const body = (await response.json()) as ChainStatsResponse;
 
