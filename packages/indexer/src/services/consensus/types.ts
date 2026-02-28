@@ -124,8 +124,64 @@ export type Block = {
           block_hash: string;
         };
         graffiti: string;
-        proposer_slashings: string[];
-        attester_slashings: string[];
+        proposer_slashings: {
+          signed_header_1: {
+            message: {
+              slot: string;
+              proposer_index: string;
+              parent_root: string;
+              state_root: string;
+              body_root: string;
+            };
+            signature: string;
+          };
+          signed_header_2: {
+            message: {
+              slot: string;
+              proposer_index: string;
+              parent_root: string;
+              state_root: string;
+              body_root: string;
+            };
+            signature: string;
+          };
+        }[];
+        attester_slashings: {
+          attestation_1: {
+            attesting_indices: string[];
+            data: {
+              slot: string;
+              index: string;
+              beacon_block_root: string;
+              source: {
+                epoch: string;
+                root: string;
+              };
+              target: {
+                epoch: string;
+                root: string;
+              };
+            };
+            signature: string;
+          };
+          attestation_2: {
+            attesting_indices: string[];
+            data: {
+              slot: string;
+              index: string;
+              beacon_block_root: string;
+              source: {
+                epoch: string;
+                root: string;
+              };
+              target: {
+                epoch: string;
+                root: string;
+              };
+            };
+            signature: string;
+          };
+        }[];
         attestations: Attestation[];
         deposits: {
           proof: string[];
