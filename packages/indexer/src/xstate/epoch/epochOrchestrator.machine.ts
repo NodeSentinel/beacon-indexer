@@ -11,6 +11,7 @@ import {
 } from 'xstate';
 
 import { hourlyArchiveMachine } from '../archive/hourlyArchive.machine.js';
+import { chainStatsMachine } from '../chainStats/chainStats.machine.js';
 
 import { epochWorkerMachine } from './epochWorker.machine.js';
 
@@ -84,6 +85,8 @@ export const epochOrchestratorMachine = setup({
       epochs: Record<number, EpochStatus>;
       // Hourly archive actor reference (passed from outside)
       hourlyArchiveActor: ActorRefFrom<typeof hourlyArchiveMachine>;
+      // Chain stats actor reference (passed from outside)
+      chainStatsActor: ActorRefFrom<typeof chainStatsMachine>;
       // Config
       config: {
         slotDuration: number;
@@ -110,6 +113,7 @@ export const epochOrchestratorMachine = setup({
       validatorsController?: ValidatorsController;
       slotController: SlotController;
       hourlyArchiveActor: ActorRefFrom<typeof hourlyArchiveMachine>;
+      chainStatsActor: ActorRefFrom<typeof chainStatsMachine>;
     };
   },
   actors: {
@@ -141,6 +145,7 @@ export const epochOrchestratorMachine = setup({
   context: ({ input }) => ({
     epochs: {},
     hourlyArchiveActor: input.hourlyArchiveActor,
+    chainStatsActor: input.chainStatsActor,
     config: {
       slotDuration: input.slotDuration,
       slotsPerEpoch: input.slotsPerEpoch,
@@ -289,6 +294,11 @@ export const epochOrchestratorMachine = setup({
         // Forward EPOCH_PROCESSED to hourly archive actor to trigger archive check
         sendTo(
           ({ context }) => context.hourlyArchiveActor,
+          ({ event }) => ({ type: 'EPOCH_PROCESSED' as const, epoch: event.epoch }),
+        ),
+        // Forward EPOCH_PROCESSED to chain stats actor to compute chain stats
+        sendTo(
+          ({ context }) => context.chainStatsActor,
           ({ event }) => ({ type: 'EPOCH_PROCESSED' as const, epoch: event.epoch }),
         ),
       ],

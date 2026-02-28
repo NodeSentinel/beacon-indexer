@@ -6,6 +6,7 @@ import { PartitionController } from '@/src/services/consensus/controllers/partit
 import { SlotController } from '@/src/services/consensus/controllers/slot.js';
 import { ValidatorsController } from '@/src/services/consensus/controllers/validators.js';
 import { hourlyArchiveMachine } from '@/src/xstate/archive/hourlyArchive.machine.js';
+import { chainStatsMachine } from '@/src/xstate/chainStats/chainStats.machine.js';
 import { epochCreationMachine } from '@/src/xstate/epoch/epochCreator.machine.js';
 import { epochOrchestratorMachine } from '@/src/xstate/epoch/epochOrchestrator.machine.js';
 import { logMachine } from '@/src/xstate/multiMachineLogger.js';
@@ -39,6 +40,7 @@ export const getEpochOrchestratorActor = (
   slotController: SlotController,
   validatorsController: ValidatorsController,
   hourlyArchiveActor: ActorRefFrom<typeof hourlyArchiveMachine>,
+  chainStatsActor: ActorRefFrom<typeof chainStatsMachine>,
 ) => {
   const actor = createActor(epochOrchestratorMachine, {
     input: {
@@ -51,6 +53,7 @@ export const getEpochOrchestratorActor = (
       slotController,
       validatorsController,
       hourlyArchiveActor,
+      chainStatsActor,
     },
   });
 
