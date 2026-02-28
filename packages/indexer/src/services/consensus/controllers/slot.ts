@@ -389,28 +389,6 @@ export class SlotController extends SlotControllerHelpers {
   }
 
   /**
-   * Update validator statuses
-   */
-  async updateValidatorStatuses(input: {
-    slot: number;
-    epoch: number;
-    beaconBlockData?: Block; // TODO: fix this
-  }) {
-    // Simulate some processing time
-    await new Promise((resolve) => setTimeout(resolve, 90));
-
-    return {
-      slot: input.slot,
-      validatorUpdates: [
-        {
-          validatorIndex: Math.floor(Math.random() * 1000),
-          status: 'active',
-        },
-      ],
-    };
-  }
-
-  /**
    * Cleanup old committee data
    */
   async cleanupOldCommittees(slot: number, slotsPerEpoch: number, maxAttestationDelay: number) {
