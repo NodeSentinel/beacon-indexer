@@ -55,6 +55,18 @@ export function formatNumber(value: number | string, maxDecimals = 2): string {
 /** Display unit for reward values in gwei */
 export const REWARD_UNIT = 'GWei';
 
+/**
+ * Format a number in compact notation (e.g. 1.5M, 320k).
+ * Falls back to formatNumber for values below 1,000.
+ */
+export function formatCompactNumber(value: number | string): string {
+  const num = typeof value === 'string' ? parseFloat(value) : value;
+  if (Number.isNaN(num)) return '0';
+  if (num >= 1_000_000) return `${formatNumber(num / 1_000_000)}M`;
+  if (num >= 1_000) return `${formatNumber(num / 1_000)}k`;
+  return formatNumber(num);
+}
+
 /** Token symbol from chain (NEXT_PUBLIC_CHAIN). Use from env in components. */
 export function getTokenSymbol(chain: 'gnosis' | 'ethereum'): string {
   return chain === 'gnosis' ? 'GNO' : 'ETH';

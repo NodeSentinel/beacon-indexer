@@ -4,14 +4,7 @@ import { Users, Coins, ArrowUpCircle, ArrowDownCircle, GitMerge, AlertCircle } f
 
 import { env } from '@/env';
 import { useChainStats } from '@/hooks/use-chain-stats';
-import { formatNumber, getTokenSymbol } from '@/lib/utils';
-
-function formatStaked(value: string): string {
-  const num = parseFloat(value);
-  if (num >= 1_000_000) return `${formatNumber(num / 1_000_000)}M`;
-  if (num >= 1_000) return `${formatNumber(num / 1_000)}k`;
-  return formatNumber(num);
-}
+import { formatCompactNumber, formatNumber, getTokenSymbol } from '@/lib/utils';
 
 function StatSkeleton() {
   return (
@@ -108,7 +101,7 @@ export default function ChainStatistics() {
                 </p>
                 <div className="flex items-baseline gap-1.5">
                   <span className="text-xl md:text-2xl font-display font-bold text-foreground">
-                    {formatStaked(data.totalStaked)}
+                    {formatCompactNumber(data.totalStaked)}
                   </span>
                   <span className="text-xs md:text-sm text-muted-foreground font-medium">
                     {tokenSymbol}
