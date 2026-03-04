@@ -107,7 +107,7 @@ export class DailyArchiveStorage {
   /**
    * Execute daily archive atomically:
    * 1. Create daily archive partition
-   * 2. Aggregate hourly data into daily record (extracting rewards from data_by_epoch JSONB)
+   * 2. Aggregate hourly data into daily record (concat JSON arrays + sum aggregates)
    * 3. Drop hourly archive partitions for that day
    * 4. Update archive.lastDay
    */
@@ -127,83 +127,71 @@ export class DailyArchiveStorage {
         );
 
         // 2. Aggregate hourly data into daily archive
-        // Extract individual reward components from data_by_epoch JSONB
-        // data_by_epoch format: [[epoch, head, target, source, inactivity, mH, mT, mS, mI], ...]
+        // Concatenate JSON arrays (unnest + re-aggregate) and sum aggregate columns
         await tx.$executeRaw`
-          WITH epoch_rewards_expanded AS (
-            SELECT
-              h.validator_index,
-              (elem->>1)::bigint AS head,
-              (elem->>2)::bigint AS target,
-              (elem->>3)::bigint AS source,
-              (elem->>4)::bigint AS inactivity,
-              (elem->>5)::bigint AS missed_head,
-              (elem->>6)::bigint AS missed_target,
-              (elem->>7)::bigint AS missed_source
-            FROM validator_hourly_archive h,
-            jsonb_array_elements(h.data_by_epoch) AS elem
-            WHERE h."timestamp" >= ${dayStart}::timestamp
-              AND h."timestamp" < ${nextDayStart}::timestamp
-          ),
-          reward_agg AS (
+          WITH hourly_agg AS (
             SELECT
               validator_index,
-              SUM(head) AS head_reward,
-              SUM(target) AS target_reward,
-              SUM(source) AS source_reward,
-              SUM(inactivity) AS inactivity_penalty,
-              SUM(missed_head) AS missed_head_reward,
-              SUM(missed_target) AS missed_target_reward,
-              SUM(missed_source) AS missed_source_reward
-            FROM epoch_rewards_expanded
-            GROUP BY validator_index
-          ),
-          hourly_agg AS (
-            SELECT
-              validator_index,
-              SUM(attestation_count)::int AS attestation_count,
+              SUM(attestation_count)::smallint AS attestation_count,
               NULLIF(SUM(COALESCE(missed_attestation_count, 0)), 0)::smallint AS missed_attestation_count,
               SUM(sync_reward_total) AS sync_reward_total,
               NULLIF(SUM(COALESCE(exec_reward_total, 0::numeric)), 0::numeric) AS exec_reward_total,
-              NULLIF(SUM(COALESCE(block_reward_total, 0::bigint)), 0::bigint) AS block_reward_total
+              NULLIF(SUM(COALESCE(block_reward_total, 0::bigint)), 0::bigint) AS block_reward_total,
+              SUM(cl_reward_total) AS cl_reward_total,
+              SUM(cl_missed_reward_total) AS cl_missed_reward_total
             FROM validator_hourly_archive
             WHERE "timestamp" >= ${dayStart}::timestamp
               AND "timestamp" < ${nextDayStart}::timestamp
             GROUP BY validator_index
+          ),
+          slot_json AS (
+            SELECT
+              h.validator_index,
+              jsonb_agg(elem ORDER BY (elem->0)::int) AS data_by_slot
+            FROM validator_hourly_archive h,
+            jsonb_array_elements(h.data_by_slot) AS elem
+            WHERE h."timestamp" >= ${dayStart}::timestamp
+              AND h."timestamp" < ${nextDayStart}::timestamp
+            GROUP BY h.validator_index
+          ),
+          epoch_json AS (
+            SELECT
+              h.validator_index,
+              jsonb_agg(elem ORDER BY (elem->0)::int) AS data_by_epoch
+            FROM validator_hourly_archive h,
+            jsonb_array_elements(h.data_by_epoch) AS elem
+            WHERE h."timestamp" >= ${dayStart}::timestamp
+              AND h."timestamp" < ${nextDayStart}::timestamp
+            GROUP BY h.validator_index
           )
           INSERT INTO validator_daily_archive (
             timestamp,
             validator_index,
+            data_by_slot,
+            data_by_epoch,
             attestation_count,
             missed_attestation_count,
-            head_reward,
-            target_reward,
-            source_reward,
-            inactivity_penalty,
-            missed_head_reward,
-            missed_target_reward,
-            missed_source_reward,
             sync_reward_total,
             exec_reward_total,
-            block_reward_total
+            block_reward_total,
+            cl_reward_total,
+            cl_missed_reward_total
           )
           SELECT
             ${dayStart}::timestamp AS timestamp,
-            COALESCE(ha.validator_index, ra.validator_index) AS validator_index,
-            COALESCE(ha.attestation_count, 0) AS attestation_count,
+            ha.validator_index,
+            COALESCE(sj.data_by_slot, '[]'::jsonb) AS data_by_slot,
+            COALESCE(ej.data_by_epoch, '[]'::jsonb) AS data_by_epoch,
+            COALESCE(ha.attestation_count, 0::smallint) AS attestation_count,
             ha.missed_attestation_count,
-            COALESCE(ra.head_reward, 0) AS head_reward,
-            COALESCE(ra.target_reward, 0) AS target_reward,
-            COALESCE(ra.source_reward, 0) AS source_reward,
-            COALESCE(ra.inactivity_penalty, 0) AS inactivity_penalty,
-            COALESCE(ra.missed_head_reward, 0) AS missed_head_reward,
-            COALESCE(ra.missed_target_reward, 0) AS missed_target_reward,
-            COALESCE(ra.missed_source_reward, 0) AS missed_source_reward,
             COALESCE(ha.sync_reward_total, 0) AS sync_reward_total,
             ha.exec_reward_total,
-            ha.block_reward_total
+            ha.block_reward_total,
+            COALESCE(ha.cl_reward_total, 0) AS cl_reward_total,
+            COALESCE(ha.cl_missed_reward_total, 0) AS cl_missed_reward_total
           FROM hourly_agg ha
-          FULL OUTER JOIN reward_agg ra ON ha.validator_index = ra.validator_index
+          LEFT JOIN slot_json sj ON ha.validator_index = sj.validator_index
+          LEFT JOIN epoch_json ej ON ha.validator_index = ej.validator_index
         `;
 
         // 3. Drop hourly archive partitions
