@@ -116,7 +116,7 @@ export class DailyArchiveStorage {
     hourlyPartitionNames: string[],
     dailyPartitionName: string,
   ): Promise<void> {
-    const nextDayStart = new Date(dayStart.getTime() + 24 * 3600 * 1000);
+    const nextDayStart = new Date(dayStart.getTime() + ms('1d'));
 
     await this.prisma.$transaction(
       async (tx) => {

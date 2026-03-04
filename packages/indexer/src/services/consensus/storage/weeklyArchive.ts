@@ -115,7 +115,7 @@ export class WeeklyArchiveStorage {
     dailyPartitionNames: string[],
     weeklyPartitionName: string,
   ): Promise<void> {
-    const nextWeekStart = new Date(weekStart.getTime() + 7 * 24 * 3600 * 1000);
+    const nextWeekStart = new Date(weekStart.getTime() + ms('7d'));
 
     await this.prisma.$transaction(
       async (tx) => {

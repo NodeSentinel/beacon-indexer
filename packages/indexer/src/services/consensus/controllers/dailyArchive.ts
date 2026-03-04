@@ -1,4 +1,5 @@
 import { formatInTimeZone } from 'date-fns-tz';
+import ms from 'ms';
 
 import { DailyArchiveStorage } from '../storage/dailyArchive.js';
 
@@ -95,7 +96,7 @@ export class DailyArchiveController {
     let candidateDayStart: Date;
     let isFirstDay = false;
     if (lastDay) {
-      candidateDayStart = new Date(lastDay.getTime() + 24 * 3600 * 1000);
+      candidateDayStart = new Date(lastDay.getTime() + ms('1d'));
     } else {
       // No day archived yet — find the oldest hourly partition to determine the starting day
       const oldestHour = await this.storage.getOldestArchivedHour();
@@ -106,7 +107,7 @@ export class DailyArchiveController {
       isFirstDay = true;
     }
 
-    const candidateDayEnd = new Date(candidateDayStart.getTime() + 24 * 3600 * 1000);
+    const candidateDayEnd = new Date(candidateDayStart.getTime() + ms('1d'));
 
     // We always retain the last 24h of hourly data for queries.
     // A day is only eligible when its data is fully outside that retention window:
