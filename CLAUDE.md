@@ -18,3 +18,7 @@
 - Run e2e tests: `pnpm test:e2e:local` (from outside of a sandbox)
 - Lint: `pnpm lint`
 - Type-check: `pnpm type-check` is defined in the root and also on each package.
+
+## Docs
+
+- [beacon-node `oapi`](https://ethereum.github.io/beacon-APIs/releases/v4.0.0/beacon-node-oapi.json)
