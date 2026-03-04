@@ -125,43 +125,71 @@ export class MonthlyArchiveStorage {
         );
 
         // 2. Aggregate daily data into monthly archive
-        // Daily records already have discrete reward columns, so simple SUMs
+        // Concatenate JSON arrays (unnest + re-aggregate) and sum aggregate columns
         await tx.$executeRaw`
+          WITH daily_agg AS (
+            SELECT
+              validator_index,
+              SUM(attestation_count)::smallint AS attestation_count,
+              NULLIF(SUM(COALESCE(missed_attestation_count, 0)), 0)::smallint AS missed_attestation_count,
+              SUM(sync_reward_total) AS sync_reward_total,
+              NULLIF(SUM(COALESCE(exec_reward_total, 0::numeric)), 0::numeric) AS exec_reward_total,
+              NULLIF(SUM(COALESCE(block_reward_total, 0::bigint)), 0::bigint) AS block_reward_total,
+              SUM(cl_reward_total) AS cl_reward_total,
+              SUM(cl_missed_reward_total) AS cl_missed_reward_total
+            FROM validator_daily_archive
+            WHERE "timestamp" >= ${monthStart}::timestamp
+              AND "timestamp" < ${nextMonthStart}::timestamp
+            GROUP BY validator_index
+          ),
+          slot_json AS (
+            SELECT
+              d.validator_index,
+              jsonb_agg(elem ORDER BY (elem->0)::int) AS data_by_slot
+            FROM validator_daily_archive d,
+            jsonb_array_elements(d.data_by_slot) AS elem
+            WHERE d."timestamp" >= ${monthStart}::timestamp
+              AND d."timestamp" < ${nextMonthStart}::timestamp
+            GROUP BY d.validator_index
+          ),
+          epoch_json AS (
+            SELECT
+              d.validator_index,
+              jsonb_agg(elem ORDER BY (elem->0)::int) AS data_by_epoch
+            FROM validator_daily_archive d,
+            jsonb_array_elements(d.data_by_epoch) AS elem
+            WHERE d."timestamp" >= ${monthStart}::timestamp
+              AND d."timestamp" < ${nextMonthStart}::timestamp
+            GROUP BY d.validator_index
+          )
           INSERT INTO validator_monthly_archive (
             timestamp,
             validator_index,
+            data_by_slot,
+            data_by_epoch,
             attestation_count,
             missed_attestation_count,
-            head_reward,
-            target_reward,
-            source_reward,
-            inactivity_penalty,
-            missed_head_reward,
-            missed_target_reward,
-            missed_source_reward,
             sync_reward_total,
             exec_reward_total,
-            block_reward_total
+            block_reward_total,
+            cl_reward_total,
+            cl_missed_reward_total
           )
           SELECT
             ${monthStart}::timestamp AS timestamp,
-            validator_index,
-            SUM(attestation_count)::int AS attestation_count,
-            NULLIF(SUM(COALESCE(missed_attestation_count, 0)), 0)::int AS missed_attestation_count,
-            SUM(head_reward) AS head_reward,
-            SUM(target_reward) AS target_reward,
-            SUM(source_reward) AS source_reward,
-            SUM(inactivity_penalty) AS inactivity_penalty,
-            SUM(missed_head_reward) AS missed_head_reward,
-            SUM(missed_target_reward) AS missed_target_reward,
-            SUM(missed_source_reward) AS missed_source_reward,
-            SUM(sync_reward_total) AS sync_reward_total,
-            NULLIF(SUM(COALESCE(exec_reward_total, 0::numeric)), 0::numeric) AS exec_reward_total,
-            NULLIF(SUM(COALESCE(block_reward_total, 0::bigint)), 0::bigint) AS block_reward_total
-          FROM validator_daily_archive
-          WHERE "timestamp" >= ${monthStart}::timestamp
-            AND "timestamp" < ${nextMonthStart}::timestamp
-          GROUP BY validator_index
+            da.validator_index,
+            COALESCE(sj.data_by_slot, '[]'::jsonb) AS data_by_slot,
+            COALESCE(ej.data_by_epoch, '[]'::jsonb) AS data_by_epoch,
+            COALESCE(da.attestation_count, 0::smallint) AS attestation_count,
+            da.missed_attestation_count,
+            COALESCE(da.sync_reward_total, 0) AS sync_reward_total,
+            da.exec_reward_total,
+            da.block_reward_total,
+            COALESCE(da.cl_reward_total, 0) AS cl_reward_total,
+            COALESCE(da.cl_missed_reward_total, 0) AS cl_missed_reward_total
+          FROM daily_agg da
+          LEFT JOIN slot_json sj ON da.validator_index = sj.validator_index
+          LEFT JOIN epoch_json ej ON da.validator_index = ej.validator_index
         `;
 
         // 3. Drop daily archive partitions
