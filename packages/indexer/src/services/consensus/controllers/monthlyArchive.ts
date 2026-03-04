@@ -1,4 +1,5 @@
 import { formatInTimeZone } from 'date-fns-tz';
+import ms from 'ms';
 
 import { MonthlyArchiveStorage } from '../storage/monthlyArchive.js';
 
@@ -98,7 +99,7 @@ export class MonthlyArchiveController {
 
     // The candidate month must be fully covered by daily archives:
     // lastDay must be >= the last day of the month (monthEnd - 1 day)
-    const lastDayOfMonth = new Date(candidateMonthEnd.getTime() - 24 * 3600 * 1000);
+    const lastDayOfMonth = new Date(candidateMonthEnd.getTime() - ms('1d'));
     if (lastDay < lastDayOfMonth) {
       return null;
     }
