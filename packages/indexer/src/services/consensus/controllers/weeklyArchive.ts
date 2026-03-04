@@ -1,4 +1,5 @@
 import { formatInTimeZone } from 'date-fns-tz';
+import ms from 'ms';
 
 import { WeeklyArchiveStorage } from '../storage/weeklyArchive.js';
 
@@ -83,7 +84,7 @@ export class WeeklyArchiveController {
     // The candidate week is the week after lastWeek, or the first possible week
     let candidateWeekStart: Date;
     if (lastWeek) {
-      candidateWeekStart = new Date(lastWeek.getTime() + 7 * 24 * 3600 * 1000);
+      candidateWeekStart = new Date(lastWeek.getTime() + ms('7d'));
     } else {
       // No week archived yet — find the oldest daily partition to determine the starting week
       const oldestDay = await this.storage.getOldestDailyPartition();
@@ -93,11 +94,11 @@ export class WeeklyArchiveController {
       candidateWeekStart = floorToUTCMonday(oldestDay);
     }
 
-    const candidateWeekEnd = new Date(candidateWeekStart.getTime() + 7 * 24 * 3600 * 1000);
+    const candidateWeekEnd = new Date(candidateWeekStart.getTime() + ms('7d'));
 
     // The candidate week must be fully covered by daily archives:
     // lastDay must be >= the last day of the week (weekEnd - 1 day = weekStart + 6 days)
-    const lastDayOfWeek = new Date(candidateWeekEnd.getTime() - 24 * 3600 * 1000);
+    const lastDayOfWeek = new Date(candidateWeekEnd.getTime() - ms('1d'));
     if (lastDay < lastDayOfWeek) {
       return null;
     }
