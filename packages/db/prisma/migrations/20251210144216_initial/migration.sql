@@ -203,18 +203,15 @@ CREATE TABLE "public"."validator_hourly_archive" (
 CREATE TABLE "public"."validator_daily_archive" (
     "timestamp" TIMESTAMP NOT NULL,
     "validator_index" INTEGER NOT NULL,
-    "attestation_count" INTEGER NOT NULL DEFAULT 0,
+    "data_by_slot" JSONB NOT NULL,
+    "data_by_epoch" JSONB NOT NULL,
+    "attestation_count" SMALLINT NOT NULL DEFAULT 0,
     "missed_attestation_count" SMALLINT,
-    "head_reward" BIGINT NOT NULL DEFAULT 0,
-    "target_reward" BIGINT NOT NULL DEFAULT 0,
-    "source_reward" BIGINT NOT NULL DEFAULT 0,
-    "inactivity_penalty" BIGINT NOT NULL DEFAULT 0,
-    "missed_head_reward" BIGINT NOT NULL DEFAULT 0,
-    "missed_target_reward" BIGINT NOT NULL DEFAULT 0,
-    "missed_source_reward" BIGINT NOT NULL DEFAULT 0,
     "sync_reward_total" BIGINT NOT NULL DEFAULT 0,
     "exec_reward_total" NUMERIC(78, 0),
     "block_reward_total" BIGINT,
+    "cl_reward_total" BIGINT NOT NULL DEFAULT 0,
+    "cl_missed_reward_total" BIGINT NOT NULL DEFAULT 0,
 
     CONSTRAINT "validator_daily_archive_pkey" PRIMARY KEY ("timestamp","validator_index")
 ) PARTITION BY RANGE ("timestamp");
@@ -227,18 +224,15 @@ CREATE TABLE "public"."validator_daily_archive" (
 CREATE TABLE "public"."validator_weekly_archive" (
     "timestamp" TIMESTAMP NOT NULL,
     "validator_index" INTEGER NOT NULL,
-    "attestation_count" INTEGER NOT NULL DEFAULT 0,
-    "missed_attestation_count" INTEGER,
-    "head_reward" BIGINT NOT NULL DEFAULT 0,
-    "target_reward" BIGINT NOT NULL DEFAULT 0,
-    "source_reward" BIGINT NOT NULL DEFAULT 0,
-    "inactivity_penalty" BIGINT NOT NULL DEFAULT 0,
-    "missed_head_reward" BIGINT NOT NULL DEFAULT 0,
-    "missed_target_reward" BIGINT NOT NULL DEFAULT 0,
-    "missed_source_reward" BIGINT NOT NULL DEFAULT 0,
+    "data_by_slot" JSONB NOT NULL,
+    "data_by_epoch" JSONB NOT NULL,
+    "attestation_count" SMALLINT NOT NULL DEFAULT 0,
+    "missed_attestation_count" SMALLINT,
     "sync_reward_total" BIGINT NOT NULL DEFAULT 0,
     "exec_reward_total" NUMERIC(78, 0),
     "block_reward_total" BIGINT,
+    "cl_reward_total" BIGINT NOT NULL DEFAULT 0,
+    "cl_missed_reward_total" BIGINT NOT NULL DEFAULT 0,
 
     CONSTRAINT "validator_weekly_archive_pkey" PRIMARY KEY ("timestamp","validator_index")
 ) PARTITION BY RANGE ("timestamp");
@@ -251,18 +245,15 @@ CREATE TABLE "public"."validator_weekly_archive" (
 CREATE TABLE "public"."validator_monthly_archive" (
     "timestamp" TIMESTAMP NOT NULL,
     "validator_index" INTEGER NOT NULL,
-    "attestation_count" INTEGER NOT NULL DEFAULT 0,
-    "missed_attestation_count" INTEGER,
-    "head_reward" BIGINT NOT NULL DEFAULT 0,
-    "target_reward" BIGINT NOT NULL DEFAULT 0,
-    "source_reward" BIGINT NOT NULL DEFAULT 0,
-    "inactivity_penalty" BIGINT NOT NULL DEFAULT 0,
-    "missed_head_reward" BIGINT NOT NULL DEFAULT 0,
-    "missed_target_reward" BIGINT NOT NULL DEFAULT 0,
-    "missed_source_reward" BIGINT NOT NULL DEFAULT 0,
+    "data_by_slot" JSONB NOT NULL,
+    "data_by_epoch" JSONB NOT NULL,
+    "attestation_count" SMALLINT NOT NULL DEFAULT 0,
+    "missed_attestation_count" SMALLINT,
     "sync_reward_total" BIGINT NOT NULL DEFAULT 0,
     "exec_reward_total" NUMERIC(78, 0),
     "block_reward_total" BIGINT,
+    "cl_reward_total" BIGINT NOT NULL DEFAULT 0,
+    "cl_missed_reward_total" BIGINT NOT NULL DEFAULT 0,
 
     CONSTRAINT "validator_monthly_archive_pkey" PRIMARY KEY ("timestamp","validator_index")
 ) PARTITION BY RANGE ("timestamp");

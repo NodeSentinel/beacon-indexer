@@ -257,9 +257,9 @@ model ValidatorHourlyArchive {
   // RETENTION MODEL
   // ─────────────────────────────────────────────────────────────────────────────
   // Hourly archives are kept for ~25 hours (rolling window). When hour 24 completes,
-  // data is aggregated to daily (aggregates only, no JSON detail) and the 24 hourly
-  // archives are deleted. This allows detailed per-slot/epoch data for recent history
-  // while keeping storage bounded.
+  // data is aggregated to daily (JSON detail + aggregates) and the 24 hourly
+  // archives are deleted. All archive levels (daily, weekly, monthly) share the
+  // same schema: JSON payloads for granular data + aggregate columns for fast queries.
   //
   // ─────────────────────────────────────────────────────────────────────────────
   // PARTITIONING
@@ -294,27 +294,25 @@ model ValidatorHourlyArchive {
 /**
  * ValidatorDailyArchive - Per-validator aggregated data for each UTC day.
  * Aggregated from hourly archives (24 hourly records → 1 daily record).
+ * Same schema as ValidatorHourlyArchive (JSON detail + aggregate columns).
  * Partitioned by timestamp. Partition naming: validator_daily_archive_YYYYMMDD
  */
 model ValidatorDailyArchive {
   timestamp      DateTime @map("timestamp") @db.Timestamp // UTC day (e.g., 2024-01-15 00:00:00)
   validatorIndex Int      @map("validator_index")
 
-  attestationCount       Int  @default(0) @map("attestation_count")
-  missedAttestationCount Int? @map("missed_attestation_count") @db.SmallInt
+  // Compact JSON payloads (concatenated from hourly archives)
+  dataBySlot  Json @map("data_by_slot") // [[slot, attDelay, sync, exec, block], ...]
+  dataByEpoch Json @map("data_by_epoch") // [[epoch, head, target, source, inactivity, mH, mT, mS, mI], ...]
 
-  headReward        BigInt @default(0) @map("head_reward")
-  targetReward      BigInt @default(0) @map("target_reward")
-  sourceReward      BigInt @default(0) @map("source_reward")
-  inactivityPenalty BigInt @default(0) @map("inactivity_penalty")
-
-  missedHeadReward   BigInt @default(0) @map("missed_head_reward")
-  missedTargetReward BigInt @default(0) @map("missed_target_reward")
-  missedSourceReward BigInt @default(0) @map("missed_source_reward")
-
-  syncRewardTotal  BigInt   @default(0) @map("sync_reward_total")
-  execRewardTotal  Decimal? @map("exec_reward_total") @db.Decimal(78, 0)
-  blockRewardTotal BigInt?  @map("block_reward_total")
+  // Aggregate columns for fast queries without JSON parsing
+  attestationCount       Int      @default(0) @map("attestation_count") @db.SmallInt
+  missedAttestationCount Int?     @map("missed_attestation_count") @db.SmallInt
+  syncRewardTotal        BigInt   @default(0) @map("sync_reward_total")
+  execRewardTotal        Decimal? @map("exec_reward_total") @db.Decimal(78, 0)
+  blockRewardTotal       BigInt?  @map("block_reward_total")
+  clRewardTotal          BigInt   @default(0) @map("cl_reward_total")
+  clMissedRewardTotal    BigInt   @default(0) @map("cl_missed_reward_total")
 
   @@id([timestamp, validatorIndex])
   @@map("validator_daily_archive")
@@ -323,6 +321,7 @@ model ValidatorDailyArchive {
 /**
  * ValidatorWeeklyArchive - Per-validator aggregated data for each UTC week.
  * Aggregated from daily archives (7 daily records → 1 weekly record).
+ * Same schema as ValidatorHourlyArchive (JSON detail + aggregate columns).
  * Timestamp represents start of week (Monday 00:00:00 UTC).
  * Partitioned by timestamp. Partition naming: validator_weekly_archive_YYYYWW
  */
@@ -330,21 +329,18 @@ model ValidatorWeeklyArchive {
   timestamp      DateTime @map("timestamp") @db.Timestamp
   validatorIndex Int      @map("validator_index")
 
-  attestationCount       Int  @default(0) @map("attestation_count")
-  missedAttestationCount Int? @map("missed_attestation_count")
+  // Compact JSON payloads (concatenated from daily archives)
+  dataBySlot  Json @map("data_by_slot") // [[slot, attDelay, sync, exec, block], ...]
+  dataByEpoch Json @map("data_by_epoch") // [[epoch, head, target, source, inactivity, mH, mT, mS, mI], ...]
 
-  headReward        BigInt @default(0) @map("head_reward")
-  targetReward      BigInt @default(0) @map("target_reward")
-  sourceReward      BigInt @default(0) @map("source_reward")
-  inactivityPenalty BigInt @default(0) @map("inactivity_penalty")
-
-  missedHeadReward   BigInt @default(0) @map("missed_head_reward")
-  missedTargetReward BigInt @default(0) @map("missed_target_reward")
-  missedSourceReward BigInt @default(0) @map("missed_source_reward")
-
-  syncRewardTotal  BigInt   @default(0) @map("sync_reward_total")
-  execRewardTotal  Decimal? @map("exec_reward_total") @db.Decimal(78, 0)
-  blockRewardTotal BigInt?  @map("block_reward_total")
+  // Aggregate columns for fast queries without JSON parsing
+  attestationCount       Int      @default(0) @map("attestation_count") @db.SmallInt
+  missedAttestationCount Int?     @map("missed_attestation_count") @db.SmallInt
+  syncRewardTotal        BigInt   @default(0) @map("sync_reward_total")
+  execRewardTotal        Decimal? @map("exec_reward_total") @db.Decimal(78, 0)
+  blockRewardTotal       BigInt?  @map("block_reward_total")
+  clRewardTotal          BigInt   @default(0) @map("cl_reward_total")
+  clMissedRewardTotal    BigInt   @default(0) @map("cl_missed_reward_total")
 
   @@id([timestamp, validatorIndex])
   @@map("validator_weekly_archive")
@@ -353,6 +349,7 @@ model ValidatorWeeklyArchive {
 /**
  * ValidatorMonthlyArchive - Per-validator aggregated data for each UTC month.
  * Aggregated from daily archives (~30 daily records → 1 monthly record).
+ * Same schema as ValidatorHourlyArchive (JSON detail + aggregate columns).
  * Timestamp represents start of month (1st day 00:00:00 UTC).
  * Partitioned by timestamp. Partition naming: validator_monthly_archive_YYYYMM
  */
@@ -360,21 +357,18 @@ model ValidatorMonthlyArchive {
   timestamp      DateTime @map("timestamp") @db.Timestamp
   validatorIndex Int      @map("validator_index")
 
-  attestationCount       Int  @default(0) @map("attestation_count")
-  missedAttestationCount Int? @map("missed_attestation_count")
+  // Compact JSON payloads (concatenated from daily archives)
+  dataBySlot  Json @map("data_by_slot") // [[slot, attDelay, sync, exec, block], ...]
+  dataByEpoch Json @map("data_by_epoch") // [[epoch, head, target, source, inactivity, mH, mT, mS, mI], ...]
 
-  headReward        BigInt @default(0) @map("head_reward")
-  targetReward      BigInt @default(0) @map("target_reward")
-  sourceReward      BigInt @default(0) @map("source_reward")
-  inactivityPenalty BigInt @default(0) @map("inactivity_penalty")
-
-  missedHeadReward   BigInt @default(0) @map("missed_head_reward")
-  missedTargetReward BigInt @default(0) @map("missed_target_reward")
-  missedSourceReward BigInt @default(0) @map("missed_source_reward")
-
-  syncRewardTotal  BigInt   @default(0) @map("sync_reward_total")
-  execRewardTotal  Decimal? @map("exec_reward_total") @db.Decimal(78, 0)
-  blockRewardTotal BigInt?  @map("block_reward_total")
+  // Aggregate columns for fast queries without JSON parsing
+  attestationCount       Int      @default(0) @map("attestation_count") @db.SmallInt
+  missedAttestationCount Int?     @map("missed_attestation_count") @db.SmallInt
+  syncRewardTotal        BigInt   @default(0) @map("sync_reward_total")
+  execRewardTotal        Decimal? @map("exec_reward_total") @db.Decimal(78, 0)
+  blockRewardTotal       BigInt?  @map("block_reward_total")
+  clRewardTotal          BigInt   @default(0) @map("cl_reward_total")
+  clMissedRewardTotal    BigInt   @default(0) @map("cl_missed_reward_total")
 
   @@id([timestamp, validatorIndex])
   @@map("validator_monthly_archive")
