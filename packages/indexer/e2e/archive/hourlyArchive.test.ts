@@ -417,16 +417,33 @@ describe('Hourly Archive Process', () => {
     expect(validator200.clMissedRewardTotal).toBe(BigInt(148));
 
     // Verify JSON data structures
-    // Validator 100: data_by_slot should have 4 entries
-    const validator100Slots = validator100.dataBySlot as Array<
-      [number, number, string, string, string]
-    >;
+    // Validator 100: data_by_slot should have 4 entries with variable-length tuples
+    // Slots with exec/block rewards have 5 elements, others have 3
+    const validator100Slots = validator100.dataBySlot as Array<(number | string)[]>;
     expect(validator100Slots.length).toBe(4);
+
+    // slot 0: has exec_reward=7000 → 5 elements
+    expect(validator100Slots[0]).toHaveLength(5);
     expect(validator100Slots[0][0]).toBe(testSlots[0]); // slot
     expect(validator100Slots[0][1]).toBe(0); // attestation_delay
     expect(validator100Slots[0][2]).toBe('1000'); // sync_reward
     expect(validator100Slots[0][3]).toBe('7000'); // exec_reward
     expect(validator100Slots[0][4]).toBe('0'); // block_reward
+
+    // slot 1: has block_reward=5000 → 5 elements
+    expect(validator100Slots[1]).toHaveLength(5);
+    expect(validator100Slots[1][3]).toBe('0'); // exec_reward
+    expect(validator100Slots[1][4]).toBe('5000'); // block_reward
+
+    // slot 2: no exec/block → 3 elements
+    expect(validator100Slots[2]).toHaveLength(3);
+    expect(validator100Slots[2][0]).toBe(testSlots[2]);
+    expect(validator100Slots[2][1]).toBe(6); // attestation_delay
+    expect(validator100Slots[2][2]).toBe('0'); // sync_reward
+
+    // slot 3: no exec/block → 3 elements
+    expect(validator100Slots[3]).toHaveLength(3);
+    expect(validator100Slots[3][1]).toBe(-1); // null attestation delay → -1
 
     // Validator 100: data_by_epoch should have 2 entries
     const validator100Epochs = validator100.dataByEpoch as Array<
