@@ -431,9 +431,7 @@ describe('Hourly Archive Process', () => {
     expect(validator100Slots[0][4]).toBe('0'); // block_reward
 
     // slot 1: has block_reward=5000 → 5 elements
-    expect(validator100Slots[1]).toHaveLength(5);
-    expect(validator100Slots[1][3]).toBe('0'); // exec_reward
-    expect(validator100Slots[1][4]).toBe('5000'); // block_reward
+    expect(validator100Slots[1]).toEqual([testSlots[1], 3, '2000', '0', '5000']);
 
     // slot 2: no exec/block → 3 elements
     expect(validator100Slots[2]).toHaveLength(3);
@@ -442,8 +440,7 @@ describe('Hourly Archive Process', () => {
     expect(validator100Slots[2][2]).toBe('0'); // sync_reward
 
     // slot 3: no exec/block → 3 elements
-    expect(validator100Slots[3]).toHaveLength(3);
-    expect(validator100Slots[3][1]).toBe(-1); // null attestation delay → -1
+    expect(validator100Slots[3]).toEqual([testSlots[3], -1, '0']);
 
     // Validator 100: data_by_epoch should have 2 entries
     const validator100Epochs = validator100.dataByEpoch as Array<

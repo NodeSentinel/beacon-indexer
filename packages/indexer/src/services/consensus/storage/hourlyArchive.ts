@@ -208,21 +208,18 @@ export class HourlyArchiveStorage {
               SELECT
                 validator_index,
                 jsonb_agg(
-                  CASE
+                  jsonb_build_array(
+                    slot,
+                    COALESCE(attestation_delay, -1),
+                    COALESCE(sync_reward, 0)::text
+                  ) || CASE
                     WHEN exec_reward IS NOT NULL OR block_reward IS NOT NULL THEN
                       jsonb_build_array(
-                        slot,
-                        COALESCE(attestation_delay, -1),
-                        COALESCE(sync_reward, 0)::text,
                         COALESCE(exec_reward, 0::numeric)::text,
                         COALESCE(block_reward, 0)::text
                       )
                     ELSE
-                      jsonb_build_array(
-                        slot,
-                        COALESCE(attestation_delay, -1),
-                        COALESCE(sync_reward, 0)::text
-                      )
+                      '[]'::jsonb
                   END
                   ORDER BY slot
                 ) AS data_by_slot,
