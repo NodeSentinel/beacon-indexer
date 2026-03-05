@@ -9,7 +9,9 @@ export default defineConfig({
   test: {
     globals: true,
     environment: 'node',
-    // No setupFiles for e2e tests - they should use real environment variables
+    env: {
+      LOG_LEVEL: 'silent',
+    },
     testTimeout: 60000, // 1 minute timeout for E2E tests
     hookTimeout: 60000,
     teardownTimeout: 60000,

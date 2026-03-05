@@ -1,6 +1,10 @@
+import { addDays, differenceInHours } from 'date-fns';
 import { formatInTimeZone } from 'date-fns-tz';
 
 import { DailyArchiveStorage } from '../storage/dailyArchive.js';
+
+const MS_PER_DAY = 24 * 3600 * 1000;
+const HOURS_PER_DAY = 24;
 
 /**
  * DailyArchiveController - Business logic for daily archive aggregation.
@@ -17,11 +21,13 @@ import { DailyArchiveStorage } from '../storage/dailyArchive.js';
  */
 export class DailyArchiveController {
   private readonly lookbackDayStart: Date;
+  private readonly lookbackSlotTimestamp: number;
 
   constructor(
     private readonly storage: DailyArchiveStorage,
     lookbackSlotTimestamp: number,
   ) {
+    this.lookbackSlotTimestamp = lookbackSlotTimestamp;
     this.lookbackDayStart = floorToUTCDay(new Date(lookbackSlotTimestamp));
   }
 
@@ -55,9 +61,10 @@ export class DailyArchiveController {
       return null;
     }
 
-    // Require all 24 hourly partitions, unless this is the lookback_slot day
-    // (lookback_slot may start mid-day, so that day can be partial).
-    if (!candidate.isLookbackDay && hourlyPartitions.length !== 24) {
+    // Require the expected number of hourly partitions for this day.
+    // For the lookback day (lookback_slot may start mid-day) this is less than 24;
+    // for all subsequent days it's exactly 24.
+    if (hourlyPartitions.length !== candidate.expectedHourlyPartitions) {
       return null;
     }
 
@@ -89,7 +96,7 @@ export class DailyArchiveController {
   private async findDayToArchive(): Promise<{
     dayStart: Date;
     dayEnd: Date;
-    isLookbackDay: boolean;
+    expectedHourlyPartitions: number;
   } | null> {
     const lastHour = await this.storage.getLastArchivedHour();
     if (!lastHour) {
@@ -100,34 +107,45 @@ export class DailyArchiveController {
 
     // The candidate day is the day after lastDay, or the lookback_slot day
     let candidateDayStart: Date;
+    let expectedHourlyPartitions = HOURS_PER_DAY;
     if (lastDay) {
-      candidateDayStart = new Date(lastDay.getTime() + 24 * 3600 * 1000);
+      candidateDayStart = addDays(lastDay, 1);
     } else {
       candidateDayStart = this.lookbackDayStart;
+      // Lookback day may be partial: lookback_slot can start mid-day, so we only
+      // expect hours from lookbackSlot hour to end-of-day (not the full 24).
+      const lookbackHour = floorToUTCHour(new Date(this.lookbackSlotTimestamp));
+      expectedHourlyPartitions = differenceInHours(addDays(candidateDayStart, 1), lookbackHour);
     }
 
-    const candidateDayEnd = new Date(candidateDayStart.getTime() + 24 * 3600 * 1000);
-    const isLookbackDay = candidateDayStart.getTime() === this.lookbackDayStart.getTime();
+    const candidateDayEnd = addDays(candidateDayStart, 1);
 
     // We always retain the last 24h of hourly data for queries.
     // A day is only eligible when its data is fully outside that retention window:
     // lastHour must be >= candidateDayEnd + 24h (analogous to hourly archive's
     // subHours(now, 2) cutoff in PartitionController.getHourToArchive).
-    const retentionMs = 24 * 3600 * 1000;
-    if (lastHour.getTime() - candidateDayEnd.getTime() < retentionMs) {
+    if (differenceInHours(lastHour, candidateDayEnd) < HOURS_PER_DAY) {
       return null;
     }
 
-    return { dayStart: candidateDayStart, dayEnd: candidateDayEnd, isLookbackDay };
+    return { dayStart: candidateDayStart, dayEnd: candidateDayEnd, expectedHourlyPartitions };
   }
 }
 
 /**
  * Floor a date to the start of its UTC day (00:00:00).
+ * Note: date-fns startOfDay uses local timezone, so we floor manually for UTC.
  */
 function floorToUTCDay(date: Date): Date {
-  const msPerDay = 24 * 60 * 60 * 1000;
-  return new Date(Math.floor(date.getTime() / msPerDay) * msPerDay);
+  return new Date(Math.floor(date.getTime() / MS_PER_DAY) * MS_PER_DAY);
+}
+
+/**
+ * Floor a date to the start of its UTC hour.
+ */
+function floorToUTCHour(date: Date): Date {
+  const MS_PER_HOUR = 3600 * 1000;
+  return new Date(Math.floor(date.getTime() / MS_PER_HOUR) * MS_PER_HOUR);
 }
 
 /**
