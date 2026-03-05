@@ -50,19 +50,10 @@ export class DailyArchiveStorage {
    * Returns null if no hourly partitions exist.
    */
   async getOldestArchivedHour(): Promise<Date | null> {
-    const result = await this.prisma.$queryRaw<{ relname: string }[]>`
-      SELECT c.relname
-      FROM pg_class c
-      JOIN pg_inherits i ON c.oid = i.inhrelid
-      JOIN pg_class p ON i.inhparent = p.oid
-      WHERE p.relname = 'validator_hourly_archive'
-      ORDER BY c.relname ASC
-      LIMIT 1
-    `;
+    const partitions = await this.listHourlyPartitions({ limit: 1 });
+    if (partitions.length === 0) return null;
 
-    if (result.length === 0) return null;
-
-    const match = result[0].relname.match(/validator_hourly_archive_(\d{10})$/);
+    const match = partitions[0].match(/validator_hourly_archive_(\d{10})$/);
     if (!match) return null;
 
     const suffix = match[1];
@@ -80,8 +71,23 @@ export class DailyArchiveStorage {
   async discoverHourlyPartitionsForDay(dayStart: Date, dayEnd: Date): Promise<string[]> {
     const startSuffix = formatInTimeZone(dayStart, 'UTC', 'yyyyMMddHH');
     const endSuffix = formatInTimeZone(dayEnd, 'UTC', 'yyyyMMddHH');
-    const startPartitionName = `validator_hourly_archive_${startSuffix}`;
-    const endPartitionName = `validator_hourly_archive_${endSuffix}`;
+    return this.listHourlyPartitions({
+      from: `validator_hourly_archive_${startSuffix}`,
+      to: `validator_hourly_archive_${endSuffix}`,
+    });
+  }
+
+  /**
+   * List hourly archive partition names, optionally filtered by name range.
+   */
+  private async listHourlyPartitions(opts?: {
+    from?: string;
+    to?: string;
+    limit?: number;
+  }): Promise<string[]> {
+    const from = opts?.from ?? '';
+    const to = opts?.to ?? '';
+    const limit = opts?.limit ?? 0;
 
     const result = await this.prisma.$queryRaw<{ relname: string }[]>`
       SELECT c.relname
@@ -89,9 +95,10 @@ export class DailyArchiveStorage {
       JOIN pg_inherits i ON c.oid = i.inhrelid
       JOIN pg_class p ON i.inhparent = p.oid
       WHERE p.relname = 'validator_hourly_archive'
-        AND c.relname >= ${startPartitionName}
-        AND c.relname < ${endPartitionName}
-      ORDER BY c.relname
+        AND (${from} = '' OR c.relname >= ${from})
+        AND (${to} = '' OR c.relname < ${to})
+      ORDER BY c.relname ASC
+      LIMIT CASE WHEN ${limit} > 0 THEN ${limit} ELSE 2147483647 END
     `;
 
     return result.map((r) => r.relname);
