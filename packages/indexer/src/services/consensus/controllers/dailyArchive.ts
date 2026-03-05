@@ -48,6 +48,12 @@ export class DailyArchiveController {
       return null;
     }
 
+    // Require all 24 hourly partitions, unless this is the first day ever archived
+    // (lookback_slot may start mid-day, so the first day can be partial).
+    if (!candidate.isFirstDay && hourlyPartitions.length !== 24) {
+      return null;
+    }
+
     // Generate daily partition name: validator_daily_archive_YYYYMMDD
     const dailyPartitionName = getDailyArchivePartitionName(
       'validator_daily_archive',
@@ -70,10 +76,14 @@ export class DailyArchiveController {
    * Logic:
    * - lastDay tells us what day was last archived (or null if never)
    * - lastHour tells us the most recent hourly archive
-   * - A day is eligible if all 24 hours have been archived (lastHour >= dayEnd - 1h)
-   * - We keep at least 24h of hourly data, so candidate must be < lastHour - 24h
+   * - A day is eligible only when fully outside the 24h retention window
+   *   (lastHour >= candidateDayEnd + 24h), ensuring hourly data always covers the last 24h
    */
-  private async findDayToArchive(): Promise<{ dayStart: Date; dayEnd: Date } | null> {
+  private async findDayToArchive(): Promise<{
+    dayStart: Date;
+    dayEnd: Date;
+    isFirstDay: boolean;
+  } | null> {
     const lastHour = await this.storage.getLastArchivedHour();
     if (!lastHour) {
       return null;
@@ -83,6 +93,7 @@ export class DailyArchiveController {
 
     // The candidate day is the day after lastDay, or the first possible day
     let candidateDayStart: Date;
+    let isFirstDay = false;
     if (lastDay) {
       candidateDayStart = new Date(lastDay.getTime() + 24 * 3600 * 1000);
     } else {
@@ -92,18 +103,21 @@ export class DailyArchiveController {
         return null;
       }
       candidateDayStart = floorToUTCDay(oldestHour);
+      isFirstDay = true;
     }
 
     const candidateDayEnd = new Date(candidateDayStart.getTime() + 24 * 3600 * 1000);
 
-    // The candidate day must be fully covered by hourly archives:
-    // lastHour must be >= the last hour of the day (dayEnd - 1h = dayStart + 23h)
-    const lastHourOfDay = new Date(candidateDayEnd.getTime() - 3600 * 1000);
-    if (lastHour < lastHourOfDay) {
+    // We always retain the last 24h of hourly data for queries.
+    // A day is only eligible when its data is fully outside that retention window:
+    // lastHour must be >= candidateDayEnd + 24h (analogous to hourly archive's
+    // subHours(now, 2) cutoff in PartitionController.getHourToArchive).
+    const retentionMs = 24 * 3600 * 1000;
+    if (lastHour.getTime() - candidateDayEnd.getTime() < retentionMs) {
       return null;
     }
 
-    return { dayStart: candidateDayStart, dayEnd: candidateDayEnd };
+    return { dayStart: candidateDayStart, dayEnd: candidateDayEnd, isFirstDay };
   }
 }
 
