@@ -16,16 +16,9 @@ export class DailyArchiveStorage {
    * Uses the master archive table.
    */
   async archiveExistsForDay(timestamp: Date): Promise<boolean> {
-    const archive = await this.prisma.archive.findUnique({
-      where: { id: 1 },
-      select: { lastDay: true },
-    });
-
-    if (!archive?.lastDay) {
-      return false;
-    }
-
-    return archive.lastDay >= timestamp;
+    const lastDay = await this.getLastArchivedDay();
+    if (!lastDay) return false;
+    return lastDay >= timestamp;
   }
 
   /**
