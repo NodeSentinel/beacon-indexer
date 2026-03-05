@@ -6,6 +6,7 @@ import { env, chainConfig } from '@/src/lib/env.js';
 import createLogger from '@/src/lib/pino.js';
 import { BeaconClient } from '@/src/services/consensus/beacon.js';
 import { ChainStatsController } from '@/src/services/consensus/controllers/chainStats.js';
+import { DailyArchiveController } from '@/src/services/consensus/controllers/dailyArchive.js';
 import { EpochController } from '@/src/services/consensus/controllers/epoch.js';
 import { HourlyArchiveController } from '@/src/services/consensus/controllers/hourlyArchive.js';
 import { IndexerConfigController } from '@/src/services/consensus/controllers/indexerConfig.js';
@@ -13,6 +14,7 @@ import { PartitionController } from '@/src/services/consensus/controllers/partit
 import { SlotController } from '@/src/services/consensus/controllers/slot.js';
 import { ValidatorsController } from '@/src/services/consensus/controllers/validators.js';
 import { ChainStatsStorage } from '@/src/services/consensus/storage/chainStats.js';
+import { DailyArchiveStorage } from '@/src/services/consensus/storage/dailyArchive.js';
 import { EpochStorage } from '@/src/services/consensus/storage/epoch.js';
 import { HourlyArchiveStorage } from '@/src/services/consensus/storage/hourlyArchive.js';
 import { IndexerConfigStorage } from '@/src/services/consensus/storage/indexerConfig.js';
@@ -174,6 +176,10 @@ async function main() {
     chainConfig.beacon.maxAttestationDelay,
   );
 
+  // Create daily archive storage and controller
+  const dailyArchiveStorage = new DailyArchiveStorage(prisma);
+  const dailyArchiveController = new DailyArchiveController(dailyArchiveStorage);
+
   // Create chain stats storage and controller
   const chainStatsStorage = new ChainStatsStorage(prisma);
   const chainStatsController = new ChainStatsController(chainStatsStorage, beaconTime);
@@ -191,6 +197,7 @@ async function main() {
     slotController,
     validatorsController,
     hourlyArchiveController,
+    dailyArchiveController,
     chainStatsController,
   );
 }

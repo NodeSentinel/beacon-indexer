@@ -1,11 +1,14 @@
 import { createActor } from 'xstate';
 
+import { dailyArchiveMachine } from './dailyArchive.machine.js';
 import { hourlyArchiveMachine } from './hourlyArchive.machine.js';
 
+import { DailyArchiveController } from '@/src/services/consensus/controllers/dailyArchive.js';
 import { HourlyArchiveController } from '@/src/services/consensus/controllers/hourlyArchive.js';
 import { logMachine } from '@/src/xstate/multiMachineLogger.js';
 
 export { hourlyArchiveMachine } from './hourlyArchive.machine.js';
+export { dailyArchiveMachine } from './dailyArchive.machine.js';
 
 /**
  * Creates and returns the hourly archive actor.
@@ -20,6 +23,23 @@ export const getHourlyArchiveActor = (hourlyArchiveController: HourlyArchiveCont
 
   actor.subscribe((snapshot) => {
     logMachine('hourlyArchive', `State: ${JSON.stringify(snapshot.value)}`);
+  });
+
+  return actor;
+};
+
+/**
+ * Creates and returns the daily archive actor.
+ */
+export const getDailyArchiveActor = (dailyArchiveController: DailyArchiveController) => {
+  const actor = createActor(dailyArchiveMachine, {
+    input: {
+      dailyArchiveController,
+    },
+  });
+
+  actor.subscribe((snapshot) => {
+    logMachine('dailyArchive', `State: ${JSON.stringify(snapshot.value)}`);
   });
 
   return actor;

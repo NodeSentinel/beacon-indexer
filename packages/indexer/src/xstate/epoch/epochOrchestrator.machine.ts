@@ -10,6 +10,7 @@ import {
   ActorRefFrom,
 } from 'xstate';
 
+import { dailyArchiveMachine } from '../archive/dailyArchive.machine.js';
 import { hourlyArchiveMachine } from '../archive/hourlyArchive.machine.js';
 import { chainStatsMachine } from '../chainStats/chainStats.machine.js';
 
@@ -85,6 +86,8 @@ export const epochOrchestratorMachine = setup({
       epochs: Record<number, EpochStatus>;
       // Hourly archive actor reference (passed from outside)
       hourlyArchiveActor: ActorRefFrom<typeof hourlyArchiveMachine>;
+      // Daily archive actor reference (passed from outside)
+      dailyArchiveActor: ActorRefFrom<typeof dailyArchiveMachine>;
       // Chain stats actor reference (passed from outside)
       chainStatsActor: ActorRefFrom<typeof chainStatsMachine>;
       // Config
@@ -113,6 +116,7 @@ export const epochOrchestratorMachine = setup({
       validatorsController?: ValidatorsController;
       slotController: SlotController;
       hourlyArchiveActor: ActorRefFrom<typeof hourlyArchiveMachine>;
+      dailyArchiveActor: ActorRefFrom<typeof dailyArchiveMachine>;
       chainStatsActor: ActorRefFrom<typeof chainStatsMachine>;
     };
   },
@@ -145,6 +149,7 @@ export const epochOrchestratorMachine = setup({
   context: ({ input }) => ({
     epochs: {},
     hourlyArchiveActor: input.hourlyArchiveActor,
+    dailyArchiveActor: input.dailyArchiveActor,
     chainStatsActor: input.chainStatsActor,
     config: {
       slotDuration: input.slotDuration,
@@ -294,6 +299,11 @@ export const epochOrchestratorMachine = setup({
         // Forward EPOCH_PROCESSED to hourly archive actor to trigger archive check
         sendTo(
           ({ context }) => context.hourlyArchiveActor,
+          ({ event }) => ({ type: 'EPOCH_PROCESSED' as const, epoch: event.epoch }),
+        ),
+        // Forward EPOCH_PROCESSED to daily archive actor to trigger daily archive check
+        sendTo(
+          ({ context }) => context.dailyArchiveActor,
           ({ event }) => ({ type: 'EPOCH_PROCESSED' as const, epoch: event.epoch }),
         ),
         // Forward EPOCH_PROCESSED to chain stats actor to compute chain stats
