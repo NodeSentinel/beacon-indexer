@@ -1,4 +1,5 @@
 import { PrismaClient } from '@beacon-indexer/db';
+import { addDays } from 'date-fns';
 import { formatInTimeZone } from 'date-fns-tz';
 import ms from 'ms';
 
@@ -116,7 +117,7 @@ export class DailyArchiveStorage {
     hourlyPartitionNames: string[],
     dailyPartitionName: string,
   ): Promise<void> {
-    const nextDayStart = new Date(dayStart.getTime() + 24 * 3600 * 1000);
+    const nextDayStart = addDays(dayStart, 1);
 
     await this.prisma.$transaction(
       async (tx) => {
