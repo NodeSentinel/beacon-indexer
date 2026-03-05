@@ -1,5 +1,4 @@
 import { formatInTimeZone } from 'date-fns-tz';
-import ms from 'ms';
 
 import { MonthlyArchiveStorage } from '../storage/monthlyArchive.js';
 
@@ -49,6 +48,15 @@ export class MonthlyArchiveController {
       return null;
     }
 
+    // Require all days of the month, unless this is the first month ever archived
+    // (the first month can be partial because data may start mid-month).
+    const daysInMonth = Math.round(
+      (candidate.monthEnd.getTime() - candidate.monthStart.getTime()) / (24 * 3600 * 1000),
+    );
+    if (!candidate.isFirstMonth && dailyPartitions.length !== daysInMonth) {
+      return null;
+    }
+
     // Generate monthly partition name: validator_monthly_archive_YYYYMM
     const monthlyPartitionName = getMonthlyArchivePartitionName(
       'validator_monthly_archive',
@@ -72,9 +80,14 @@ export class MonthlyArchiveController {
    * Logic:
    * - lastMonth tells us what month was last archived (or null if never)
    * - lastDay tells us the most recent daily archive
-   * - A month is eligible if all days have been archived (lastDay >= last day of month)
+   * - A month is eligible only when fully outside the 1-month retention window
+   *   (lastDay >= candidateMonthEnd + 1 month), ensuring daily data always covers the last month
    */
-  private async findMonthToArchive(): Promise<{ monthStart: Date; monthEnd: Date } | null> {
+  private async findMonthToArchive(): Promise<{
+    monthStart: Date;
+    monthEnd: Date;
+    isFirstMonth: boolean;
+  } | null> {
     const lastDay = await this.storage.getLastArchivedDay();
     if (!lastDay) {
       return null;
@@ -84,6 +97,7 @@ export class MonthlyArchiveController {
 
     // The candidate month is the month after lastMonth, or the first possible month
     let candidateMonthStart: Date;
+    let isFirstMonth = false;
     if (lastMonth) {
       candidateMonthStart = getNextMonthStart(lastMonth);
     } else {
@@ -93,18 +107,20 @@ export class MonthlyArchiveController {
         return null;
       }
       candidateMonthStart = floorToUTCMonth(oldestDay);
+      isFirstMonth = true;
     }
 
     const candidateMonthEnd = getNextMonthStart(candidateMonthStart);
 
-    // The candidate month must be fully covered by daily archives:
-    // lastDay must be >= the last day of the month (monthEnd - 1 day)
-    const lastDayOfMonth = new Date(candidateMonthEnd.getTime() - ms('1d'));
-    if (lastDay < lastDayOfMonth) {
+    // We always retain 1 month of daily data for queries.
+    // A month is only eligible when its data is fully outside the retention window:
+    // lastDay must be >= candidateMonthEnd + 1 month (analogous to daily archive's 24h retention).
+    const retentionEnd = getNextMonthStart(candidateMonthEnd);
+    if (lastDay.getTime() < retentionEnd.getTime()) {
       return null;
     }
 
-    return { monthStart: candidateMonthStart, monthEnd: candidateMonthEnd };
+    return { monthStart: candidateMonthStart, monthEnd: candidateMonthEnd, isFirstMonth };
   }
 }
 

@@ -16,16 +16,9 @@ export class MonthlyArchiveStorage {
    * Uses the master archive table.
    */
   async archiveExistsForMonth(timestamp: Date): Promise<boolean> {
-    const archive = await this.prisma.archive.findUnique({
-      where: { id: 1 },
-      select: { lastMonth: true },
-    });
-
-    if (!archive?.lastMonth) {
-      return false;
-    }
-
-    return archive.lastMonth >= timestamp;
+    const lastMonth = await this.getLastArchivedMonth();
+    if (!lastMonth) return false;
+    return lastMonth >= timestamp;
   }
 
   /**
@@ -57,19 +50,10 @@ export class MonthlyArchiveStorage {
    * Returns null if no daily partitions exist.
    */
   async getOldestDailyPartition(): Promise<Date | null> {
-    const result = await this.prisma.$queryRaw<{ relname: string }[]>`
-      SELECT c.relname
-      FROM pg_class c
-      JOIN pg_inherits i ON c.oid = i.inhrelid
-      JOIN pg_class p ON i.inhparent = p.oid
-      WHERE p.relname = 'validator_daily_archive'
-      ORDER BY c.relname ASC
-      LIMIT 1
-    `;
+    const partitions = await this.listDailyPartitions({ limit: 1 });
+    if (partitions.length === 0) return null;
 
-    if (result.length === 0) return null;
-
-    const match = result[0].relname.match(/validator_daily_archive_(\d{8})$/);
+    const match = partitions[0].match(/validator_daily_archive_(\d{8})$/);
     if (!match) return null;
 
     const suffix = match[1];
@@ -86,8 +70,20 @@ export class MonthlyArchiveStorage {
   async discoverDailyPartitionsForMonth(monthStart: Date, monthEnd: Date): Promise<string[]> {
     const startSuffix = formatInTimeZone(monthStart, 'UTC', 'yyyyMMdd');
     const endSuffix = formatInTimeZone(monthEnd, 'UTC', 'yyyyMMdd');
-    const startPartitionName = `validator_daily_archive_${startSuffix}`;
-    const endPartitionName = `validator_daily_archive_${endSuffix}`;
+    return this.listDailyPartitions({
+      from: `validator_daily_archive_${startSuffix}`,
+      to: `validator_daily_archive_${endSuffix}`,
+    });
+  }
+
+  private async listDailyPartitions(opts?: {
+    from?: string;
+    to?: string;
+    limit?: number;
+  }): Promise<string[]> {
+    const from = opts?.from ?? '';
+    const to = opts?.to ?? '';
+    const limit = opts?.limit ?? 0;
 
     const result = await this.prisma.$queryRaw<{ relname: string }[]>`
       SELECT c.relname
@@ -95,9 +91,10 @@ export class MonthlyArchiveStorage {
       JOIN pg_inherits i ON c.oid = i.inhrelid
       JOIN pg_class p ON i.inhparent = p.oid
       WHERE p.relname = 'validator_daily_archive'
-        AND c.relname >= ${startPartitionName}
-        AND c.relname < ${endPartitionName}
-      ORDER BY c.relname
+        AND (${from} = '' OR c.relname >= ${from})
+        AND (${to} = '' OR c.relname < ${to})
+      ORDER BY c.relname ASC
+      LIMIT CASE WHEN ${limit} > 0 THEN ${limit} ELSE 2147483647 END
     `;
 
     return result.map((r) => r.relname);
