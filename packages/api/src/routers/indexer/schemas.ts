@@ -22,7 +22,6 @@ export const IndexerStatusSchema = z.object({
     .object({
       lastHour: z.date().nullable(),
       lastDay: z.date().nullable(),
-      lastWeek: z.date().nullable(),
       lastMonth: z.date().nullable(),
     })
     .nullable(),

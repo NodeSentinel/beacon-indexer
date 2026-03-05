@@ -18,16 +18,15 @@ The database uses a **two-tier storage** model:
    Fine-grained events (one row per slot, epoch, attestation, etc.). Partitioned by time; partitions are created and deleted dynamically. Data is aggregated and **deleted** after archival (no duplication).
 
 2. **Archive tables (permanent)**
-   Time-based aggregates (e.g., hourly, daily, weekly, monthly). Hybrid: aggregate columns plus JSON arrays with event detail. Partitioned by time; data is kept long-term.
+   Time-based aggregates (e.g., hourly, daily, monthly). Hybrid: aggregate columns plus JSON arrays with event detail. Partitioned by time; data is kept long-term.
 
-There is a **moving boundary**: data older than the boundary exists only in archive tables; newer data only in raw tables. The `Archive` control table stores the archival boundary timestamps (`lastHour`, `lastDay`, `lastWeek`, `lastMonth`).
+There is a **moving boundary**: data older than the boundary exists only in archive tables; newer data only in raw tables. The `Archive` control table stores the archival boundary timestamps (`lastHour`, `lastDay`, `lastMonth`).
 
 ### Archival cascade
 
 - **Raw → Hourly**: Keep ~60 min of raw data, archive older.
 - **Hourly → Daily**: Keep ~24h of hourly archives, archive older to daily.
-- **Daily → Weekly**: Keep ~7 days of daily archives, archive older to weekly.
-- **Daily → Monthly**: Keep ~30 days of daily archives, archive older to monthly.
+- **Daily → Monthly**: Keep ~30 days of daily archives, archive older to monthly (calendar-aligned).
 
 **Atomic transactions**: Archiving and deleting source data happen in the same transaction. Never have duplicated data.
 
@@ -44,7 +43,6 @@ Discover partitions via PostgreSQL catalog; parse names to get time/slot/epoch r
 - `epoch_rewards`: partitioned by epoch
 - `validator_hourly_archive`: partitioned by timestamp
 - `validator_daily_archive`: partitioned by timestamp (to be created)
-- `validator_weekly_archive`: partitioned by timestamp (to be created)
 - `validator_monthly_archive`: partitioned by timestamp (to be created)
 
 ## Data structure

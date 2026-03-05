@@ -8,7 +8,6 @@ import { SystemConfigStorage } from '@/storage/systemConfig.js';
 interface Archive {
   lastHour: Date | null;
   lastDay: Date | null;
-  lastWeek: Date | null;
   lastMonth: Date | null;
 }
 
@@ -34,7 +33,6 @@ export class SystemConfigController {
     return {
       lastHour: row.last_hour,
       lastDay: row.last_day,
-      lastWeek: row.last_week,
       lastMonth: row.last_month,
     };
   }

@@ -12,7 +12,6 @@ interface ArchiveRow {
   id: number;
   last_hour: Date | null;
   last_day: Date | null;
-  last_week: Date | null;
   last_month: Date | null;
 }
 
@@ -36,7 +35,6 @@ export class SystemConfigStorage {
         id,
         last_hour,
         last_day,
-        last_week,
         last_month
       FROM archive
       WHERE id = 1

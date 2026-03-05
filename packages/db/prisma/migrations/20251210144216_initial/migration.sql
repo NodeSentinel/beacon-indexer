@@ -217,29 +217,8 @@ CREATE TABLE "public"."validator_daily_archive" (
 ) PARTITION BY RANGE ("timestamp");
 
 -- CreateTable (Partitioned by timestamp range)
--- ValidatorWeeklyArchive stores per-validator aggregated data for each UTC week.
--- Aggregated from daily archives (7 daily records → 1 weekly record).
--- Partitions are created dynamically by the weekly archive service.
--- Partition naming: validator_weekly_archive_YYYYWW
-CREATE TABLE "public"."validator_weekly_archive" (
-    "timestamp" TIMESTAMP NOT NULL,
-    "validator_index" INTEGER NOT NULL,
-    "data_by_slot" JSONB NOT NULL,
-    "data_by_epoch" JSONB NOT NULL,
-    "attestation_count" SMALLINT NOT NULL DEFAULT 0,
-    "missed_attestation_count" SMALLINT,
-    "sync_reward_total" BIGINT NOT NULL DEFAULT 0,
-    "exec_reward_total" NUMERIC(78, 0),
-    "block_reward_total" BIGINT,
-    "cl_reward_total" BIGINT NOT NULL DEFAULT 0,
-    "cl_missed_reward_total" BIGINT NOT NULL DEFAULT 0,
-
-    CONSTRAINT "validator_weekly_archive_pkey" PRIMARY KEY ("timestamp","validator_index")
-) PARTITION BY RANGE ("timestamp");
-
--- CreateTable (Partitioned by timestamp range)
 -- ValidatorMonthlyArchive stores per-validator aggregated data for each UTC month.
--- Aggregated from daily archives (~30 daily records → 1 monthly record).
+-- Aggregated from daily archives (~28-31 daily records → 1 monthly record).
 -- Partitions are created dynamically by the monthly archive service.
 -- Partition naming: validator_monthly_archive_YYYYMM
 CREATE TABLE "public"."validator_monthly_archive" (
@@ -265,15 +244,14 @@ CREATE TABLE "public"."archive" (
     "id" INTEGER NOT NULL DEFAULT 1,
     "last_hour" TIMESTAMP,
     "last_day" TIMESTAMP,
-    "last_week" TIMESTAMP,
     "last_month" TIMESTAMP,
 
     CONSTRAINT "archive_pkey" PRIMARY KEY ("id")
 );
 
 -- Insert initial archive row (single row, id=1)
-INSERT INTO "public"."archive" ("id", "last_hour", "last_day", "last_week", "last_month")
-VALUES (1, NULL, NULL, NULL, NULL);
+INSERT INTO "public"."archive" ("id", "last_hour", "last_day", "last_month")
+VALUES (1, NULL, NULL, NULL);
 
 -- CreateTable
 CREATE TABLE "public"."validators_status_summary" (
@@ -371,10 +349,6 @@ CREATE INDEX "validator_hourly_archive_timestamp_idx" ON "public"."validator_hou
 -- CreateIndex (for validator_daily_archive)
 CREATE INDEX "validator_daily_archive_validator_timestamp_idx" ON "public"."validator_daily_archive"("validator_index", "timestamp" DESC);
 CREATE INDEX "validator_daily_archive_timestamp_idx" ON "public"."validator_daily_archive"("timestamp");
-
--- CreateIndex (for validator_weekly_archive)
-CREATE INDEX "validator_weekly_archive_validator_timestamp_idx" ON "public"."validator_weekly_archive"("validator_index", "timestamp" DESC);
-CREATE INDEX "validator_weekly_archive_timestamp_idx" ON "public"."validator_weekly_archive"("timestamp");
 
 -- CreateIndex (for validator_monthly_archive)
 CREATE INDEX "validator_monthly_archive_validator_timestamp_idx" ON "public"."validator_monthly_archive"("validator_index", "timestamp" DESC);

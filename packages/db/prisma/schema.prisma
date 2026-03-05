@@ -319,36 +319,8 @@ model ValidatorDailyArchive {
 }
 
 /**
- * ValidatorWeeklyArchive - Per-validator aggregated data for each UTC week.
- * Aggregated from daily archives (7 daily records → 1 weekly record).
- * Same schema as ValidatorHourlyArchive (JSON detail + aggregate columns).
- * Timestamp represents start of week (Monday 00:00:00 UTC).
- * Partitioned by timestamp. Partition naming: validator_weekly_archive_YYYYWW
- */
-model ValidatorWeeklyArchive {
-  timestamp      DateTime @map("timestamp") @db.Timestamp
-  validatorIndex Int      @map("validator_index")
-
-  // Compact JSON payloads (concatenated from daily archives)
-  dataBySlot  Json @map("data_by_slot") // [[slot, attDelay, sync, exec, block], ...]
-  dataByEpoch Json @map("data_by_epoch") // [[epoch, head, target, source, inactivity, mH, mT, mS, mI], ...]
-
-  // Aggregate columns for fast queries without JSON parsing
-  attestationCount       Int      @default(0) @map("attestation_count") @db.SmallInt
-  missedAttestationCount Int?     @map("missed_attestation_count") @db.SmallInt
-  syncRewardTotal        BigInt   @default(0) @map("sync_reward_total")
-  execRewardTotal        Decimal? @map("exec_reward_total") @db.Decimal(78, 0)
-  blockRewardTotal       BigInt?  @map("block_reward_total")
-  clRewardTotal          BigInt   @default(0) @map("cl_reward_total")
-  clMissedRewardTotal    BigInt   @default(0) @map("cl_missed_reward_total")
-
-  @@id([timestamp, validatorIndex])
-  @@map("validator_weekly_archive")
-}
-
-/**
  * ValidatorMonthlyArchive - Per-validator aggregated data for each UTC month.
- * Aggregated from daily archives (~30 daily records → 1 monthly record).
+ * Aggregated from daily archives (~28-31 daily records → 1 monthly record).
  * Same schema as ValidatorHourlyArchive (JSON detail + aggregate columns).
  * Timestamp represents start of month (1st day 00:00:00 UTC).
  * Partitioned by timestamp. Partition naming: validator_monthly_archive_YYYYMM
@@ -379,14 +351,13 @@ model ValidatorMonthlyArchive {
  * This is a single-row table (id=1) that serves as the source of truth for what has been archived.
  * Instead of querying validator_hourly_archive partitions to check if an hour is archived,
  * we simply compare against lastHour timestamp.
- * Future columns (lastDay, lastWeek, lastMonth) are prepared for daily/weekly/monthly aggregation.
+ * Columns track the last archived timestamp for each aggregation level (hourly, daily, monthly).
  */
 model Archive {
   id        Int       @id @default(1) @map("id")
   lastHour  DateTime? @map("last_hour") @db.Timestamp // UTC timestamp of last archived hour
-  lastDay   DateTime? @map("last_day") @db.Timestamp // UTC timestamp of last archived day (future use)
-  lastWeek  DateTime? @map("last_week") @db.Timestamp // UTC timestamp of last archived week (future use)
-  lastMonth DateTime? @map("last_month") @db.Timestamp // UTC timestamp of last archived month (future use)
+  lastDay   DateTime? @map("last_day") @db.Timestamp // UTC timestamp of last archived day
+  lastMonth DateTime? @map("last_month") @db.Timestamp // UTC timestamp of last archived month
 
   @@map("archive")
 }
