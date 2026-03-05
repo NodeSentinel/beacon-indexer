@@ -1,15 +1,16 @@
 import { formatInTimeZone } from 'date-fns-tz';
+import ms from 'ms';
 
 import { MonthlyArchiveStorage } from '../storage/monthlyArchive.js';
 
 /**
  * MonthlyArchiveController - Business logic for monthly archive aggregation.
  *
- * Aggregates daily archives into monthly archives:
- * 1. Checks if all days of a month have been archived in daily
+ * Aggregates weekly archives into monthly archives:
+ * 1. Checks if all weeks of a month have been archived in weekly
  * 2. Creates monthly partition
- * 3. Aggregates daily data into monthly record
- * 4. Drops daily archive partitions
+ * 3. Aggregates weekly data into monthly record
+ * 4. Drops weekly archive partitions
  * 5. Updates Archive.lastMonth
  *
  * Triggered by EPOCH_PROCESSED events (same as weekly archive).
@@ -38,22 +39,19 @@ export class MonthlyArchiveController {
       return null;
     }
 
-    // Discover daily partitions for this month
-    const dailyPartitions = await this.storage.discoverDailyPartitionsForMonth(
+    // Discover weekly partitions for this month
+    const weeklyPartitions = await this.storage.discoverWeeklyPartitionsForMonth(
       candidate.monthStart,
       candidate.monthEnd,
     );
 
-    if (dailyPartitions.length === 0) {
+    if (weeklyPartitions.length === 0) {
       return null;
     }
 
-    // Require all days of the month, unless this is the first month ever archived
+    // Require all weeks of the month, unless this is the first month ever archived
     // (the first month can be partial because data may start mid-month).
-    const daysInMonth = Math.round(
-      (candidate.monthEnd.getTime() - candidate.monthStart.getTime()) / (24 * 3600 * 1000),
-    );
-    if (!candidate.isFirstMonth && dailyPartitions.length !== daysInMonth) {
+    if (!candidate.isFirstMonth && weeklyPartitions.length !== candidate.expectedWeeks) {
       return null;
     }
 
@@ -67,7 +65,7 @@ export class MonthlyArchiveController {
     await this.storage.archiveMonthAtomically(
       candidate.monthStart,
       candidate.monthEnd,
-      dailyPartitions,
+      weeklyPartitions,
       monthlyPartitionName,
     );
 
@@ -79,17 +77,19 @@ export class MonthlyArchiveController {
    *
    * Logic:
    * - lastMonth tells us what month was last archived (or null if never)
-   * - lastDay tells us the most recent daily archive
+   * - lastWeek tells us the most recent weekly archive
    * - A month is eligible only when fully outside the 1-month retention window
-   *   (lastDay >= candidateMonthEnd + 1 month), ensuring daily data always covers the last month
+   *   (lastWeek >= candidateMonthEnd + 1 month), ensuring weekly data always
+   *   covers the last month
    */
   private async findMonthToArchive(): Promise<{
     monthStart: Date;
     monthEnd: Date;
+    expectedWeeks: number;
     isFirstMonth: boolean;
   } | null> {
-    const lastDay = await this.storage.getLastArchivedDay();
-    if (!lastDay) {
+    const lastWeek = await this.storage.getLastArchivedWeek();
+    if (!lastWeek) {
       return null;
     }
 
@@ -101,26 +101,34 @@ export class MonthlyArchiveController {
     if (lastMonth) {
       candidateMonthStart = getNextMonthStart(lastMonth);
     } else {
-      // No month archived yet — find the oldest daily partition to determine the starting month
-      const oldestDay = await this.storage.getOldestDailyPartition();
-      if (!oldestDay) {
+      // No month archived yet — find the oldest weekly partition to determine the starting month
+      const oldestWeek = await this.storage.getOldestWeeklyPartition();
+      if (!oldestWeek) {
         return null;
       }
-      candidateMonthStart = floorToUTCMonth(oldestDay);
+      candidateMonthStart = floorToUTCMonth(oldestWeek);
       isFirstMonth = true;
     }
 
     const candidateMonthEnd = getNextMonthStart(candidateMonthStart);
 
-    // We always retain 1 month of daily data for queries.
+    // We always retain 1 month of weekly data for queries.
     // A month is only eligible when its data is fully outside the retention window:
-    // lastDay must be >= candidateMonthEnd + 1 month (analogous to daily archive's 24h retention).
+    // lastWeek must be >= candidateMonthEnd + 1 month (analogous to weekly archive's 7d retention).
     const retentionEnd = getNextMonthStart(candidateMonthEnd);
-    if (lastDay.getTime() < retentionEnd.getTime()) {
+    if (lastWeek.getTime() < retentionEnd.getTime()) {
       return null;
     }
 
-    return { monthStart: candidateMonthStart, monthEnd: candidateMonthEnd, isFirstMonth };
+    // Count how many ISO weeks have their Monday within this month
+    const expectedWeeks = countWeeksInMonth(candidateMonthStart, candidateMonthEnd);
+
+    return {
+      monthStart: candidateMonthStart,
+      monthEnd: candidateMonthEnd,
+      expectedWeeks,
+      isFirstMonth,
+    };
   }
 }
 
@@ -136,6 +144,28 @@ function floorToUTCMonth(date: Date): Date {
  */
 function getNextMonthStart(date: Date): Date {
   return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + 1, 1));
+}
+
+/**
+ * Count how many ISO weeks have their Monday falling within [monthStart, monthEnd).
+ */
+function countWeeksInMonth(monthStart: Date, monthEnd: Date): number {
+  let count = 0;
+  const cursor = new Date(monthStart.getTime());
+
+  // Find the first Monday >= monthStart
+  const dayOfWeek = cursor.getUTCDay(); // 0=Sun, 1=Mon, ...
+  if (dayOfWeek !== 1) {
+    const daysUntilMonday = dayOfWeek === 0 ? 1 : 8 - dayOfWeek;
+    cursor.setUTCDate(cursor.getUTCDate() + daysUntilMonday);
+  }
+
+  while (cursor.getTime() < monthEnd.getTime()) {
+    count++;
+    cursor.setUTCDate(cursor.getUTCDate() + 7);
+  }
+
+  return count;
 }
 
 /**
