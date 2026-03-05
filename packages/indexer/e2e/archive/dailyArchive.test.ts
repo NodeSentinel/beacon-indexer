@@ -22,6 +22,10 @@ describe('Daily Archive Process', () => {
   // we need lastHour >= Dec 18 00:00.
   const RETENTION_DAY_END = new Date('2025-12-18T00:00:00.000Z');
 
+  function createController(lookbackSlotTimestamp: number = TEST_DAY_START.getTime()) {
+    dailyArchiveController = new DailyArchiveController(dailyArchiveStorage, lookbackSlotTimestamp);
+  }
+
   beforeAll(async () => {
     if (!process.env.DATABASE_URL) {
       throw new Error('DATABASE_URL is not set');
@@ -32,7 +36,6 @@ describe('Daily Archive Process', () => {
     });
 
     dailyArchiveStorage = new DailyArchiveStorage(prisma);
-    dailyArchiveController = new DailyArchiveController(dailyArchiveStorage);
   });
 
   afterAll(async () => {
@@ -66,6 +69,9 @@ describe('Daily Archive Process', () => {
       update: { lastHour: null, lastDay: null },
       create: { id: 1, lastHour: null, lastDay: null },
     });
+
+    // Default controller with lookback at day start
+    createController();
   });
 
   /**
@@ -310,14 +316,13 @@ describe('Daily Archive Process', () => {
   });
 
   /**
-   * LOOKBACK_SLOT BASE CASE: The very first day can be partial.
+   * LOOKBACK_SLOT BASE CASE: The lookback_slot day can be partial.
    *
    * When the indexer starts with a lookback_slot that doesn't align to midnight,
-   * the oldest hourly partition may be mid-day (e.g., 14:00). The controller floors
-   * this to the UTC day start (Dec 16 00:00), but only 10 hourly partitions exist
-   * for that day (14:00–23:00). Normally, a day with < 24 partitions is rejected.
-   * But for the very first day (lastDay = null), partial archiving is allowed because
-   * the missing hours simply don't exist — they were before the indexer started.
+   * the oldest hourly partition may be mid-day (e.g., 14:00). The controller uses
+   * lookbackSlotTimestamp to derive the lookback day (floored to UTC midnight),
+   * and allows partial archiving for that specific day because the missing hours
+   * simply don't exist — they were before the indexer started.
    *
    * Timeline:
    *   Dec 16 14:00–23:00  →  10 hourly partitions (partial first day)
@@ -329,6 +334,7 @@ describe('Daily Archive Process', () => {
    */
   it('should archive a partial first day when lookback_slot starts mid-day', async () => {
     const partialDayStart = new Date('2025-12-16T14:00:00.000Z');
+    createController(partialDayStart.getTime());
 
     // 10h (Dec 16) + 24h (Dec 17) + 1h (Dec 18 00:00) = 35 partitions
     const allHours = await createHourlyPartitionsForRange(partialDayStart, 35);

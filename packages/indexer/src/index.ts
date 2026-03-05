@@ -14,7 +14,6 @@ import { MonthlyArchiveController } from '@/src/services/consensus/controllers/m
 import { PartitionController } from '@/src/services/consensus/controllers/partition.js';
 import { SlotController } from '@/src/services/consensus/controllers/slot.js';
 import { ValidatorsController } from '@/src/services/consensus/controllers/validators.js';
-import { WeeklyArchiveController } from '@/src/services/consensus/controllers/weeklyArchive.js';
 import { ChainStatsStorage } from '@/src/services/consensus/storage/chainStats.js';
 import { DailyArchiveStorage } from '@/src/services/consensus/storage/dailyArchive.js';
 import { EpochStorage } from '@/src/services/consensus/storage/epoch.js';
@@ -24,7 +23,6 @@ import { MonthlyArchiveStorage } from '@/src/services/consensus/storage/monthlyA
 import { PartitionStorage } from '@/src/services/consensus/storage/partition.js';
 import { SlotStorage } from '@/src/services/consensus/storage/slot.js';
 import { ValidatorsStorage } from '@/src/services/consensus/storage/validators.js';
-import { WeeklyArchiveStorage } from '@/src/services/consensus/storage/weeklyArchive.js';
 import { ExecutionClient } from '@/src/services/execution/execution.js';
 import initXstateMachines from '@/src/xstate/index.js';
 import { getMultiMachineLogger } from '@/src/xstate/multiMachineLogger.js';
@@ -182,15 +180,18 @@ async function main() {
 
   // Create daily archive storage and controller
   const dailyArchiveStorage = new DailyArchiveStorage(prisma);
-  const dailyArchiveController = new DailyArchiveController(dailyArchiveStorage);
-
-  // Create weekly archive storage and controller
-  const weeklyArchiveStorage = new WeeklyArchiveStorage(prisma);
-  const weeklyArchiveController = new WeeklyArchiveController(weeklyArchiveStorage);
+  const lookbackSlotTimestamp = beaconTime.getTimestampFromSlotNumber(env.CONSENSUS_LOOKBACK_SLOT);
+  const dailyArchiveController = new DailyArchiveController(
+    dailyArchiveStorage,
+    lookbackSlotTimestamp,
+  );
 
   // Create monthly archive storage and controller
   const monthlyArchiveStorage = new MonthlyArchiveStorage(prisma);
-  const monthlyArchiveController = new MonthlyArchiveController(monthlyArchiveStorage);
+  const monthlyArchiveController = new MonthlyArchiveController(
+    monthlyArchiveStorage,
+    lookbackSlotTimestamp,
+  );
 
   // Create chain stats storage and controller
   const chainStatsStorage = new ChainStatsStorage(prisma);
@@ -210,7 +211,6 @@ async function main() {
     validatorsController,
     hourlyArchiveController,
     dailyArchiveController,
-    weeklyArchiveController,
     monthlyArchiveController,
     chainStatsController,
   );

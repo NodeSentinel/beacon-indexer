@@ -1,5 +1,4 @@
 import { formatInTimeZone } from 'date-fns-tz';
-import ms from 'ms';
 
 import { DailyArchiveStorage } from '../storage/dailyArchive.js';
 
@@ -17,7 +16,14 @@ import { DailyArchiveStorage } from '../storage/dailyArchive.js';
  * Archives only 1 day per call (the oldest eligible).
  */
 export class DailyArchiveController {
-  constructor(private readonly storage: DailyArchiveStorage) {}
+  private readonly lookbackDayStart: Date;
+
+  constructor(
+    private readonly storage: DailyArchiveStorage,
+    lookbackSlotTimestamp: number,
+  ) {
+    this.lookbackDayStart = floorToUTCDay(new Date(lookbackSlotTimestamp));
+  }
 
   /**
    * Main entry point: triggered on each EPOCH_PROCESSED event.
@@ -49,9 +55,9 @@ export class DailyArchiveController {
       return null;
     }
 
-    // Require all 24 hourly partitions, unless this is the first day ever archived
-    // (lookback_slot may start mid-day, so the first day can be partial).
-    if (!candidate.isFirstDay && hourlyPartitions.length !== 24) {
+    // Require all 24 hourly partitions, unless this is the lookback_slot day
+    // (lookback_slot may start mid-day, so that day can be partial).
+    if (!candidate.isLookbackDay && hourlyPartitions.length !== 24) {
       return null;
     }
 
@@ -83,7 +89,7 @@ export class DailyArchiveController {
   private async findDayToArchive(): Promise<{
     dayStart: Date;
     dayEnd: Date;
-    isFirstDay: boolean;
+    isLookbackDay: boolean;
   } | null> {
     const lastHour = await this.storage.getLastArchivedHour();
     if (!lastHour) {
@@ -92,22 +98,16 @@ export class DailyArchiveController {
 
     const lastDay = await this.storage.getLastArchivedDay();
 
-    // The candidate day is the day after lastDay, or the first possible day
+    // The candidate day is the day after lastDay, or the lookback_slot day
     let candidateDayStart: Date;
-    let isFirstDay = false;
     if (lastDay) {
-      candidateDayStart = new Date(lastDay.getTime() + ms('1d'));
+      candidateDayStart = new Date(lastDay.getTime() + 24 * 3600 * 1000);
     } else {
-      // No day archived yet — find the oldest hourly partition to determine the starting day
-      const oldestHour = await this.storage.getOldestArchivedHour();
-      if (!oldestHour) {
-        return null;
-      }
-      candidateDayStart = floorToUTCDay(oldestHour);
-      isFirstDay = true;
+      candidateDayStart = this.lookbackDayStart;
     }
 
-    const candidateDayEnd = new Date(candidateDayStart.getTime() + ms('1d'));
+    const candidateDayEnd = new Date(candidateDayStart.getTime() + 24 * 3600 * 1000);
+    const isLookbackDay = candidateDayStart.getTime() === this.lookbackDayStart.getTime();
 
     // We always retain the last 24h of hourly data for queries.
     // A day is only eligible when its data is fully outside that retention window:
@@ -118,7 +118,7 @@ export class DailyArchiveController {
       return null;
     }
 
-    return { dayStart: candidateDayStart, dayEnd: candidateDayEnd, isFirstDay };
+    return { dayStart: candidateDayStart, dayEnd: candidateDayEnd, isLookbackDay };
   }
 }
 

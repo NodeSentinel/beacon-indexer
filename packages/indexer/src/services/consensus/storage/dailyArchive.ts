@@ -46,25 +46,6 @@ export class DailyArchiveStorage {
   }
 
   /**
-   * Get the oldest hourly archive partition timestamp.
-   * Returns null if no hourly partitions exist.
-   */
-  async getOldestArchivedHour(): Promise<Date | null> {
-    const partitions = await this.listHourlyPartitions({ limit: 1 });
-    if (partitions.length === 0) return null;
-
-    const match = partitions[0].match(/validator_hourly_archive_(\d{10})$/);
-    if (!match) return null;
-
-    const suffix = match[1];
-    const year = parseInt(suffix.slice(0, 4), 10);
-    const month = parseInt(suffix.slice(4, 6), 10) - 1;
-    const day = parseInt(suffix.slice(6, 8), 10);
-    const hour = parseInt(suffix.slice(8, 10), 10);
-    return new Date(Date.UTC(year, month, day, hour, 0, 0, 0));
-  }
-
-  /**
    * Discover hourly archive partition names for a given day range.
    * Filters directly in the database query using lexicographic partition name comparison.
    */
@@ -116,7 +97,7 @@ export class DailyArchiveStorage {
     hourlyPartitionNames: string[],
     dailyPartitionName: string,
   ): Promise<void> {
-    const nextDayStart = new Date(dayStart.getTime() + ms('1d'));
+    const nextDayStart = new Date(dayStart.getTime() + 24 * 3600 * 1000);
 
     await this.prisma.$transaction(
       async (tx) => {

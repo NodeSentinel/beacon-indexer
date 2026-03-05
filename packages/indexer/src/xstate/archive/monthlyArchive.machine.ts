@@ -4,10 +4,10 @@ import { MonthlyArchiveController } from '@/src/services/consensus/controllers/m
 import { pinoLog } from '@/src/xstate/pinoLog.js';
 
 /**
- * @fileoverview The monthly archive machine aggregates weekly archives into monthly archives.
+ * @fileoverview The monthly archive machine aggregates daily archives into monthly archives.
  *
  * Triggered by EPOCH_PROCESSED events from the epoch orchestrator.
- * Same pattern as weeklyArchiveMachine:
+ * Same pattern as dailyArchiveMachine:
  * - Event-driven triggering (no polling)
  * - Non-overlapping execution (ignores events while archiving)
  * - Error handling with retry on next epoch

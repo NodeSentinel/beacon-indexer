@@ -8,7 +8,6 @@ import { ValidatorsController } from '@/src/services/consensus/controllers/valid
 import { dailyArchiveMachine } from '@/src/xstate/archive/dailyArchive.machine.js';
 import { hourlyArchiveMachine } from '@/src/xstate/archive/hourlyArchive.machine.js';
 import { monthlyArchiveMachine } from '@/src/xstate/archive/monthlyArchive.machine.js';
-import { weeklyArchiveMachine } from '@/src/xstate/archive/weeklyArchive.machine.js';
 import { chainStatsMachine } from '@/src/xstate/chainStats/chainStats.machine.js';
 import { epochCreationMachine } from '@/src/xstate/epoch/epochCreator.machine.js';
 import { epochOrchestratorMachine } from '@/src/xstate/epoch/epochOrchestrator.machine.js';
@@ -44,7 +43,6 @@ export const getEpochOrchestratorActor = (
   validatorsController: ValidatorsController,
   hourlyArchiveActor: ActorRefFrom<typeof hourlyArchiveMachine>,
   dailyArchiveActor: ActorRefFrom<typeof dailyArchiveMachine>,
-  weeklyArchiveActor: ActorRefFrom<typeof weeklyArchiveMachine>,
   monthlyArchiveActor: ActorRefFrom<typeof monthlyArchiveMachine>,
   chainStatsActor: ActorRefFrom<typeof chainStatsMachine>,
 ) => {
@@ -60,7 +58,6 @@ export const getEpochOrchestratorActor = (
       validatorsController,
       hourlyArchiveActor,
       dailyArchiveActor,
-      weeklyArchiveActor,
       monthlyArchiveActor,
       chainStatsActor,
     },

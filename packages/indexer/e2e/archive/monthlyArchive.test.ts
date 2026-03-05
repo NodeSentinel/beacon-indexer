@@ -1,10 +1,8 @@
 import { PrismaClient, Prisma } from '@beacon-indexer/db';
-import { formatInTimeZone } from 'date-fns-tz';
-import ms from 'ms';
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 
+import { getDailyArchivePartitionName } from '@/src/services/consensus/controllers/dailyArchive.js';
 import { MonthlyArchiveController } from '@/src/services/consensus/controllers/monthlyArchive.js';
-import { getWeeklyArchivePartitionName } from '@/src/services/consensus/controllers/weeklyArchive.js';
 import { MonthlyArchiveStorage } from '@/src/services/consensus/storage/monthlyArchive.js';
 
 describe('Monthly Archive Process', () => {
@@ -16,13 +14,18 @@ describe('Monthly Archive Process', () => {
   const VALIDATOR_2 = 200;
 
   // Test month: November 2025 (30 days)
-  // Mondays in November: Nov 3 (w45), Nov 10 (w46), Nov 17 (w47), Nov 24 (w48) = 4 weeks
   const TEST_MONTH_START = new Date('2025-11-01T00:00:00.000Z');
   const TEST_MONTH_END = new Date('2025-12-01T00:00:00.000Z');
 
-  // Retention: lastWeek must be >= candidateMonthEnd + 1 month = Jan 1, 2026
-  // Closest Monday >= Jan 1 is Jan 5 (w02)
-  const RETENTION_WEEK = new Date('2026-01-05T00:00:00.000Z');
+  // Retention: lastDay must be >= candidateMonthEnd + 30 days = Dec 31
+  const RETENTION_DAY = new Date('2025-12-31T00:00:00.000Z');
+
+  function createController(lookbackSlotTimestamp: number = TEST_MONTH_START.getTime()) {
+    monthlyArchiveController = new MonthlyArchiveController(
+      monthlyArchiveStorage,
+      lookbackSlotTimestamp,
+    );
+  }
 
   beforeAll(async () => {
     if (!process.env.DATABASE_URL) {
@@ -34,7 +37,6 @@ describe('Monthly Archive Process', () => {
     });
 
     monthlyArchiveStorage = new MonthlyArchiveStorage(prisma);
-    monthlyArchiveController = new MonthlyArchiveController(monthlyArchiveStorage);
   });
 
   afterAll(async () => {
@@ -42,11 +44,11 @@ describe('Monthly Archive Process', () => {
   });
 
   beforeEach(async () => {
-    // Drop all weekly archive partitions
-    const weeklyPartitions = await prisma.$queryRaw<Array<{ tablename: string }>>`
-      SELECT tablename FROM pg_tables WHERE tablename LIKE 'validator_weekly_archive_%'
+    // Drop all daily archive partitions
+    const dailyPartitions = await prisma.$queryRaw<Array<{ tablename: string }>>`
+      SELECT tablename FROM pg_tables WHERE tablename LIKE 'validator_daily_archive_%'
     `;
-    for (const p of weeklyPartitions) {
+    for (const p of dailyPartitions) {
       await prisma.$executeRawUnsafe(`DROP TABLE IF EXISTS "${p.tablename}"`);
     }
 
@@ -59,22 +61,25 @@ describe('Monthly Archive Process', () => {
     }
 
     // Clean master partitioned tables
-    await prisma.$executeRawUnsafe(`DELETE FROM validator_weekly_archive`);
+    await prisma.$executeRawUnsafe(`DELETE FROM validator_daily_archive`);
     await prisma.$executeRawUnsafe(`DELETE FROM validator_monthly_archive`);
 
     // Reset archive control table
     await prisma.archive.upsert({
       where: { id: 1 },
-      update: { lastWeek: null, lastMonth: null },
-      create: { id: 1, lastWeek: null, lastMonth: null },
+      update: { lastDay: null, lastMonth: null },
+      create: { id: 1, lastDay: null, lastMonth: null },
     });
+
+    // Default controller with lookback at month start
+    createController();
   });
 
   /**
-   * Helper: create a weekly archive partition and insert rows into it.
+   * Helper: create a daily archive partition and insert rows into it.
    */
-  async function createWeeklyPartition(
-    weekStart: Date,
+  async function createDailyPartition(
+    dayTimestamp: Date,
     rows: Array<{
       validatorIndex: number;
       dataBySlot: Prisma.InputJsonValue;
@@ -88,17 +93,17 @@ describe('Monthly Archive Process', () => {
       clMissedRewardTotal: bigint;
     }>,
   ): Promise<void> {
-    const partitionName = getWeeklyArchivePartitionName('validator_weekly_archive', weekStart);
-    const nextWeek = new Date(weekStart.getTime() + ms('7d'));
+    const partitionName = getDailyArchivePartitionName('validator_daily_archive', dayTimestamp);
+    const nextDay = new Date(dayTimestamp.getTime() + 24 * 3600 * 1000);
 
     await prisma.$executeRawUnsafe(
-      `CREATE TABLE IF NOT EXISTS "${partitionName}" PARTITION OF "validator_weekly_archive" ` +
-        `FOR VALUES FROM ('${weekStart.toISOString()}') TO ('${nextWeek.toISOString()}')`,
+      `CREATE TABLE IF NOT EXISTS "${partitionName}" PARTITION OF "validator_daily_archive" ` +
+        `FOR VALUES FROM ('${dayTimestamp.toISOString()}') TO ('${nextDay.toISOString()}')`,
     );
 
-    await prisma.validatorWeeklyArchive.createMany({
+    await prisma.validatorDailyArchive.createMany({
       data: rows.map((r) => ({
-        timestamp: weekStart,
+        timestamp: dayTimestamp,
         validatorIndex: r.validatorIndex,
         dataBySlot: r.dataBySlot,
         dataByEpoch: r.dataByEpoch,
@@ -114,69 +119,64 @@ describe('Monthly Archive Process', () => {
   }
 
   /**
-   * Helper: create weekly partitions with simple test data for consecutive weeks.
-   * @param firstMonday - The Monday of the first week
-   * @param weeks - Number of consecutive weeks to create
+   * Helper: create daily partitions with simple test data for a range of days.
    */
-  async function createWeeklyPartitionsForRange(firstMonday: Date, weeks: number): Promise<Date[]> {
+  async function createDailyPartitionsForRange(start: Date, days: number): Promise<Date[]> {
     const timestamps: Date[] = [];
-    for (let w = 0; w < weeks; w++) {
-      const weekStart = new Date(firstMonday.getTime() + w * ms('7d'));
-      timestamps.push(weekStart);
-      const slot = 25380000 + w * 5040; // ~7 days worth of slots
-      const epoch = 1586252 + w * 7;
+    for (let d = 0; d < days; d++) {
+      const day = new Date(start.getTime() + d * 24 * 3600 * 1000);
+      timestamps.push(day);
+      const slot = 25380000 + d * 7200;
+      const epoch = 1586252 + d;
 
-      await createWeeklyPartition(weekStart, [
+      await createDailyPartition(day, [
         {
           validatorIndex: VALIDATOR_1,
-          dataBySlot: [[slot, 0, '700', '0', '0']],
-          dataByEpoch: [[epoch, '70', '140', '210', '35', '0', '0', '0', '0']],
-          attestationCount: 7,
-          syncRewardTotal: BigInt(700),
-          clRewardTotal: BigInt(455), // 70+140+210+35
+          dataBySlot: [[slot, 0, '100', '0', '0']],
+          dataByEpoch: [[epoch, '10', '20', '30', '5', '0', '0', '0', '0']],
+          attestationCount: 24,
+          syncRewardTotal: BigInt(2400),
+          clRewardTotal: BigInt(1560),
           clMissedRewardTotal: BigInt(0),
         },
         {
           validatorIndex: VALIDATOR_2,
-          dataBySlot: [[slot, 2, '1400', '0', '0']],
-          dataByEpoch: [[epoch, '350', '420', '490', '70', '7', '14', '21', '35']],
-          attestationCount: 7,
-          syncRewardTotal: BigInt(1400),
-          clRewardTotal: BigInt(1330), // 350+420+490+70
-          clMissedRewardTotal: BigInt(77), // 7+14+21+35
+          dataBySlot: [[slot, 2, '200', '0', '0']],
+          dataByEpoch: [[epoch, '50', '60', '70', '10', '5', '3', '2', '1']],
+          attestationCount: 24,
+          syncRewardTotal: BigInt(4800),
+          clRewardTotal: BigInt(4560),
+          clMissedRewardTotal: BigInt(264),
         },
       ]);
     }
     return timestamps;
   }
 
-  // First Monday in November 2025
-  const FIRST_NOV_MONDAY = new Date('2025-11-03T00:00:00.000Z'); // w45
-
   /**
-   * HAPPY PATH: Full monthly archive cycle (weekly→monthly).
+   * HAPPY PATH: Full monthly archive cycle (daily→monthly).
    *
    * Timeline:
-   *   Nov 3–24 (w45–w48)   →  4 weekly partitions (the month we want to archive)
-   *   Dec 1–29 (w49–w01)   →  5 weekly partitions (retained — still in the 1-month query window)
-   *   Jan 5 (w02)          →  1 extra partition (so lastWeek = Jan 5 satisfies
-   *                            the retention rule: lastWeek >= candidateMonthEnd + 1 month = Jan 1)
+   *   Nov 1–30  →  30 daily partitions (the month we want to archive)
+   *   Dec 1–31  →  31 daily partitions (retained — still in the 30-day query window)
+   *
+   *   lastDay = Dec 31.
+   *   Rule: lastDay >= candidateMonthEnd (Dec 1) + 30 days (= Dec 31).
+   *   Dec 31 >= Dec 31 → eligible.
    *
    * After archiving November:
-   *   - A monthly partition `validator_monthly_archive_202511` is created with aggregated data
-   *   - The 4 weekly partitions for November are dropped
-   *   - The 6 remaining weekly partitions (Dec + Jan 5) stay intact
+   *   - A monthly partition `validator_monthly_archive_202511` is created
+   *   - The 30 daily partitions for November are dropped
+   *   - The 31 remaining daily partitions (December) stay intact
    *   - archive.lastMonth is set to Nov 1
-   *
-   * Verifies: aggregation sums, JSON concat + sort order, partition lifecycle, control table.
    */
-  it('should aggregate weekly archives into a monthly archive, drop weekly partitions, and keep retention', async () => {
-    // 4 (Nov w45-w48) + 5 (Dec w49-w01) + 1 (Jan w02) = 10 weekly partitions
-    const allWeeks = await createWeeklyPartitionsForRange(FIRST_NOV_MONDAY, 10);
+  it('should aggregate daily archives into a monthly archive, drop daily partitions, and keep retention', async () => {
+    // 30 (Nov) + 31 (Dec) = 61 daily partitions
+    const allDays = await createDailyPartitionsForRange(TEST_MONTH_START, 61);
 
     await prisma.archive.update({
       where: { id: 1 },
-      data: { lastWeek: RETENTION_WEEK }, // Jan 5 (w02)
+      data: { lastDay: RETENTION_DAY }, // Dec 31
     });
 
     // Execute monthly archive
@@ -192,26 +192,26 @@ describe('Monthly Archive Process', () => {
 
     expect(monthlyData).toHaveLength(2);
 
-    // Validator 1: 4 weeks × 7 attestations = 28 total
+    // Validator 1: 30 days × 24 attestations = 720 total
     const v1 = monthlyData.find((d) => d.validatorIndex === VALIDATOR_1)!;
     expect(v1).toBeDefined();
-    expect(v1.attestationCount).toBe(28);
+    expect(v1.attestationCount).toBe(720);
     expect(v1.missedAttestationCount).toBeNull();
-    expect(v1.syncRewardTotal).toBe(BigInt(2800)); // 4 × 700
-    expect(v1.clRewardTotal).toBe(BigInt(1820)); // 4 × 455
+    expect(v1.syncRewardTotal).toBe(BigInt(72000)); // 30 × 2400
+    expect(v1.clRewardTotal).toBe(BigInt(46800)); // 30 × 1560
     expect(v1.clMissedRewardTotal).toBe(BigInt(0));
 
-    // Validator 2: 4 weeks × 7 attestations = 28 total
+    // Validator 2: 30 days × 24 attestations = 720 total
     const v2 = monthlyData.find((d) => d.validatorIndex === VALIDATOR_2)!;
     expect(v2).toBeDefined();
-    expect(v2.attestationCount).toBe(28);
-    expect(v2.syncRewardTotal).toBe(BigInt(5600)); // 4 × 1400
-    expect(v2.clRewardTotal).toBe(BigInt(5320)); // 4 × 1330
-    expect(v2.clMissedRewardTotal).toBe(BigInt(308)); // 4 × 77
+    expect(v2.attestationCount).toBe(720);
+    expect(v2.syncRewardTotal).toBe(BigInt(144000)); // 30 × 4800
+    expect(v2.clRewardTotal).toBe(BigInt(136800)); // 30 × 4560
+    expect(v2.clMissedRewardTotal).toBe(BigInt(7920)); // 30 × 264
 
     // Verify JSON arrays are concatenated and sorted by first element
     const v1Slots = v1.dataBySlot as Array<[number, number, string, string, string]>;
-    expect(v1Slots).toHaveLength(4);
+    expect(v1Slots).toHaveLength(30);
     for (let i = 1; i < v1Slots.length; i++) {
       expect(v1Slots[i][0]).toBeGreaterThan(v1Slots[i - 1][0]);
     }
@@ -219,26 +219,26 @@ describe('Monthly Archive Process', () => {
     const v1Epochs = v1.dataByEpoch as Array<
       [number, string, string, string, string, string, string, string, string]
     >;
-    expect(v1Epochs).toHaveLength(4);
+    expect(v1Epochs).toHaveLength(30);
     for (let i = 1; i < v1Epochs.length; i++) {
       expect(v1Epochs[i][0]).toBeGreaterThan(v1Epochs[i - 1][0]);
     }
 
-    // --- Verify weekly partitions for November were dropped ---
-    const remainingWeeklyPartitions = await prisma.$queryRaw<Array<{ tablename: string }>>`
-      SELECT tablename FROM pg_tables WHERE tablename LIKE 'validator_weekly_archive_%'
+    // --- Verify daily partitions for November were dropped ---
+    const remainingDailyPartitions = await prisma.$queryRaw<Array<{ tablename: string }>>`
+      SELECT tablename FROM pg_tables WHERE tablename LIKE 'validator_daily_archive_%'
     `;
-    const remainingNames = remainingWeeklyPartitions.map((p) => p.tablename);
+    const remainingNames = remainingDailyPartitions.map((p) => p.tablename);
 
-    // The 4 weekly partitions for November should be gone
-    for (let w = 0; w < 4; w++) {
-      const name = getWeeklyArchivePartitionName('validator_weekly_archive', allWeeks[w]);
+    // The 30 daily partitions for November should be gone
+    for (let d = 0; d < 30; d++) {
+      const name = getDailyArchivePartitionName('validator_daily_archive', allDays[d]);
       expect(remainingNames).not.toContain(name);
     }
 
-    // The 6 remaining weekly partitions (Dec + Jan 5) should still exist
-    for (let w = 4; w < 10; w++) {
-      const name = getWeeklyArchivePartitionName('validator_weekly_archive', allWeeks[w]);
+    // The 31 daily partitions for December should still exist
+    for (let d = 30; d < 61; d++) {
+      const name = getDailyArchivePartitionName('validator_daily_archive', allDays[d]);
       expect(remainingNames).toContain(name);
     }
 
@@ -254,24 +254,24 @@ describe('Monthly Archive Process', () => {
   });
 
   /**
-   * RETENTION GUARD: Refuses to archive when dropping weekly partitions would leave
-   * less than 1 month of weekly data for queries.
+   * RETENTION GUARD: Refuses to archive when dropping daily partitions would leave
+   * less than 30 days of daily data for queries.
    *
    * Timeline:
-   *   Nov 3–24 (w45–w48)   →  4 weekly partitions (candidate month)
-   *   Dec 1–29 (w49–w01)   →  5 weekly partitions (retention, but not enough)
+   *   Nov 1–30  →  30 daily partitions (candidate month)
+   *   Dec 1–29  →  29 daily partitions (not enough retention)
    *
-   *   lastWeek = Dec 29 (w01).
-   *   Rule: lastWeek >= candidateMonthEnd (Dec 1) + 1 month (= Jan 1, 2026).
-   *   Dec 29 < Jan 1 → NOT eligible.
+   *   lastDay = Dec 29.
+   *   Rule: lastDay >= candidateMonthEnd (Dec 1) + 30 days (= Dec 31).
+   *   Dec 29 < Dec 31 → NOT eligible.
    */
-  it('should not archive when 1-month retention window is not satisfied', async () => {
-    // 4 (Nov w45-w48) + 5 (Dec w49-w01, short by 1 week to satisfy retention) = 9
-    await createWeeklyPartitionsForRange(FIRST_NOV_MONDAY, 9);
+  it('should not archive when 30-day retention window is not satisfied', async () => {
+    // 30 (Nov) + 29 (Dec, short) = 59
+    await createDailyPartitionsForRange(TEST_MONTH_START, 59);
 
     await prisma.archive.update({
       where: { id: 1 },
-      data: { lastWeek: new Date('2025-12-29T00:00:00.000Z') }, // w01, < Jan 1, fails retention
+      data: { lastDay: new Date('2025-12-29T00:00:00.000Z') },
     });
 
     const result = await monthlyArchiveController.archive();
@@ -285,18 +285,13 @@ describe('Monthly Archive Process', () => {
 
   /**
    * IDEMPOTENCY: Calling archive() twice for the same month is a no-op the second time.
-   *
-   * After the first archive() sets archive.lastMonth = Nov 1, the next call computes
-   * candidateMonthStart = Dec 1. But December's retention window (lastWeek >= Feb 1)
-   * won't be satisfied, so the second call returns null.
    */
   it('should not archive the same month twice', async () => {
-    // 4 (Nov w45-w48) + 5 (Dec w49-w01) + 1 (Jan w02) = 10
-    await createWeeklyPartitionsForRange(FIRST_NOV_MONDAY, 10);
+    await createDailyPartitionsForRange(TEST_MONTH_START, 61);
 
     await prisma.archive.update({
       where: { id: 1 },
-      data: { lastWeek: RETENTION_WEEK }, // Jan 5 (w02)
+      data: { lastDay: RETENTION_DAY },
     });
 
     const first = await monthlyArchiveController.archive();
@@ -307,39 +302,37 @@ describe('Monthly Archive Process', () => {
   });
 
   /**
-   * PARTIAL FIRST MONTH: Data starts mid-month (Nov 17, w47).
+   * LOOKBACK_SLOT BASE CASE: The lookback_slot month can be partial.
    *
-   * When the indexer starts with a lookback that lands mid-month,
-   * the oldest weekly partition may be mid-month (w47 = Nov 17). The controller
-   * floors this to the UTC month start (Nov 1), but only 2 weekly partitions exist
-   * for that month (w47, w48). Normally, a month with < 4 partitions is rejected.
-   * But for the very first month (lastMonth = null), partial archiving is allowed
-   * because the missing weeks don't exist — they were before the indexer started.
+   * When the indexer starts with a lookback_slot that falls mid-month (e.g., Nov 15),
+   * the controller uses lookbackSlotTimestamp to derive the lookback month (floored to
+   * Nov 1), and allows partial archiving for that specific month because the missing
+   * days simply don't exist — they were before the indexer started.
    *
    * Timeline:
-   *   Nov 17–24 (w47–w48)  →  2 weekly partitions (partial first month)
-   *   Dec 1–29 (w49–w01)   →  5 weekly partitions (retained)
-   *   Jan 5 (w02)          →  1 extra partition (retention satisfied)
+   *   Nov 15–30  →  16 daily partitions (partial first month)
+   *   Dec 1–31   →  31 daily partitions (retained)
    *
-   * After archiving: monthly record has 2 weeks of data, the 2 weekly partitions
-   * are dropped, and the 6 remaining partitions (Dec + Jan 5) stay.
+   * After archiving: monthly record has 16 days of data, the 16 daily partitions
+   * are dropped, and the 31 remaining partitions (December) stay.
    */
-  it('should archive a partial first month when data starts mid-month', async () => {
-    const partialStart = new Date('2025-11-17T00:00:00.000Z'); // w47
+  it('should archive a partial first month when lookback_slot starts mid-month', async () => {
+    const partialMonthStart = new Date('2025-11-15T00:00:00.000Z');
+    createController(partialMonthStart.getTime());
 
-    // 2 (Nov w47-w48) + 5 (Dec w49-w01) + 1 (Jan w02) = 8 weekly partitions
-    const allWeeks = await createWeeklyPartitionsForRange(partialStart, 8);
+    // 16 (Nov 15-30) + 31 (Dec) = 47 daily partitions
+    const allDays = await createDailyPartitionsForRange(partialMonthStart, 47);
 
     await prisma.archive.update({
       where: { id: 1 },
-      data: { lastWeek: allWeeks[7] }, // Jan 5 (w02)
+      data: { lastDay: allDays[46] }, // Dec 31
     });
 
     const archivedMonth = await monthlyArchiveController.archive();
     expect(archivedMonth).not.toBeNull();
     expect(archivedMonth!.getTime()).toBe(TEST_MONTH_START.getTime());
 
-    // Monthly data reflects only 2 weeks
+    // Monthly data reflects only 16 days
     const monthlyData = await prisma.validatorMonthlyArchive.findMany({
       where: { timestamp: TEST_MONTH_START },
       orderBy: { validatorIndex: 'asc' },
@@ -347,20 +340,20 @@ describe('Monthly Archive Process', () => {
     expect(monthlyData).toHaveLength(2);
 
     const v1 = monthlyData.find((d) => d.validatorIndex === VALIDATOR_1)!;
-    expect(v1.attestationCount).toBe(14); // 2 weeks × 7
+    expect(v1.attestationCount).toBe(384); // 16 days × 24
 
-    // The 2 weekly partitions for November were dropped
-    const remainingWeeklyPartitions = await prisma.$queryRaw<Array<{ tablename: string }>>`
-      SELECT tablename FROM pg_tables WHERE tablename LIKE 'validator_weekly_archive_%'
+    // The 16 daily partitions for November were dropped
+    const remainingDailyPartitions = await prisma.$queryRaw<Array<{ tablename: string }>>`
+      SELECT tablename FROM pg_tables WHERE tablename LIKE 'validator_daily_archive_%'
     `;
-    const remainingNames = remainingWeeklyPartitions.map((p) => p.tablename);
+    const remainingNames = remainingDailyPartitions.map((p) => p.tablename);
 
-    for (let w = 0; w < 2; w++) {
-      const name = getWeeklyArchivePartitionName('validator_weekly_archive', allWeeks[w]);
+    for (let d = 0; d < 16; d++) {
+      const name = getDailyArchivePartitionName('validator_daily_archive', allDays[d]);
       expect(remainingNames).not.toContain(name);
     }
 
-    // Dec (5 weeks) + Jan 5 (1 week) = 6 partitions remain
-    expect(remainingNames).toHaveLength(6);
+    // Dec (31 days) remain
+    expect(remainingNames).toHaveLength(31);
   });
 });
