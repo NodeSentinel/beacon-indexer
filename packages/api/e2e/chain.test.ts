@@ -71,7 +71,7 @@ describe('Chain Stats Endpoint E2E Tests', () => {
 
   describe('GET /chain/stats', () => {
     it('should return 200 with error payload when no stats exist', async () => {
-      await prisma.$executeRaw`DELETE FROM chain_epoch_stats WHERE epoch >= 900000`;
+      await prisma.$executeRaw`DELETE FROM chain_epoch_stats`;
 
       const response = await fetch(`${baseUrl}/chain/stats`);
       const body = (await response.json()) as ChainStatsResponse;
