@@ -1,224 +1,224 @@
 generator client {
-    provider = "prisma-client-js"
-    output   = "../generated/client"
+  provider = "prisma-client-js"
+  output   = "../generated/client"
 }
 
 datasource db {
-    provider = "postgresql"
-    url      = env("DATABASE_URL")
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
 }
 
 model Validator {
-    id                Int     @id @map("id")
-    status            Int?    @map("status")
-    balance           BigInt  @map("balance")
-    effectiveBalance  BigInt? @map("effective_balance")
-    pubkey            String? @map("pubkey") @db.VarChar(98)
-    withdrawalAddress String? @map("withdrawal_address") @db.VarChar(42)
+  id                Int     @id @map("id")
+  status            Int?    @map("status")
+  balance           BigInt  @map("balance")
+  effectiveBalance  BigInt? @map("effective_balance")
+  pubkey            String? @map("pubkey") @db.VarChar(98)
+  withdrawalAddress String? @map("withdrawal_address") @db.VarChar(42)
 
-    clusters ClusterValidator[]
+  clusters ClusterValidator[]
 
-    @@index([status])
-    @@index([pubkey])
-    // TODO: do we need to index the pubkey?
-    @@map("validator")
+  @@index([status])
+  @@index([pubkey])
+  // TODO: do we need to index the pubkey?
+  @@map("validator")
 }
 
 // TODO: flags could have been a json, so when we mark is as processed, we can set it to null
 model Epoch {
-    epoch                          Int     @id @map("epoch")
-    // tokenPrice                     Decimal @map("token_price") @db.Decimal(18, 2)
-    processed                      Boolean @default(false) @map("processed")
-    committeesFetched              Boolean @default(false) @map("committees_fetched")
-    syncCommitteesFetched          Boolean @default(false) @map("sync_committees_fetched")
-    validatorsBalancesFetched      Boolean @default(false) @map("validators_balances_fetched")
-    allSlotsProcessed              Boolean @default(false) @map("all_slots_processed")
-    rewardsFetched                 Boolean @default(false) @map("rewards_fetched")
-    // TODO: there are many task we should implement.
-    validatorProposerDutiesFetched Boolean @default(false) @map("validator_proposer_duties_fetched")
-    validatorsActivationFetched    Boolean @default(false) @map("validators_activation_fetched")
+  epoch                          Int     @id @map("epoch")
+  // tokenPrice                     Decimal @map("token_price") @db.Decimal(18, 2)
+  processed                      Boolean @default(false) @map("processed")
+  committeesFetched              Boolean @default(false) @map("committees_fetched")
+  syncCommitteesFetched          Boolean @default(false) @map("sync_committees_fetched")
+  validatorsBalancesFetched      Boolean @default(false) @map("validators_balances_fetched")
+  allSlotsProcessed              Boolean @default(false) @map("all_slots_processed")
+  rewardsFetched                 Boolean @default(false) @map("rewards_fetched")
+  // TODO: there are many task we should implement.
+  validatorProposerDutiesFetched Boolean @default(false) @map("validator_proposer_duties_fetched")
+  validatorsActivationFetched    Boolean @default(false) @map("validators_activation_fetched")
 
-    @@map("epoch")
+  @@map("epoch")
 }
 
 model Committee {
-    // ─────────────────────────────────────────────────────────────────────────────
-    // PARTITIONING
-    // ─────────────────────────────────────────────────────────────────────────────
-    // This table is partitioned by slot number (UTC hour range) for efficient data
-    // Partitions are created dynamically by the epoch worker service when processing epochs.
-    // Partition naming: committee_<start>-<end>_<YYYYMMDDHH>
+  // ─────────────────────────────────────────────────────────────────────────────
+  // PARTITIONING
+  // ─────────────────────────────────────────────────────────────────────────────
+  // This table is partitioned by slot number (UTC hour range) for efficient data
+  // Partitions are created dynamically by the epoch worker service when processing epochs.
+  // Partition naming: committee_<start>-<end>_<YYYYMMDDHH>
 
-    slot                 Int  @map("slot")
-    index                Int  @map("index") @db.SmallInt // indicates what position in the epoch this slot is in
-    validatorIndex       Int  @map("validator_index")
-    aggregationBitsIndex Int  @map("aggregation_bits_index") @db.SmallInt // indicates what position in the aggregation bits this validator was assigned to
-    attestationDelay     Int? @map("attestation_delay") @db.SmallInt
+  slot                 Int  @map("slot")
+  index                Int  @map("index") @db.SmallInt // indicates what position in the epoch this slot is in
+  validatorIndex       Int  @map("validator_index")
+  aggregationBitsIndex Int  @map("aggregation_bits_index") @db.SmallInt // indicates what position in the aggregation bits this validator was assigned to
+  attestationDelay     Int? @map("attestation_delay") @db.SmallInt
 
-    @@id([slot, index, aggregationBitsIndex]) // used to update attestation delays
-    @@index([validatorIndex, slot(sort: Desc), attestationDelay]) // used to query attestations delays for a validator
-    @@map("committee")
+  @@id([slot, index, aggregationBitsIndex]) // used to update attestation delays
+  @@index([validatorIndex, slot(sort: Desc), attestationDelay]) // used to query attestations delays for a validator
+  @@map("committee")
 }
 
 model Slot {
-    slot                     Int      @id @map("slot")
-    proposerIndex            Int?     @map("proposer_index")
-    blockNumber              Int?     @map("block_number")
-    consensusReward          BigInt?  @map("consensus_reward")
-    executionReward          Decimal? @map("execution_reward") @db.Decimal(78, 0) // wei (integer, no decimals)
-    feeRecipientAddress      String?  @map("fee_recipient_address") @db.VarChar(42)
-    // Stores the number of validators per committee index as an array: [350, 340, ...], required for attestation processing
-    committeesCountInSlot    Json?    @map("committees_count_in_slot")
-    // processed data flags
-    attestationsFetched      Boolean  @default(false) @map("attestations_fetched")
-    syncRewardsFetched       Boolean  @default(false) @map("sync_rewards_fetched")
-    consensusRewardsFetched  Boolean  @default(false) @map("consensus_rewards_fetched")
-    executionRewardsFetched  Boolean  @default(false) @map("execution_rewards_fetched")
-    // block data
-    // TODO: should we persist only one flag for all of the data. 
-    // currently the xstate machine process this info in separate states
-    // once all of these finish, we can pass the data to a single state which mark slotData (general) as processed
-    // data.message.body.proposer_slashings
-    proposerSlashingsFetched Boolean  @default(false) @map("proposer_slashings_fetched")
-    // data.message.body.attester_slashings
-    attesterSlashingsFetched Boolean  @default(false) @map("attester_slashings_fetched")
-    // data.message.body.deposits
-    depositsFetched          Boolean  @default(false) @map("deposits_fetched")
-    // data.message.body.voluntary_exits
-    voluntaryExitsFetched    Boolean  @default(false) @map("voluntary_exits_fetched")
-    // data.message.body.execution_payload.withdrawals
-    epWithdrawalsFetched     Boolean  @default(false) @map("ep_withdrawals_fetched")
-    // data.message.body.execution_requests.deposits
-    erDepositsFetched        Boolean  @default(false) @map("er_deposits_fetched")
-    // data.message.body.execution_requests.withdrawals
-    erWithdrawalsFetched     Boolean  @default(false) @map("er_withdrawals_fetched")
-    // data.message.body.execution_requests.consolidations
-    erConsolidationsFetched  Boolean  @default(false) @map("er_consolidations_fetched")
+  slot                     Int      @id @map("slot")
+  proposerIndex            Int?     @map("proposer_index")
+  blockNumber              Int?     @map("block_number")
+  consensusReward          BigInt?  @map("consensus_reward")
+  executionReward          Decimal? @map("execution_reward") @db.Decimal(78, 0) // wei (integer, no decimals)
+  feeRecipientAddress      String?  @map("fee_recipient_address") @db.VarChar(42)
+  // Stores the number of validators per committee index as an array: [350, 340, ...], required for attestation processing
+  committeesCountInSlot    Json?    @map("committees_count_in_slot")
+  // processed data flags
+  attestationsFetched      Boolean  @default(false) @map("attestations_fetched")
+  syncRewardsFetched       Boolean  @default(false) @map("sync_rewards_fetched")
+  consensusRewardsFetched  Boolean  @default(false) @map("consensus_rewards_fetched")
+  executionRewardsFetched  Boolean  @default(false) @map("execution_rewards_fetched")
+  // block data
+  // TODO: should we persist only one flag for all of the data. 
+  // currently the xstate machine process this info in separate states
+  // once all of these finish, we can pass the data to a single state which mark slotData (general) as processed
+  // data.message.body.proposer_slashings
+  proposerSlashingsFetched Boolean  @default(false) @map("proposer_slashings_fetched")
+  // data.message.body.attester_slashings
+  attesterSlashingsFetched Boolean  @default(false) @map("attester_slashings_fetched")
+  // data.message.body.deposits
+  depositsFetched          Boolean  @default(false) @map("deposits_fetched")
+  // data.message.body.voluntary_exits
+  voluntaryExitsFetched    Boolean  @default(false) @map("voluntary_exits_fetched")
+  // data.message.body.execution_payload.withdrawals
+  epWithdrawalsFetched     Boolean  @default(false) @map("ep_withdrawals_fetched")
+  // data.message.body.execution_requests.deposits
+  erDepositsFetched        Boolean  @default(false) @map("er_deposits_fetched")
+  // data.message.body.execution_requests.withdrawals
+  erWithdrawalsFetched     Boolean  @default(false) @map("er_withdrawals_fetched")
+  // data.message.body.execution_requests.consolidations
+  erConsolidationsFetched  Boolean  @default(false) @map("er_consolidations_fetched")
 
-    processed Boolean @default(false) @map("processed")
+  processed Boolean @default(false) @map("processed")
 
-    @@index([slot, processed])
-    @@map("slot")
+  @@index([slot, processed])
+  @@map("slot")
 }
 
 model SyncCommittee {
-    fromEpoch           Int  @map("from_epoch")
-    toEpoch             Int  @map("to_epoch")
-    validators          Json // Array of validator indices as strings: ["1", "2", "3", ...]
-    validatorAggregates Json @map("validator_aggregates") // Array of arrays of validator indices as strings: [["1", "2"], ["3", "4"], ...]
+  fromEpoch           Int  @map("from_epoch")
+  toEpoch             Int  @map("to_epoch")
+  validators          Json // Array of validator indices as strings: ["1", "2", "3", ...]
+  validatorAggregates Json @map("validator_aggregates") // Array of arrays of validator indices as strings: [["1", "2"], ["3", "4"], ...]
 
-    // TODO: check this index
-    @@id([fromEpoch, toEpoch])
-    @@map("sync_committee")
+  // TODO: check this index
+  @@id([fromEpoch, toEpoch])
+  @@map("sync_committee")
 }
 
 model syncCommitteeRewards {
-    slot                Int    @map("slot")
-    validatorIndex      Int    @map("validator_index")
-    syncCommitteeReward BigInt @map("sync_committee_reward")
+  slot                Int    @map("slot")
+  validatorIndex      Int    @map("validator_index")
+  syncCommitteeReward BigInt @map("sync_committee_reward")
 
-    @@id([slot, validatorIndex])
-    @@map("sync_committee_rewards")
+  @@id([slot, validatorIndex])
+  @@map("sync_committee_rewards")
 }
 
 model epochRewards {
-    // ─────────────────────────────────────────────────────────────────────────────
-    // PARTITIONING
-    // ─────────────────────────────────────────────────────────────────────────────
-    // This table is partitioned by epoch number (UTC hour range) for efficient data
-    // Partitions are created dynamically by the epoch worker service when processing epochs.
-    // Partition naming: epoch_rewards_<start>-<end>_<YYYYMMDDHH>
-    epoch            Int    @map("epoch")
-    validatorIndex   Int    @map("validator_index")
-    head             BigInt @map("head")
-    target           BigInt @map("target")
-    source           BigInt @map("source")
-    inactivity       BigInt @map("inactivity")
-    missedHead       BigInt @map("missed_head")
-    missedTarget     BigInt @map("missed_target")
-    missedSource     BigInt @map("missed_source")
-    missedInactivity BigInt @map("missed_inactivity")
+  // ─────────────────────────────────────────────────────────────────────────────
+  // PARTITIONING
+  // ─────────────────────────────────────────────────────────────────────────────
+  // This table is partitioned by epoch number (UTC hour range) for efficient data
+  // Partitions are created dynamically by the epoch worker service when processing epochs.
+  // Partition naming: epoch_rewards_<start>-<end>_<YYYYMMDDHH>
+  epoch            Int    @map("epoch")
+  validatorIndex   Int    @map("validator_index")
+  head             BigInt @map("head")
+  target           BigInt @map("target")
+  source           BigInt @map("source")
+  inactivity       BigInt @map("inactivity")
+  missedHead       BigInt @map("missed_head")
+  missedTarget     BigInt @map("missed_target")
+  missedSource     BigInt @map("missed_source")
+  missedInactivity BigInt @map("missed_inactivity")
 
-    @@id([epoch, validatorIndex])
-    @@map("epoch_rewards")
+  @@id([epoch, validatorIndex])
+  @@map("epoch_rewards")
 }
 
 model validatorWithdrawals {
-    slot           Int    @map("slot")
-    validatorIndex String @map("validator_index") @db.VarChar(98)
-    amount         BigInt @map("amount")
+  slot           Int    @map("slot")
+  validatorIndex String @map("validator_index") @db.VarChar(98)
+  amount         BigInt @map("amount")
 
-    @@id([slot, validatorIndex])
-    @@map("validator_withdrawals")
+  @@id([slot, validatorIndex])
+  @@map("validator_withdrawals")
 }
 
 model validatorDeposits {
-    slot                  Int    @map("slot")
-    pubkey                String @map("pubkey") @db.VarChar(98)
-    withdrawalCredentials String @map("withdrawal_credentials") @db.VarChar(66)
-    amount                BigInt @map("amount")
-    index                 Int?   @map("index")
+  slot                  Int    @map("slot")
+  pubkey                String @map("pubkey") @db.VarChar(98)
+  withdrawalCredentials String @map("withdrawal_credentials") @db.VarChar(66)
+  amount                BigInt @map("amount")
+  index                 Int?   @map("index")
 
-    @@id([slot, pubkey])
-    @@map("validator_deposits")
+  @@id([slot, pubkey])
+  @@map("validator_deposits")
 }
 
 enum ValidatorExitEvent {
-    voluntary
-    slashed
+  voluntary
+  slashed
 }
 
 enum ClusterVisibility {
-    private
-    shared
+  private
+  shared
 }
 
 model validatorExits {
-    index Int                @id @map("index")
-    epoch Int                @map("epoch")
-    slot  Int                @map("slot")
-    event ValidatorExitEvent @map("event")
+  index Int                @id @map("index")
+  epoch Int                @map("epoch")
+  slot  Int                @map("slot")
+  event ValidatorExitEvent @map("event")
 
-    @@map("validator_voluntary_exits")
+  @@map("validator_voluntary_exits")
 }
 
 model validatorWithdrawalsRequests {
-    slot   Int    @map("slot")
-    pubKey String @map("pub_key") @db.VarChar(98)
-    amount BigInt @map("amount")
+  slot   Int    @map("slot")
+  pubKey String @map("pub_key") @db.VarChar(98)
+  amount BigInt @map("amount")
 
-    @@id([slot, pubKey])
-    @@map("validator_request_withdrawals")
+  @@id([slot, pubKey])
+  @@map("validator_request_withdrawals")
 }
 
 model validatorConsolidationsRequests {
-    slot         Int    @map("slot")
-    sourcePubkey String @map("source_pubkey") @db.VarChar(98)
-    targetPubkey String @map("target_pubkey") @db.VarChar(98)
+  slot         Int    @map("slot")
+  sourcePubkey String @map("source_pubkey") @db.VarChar(98)
+  targetPubkey String @map("target_pubkey") @db.VarChar(98)
 
-    @@id([slot, sourcePubkey, targetPubkey])
-    @@map("validator_request_consolidations")
+  @@id([slot, sourcePubkey, targetPubkey])
+  @@map("validator_request_consolidations")
 }
 
 model ValidatorSyncRewards {
-    slot           Int    @map("slot")
-    validatorIndex Int    @map("validator_index")
-    syncCommittee  BigInt @map("sync_committee")
+  slot           Int    @map("slot")
+  validatorIndex Int    @map("validator_index")
+  syncCommittee  BigInt @map("sync_committee")
 
-    @@id([slot, validatorIndex])
-    @@map("validator_sync_rewards")
+  @@id([slot, validatorIndex])
+  @@map("validator_sync_rewards")
 }
 
 //-------------------------------------
 // Indexer Configuration
 //-------------------------------------
 model IndexerConfig {
-    id           Int      @id @default(1) // Singleton pattern - only one row
-    chain        String   @map("chain") @db.VarChar(20)
-    lookbackSlot Int      @map("lookback_slot")
-    createdAt    DateTime @default(now()) @map("created_at") @db.Timestamp
+  id           Int      @id @default(1) // Singleton pattern - only one row
+  chain        String   @map("chain") @db.VarChar(20)
+  lookbackSlot Int      @map("lookback_slot")
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamp
 
-    @@map("indexer_config")
+  @@map("indexer_config")
 }
 
 //-------------------------------------
@@ -226,69 +226,152 @@ model IndexerConfig {
 //-------------------------------------
 
 model ValidatorHourlyArchive {
-    // ValidatorHourlyArchive stores per-validator aggregated data for each UTC hour.
-    // This table is used to archive detailed slot/epoch data in a compact format,
-    // enabling efficient historical queries while allowing raw tables to be pruned.
-    //
-    // ─────────────────────────────────────────────────────────────────────────────
-    // DATA CONTRACT (JSON PAYLOADS)
-    // ─────────────────────────────────────────────────────────────────────────────
-    //
-    // dataBySlot: Slot-level data as array of tuples with absolute slot numbers.
-    //   Shape: Array<SlotRow>
-    //   SlotRow = [slot, attDelay, syncReward, execReward, blockReward]
-    //     - slot: number (absolute slot number)
-    //     - attDelay: number (-1 if no attestation info, otherwise delay in slots)
-    //     - syncReward: string (decimal, "0" if none)
-    //     - execReward: string (decimal, "0" if none)
-    //     - blockReward: string (decimal, "0" if none) 
-    // TODO: optimize execReward y blockReward para q no existan esos items if 0. also, add the proposed slot number. 
-    //   Example: [[800001, 1, "0", "0", "0"], [800033, 2, "5000", "0", "0"]]
-    //
-    // dataByEpoch: Epoch-level rewards data as array of tuples with absolute epoch numbers.
-    //   Shape: Array<EpochRow>
-    //   EpochRow = [epoch, head, target, source, inactivity, missedHead, missedTarget, missedSource, missedInactivity]
-    //     - epoch: number (absolute epoch number)
-    //     - head, target, source, inactivity: string (decimal rewards earned)
-    //     - missedHead, missedTarget, missedSource, missedInactivity: string (decimal rewards missed)
-    //   Example: [[25000, "12000", "12000", "12000", "0", "0", "0", "0", "0"]]
-    //
-    // ─────────────────────────────────────────────────────────────────────────────
-    // RETENTION MODEL
-    // ─────────────────────────────────────────────────────────────────────────────
-    // Hourly archives are kept for ~25 hours (rolling window). When hour 24 completes,
-    // data is aggregated to daily (aggregates only, no JSON detail) and the 24 hourly
-    // archives are deleted. This allows detailed per-slot/epoch data for recent history
-    // while keeping storage bounded.
-    //
-    // ─────────────────────────────────────────────────────────────────────────────
-    // PARTITIONING
-    // ─────────────────────────────────────────────────────────────────────────────
-    // This table is partitioned by timestamp (UTC hour range) for efficient data
-    // management and potential partition drops for very old data.
-    // Partitions are created dynamically by the hourly archive service.
-    // Partition naming: validator_hourly_archive_YYYYMMDDHH
-    // Note: Prisma doesn't natively support partitioned tables, so actual partition
-    // creation is handled via migrations.
+  // ValidatorHourlyArchive stores per-validator aggregated data for each UTC hour.
+  // This table is used to archive detailed slot/epoch data in a compact format,
+  // enabling efficient historical queries while allowing raw tables to be pruned.
+  //
+  // ─────────────────────────────────────────────────────────────────────────────
+  // DATA CONTRACT (JSON PAYLOADS)
+  // ─────────────────────────────────────────────────────────────────────────────
+  //
+  // dataBySlot: Slot-level data as array of tuples with absolute slot numbers.
+  //   Shape: Array<SlotRow>
+  //   SlotRow = [slot, attDelay, syncReward, execReward, blockReward]
+  //     - slot: number (absolute slot number)
+  //     - attDelay: number (-1 if no attestation info, otherwise delay in slots)
+  //     - syncReward: string (decimal, "0" if none)
+  //     - execReward: string (decimal, "0" if none)
+  //     - blockReward: string (decimal, "0" if none) 
+  // TODO: optimize execReward y blockReward para q no existan esos items if 0. also, add the proposed slot number. 
+  //   Example: [[800001, 1, "0", "0", "0"], [800033, 2, "5000", "0", "0"]]
+  //
+  // dataByEpoch: Epoch-level rewards data as array of tuples with absolute epoch numbers.
+  //   Shape: Array<EpochRow>
+  //   EpochRow = [epoch, head, target, source, inactivity, missedHead, missedTarget, missedSource, missedInactivity]
+  //     - epoch: number (absolute epoch number)
+  //     - head, target, source, inactivity: string (decimal rewards earned)
+  //     - missedHead, missedTarget, missedSource, missedInactivity: string (decimal rewards missed)
+  //   Example: [[25000, "12000", "12000", "12000", "0", "0", "0", "0", "0"]]
+  //
+  // ─────────────────────────────────────────────────────────────────────────────
+  // RETENTION MODEL
+  // ─────────────────────────────────────────────────────────────────────────────
+  // Hourly archives are kept for ~25 hours (rolling window). When hour 24 completes,
+  // data is aggregated to daily (JSON detail + aggregates) and the 24 hourly
+  // archives are deleted. All archive levels (daily, weekly, monthly) share the
+  // same schema: JSON payloads for granular data + aggregate columns for fast queries.
+  //
+  // ─────────────────────────────────────────────────────────────────────────────
+  // PARTITIONING
+  // ─────────────────────────────────────────────────────────────────────────────
+  // This table is partitioned by timestamp (UTC hour range) for efficient data
+  // management and potential partition drops for very old data.
+  // Partitions are created dynamically by the hourly archive service.
+  // Partition naming: validator_hourly_archive_YYYYMMDDHH
+  // Note: Prisma doesn't natively support partitioned tables, so actual partition
+  // creation is handled via migrations.
 
-    timestamp      DateTime @map("timestamp") @db.Timestamp // UTC hour (e.g., 2024-01-15 10:00:00)
-    validatorIndex Int      @map("validator_index")
+  timestamp      DateTime @map("timestamp") @db.Timestamp // UTC hour (e.g., 2024-01-15 10:00:00)
+  validatorIndex Int      @map("validator_index")
 
-    // Compact JSON payloads (see data contract above)
-    dataBySlot  Json @map("data_by_slot") // [[slot, attDelay, sync, exec, block], ...]
-    dataByEpoch Json @map("data_by_epoch") // [[epoch, head, target, source, inactivity, mH, mT, mS, mI], ...]
+  // Compact JSON payloads (see data contract above)
+  dataBySlot  Json @map("data_by_slot") // [[slot, attDelay, sync, exec, block], ...]
+  dataByEpoch Json @map("data_by_epoch") // [[epoch, head, target, source, inactivity, mH, mT, mS, mI], ...]
 
-    // Aggregate columns for fast queries without JSON parsing
-    attestationCount       Int      @default(0) @map("attestation_count") @db.SmallInt // Total attestations in this hour
-    missedAttestationCount Int?     @map("missed_attestation_count") @db.SmallInt // Attestations with delay > threshold or null (NULL if 0)
-    syncRewardTotal        BigInt   @default(0) @map("sync_reward_total") // Sum of sync committee rewards
-    execRewardTotal        Decimal? @map("exec_reward_total") @db.Decimal(78, 0) // wei (integer, no decimals) - NULL if 0
-    blockRewardTotal       BigInt?  @map("block_reward_total") // Sum of block proposal rewards - NULL if 0
-    clRewardTotal          BigInt   @default(0) @map("cl_reward_total") // Sum of consensus layer rewards (head+target+source+inactivity)
-    clMissedRewardTotal    BigInt   @default(0) @map("cl_missed_reward_total") // Sum of missed CL rewards
+  // Aggregate columns for fast queries without JSON parsing
+  attestationCount       Int      @default(0) @map("attestation_count") @db.SmallInt // Total attestations in this hour
+  missedAttestationCount Int?     @map("missed_attestation_count") @db.SmallInt // Attestations with delay > threshold or null (NULL if 0)
+  syncRewardTotal        BigInt   @default(0) @map("sync_reward_total") // Sum of sync committee rewards
+  execRewardTotal        Decimal? @map("exec_reward_total") @db.Decimal(78, 0) // wei (integer, no decimals) - NULL if 0
+  blockRewardTotal       BigInt?  @map("block_reward_total") // Sum of block proposal rewards - NULL if 0
+  clRewardTotal          BigInt   @default(0) @map("cl_reward_total") // Sum of consensus layer rewards (head+target+source+inactivity)
+  clMissedRewardTotal    BigInt   @default(0) @map("cl_missed_reward_total") // Sum of missed CL rewards
 
-    @@id([timestamp, validatorIndex])
-    @@map("validator_hourly_archive")
+  @@id([timestamp, validatorIndex])
+  @@map("validator_hourly_archive")
+}
+
+/**
+ * ValidatorDailyArchive - Per-validator aggregated data for each UTC day.
+ * Aggregated from hourly archives (24 hourly records → 1 daily record).
+ * Same schema as ValidatorHourlyArchive (JSON detail + aggregate columns).
+ * Partitioned by timestamp. Partition naming: validator_daily_archive_YYYYMMDD
+ */
+model ValidatorDailyArchive {
+  timestamp      DateTime @map("timestamp") @db.Timestamp // UTC day (e.g., 2024-01-15 00:00:00)
+  validatorIndex Int      @map("validator_index")
+
+  // Compact JSON payloads (concatenated from hourly archives)
+  dataBySlot  Json @map("data_by_slot") // [[slot, attDelay, sync, exec, block], ...]
+  dataByEpoch Json @map("data_by_epoch") // [[epoch, head, target, source, inactivity, mH, mT, mS, mI], ...]
+
+  // Aggregate columns for fast queries without JSON parsing
+  attestationCount       Int      @default(0) @map("attestation_count") @db.SmallInt
+  missedAttestationCount Int?     @map("missed_attestation_count") @db.SmallInt
+  syncRewardTotal        BigInt   @default(0) @map("sync_reward_total")
+  execRewardTotal        Decimal? @map("exec_reward_total") @db.Decimal(78, 0)
+  blockRewardTotal       BigInt?  @map("block_reward_total")
+  clRewardTotal          BigInt   @default(0) @map("cl_reward_total")
+  clMissedRewardTotal    BigInt   @default(0) @map("cl_missed_reward_total")
+
+  @@id([timestamp, validatorIndex])
+  @@map("validator_daily_archive")
+}
+
+/**
+ * ValidatorWeeklyArchive - Per-validator aggregated data for each UTC week.
+ * Aggregated from daily archives (7 daily records → 1 weekly record).
+ * Same schema as ValidatorHourlyArchive (JSON detail + aggregate columns).
+ * Timestamp represents start of week (Monday 00:00:00 UTC).
+ * Partitioned by timestamp. Partition naming: validator_weekly_archive_YYYYWW
+ */
+model ValidatorWeeklyArchive {
+  timestamp      DateTime @map("timestamp") @db.Timestamp
+  validatorIndex Int      @map("validator_index")
+
+  // Compact JSON payloads (concatenated from daily archives)
+  dataBySlot  Json @map("data_by_slot") // [[slot, attDelay, sync, exec, block], ...]
+  dataByEpoch Json @map("data_by_epoch") // [[epoch, head, target, source, inactivity, mH, mT, mS, mI], ...]
+
+  // Aggregate columns for fast queries without JSON parsing
+  attestationCount       Int      @default(0) @map("attestation_count") @db.SmallInt
+  missedAttestationCount Int?     @map("missed_attestation_count") @db.SmallInt
+  syncRewardTotal        BigInt   @default(0) @map("sync_reward_total")
+  execRewardTotal        Decimal? @map("exec_reward_total") @db.Decimal(78, 0)
+  blockRewardTotal       BigInt?  @map("block_reward_total")
+  clRewardTotal          BigInt   @default(0) @map("cl_reward_total")
+  clMissedRewardTotal    BigInt   @default(0) @map("cl_missed_reward_total")
+
+  @@id([timestamp, validatorIndex])
+  @@map("validator_weekly_archive")
+}
+
+/**
+ * ValidatorMonthlyArchive - Per-validator aggregated data for each UTC month.
+ * Aggregated from daily archives (~30 daily records → 1 monthly record).
+ * Same schema as ValidatorHourlyArchive (JSON detail + aggregate columns).
+ * Timestamp represents start of month (1st day 00:00:00 UTC).
+ * Partitioned by timestamp. Partition naming: validator_monthly_archive_YYYYMM
+ */
+model ValidatorMonthlyArchive {
+  timestamp      DateTime @map("timestamp") @db.Timestamp
+  validatorIndex Int      @map("validator_index")
+
+  // Compact JSON payloads (concatenated from daily archives)
+  dataBySlot  Json @map("data_by_slot") // [[slot, attDelay, sync, exec, block], ...]
+  dataByEpoch Json @map("data_by_epoch") // [[epoch, head, target, source, inactivity, mH, mT, mS, mI], ...]
+
+  // Aggregate columns for fast queries without JSON parsing
+  attestationCount       Int      @default(0) @map("attestation_count") @db.SmallInt
+  missedAttestationCount Int?     @map("missed_attestation_count") @db.SmallInt
+  syncRewardTotal        BigInt   @default(0) @map("sync_reward_total")
+  execRewardTotal        Decimal? @map("exec_reward_total") @db.Decimal(78, 0)
+  blockRewardTotal       BigInt?  @map("block_reward_total")
+  clRewardTotal          BigInt   @default(0) @map("cl_reward_total")
+  clMissedRewardTotal    BigInt   @default(0) @map("cl_missed_reward_total")
+
+  @@id([timestamp, validatorIndex])
+  @@map("validator_monthly_archive")
 }
 
 /**
@@ -299,37 +382,37 @@ model ValidatorHourlyArchive {
  * Future columns (lastDay, lastWeek, lastMonth) are prepared for daily/weekly/monthly aggregation.
  */
 model Archive {
-    id        Int       @id @default(1) @map("id")
-    lastHour  DateTime? @map("last_hour") @db.Timestamp // UTC timestamp of last archived hour
-    lastDay   DateTime? @map("last_day") @db.Timestamp // UTC timestamp of last archived day (future use)
-    lastWeek  DateTime? @map("last_week") @db.Timestamp // UTC timestamp of last archived week (future use)
-    lastMonth DateTime? @map("last_month") @db.Timestamp // UTC timestamp of last archived month (future use)
+  id        Int       @id @default(1) @map("id")
+  lastHour  DateTime? @map("last_hour") @db.Timestamp // UTC timestamp of last archived hour
+  lastDay   DateTime? @map("last_day") @db.Timestamp // UTC timestamp of last archived day (future use)
+  lastWeek  DateTime? @map("last_week") @db.Timestamp // UTC timestamp of last archived week (future use)
+  lastMonth DateTime? @map("last_month") @db.Timestamp // UTC timestamp of last archived month (future use)
 
-    @@map("archive")
+  @@map("archive")
 }
 
 model ValidatorsSnapshotStats {
-    validatorIndex     Int      @id @map("validator_index")
-    status             String   @map("status") @db.VarChar(10) // 'active' | 'inactive'
-    attestationsTotal  Int      @map("attestations_total")
-    attestationsMissed Int      @map("attestations_missed")
-    performance        Decimal  @map("performance") @db.Decimal(5, 2) // Percentage 0.00 to 100.00
-    beaconStatus       Int?     @map("beacon_status") // From validator.status
-    balance            BigInt   @map("balance") // From validator.balance
-    updatedAt          DateTime @default(now()) @map("updated_at") @db.Timestamp
+  validatorIndex     Int      @id @map("validator_index")
+  status             String   @map("status") @db.VarChar(10) // 'active' | 'inactive'
+  attestationsTotal  Int      @map("attestations_total")
+  attestationsMissed Int      @map("attestations_missed")
+  performance        Decimal  @map("performance") @db.Decimal(5, 2) // Percentage 0.00 to 100.00
+  beaconStatus       Int?     @map("beacon_status") // From validator.status
+  balance            BigInt   @map("balance") // From validator.balance
+  updatedAt          DateTime @default(now()) @map("updated_at") @db.Timestamp
 
-    @@map("validators_status_summary")
+  @@map("validators_status_summary")
 }
 
 model ChainEpochStats {
-    epoch                   Int    @id @map("epoch")
-    totalActiveValidators   Int    @map("total_active_validators")
-    totalStaked             BigInt @map("total_staked") // sum of effective balances
-    validatorsEntering      Int    @map("validators_entering") // pending activation
-    validatorsExiting       Int    @map("validators_exiting") // pending exit
-    validatorsConsolidating Int    @map("validators_consolidating")
+  epoch                   Int    @id @map("epoch")
+  totalActiveValidators   Int    @map("total_active_validators")
+  totalStaked             BigInt @map("total_staked") // sum of effective balances
+  validatorsEntering      Int    @map("validators_entering") // pending activation
+  validatorsExiting       Int    @map("validators_exiting") // pending exit
+  validatorsConsolidating Int    @map("validators_consolidating")
 
-    @@map("chain_epoch_stats")
+  @@map("chain_epoch_stats")
 }
 
 //-------------------------------------
@@ -337,62 +420,62 @@ model ChainEpochStats {
 //-------------------------------------
 
 model User {
-    id                 BigInt                   @id @map("id")
-    userId             BigInt                   @unique @map("user_id")
-    username           String                   @unique @map("username")
-    messageId          BigInt?                  @map("message_id")
-    lastClaimed        DateTime?                @map("last_claimed")
-    hasBlockedBot      Boolean                  @default(false) @map("has_blocked_bot")
-    createdAt          DateTime                 @default(now()) @map("created_at")
-    clusters           Cluster[]
-    feeRewardAddresses UserToFeeRewardAddress[] @relation("user_to_fee_reward_address")
+  id                 BigInt                   @id @map("id")
+  userId             BigInt                   @unique @map("user_id")
+  username           String                   @unique @map("username")
+  messageId          BigInt?                  @map("message_id")
+  lastClaimed        DateTime?                @map("last_claimed")
+  hasBlockedBot      Boolean                  @default(false) @map("has_blocked_bot")
+  createdAt          DateTime                 @default(now()) @map("created_at")
+  clusters           Cluster[]
+  feeRewardAddresses UserToFeeRewardAddress[] @relation("user_to_fee_reward_address")
 
-    @@map("user")
+  @@map("user")
 }
 
 model FeeRewardAddress {
-    address String                   @id @map("address")
-    users   UserToFeeRewardAddress[] @relation("user_to_fee_reward_address")
-    userId  BigInt?                  @map("user_id")
+  address String                   @id @map("address")
+  users   UserToFeeRewardAddress[] @relation("user_to_fee_reward_address")
+  userId  BigInt?                  @map("user_id")
 
-    @@map("fee_reward_address")
+  @@map("fee_reward_address")
 }
 
 model Cluster {
-    id                  String            @id @default(cuid())
-    name                String
-    ownerId             BigInt            @map("owner_id")
-    visibility          ClusterVisibility @default(private)
-    feeRecipientAddress String?           @map("fee_recipient_address") @db.VarChar(42)
-    createdAt           DateTime          @default(now()) @map("created_at")
+  id                  String            @id @default(cuid())
+  name                String
+  ownerId             BigInt            @map("owner_id")
+  visibility          ClusterVisibility @default(private)
+  feeRecipientAddress String?           @map("fee_recipient_address") @db.VarChar(42)
+  createdAt           DateTime          @default(now()) @map("created_at")
 
-    owner      User               @relation(fields: [ownerId], references: [id], onDelete: Restrict)
-    validators ClusterValidator[]
+  owner      User               @relation(fields: [ownerId], references: [id], onDelete: Restrict)
+  validators ClusterValidator[]
 
-    @@map("cluster")
+  @@map("cluster")
 }
 
 model ClusterValidator {
-    clusterId      String @map("cluster_id")
-    validatorIndex Int    @map("validator_index")
+  clusterId      String @map("cluster_id")
+  validatorIndex Int    @map("validator_index")
 
-    cluster   Cluster   @relation(fields: [clusterId], references: [id], onDelete: Cascade)
-    validator Validator @relation(fields: [validatorIndex], references: [id], onDelete: Cascade)
+  cluster   Cluster   @relation(fields: [clusterId], references: [id], onDelete: Cascade)
+  validator Validator @relation(fields: [validatorIndex], references: [id], onDelete: Cascade)
 
-    @@id([clusterId, validatorIndex])
-    @@index([validatorIndex])
-    @@map("cluster_validator")
+  @@id([clusterId, validatorIndex])
+  @@index([validatorIndex])
+  @@map("cluster_validator")
 }
 
 // Explicit intermediate table for User-FeeRewardAddress many-to-many relationship
 model UserToFeeRewardAddress {
-    address String @map("address")
-    userId  BigInt @map("user_id")
+  address String @map("address")
+  userId  BigInt @map("user_id")
 
-    user             User             @relation("user_to_fee_reward_address", fields: [userId], references: [id], onDelete: Cascade)
-    feeRewardAddress FeeRewardAddress @relation("user_to_fee_reward_address", fields: [address], references: [address], onDelete: Cascade)
+  user             User             @relation("user_to_fee_reward_address", fields: [userId], references: [id], onDelete: Cascade)
+  feeRewardAddress FeeRewardAddress @relation("user_to_fee_reward_address", fields: [address], references: [address], onDelete: Cascade)
 
-    @@id([address, userId])
-    @@index([userId])
-    @@map("_user_to_fee_reward_address")
+  @@id([address, userId])
+  @@index([userId])
+  @@map("_user_to_fee_reward_address")
 }
