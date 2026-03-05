@@ -338,10 +338,10 @@ describe('Weekly Archive Process', () => {
    * and return null without creating duplicate data.
    */
   it('should return null on second archive call (idempotency)', async () => {
-    // Create 15 daily partitions: Dec 15 to Dec 29
+    // 7 days (week to archive) + 8 days (retention) = 15 daily partitions: Dec 15 to Dec 29
     await createDailyPartitionsForRange(TEST_WEEK_START, 15);
 
-    // Set lastDay = Dec 29
+    // Set lastDay = Dec 29 (satisfies retention: >= Dec 22 + 7 days)
     const lastDay = new Date('2025-12-29T00:00:00.000Z');
     await prisma.archive.update({
       where: { id: 1 },

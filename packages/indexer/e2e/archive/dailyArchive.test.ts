@@ -164,6 +164,7 @@ describe('Daily Archive Process', () => {
    * Verifies: aggregation sums, JSON concat + sort order, partition lifecycle, control table.
    */
   it('should aggregate hourly archives into a daily archive, drop hourly partitions, and keep the last 24h', async () => {
+    // 24h (Dec 16, day to archive) + 24h (Dec 17, retention) + 1h (Dec 18 00:00) = 49
     const allHours = await createHourlyPartitionsForRange(TEST_DAY_START, 49);
 
     await prisma.archive.update({
@@ -269,11 +270,12 @@ describe('Daily Archive Process', () => {
    * The retention guard prevents this.
    */
   it('should not archive when 24h retention window is not satisfied', async () => {
+    // 24h (Dec 16) + 24h (Dec 17) = 48, missing the extra hour to satisfy retention
     await createHourlyPartitionsForRange(TEST_DAY_START, 48);
 
     await prisma.archive.update({
       where: { id: 1 },
-      data: { lastHour: new Date('2025-12-17T23:00:00.000Z') },
+      data: { lastHour: new Date('2025-12-17T23:00:00.000Z') }, // < Dec 18 00:00, fails retention
     });
 
     const result = await dailyArchiveController.archive();
@@ -295,6 +297,7 @@ describe('Daily Archive Process', () => {
    * so the second call returns null without modifying anything.
    */
   it('should not archive the same day twice', async () => {
+    // 24h (Dec 16) + 24h (Dec 17) + 1h (Dec 18 00:00) = 49
     await createHourlyPartitionsForRange(TEST_DAY_START, 49);
 
     await prisma.archive.update({
