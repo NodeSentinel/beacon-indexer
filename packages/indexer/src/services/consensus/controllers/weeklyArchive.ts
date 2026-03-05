@@ -49,6 +49,12 @@ export class WeeklyArchiveController {
       return null;
     }
 
+    // Require all 7 daily partitions, unless this is the first week ever archived
+    // (the first week can be partial because data may start mid-week).
+    if (!candidate.isFirstWeek && dailyPartitions.length !== 7) {
+      return null;
+    }
+
     // Generate weekly partition name: validator_weekly_archive_YYYYwWW
     const weeklyPartitionName = getWeeklyArchivePartitionName(
       'validator_weekly_archive',
@@ -71,9 +77,14 @@ export class WeeklyArchiveController {
    * Logic:
    * - lastWeek tells us what week was last archived (or null if never)
    * - lastDay tells us the most recent daily archive
-   * - A week is eligible if all 7 days have been archived (lastDay >= weekEnd - 1 day)
+   * - A week is eligible only when fully outside the 7-day retention window
+   *   (lastDay >= candidateWeekEnd + 7 days), ensuring daily data always covers the last 7 days
    */
-  private async findWeekToArchive(): Promise<{ weekStart: Date; weekEnd: Date } | null> {
+  private async findWeekToArchive(): Promise<{
+    weekStart: Date;
+    weekEnd: Date;
+    isFirstWeek: boolean;
+  } | null> {
     const lastDay = await this.storage.getLastArchivedDay();
     if (!lastDay) {
       return null;
@@ -83,6 +94,7 @@ export class WeeklyArchiveController {
 
     // The candidate week is the week after lastWeek, or the first possible week
     let candidateWeekStart: Date;
+    let isFirstWeek = false;
     if (lastWeek) {
       candidateWeekStart = new Date(lastWeek.getTime() + ms('7d'));
     } else {
@@ -92,18 +104,20 @@ export class WeeklyArchiveController {
         return null;
       }
       candidateWeekStart = floorToUTCMonday(oldestDay);
+      isFirstWeek = true;
     }
 
     const candidateWeekEnd = new Date(candidateWeekStart.getTime() + ms('7d'));
 
-    // The candidate week must be fully covered by daily archives:
-    // lastDay must be >= the last day of the week (weekEnd - 1 day = weekStart + 6 days)
-    const lastDayOfWeek = new Date(candidateWeekEnd.getTime() - ms('1d'));
-    if (lastDay < lastDayOfWeek) {
+    // We always retain 7 days of daily data for queries.
+    // A week is only eligible when its data is fully outside the 7-day retention window:
+    // lastDay must be >= candidateWeekEnd + 7 days (analogous to daily archive's 24h retention).
+    const retentionMs = 7 * 24 * 3600 * 1000;
+    if (lastDay.getTime() - candidateWeekEnd.getTime() < retentionMs) {
       return null;
     }
 
-    return { weekStart: candidateWeekStart, weekEnd: candidateWeekEnd };
+    return { weekStart: candidateWeekStart, weekEnd: candidateWeekEnd, isFirstWeek };
   }
 }
 
