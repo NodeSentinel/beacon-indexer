@@ -1,6 +1,9 @@
+import { addMonths, differenceInCalendarDays, differenceInDays } from 'date-fns';
 import { formatInTimeZone } from 'date-fns-tz';
 
 import { MonthlyArchiveStorage } from '../storage/monthlyArchive.js';
+
+const RETENTION_DAYS = 30;
 
 /**
  * MonthlyArchiveController - Business logic for monthly archive aggregation.
@@ -17,11 +20,13 @@ import { MonthlyArchiveStorage } from '../storage/monthlyArchive.js';
  */
 export class MonthlyArchiveController {
   private readonly lookbackMonthStart: Date;
+  private readonly lookbackSlotTimestamp: number;
 
   constructor(
     private readonly storage: MonthlyArchiveStorage,
     lookbackSlotTimestamp: number,
   ) {
+    this.lookbackSlotTimestamp = lookbackSlotTimestamp;
     this.lookbackMonthStart = floorToUTCMonth(new Date(lookbackSlotTimestamp));
   }
 
@@ -55,9 +60,10 @@ export class MonthlyArchiveController {
       return null;
     }
 
-    // Require all days of the month, unless this is the lookback_slot month
-    // (lookback_slot may start mid-month, so that month can be partial).
-    if (!candidate.isLookbackMonth && dailyPartitions.length !== candidate.expectedDays) {
+    // Require the expected number of daily partitions for this month.
+    // For the lookback month (lookback_slot may start mid-month) this is less than
+    // the full month; for all subsequent months it's the full calendar month days.
+    if (dailyPartitions.length !== candidate.expectedDays) {
       return null;
     }
 
@@ -92,7 +98,6 @@ export class MonthlyArchiveController {
     monthStart: Date;
     monthEnd: Date;
     expectedDays: number;
-    isLookbackMonth: boolean;
   } | null> {
     const lastDay = await this.storage.getLastArchivedDay();
     if (!lastDay) {
@@ -103,55 +108,54 @@ export class MonthlyArchiveController {
 
     // The candidate month is the month after lastMonth, or the lookback_slot month
     let candidateMonthStart: Date;
+    let expectedDays: number;
     if (lastMonth) {
-      candidateMonthStart = getNextMonthStart(lastMonth);
+      candidateMonthStart = addMonths(lastMonth, 1);
+      expectedDays = differenceInCalendarDays(
+        addMonths(candidateMonthStart, 1),
+        candidateMonthStart,
+      );
     } else {
       candidateMonthStart = this.lookbackMonthStart;
+      // Lookback month may be partial: lookback_slot can start mid-month, so we only
+      // expect days from lookbackSlot date to end-of-month (not the full calendar month).
+      const lookbackDay = floorToUTCDay(new Date(this.lookbackSlotTimestamp));
+      const candidateMonthEnd = addMonths(candidateMonthStart, 1);
+      expectedDays = differenceInCalendarDays(candidateMonthEnd, lookbackDay);
     }
 
-    const candidateMonthEnd = getNextMonthStart(candidateMonthStart);
-    const isLookbackMonth = candidateMonthStart.getTime() === this.lookbackMonthStart.getTime();
+    const candidateMonthEnd = addMonths(candidateMonthStart, 1);
 
     // We retain 30 days of daily data for queries.
     // A month is only eligible when its data is fully outside that retention window:
     // lastDay must be >= candidateMonthEnd + 30 days.
-    const retentionMs = 30 * 24 * 3600 * 1000;
-    if (lastDay.getTime() - candidateMonthEnd.getTime() < retentionMs) {
+    if (differenceInDays(lastDay, candidateMonthEnd) < RETENTION_DAYS) {
       return null;
     }
-
-    // Count the number of days in this calendar month
-    const expectedDays = daysInMonth(candidateMonthStart);
 
     return {
       monthStart: candidateMonthStart,
       monthEnd: candidateMonthEnd,
       expectedDays,
-      isLookbackMonth,
     };
   }
 }
 
 /**
  * Floor a date to the start of its UTC month (1st day 00:00:00).
+ * Note: date-fns startOfMonth uses local timezone, so we construct manually for UTC.
  */
 function floorToUTCMonth(date: Date): Date {
   return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), 1));
 }
 
 /**
- * Get the start of the next month after the given date.
+ * Floor a date to the start of its UTC day (00:00:00).
+ * Note: date-fns startOfDay uses local timezone, so we floor manually for UTC.
  */
-function getNextMonthStart(date: Date): Date {
-  return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + 1, 1));
-}
-
-/**
- * Count the number of days in a given UTC month.
- */
-function daysInMonth(monthStart: Date): number {
-  const nextMonth = getNextMonthStart(monthStart);
-  return (nextMonth.getTime() - monthStart.getTime()) / (24 * 3600 * 1000);
+function floorToUTCDay(date: Date): Date {
+  const MS_PER_DAY = 24 * 3600 * 1000;
+  return new Date(Math.floor(date.getTime() / MS_PER_DAY) * MS_PER_DAY);
 }
 
 /**
