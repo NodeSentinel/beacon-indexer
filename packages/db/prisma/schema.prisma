@@ -367,16 +367,55 @@ model Archive {
 }
 
 model ValidatorsSnapshotStats {
-  validatorIndex     Int      @id @map("validator_index")
-  status             String   @map("status") @db.VarChar(10) // 'active' | 'inactive'
-  attestationsTotal  Int      @map("attestations_total")
-  attestationsMissed Int      @map("attestations_missed")
-  performance        Decimal  @map("performance") @db.Decimal(5, 2) // Percentage 0.00 to 100.00
-  beaconStatus       Int?     @map("beacon_status") // From validator.status
-  balance            BigInt   @map("balance") // From validator.balance
-  updatedAt          DateTime @default(now()) @map("updated_at") @db.Timestamp
+  validatorIndex                Int      @id @map("validator_index")
 
-  @@map("validators_status_summary")
+  // State
+  status                        String   @map("status") @db.VarChar(10)
+  isInactive                    Boolean  @default(false) @map("is_inactive")
+  consecutiveMissedAttestations Int      @default(0) @map("consecutive_missed_attestations")
+
+  // Balances
+  balance          BigInt @map("balance")
+  effectiveBalance BigInt @map("effective_balance")
+  beaconStatus     Int?   @map("beacon_status")
+
+  // Attestations (updated per slot)
+  attestationsTotal  Int @map("attestations_total")
+  attestationsMissed Int @map("attestations_missed")
+
+  // Performance per timeframe (ratio 0.0000 - 1.0000)
+  performanceH Decimal? @map("performance_h") @db.Decimal(5, 4)
+  performanceD Decimal? @map("performance_d") @db.Decimal(5, 4)
+  performanceW Decimal? @map("performance_w") @db.Decimal(5, 4)
+  performanceM Decimal? @map("performance_m") @db.Decimal(5, 4)
+
+  // APY per timeframe
+  apyH Decimal? @map("apy_h") @db.Decimal(5, 2)
+  apyD Decimal? @map("apy_d") @db.Decimal(5, 2)
+  apyW Decimal? @map("apy_w") @db.Decimal(5, 2)
+  apyM Decimal? @map("apy_m") @db.Decimal(5, 2)
+
+  // Consensus rewards per timeframe
+  consensusRewardH BigInt? @map("consensus_reward_h")
+  consensusRewardD BigInt? @map("consensus_reward_d")
+  consensusRewardW BigInt? @map("consensus_reward_w")
+  consensusRewardM BigInt? @map("consensus_reward_m")
+
+  // Missed rewards per timeframe
+  missedRewardH BigInt? @map("missed_reward_h")
+  missedRewardD BigInt? @map("missed_reward_d")
+  missedRewardW BigInt? @map("missed_reward_w")
+  missedRewardM BigInt? @map("missed_reward_m")
+
+  // Execution rewards per timeframe
+  executionRewardH Decimal? @map("execution_reward_h") @db.Decimal(78, 0)
+  executionRewardD Decimal? @map("execution_reward_d") @db.Decimal(78, 0)
+  executionRewardW Decimal? @map("execution_reward_w") @db.Decimal(78, 0)
+  executionRewardM Decimal? @map("execution_reward_m") @db.Decimal(78, 0)
+
+  updatedAt DateTime @default(now()) @map("updated_at") @db.Timestamp
+
+  @@map("validators_snapshot_stats")
 }
 
 model ChainEpochStats {
