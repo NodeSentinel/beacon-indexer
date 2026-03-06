@@ -221,26 +221,26 @@ export class ClusterStorage {
         total_effective_balance: bigint | null;
         attestations_total: bigint | null;
         attestations_missed: bigint | null;
-        performance_1h: string | null;
-        performance_1d: string | null;
-        performance_1w: string | null;
-        performance_1m: string | null;
-        apy_1h: string | null;
-        apy_1d: string | null;
+        performance_h: string | null;
+        performance_d: string | null;
+        performance_w: string | null;
+        performance_m: string | null;
+        apy_h: string | null;
+        apy_d: string | null;
         apy_w: string | null;
-        apy_1m: string | null;
-        consensus_reward_1h: bigint | null;
-        consensus_reward_1d: bigint | null;
-        consensus_reward_1w: bigint | null;
-        consensus_reward_1m: bigint | null;
-        missed_reward_1h: bigint | null;
-        missed_reward_1d: bigint | null;
-        missed_reward_1w: bigint | null;
-        missed_reward_1m: bigint | null;
-        execution_reward_1h: string | null;
-        execution_reward_1d: string | null;
-        execution_reward_1w: string | null;
-        execution_reward_1m: string | null;
+        apy_m: string | null;
+        consensus_reward_h: bigint | null;
+        consensus_reward_d: bigint | null;
+        consensus_reward_w: bigint | null;
+        consensus_reward_m: bigint | null;
+        missed_reward_h: bigint | null;
+        missed_reward_d: bigint | null;
+        missed_reward_w: bigint | null;
+        missed_reward_m: bigint | null;
+        execution_reward_h: string | null;
+        execution_reward_d: string | null;
+        execution_reward_w: string | null;
+        execution_reward_m: string | null;
         beacon_status_breakdown: string;
       }>
     >`
@@ -253,43 +253,43 @@ export class ClusterStorage {
         COALESCE(SUM(vss.attestations_missed), 0)::bigint AS attestations_missed,
         -- Weighted average performance (by attestation count)
         CASE WHEN SUM(vss.attestations_total) > 0
-          THEN (SUM(COALESCE(vss.performance_1h, 0) * vss.attestations_total)::numeric / SUM(vss.attestations_total))::numeric(5,4)::text
-          ELSE NULL END AS performance_1h,
+          THEN (SUM(COALESCE(vss.performance_h, 0) * vss.attestations_total)::numeric / SUM(vss.attestations_total))::numeric(5,4)::text
+          ELSE NULL END AS performance_h,
         CASE WHEN SUM(vss.attestations_total) > 0
-          THEN (SUM(COALESCE(vss.performance_1d, 0) * vss.attestations_total)::numeric / SUM(vss.attestations_total))::numeric(5,4)::text
-          ELSE NULL END AS performance_1d,
+          THEN (SUM(COALESCE(vss.performance_d, 0) * vss.attestations_total)::numeric / SUM(vss.attestations_total))::numeric(5,4)::text
+          ELSE NULL END AS performance_d,
         CASE WHEN SUM(vss.attestations_total) > 0
-          THEN (SUM(COALESCE(vss.performance_1w, 0) * vss.attestations_total)::numeric / SUM(vss.attestations_total))::numeric(5,4)::text
-          ELSE NULL END AS performance_1w,
+          THEN (SUM(COALESCE(vss.performance_w, 0) * vss.attestations_total)::numeric / SUM(vss.attestations_total))::numeric(5,4)::text
+          ELSE NULL END AS performance_w,
         CASE WHEN SUM(vss.attestations_total) > 0
-          THEN (SUM(COALESCE(vss.performance_1m, 0) * vss.attestations_total)::numeric / SUM(vss.attestations_total))::numeric(5,4)::text
-          ELSE NULL END AS performance_1m,
+          THEN (SUM(COALESCE(vss.performance_m, 0) * vss.attestations_total)::numeric / SUM(vss.attestations_total))::numeric(5,4)::text
+          ELSE NULL END AS performance_m,
         -- Weighted average APY (by balance)
         CASE WHEN SUM(vss.balance) > 0
-          THEN (SUM(COALESCE(vss.apy_1h, 0) * vss.balance)::numeric / SUM(vss.balance))::numeric(5,2)::text
-          ELSE NULL END AS apy_1h,
+          THEN (SUM(COALESCE(vss.apy_h, 0) * vss.balance)::numeric / SUM(vss.balance))::numeric(5,2)::text
+          ELSE NULL END AS apy_h,
         CASE WHEN SUM(vss.balance) > 0
-          THEN (SUM(COALESCE(vss.apy_1d, 0) * vss.balance)::numeric / SUM(vss.balance))::numeric(5,2)::text
-          ELSE NULL END AS apy_1d,
+          THEN (SUM(COALESCE(vss.apy_d, 0) * vss.balance)::numeric / SUM(vss.balance))::numeric(5,2)::text
+          ELSE NULL END AS apy_d,
         CASE WHEN SUM(vss.balance) > 0
           THEN (SUM(COALESCE(vss.apy_w, 0) * vss.balance)::numeric / SUM(vss.balance))::numeric(5,2)::text
           ELSE NULL END AS apy_w,
         CASE WHEN SUM(vss.balance) > 0
-          THEN (SUM(COALESCE(vss.apy_1m, 0) * vss.balance)::numeric / SUM(vss.balance))::numeric(5,2)::text
-          ELSE NULL END AS apy_1m,
+          THEN (SUM(COALESCE(vss.apy_m, 0) * vss.balance)::numeric / SUM(vss.balance))::numeric(5,2)::text
+          ELSE NULL END AS apy_m,
         -- Sum rewards
-        SUM(vss.consensus_reward_1h)::bigint AS consensus_reward_1h,
-        SUM(vss.consensus_reward_1d)::bigint AS consensus_reward_1d,
-        SUM(vss.consensus_reward_1w)::bigint AS consensus_reward_1w,
-        SUM(vss.consensus_reward_1m)::bigint AS consensus_reward_1m,
-        SUM(vss.missed_reward_1h)::bigint AS missed_reward_1h,
-        SUM(vss.missed_reward_1d)::bigint AS missed_reward_1d,
-        SUM(vss.missed_reward_1w)::bigint AS missed_reward_1w,
-        SUM(vss.missed_reward_1m)::bigint AS missed_reward_1m,
-        SUM(vss.execution_reward_1h)::text AS execution_reward_1h,
-        SUM(vss.execution_reward_1d)::text AS execution_reward_1d,
-        SUM(vss.execution_reward_1w)::text AS execution_reward_1w,
-        SUM(vss.execution_reward_1m)::text AS execution_reward_1m,
+        SUM(vss.consensus_reward_h)::bigint AS consensus_reward_h,
+        SUM(vss.consensus_reward_d)::bigint AS consensus_reward_d,
+        SUM(vss.consensus_reward_w)::bigint AS consensus_reward_w,
+        SUM(vss.consensus_reward_m)::bigint AS consensus_reward_m,
+        SUM(vss.missed_reward_h)::bigint AS missed_reward_h,
+        SUM(vss.missed_reward_d)::bigint AS missed_reward_d,
+        SUM(vss.missed_reward_w)::bigint AS missed_reward_w,
+        SUM(vss.missed_reward_m)::bigint AS missed_reward_m,
+        SUM(vss.execution_reward_h)::text AS execution_reward_h,
+        SUM(vss.execution_reward_d)::text AS execution_reward_d,
+        SUM(vss.execution_reward_w)::text AS execution_reward_w,
+        SUM(vss.execution_reward_m)::text AS execution_reward_m,
         -- Beacon status breakdown as JSON
         COALESCE(
           (SELECT json_object_agg(bs, cnt)::text
