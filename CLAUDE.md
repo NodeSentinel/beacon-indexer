@@ -22,3 +22,12 @@
 ## Docs
 
 - **`docs`**: project docs. See `docs/`.
+
+### E2E Test Documentation
+
+Every end-to-end test must include clear comments explaining what the test does.
+
+- Each test block (`describe`, `test`, `it`, etc.) should include a high-level comment describing the scenario being tested.
+- Inside the test, every significant line or block should have a short comment explaining its purpose.
+
+A developer should be able to fully understand the intent and flow of the test by reading the comments, without having to infer or guess behavior from the code itself.
