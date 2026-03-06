@@ -7,6 +7,7 @@ import { SlotController } from '@/src/services/consensus/controllers/slot.js';
 import { ValidatorsController } from '@/src/services/consensus/controllers/validators.js';
 import { dailyArchiveMachine } from '@/src/xstate/archive/dailyArchive.machine.js';
 import { hourlyArchiveMachine } from '@/src/xstate/archive/hourlyArchive.machine.js';
+import { monthlyArchiveMachine } from '@/src/xstate/archive/monthlyArchive.machine.js';
 import { chainStatsMachine } from '@/src/xstate/chainStats/chainStats.machine.js';
 import { epochCreationMachine } from '@/src/xstate/epoch/epochCreator.machine.js';
 import { epochOrchestratorMachine } from '@/src/xstate/epoch/epochOrchestrator.machine.js';
@@ -42,6 +43,7 @@ export const getEpochOrchestratorActor = (
   validatorsController: ValidatorsController,
   hourlyArchiveActor: ActorRefFrom<typeof hourlyArchiveMachine>,
   dailyArchiveActor: ActorRefFrom<typeof dailyArchiveMachine>,
+  monthlyArchiveActor: ActorRefFrom<typeof monthlyArchiveMachine>,
   chainStatsActor: ActorRefFrom<typeof chainStatsMachine>,
 ) => {
   const actor = createActor(epochOrchestratorMachine, {
@@ -56,6 +58,7 @@ export const getEpochOrchestratorActor = (
       validatorsController,
       hourlyArchiveActor,
       dailyArchiveActor,
+      monthlyArchiveActor,
       chainStatsActor,
     },
   });
