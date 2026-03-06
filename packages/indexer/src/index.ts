@@ -13,6 +13,7 @@ import { IndexerConfigController } from '@/src/services/consensus/controllers/in
 import { MonthlyArchiveController } from '@/src/services/consensus/controllers/monthlyArchive.js';
 import { PartitionController } from '@/src/services/consensus/controllers/partition.js';
 import { SlotController } from '@/src/services/consensus/controllers/slot.js';
+import { SnapshotController } from '@/src/services/consensus/controllers/snapshot.js';
 import { ValidatorsController } from '@/src/services/consensus/controllers/validators.js';
 import { ChainStatsStorage } from '@/src/services/consensus/storage/chainStats.js';
 import { DailyArchiveStorage } from '@/src/services/consensus/storage/dailyArchive.js';
@@ -22,6 +23,7 @@ import { IndexerConfigStorage } from '@/src/services/consensus/storage/indexerCo
 import { MonthlyArchiveStorage } from '@/src/services/consensus/storage/monthlyArchive.js';
 import { PartitionStorage } from '@/src/services/consensus/storage/partition.js';
 import { SlotStorage } from '@/src/services/consensus/storage/slot.js';
+import { SnapshotStorage } from '@/src/services/consensus/storage/snapshot.js';
 import { ValidatorsStorage } from '@/src/services/consensus/storage/validators.js';
 import { ExecutionClient } from '@/src/services/execution/execution.js';
 import initXstateMachines from '@/src/xstate/index.js';
@@ -197,6 +199,10 @@ async function main() {
   const chainStatsStorage = new ChainStatsStorage(prisma);
   const chainStatsController = new ChainStatsController(chainStatsStorage, beaconTime);
 
+  // Create snapshot storage and controller
+  const snapshotStorage = new SnapshotStorage(prisma);
+  const snapshotController = new SnapshotController(snapshotStorage, beaconTime);
+
   // Start indexing the beacon chain
   await validatorsController.initValidatorsWithWait(env.CONSENSUS_LOOKBACK_SLOT);
 
@@ -213,6 +219,10 @@ async function main() {
     dailyArchiveController,
     monthlyArchiveController,
     chainStatsController,
+    snapshotController,
+    chainConfig.beacon.maxAttestationDelay,
+    chainConfig.beacon.delaySlotsToHead,
+    chainConfig.beacon.missedAttestationsForInactivity,
   );
 }
 

@@ -86,7 +86,7 @@ export class ValidatorStorage {
   }
 
   /**
-   * Get performance summary from validators_status_summary table
+   * Get performance summary from validators_snapshot_stats table
    * Falls back to computing from committee table if summary not available
    * @param validatorIndex - Validator index
    * @param maxAttestationDelay - Maximum delay threshold
@@ -102,7 +102,7 @@ export class ValidatorStorage {
         attestations_total,
         attestations_missed,
         performance::numeric AS performance
-      FROM validators_status_summary
+      FROM validators_snapshot_stats
       WHERE validator_index = ${validatorIndex}
       LIMIT 1
     `;
