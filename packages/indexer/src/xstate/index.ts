@@ -7,6 +7,7 @@ import {
 } from './archive/index.js';
 import { getChainStatsActor } from './chainStats/index.js';
 import { getCreateEpochActor, getEpochOrchestratorActor } from './epoch/index.js';
+import { getSnapshotActor } from './snapshot/index.js';
 
 import { ChainStatsController } from '@/src/services/consensus/controllers/chainStats.js';
 import { DailyArchiveController } from '@/src/services/consensus/controllers/dailyArchive.js';
@@ -15,6 +16,7 @@ import { HourlyArchiveController } from '@/src/services/consensus/controllers/ho
 import { MonthlyArchiveController } from '@/src/services/consensus/controllers/monthlyArchive.js';
 import { PartitionController } from '@/src/services/consensus/controllers/partition.js';
 import { SlotController } from '@/src/services/consensus/controllers/slot.js';
+import { SnapshotController } from '@/src/services/consensus/controllers/snapshot.js';
 import { ValidatorsController } from '@/src/services/consensus/controllers/validators.js';
 export default function initXstateMachines(
   epochController: EpochController,
@@ -28,6 +30,10 @@ export default function initXstateMachines(
   dailyArchiveController: DailyArchiveController,
   monthlyArchiveController: MonthlyArchiveController,
   chainStatsController: ChainStatsController,
+  snapshotController: SnapshotController,
+  maxAttestationDelay: number,
+  delaySlotsToHead: number,
+  missedAttestationsForInactivity: number,
 ) {
   // Create and start hourly archive actor
   const hourlyArchiveActor = getHourlyArchiveActor(hourlyArchiveController);
@@ -61,4 +67,15 @@ export default function initXstateMachines(
     monthlyArchiveActor,
     chainStatsActor,
   ).start();
+
+  // Create and start snapshot actor (runs independently with its own timer)
+  const snapshotActor = getSnapshotActor(
+    snapshotController,
+    slotDuration,
+    slotsPerEpoch,
+    maxAttestationDelay,
+    delaySlotsToHead,
+    missedAttestationsForInactivity,
+  );
+  snapshotActor.start();
 }
