@@ -2,6 +2,7 @@ import memoizee from 'memoizee';
 import ms from 'ms';
 
 import { env } from '@/config/env.js';
+import { logger } from '@/lib/logger.js';
 
 async function fetchTokenPrice(): Promise<number> {
   try {
@@ -13,10 +14,14 @@ async function fetchTokenPrice(): Promise<number> {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
 
-    const data = (await response.json()) as Record<string, { usd: number }>;
-    return data[env.COINGECKO_TOKEN_NAME].usd;
+    const data = (await response.json()) as Record<string, { usd: number } | undefined>;
+    const price = data?.[env.COINGECKO_TOKEN_NAME]?.usd;
+    if (typeof price !== 'number') {
+      throw new Error(`Token price not found for '${env.COINGECKO_TOKEN_NAME}'`);
+    }
+    return price;
   } catch (error) {
-    console.error('Error fetching token price:', error);
+    logger.error({ err: error }, 'Error fetching token price');
     throw error;
   }
 }
