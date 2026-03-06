@@ -28,10 +28,10 @@ export interface ClusterSnapshot {
   missedReward1d: string | null;
   missedReward1w: string | null;
   missedReward1m: string | null;
-  executionReward1h: string | null;
-  executionReward1d: string | null;
-  executionReward1w: string | null;
-  executionReward1m: string | null;
+  executionReward1h: { wei: string; token: string } | null;
+  executionReward1d: { wei: string; token: string } | null;
+  executionReward1w: { wei: string; token: string } | null;
+  executionReward1m: { wei: string; token: string } | null;
 }
 
 export function useClusterSnapshot(clusterId: string | null) {

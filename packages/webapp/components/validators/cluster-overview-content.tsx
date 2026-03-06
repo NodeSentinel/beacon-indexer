@@ -149,9 +149,9 @@ export default function ClusterOverviewContent({
     return map[key];
   };
 
-  const getExecutionReward = (key: PeriodKey): string | null => {
+  const getExecutionReward = (key: PeriodKey): { wei: string; token: string } | null => {
     if (!snapshot) return null;
-    const map: Record<PeriodKey, string | null> = {
+    const map: Record<PeriodKey, { wei: string; token: string } | null> = {
       '1h': snapshot.executionReward1h,
       '1d': snapshot.executionReward1d,
       '1w': snapshot.executionReward1w,
@@ -282,7 +282,7 @@ export default function ClusterOverviewContent({
                     </div>
                     <div className="space-y-0.5">
                       <div className="text-base font-mono font-semibold">
-                        {formatValue(getExecutionReward(key))} xDAI
+                        {formatValue(getExecutionReward(key)?.token ?? null)} xDAI
                       </div>
                     </div>
                     <div className="text-sm font-mono">-</div>
