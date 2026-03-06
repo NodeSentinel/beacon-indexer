@@ -13,9 +13,9 @@ type SnapshotContext = {
   // In-memory tracking (null = never updated, forces first run)
   lastProcessedSlot: number | null;
   lastEpochUpdate: number | null;
-  last1dUpdate: number | null;
-  last1wUpdate: number | null;
-  last1mUpdate: number | null;
+  lastDUpdate: number | null;
+  lastWUpdate: number | null;
+  lastMUpdate: number | null;
   lastNewValidatorCheck: number | null;
 };
 
@@ -23,16 +23,16 @@ type TickResult = {
   updatedLevels: string[];
   lastProcessedSlot: number | null;
   lastEpochUpdate: number | null;
-  last1dUpdate: number | null;
-  last1wUpdate: number | null;
-  last1mUpdate: number | null;
+  lastDUpdate: number | null;
+  lastWUpdate: number | null;
+  lastMUpdate: number | null;
   lastNewValidatorCheck: number | null;
 };
 
 const INTERVAL_NEW_VALIDATOR_CHECK = 30 * 1000; // 30 seconds
-const INTERVAL_1D = 30 * 60 * 1000; // 30 minutes
-const INTERVAL_1W = 3 * 60 * 60 * 1000; // 3 hours
-const INTERVAL_1M = 6 * 60 * 60 * 1000; // 6 hours
+const INTERVAL_D = 30 * 60 * 1000; // 30 minutes
+const INTERVAL_W = 3 * 60 * 60 * 1000; // 3 hours
+const INTERVAL_M = 6 * 60 * 60 * 1000; // 6 hours
 
 export const snapshotMachine = setup({
   types: {} as {
@@ -56,10 +56,11 @@ export const snapshotMachine = setup({
       const now = Date.now();
       const updatedLevels: string[] = [];
 
+      const currentEpoch = controller.getCurrentEpoch();
       let lastEpochUpdate = ctx.lastEpochUpdate;
-      let last1dUpdate = ctx.last1dUpdate;
-      let last1wUpdate = ctx.last1wUpdate;
-      let last1mUpdate = ctx.last1mUpdate;
+      let lastDUpdate = ctx.lastDUpdate;
+      let lastWUpdate = ctx.lastWUpdate;
+      let lastMUpdate = ctx.lastMUpdate;
       let lastNewValidatorCheck = ctx.lastNewValidatorCheck;
 
       // Level 0: Detect and backfill new validators (every 30s)
@@ -83,47 +84,45 @@ export const snapshotMachine = setup({
       });
       updatedLevels.push('attestations');
 
-      // Level 2 + 3: Balances + 1h performance (every epoch)
-      // On first run (null) or when enough time has passed for a new epoch
-      const epochDuration = ctx.slotDuration * ctx.slotsPerEpoch;
-      if (lastEpochUpdate === null || now - lastEpochUpdate >= epochDuration) {
+      // Level 2 + 3: Balances + h performance (every new epoch)
+      if (lastEpochUpdate === null || currentEpoch > lastEpochUpdate) {
         await controller.updateBalances();
         updatedLevels.push('balances');
 
-        await controller.updatePerformance1h(ctx.maxAttestationDelay);
-        updatedLevels.push('1h');
+        await controller.updatePerformanceH(ctx.maxAttestationDelay);
+        updatedLevels.push('h');
 
-        lastEpochUpdate = now;
+        lastEpochUpdate = currentEpoch;
       }
 
-      // Level 4: 1d performance (every 30 min)
-      if (last1dUpdate === null || now - last1dUpdate >= INTERVAL_1D) {
-        await controller.updatePerformance1d();
-        last1dUpdate = now;
-        updatedLevels.push('1d');
+      // Level 4: d performance (every 30 min)
+      if (lastDUpdate === null || now - lastDUpdate >= INTERVAL_D) {
+        await controller.updatePerformanceD();
+        lastDUpdate = now;
+        updatedLevels.push('d');
       }
 
-      // Level 5: 1w performance (every 3h)
-      if (last1wUpdate === null || now - last1wUpdate >= INTERVAL_1W) {
-        await controller.updatePerformance1w();
-        last1wUpdate = now;
-        updatedLevels.push('1w');
+      // Level 5: w performance (every 3h)
+      if (lastWUpdate === null || now - lastWUpdate >= INTERVAL_W) {
+        await controller.updatePerformanceW();
+        lastWUpdate = now;
+        updatedLevels.push('w');
       }
 
-      // Level 6: 1m performance (every 6h)
-      if (last1mUpdate === null || now - last1mUpdate >= INTERVAL_1M) {
-        await controller.updatePerformance1m();
-        last1mUpdate = now;
-        updatedLevels.push('1m');
+      // Level 6: m performance (every 6h)
+      if (lastMUpdate === null || now - lastMUpdate >= INTERVAL_M) {
+        await controller.updatePerformanceM();
+        lastMUpdate = now;
+        updatedLevels.push('m');
       }
 
       return {
         updatedLevels,
         lastProcessedSlot: ctx.lastProcessedSlot,
         lastEpochUpdate,
-        last1dUpdate,
-        last1wUpdate,
-        last1mUpdate,
+        lastDUpdate,
+        lastWUpdate,
+        lastMUpdate,
         lastNewValidatorCheck,
       } satisfies TickResult;
     }),
@@ -140,9 +139,9 @@ export const snapshotMachine = setup({
     missedAttestationsForInactivity: input.missedAttestationsForInactivity,
     lastProcessedSlot: null,
     lastEpochUpdate: null,
-    last1dUpdate: null,
-    last1wUpdate: null,
-    last1mUpdate: null,
+    lastDUpdate: null,
+    lastWUpdate: null,
+    lastMUpdate: null,
     lastNewValidatorCheck: null,
   }),
   states: {
@@ -163,9 +162,9 @@ export const snapshotMachine = setup({
             assign({
               lastProcessedSlot: ({ event }) => event.output.lastProcessedSlot,
               lastEpochUpdate: ({ event }) => event.output.lastEpochUpdate,
-              last1dUpdate: ({ event }) => event.output.last1dUpdate,
-              last1wUpdate: ({ event }) => event.output.last1wUpdate,
-              last1mUpdate: ({ event }) => event.output.last1mUpdate,
+              lastDUpdate: ({ event }) => event.output.lastDUpdate,
+              lastWUpdate: ({ event }) => event.output.lastWUpdate,
+              lastMUpdate: ({ event }) => event.output.lastMUpdate,
               lastNewValidatorCheck: ({ event }) => event.output.lastNewValidatorCheck,
             }),
             pinoLog(({ event }) => {

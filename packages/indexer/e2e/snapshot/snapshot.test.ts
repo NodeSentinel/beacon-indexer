@@ -60,9 +60,12 @@ describe('Snapshot - Inactivity Detection', () => {
     await prisma.$executeRawUnsafe(`DELETE FROM "cluster"`);
     await prisma.$executeRawUnsafe(`DELETE FROM "user"`);
     await prisma.$executeRawUnsafe(`DELETE FROM "validator"`);
-    // committee is partitioned, truncate all partitions
+    // committee is partitioned: drop all existing partitions, then create one covering test slots
     await prisma.$executeRawUnsafe(
-      `DO $$ DECLARE r RECORD; BEGIN FOR r IN SELECT inhrelid::regclass AS child FROM pg_inherits WHERE inhparent = 'committee'::regclass LOOP EXECUTE 'TRUNCATE TABLE ' || r.child || ' CASCADE'; END LOOP; END $$`,
+      `DO $$ DECLARE r RECORD; BEGIN FOR r IN SELECT inhrelid::regclass AS child FROM pg_inherits WHERE inhparent = 'committee'::regclass LOOP EXECUTE 'DROP TABLE ' || r.child || ' CASCADE'; END LOOP; END $$`,
+    );
+    await prisma.$executeRawUnsafe(
+      `CREATE TABLE IF NOT EXISTS committee_test_partition PARTITION OF committee FOR VALUES FROM (0) TO (10000)`,
     );
   });
 
@@ -302,7 +305,7 @@ describe('Snapshot - Inactivity Detection', () => {
     // Set some performance data on the existing row
     await prisma.$executeRaw`
       UPDATE validators_snapshot_stats
-      SET performance_1h = 0.9500, apy_1h = 3.50, consensus_reward_1h = 1000000
+      SET performance_h = 0.9500, apy_h = 3.50, consensus_reward_h = 1000000
       WHERE validator_index = 1
     `;
 
@@ -318,19 +321,19 @@ describe('Snapshot - Inactivity Detection', () => {
     // Performance columns should be preserved
     const rows = await prisma.$queryRaw<
       Array<{
-        performance_1h: string | null;
-        apy_1h: string | null;
-        consensus_reward_1h: bigint | null;
+        performance_h: string | null;
+        apy_h: string | null;
+        consensus_reward_h: bigint | null;
         attestations_total: number;
       }>
-    >`SELECT performance_1h, apy_1h, consensus_reward_1h, attestations_total FROM validators_snapshot_stats WHERE validator_index = 1`;
+    >`SELECT performance_h, apy_h, consensus_reward_h, attestations_total FROM validators_snapshot_stats WHERE validator_index = 1`;
 
     const row = rows[0];
     expect(row).not.toBeNull();
     expect(row!.attestations_total).toBe(1); // updated
-    expect(Number(row!.performance_1h)).toBeCloseTo(0.95, 2); // preserved
-    expect(Number(row!.apy_1h)).toBeCloseTo(3.5, 1); // preserved
-    expect(row!.consensus_reward_1h).toBe(BigInt(1000000)); // preserved
+    expect(Number(row!.performance_h)).toBeCloseTo(0.95, 2); // preserved
+    expect(Number(row!.apy_h)).toBeCloseTo(3.5, 1); // preserved
+    expect(row!.consensus_reward_h).toBe(BigInt(1000000)); // preserved
   });
 });
 
@@ -424,15 +427,15 @@ describe('Snapshot - New Validator Detection', () => {
 
     // Set performance data
     await prisma.$executeRaw`
-      UPDATE validators_snapshot_stats SET performance_1h = 0.9500 WHERE validator_index = 10
+      UPDATE validators_snapshot_stats SET performance_h = 0.9500 WHERE validator_index = 10
     `;
 
     // Re-insert should be a no-op (ON CONFLICT DO NOTHING)
     await snapshotStorage.insertNewValidatorSnapshots([10]);
 
-    const rows = await prisma.$queryRaw<Array<{ performance_1h: string | null }>>`
-      SELECT performance_1h FROM validators_snapshot_stats WHERE validator_index = 10
+    const rows = await prisma.$queryRaw<Array<{ performance_h: string | null }>>`
+      SELECT performance_h FROM validators_snapshot_stats WHERE validator_index = 10
     `;
-    expect(Number(rows[0]!.performance_1h)).toBeCloseTo(0.95, 2);
+    expect(Number(rows[0]!.performance_h)).toBeCloseTo(0.95, 2);
   });
 });

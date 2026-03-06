@@ -16,6 +16,11 @@ export class SnapshotController {
     private readonly beaconTime: BeaconTime,
   ) {}
 
+  getCurrentEpoch(): number {
+    const currentSlot = this.beaconTime.getSlotNumberFromTimestamp(Date.now());
+    return this.beaconTime.getEpochFromSlot(currentSlot);
+  }
+
   /**
    * Update attestation stats and inactivity status.
    *
@@ -78,9 +83,9 @@ export class SnapshotController {
   }
 
   /**
-   * Update 1h performance metrics from raw data.
+   * Update h performance metrics from raw data.
    */
-  async updatePerformance1h(maxAttestationDelay: number, validatorIndexes?: number[]) {
+  async updatePerformanceH(maxAttestationDelay: number, validatorIndexes?: number[]) {
     const currentTimestamp = Date.now();
     const currentSlot = this.beaconTime.getSlotNumberFromTimestamp(currentTimestamp);
     const oneHourAgoSlot = this.beaconTime.getSlotNumberFromTimestamp(currentTimestamp - ms('1h'));
@@ -88,7 +93,7 @@ export class SnapshotController {
     const maxEpoch = this.beaconTime.getEpochFromSlot(currentSlot);
 
     try {
-      await this.snapshotStorage.updatePerformance1h({
+      await this.snapshotStorage.updatePerformanceH({
         minSlot: oneHourAgoSlot,
         maxSlot: currentSlot,
         minEpoch,
@@ -96,54 +101,54 @@ export class SnapshotController {
         maxAttestationDelay,
         validatorIndexes,
       });
-      this.logger.info('Updated 1h performance metrics');
+      this.logger.info('Updated h performance metrics');
     } catch (error) {
-      this.logger.error('Error updating 1h performance', error);
+      this.logger.error('Error updating h performance', error);
       throw error;
     }
   }
 
   /**
-   * Update 1d performance metrics from hourly archives.
+   * Update d performance metrics from hourly archives.
    */
-  async updatePerformance1d(validatorIndexes?: number[]) {
+  async updatePerformanceD(validatorIndexes?: number[]) {
     try {
-      await this.snapshotStorage.updatePerformance1d(
+      await this.snapshotStorage.updatePerformanceD(
         validatorIndexes ? { validatorIndexes } : undefined,
       );
-      this.logger.info('Updated 1d performance metrics');
+      this.logger.info('Updated d performance metrics');
     } catch (error) {
-      this.logger.error('Error updating 1d performance', error);
+      this.logger.error('Error updating d performance', error);
       throw error;
     }
   }
 
   /**
-   * Update 1w performance metrics from daily archives.
+   * Update w performance metrics from daily archives.
    */
-  async updatePerformance1w(validatorIndexes?: number[]) {
+  async updatePerformanceW(validatorIndexes?: number[]) {
     try {
-      await this.snapshotStorage.updatePerformance1w(
+      await this.snapshotStorage.updatePerformanceW(
         validatorIndexes ? { validatorIndexes } : undefined,
       );
-      this.logger.info('Updated 1w performance metrics');
+      this.logger.info('Updated w performance metrics');
     } catch (error) {
-      this.logger.error('Error updating 1w performance', error);
+      this.logger.error('Error updating w performance', error);
       throw error;
     }
   }
 
   /**
-   * Update 1m performance metrics from daily archives.
+   * Update m performance metrics from daily archives.
    */
-  async updatePerformance1m(validatorIndexes?: number[]) {
+  async updatePerformanceM(validatorIndexes?: number[]) {
     try {
-      await this.snapshotStorage.updatePerformance1m(
+      await this.snapshotStorage.updatePerformanceM(
         validatorIndexes ? { validatorIndexes } : undefined,
       );
-      this.logger.info('Updated 1m performance metrics');
+      this.logger.info('Updated m performance metrics');
     } catch (error) {
-      this.logger.error('Error updating 1m performance', error);
+      this.logger.error('Error updating m performance', error);
       throw error;
     }
   }
@@ -160,10 +165,10 @@ export class SnapshotController {
     this.logger.info(`Detected ${newIndexes.length} new validators, backfilling snapshots`);
 
     await this.snapshotStorage.insertNewValidatorSnapshots(newIndexes);
-    await this.updatePerformance1h(maxAttestationDelay, newIndexes);
-    await this.updatePerformance1d(newIndexes);
-    await this.updatePerformance1w(newIndexes);
-    await this.updatePerformance1m(newIndexes);
+    await this.updatePerformanceH(maxAttestationDelay, newIndexes);
+    await this.updatePerformanceD(newIndexes);
+    await this.updatePerformanceW(newIndexes);
+    await this.updatePerformanceM(newIndexes);
 
     this.logger.info(`Backfilled ${newIndexes.length} new validators`);
     return newIndexes.length;

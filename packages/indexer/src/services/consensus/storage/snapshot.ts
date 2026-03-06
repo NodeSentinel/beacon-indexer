@@ -159,9 +159,9 @@ export class SnapshotStorage {
   }
 
   /**
-   * Update 1h performance metrics from raw committee and epoch_rewards tables.
+   * Update h performance metrics from raw committee and epoch_rewards tables.
    */
-  async updatePerformance1h(params: {
+  async updatePerformanceH(params: {
     minSlot: number;
     maxSlot: number;
     minEpoch: number;
@@ -215,14 +215,14 @@ export class SnapshotStorage {
             CASE WHEN a.total > 0
               THEN ((a.total - a.missed)::numeric / a.total)::numeric(5,4)
               ELSE NULL
-            END AS performance_1h,
+            END AS performance_h,
             r.consensus_reward,
             r.missed_reward,
             e.execution_reward,
             CASE WHEN v.balance > 0 AND r.consensus_reward IS NOT NULL
               THEN (r.consensus_reward::numeric / v.balance * 8766 * 100)::numeric(5,2)
               ELSE NULL
-            END AS apy_1h
+            END AS apy_h
           FROM att a
           LEFT JOIN rew r ON a.validator_index = r.validator_index
           LEFT JOIN exec_rew e ON a.validator_index = e.validator_index
@@ -230,11 +230,11 @@ export class SnapshotStorage {
         )
       UPDATE validators_snapshot_stats vss
       SET
-        performance_1h = p.performance_1h,
-        apy_1h = p.apy_1h,
-        consensus_reward_1h = p.consensus_reward,
-        missed_reward_1h = p.missed_reward,
-        execution_reward_1h = p.execution_reward,
+        performance_h = p.performance_h,
+        apy_h = p.apy_h,
+        consensus_reward_h = p.consensus_reward,
+        missed_reward_h = p.missed_reward,
+        execution_reward_h = p.execution_reward,
         updated_at = NOW()
       FROM perf p
       WHERE vss.validator_index = p.validator_index
@@ -242,9 +242,9 @@ export class SnapshotStorage {
   }
 
   /**
-   * Update 1d performance metrics from ValidatorHourlyArchive (last 24h).
+   * Update d performance metrics from ValidatorHourlyArchive (last 24h).
    */
-  async updatePerformance1d(params?: { validatorIndexes?: number[] }): Promise<void> {
+  async updatePerformanceD(params?: { validatorIndexes?: number[] }): Promise<void> {
     const validatorIndexes = params?.validatorIndexes;
     const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000);
 
@@ -275,24 +275,24 @@ export class SnapshotStorage {
             CASE WHEN ad.att_count > 0
               THEN ((ad.att_count - ad.missed_att_count)::numeric / ad.att_count)::numeric(5,4)
               ELSE NULL
-            END AS performance_1d,
+            END AS performance_d,
             ad.consensus_reward,
             ad.missed_reward,
             ad.execution_reward,
             CASE WHEN v.balance > 0 AND ad.consensus_reward IS NOT NULL
               THEN (ad.consensus_reward::numeric / v.balance * 365.25 * 100)::numeric(5,2)
               ELSE NULL
-            END AS apy_1d
+            END AS apy_d
           FROM archive_data ad
           JOIN validator v ON v.id = ad.validator_index
         )
       UPDATE validators_snapshot_stats vss
       SET
-        performance_1d = p.performance_1d,
-        apy_1d = p.apy_1d,
-        consensus_reward_1d = p.consensus_reward,
-        missed_reward_1d = p.missed_reward,
-        execution_reward_1d = p.execution_reward,
+        performance_d = p.performance_d,
+        apy_d = p.apy_d,
+        consensus_reward_d = p.consensus_reward,
+        missed_reward_d = p.missed_reward,
+        execution_reward_d = p.execution_reward,
         updated_at = NOW()
       FROM perf p
       WHERE vss.validator_index = p.validator_index
@@ -300,9 +300,9 @@ export class SnapshotStorage {
   }
 
   /**
-   * Update 1w performance metrics from ValidatorDailyArchive (last 7 days).
+   * Update w performance metrics from ValidatorDailyArchive (last 7 days).
    */
-  async updatePerformance1w(params?: { validatorIndexes?: number[] }): Promise<void> {
+  async updatePerformanceW(params?: { validatorIndexes?: number[] }): Promise<void> {
     const validatorIndexes = params?.validatorIndexes;
     const cutoff = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
 
@@ -333,24 +333,24 @@ export class SnapshotStorage {
             CASE WHEN ad.att_count > 0
               THEN ((ad.att_count - ad.missed_att_count)::numeric / ad.att_count)::numeric(5,4)
               ELSE NULL
-            END AS performance_1w,
+            END AS performance_w,
             ad.consensus_reward,
             ad.missed_reward,
             ad.execution_reward,
             CASE WHEN v.balance > 0 AND ad.consensus_reward IS NOT NULL
               THEN (ad.consensus_reward::numeric / v.balance * 52.18 * 100)::numeric(5,2)
               ELSE NULL
-            END AS apy_1w
+            END AS apy_w
           FROM archive_data ad
           JOIN validator v ON v.id = ad.validator_index
         )
       UPDATE validators_snapshot_stats vss
       SET
-        performance_1w = p.performance_1w,
-        apy_w = p.apy_1w,
-        consensus_reward_1w = p.consensus_reward,
-        missed_reward_1w = p.missed_reward,
-        execution_reward_1w = p.execution_reward,
+        performance_w = p.performance_w,
+        apy_w = p.apy_w,
+        consensus_reward_w = p.consensus_reward,
+        missed_reward_w = p.missed_reward,
+        execution_reward_w = p.execution_reward,
         updated_at = NOW()
       FROM perf p
       WHERE vss.validator_index = p.validator_index
@@ -358,9 +358,9 @@ export class SnapshotStorage {
   }
 
   /**
-   * Update 1m performance metrics from ValidatorDailyArchive (last 30 days).
+   * Update m performance metrics from ValidatorDailyArchive (last 30 days).
    */
-  async updatePerformance1m(params?: { validatorIndexes?: number[] }): Promise<void> {
+  async updatePerformanceM(params?: { validatorIndexes?: number[] }): Promise<void> {
     const validatorIndexes = params?.validatorIndexes;
     const cutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
 
@@ -391,24 +391,24 @@ export class SnapshotStorage {
             CASE WHEN ad.att_count > 0
               THEN ((ad.att_count - ad.missed_att_count)::numeric / ad.att_count)::numeric(5,4)
               ELSE NULL
-            END AS performance_1m,
+            END AS performance_m,
             ad.consensus_reward,
             ad.missed_reward,
             ad.execution_reward,
             CASE WHEN v.balance > 0 AND ad.consensus_reward IS NOT NULL
               THEN (ad.consensus_reward::numeric / v.balance * 12 * 100)::numeric(5,2)
               ELSE NULL
-            END AS apy_1m
+            END AS apy_m
           FROM archive_data ad
           JOIN validator v ON v.id = ad.validator_index
         )
       UPDATE validators_snapshot_stats vss
       SET
-        performance_1m = p.performance_1m,
-        apy_1m = p.apy_1m,
-        consensus_reward_1m = p.consensus_reward,
-        missed_reward_1m = p.missed_reward,
-        execution_reward_1m = p.execution_reward,
+        performance_m = p.performance_m,
+        apy_m = p.apy_m,
+        consensus_reward_m = p.consensus_reward,
+        missed_reward_m = p.missed_reward,
+        execution_reward_m = p.execution_reward,
         updated_at = NOW()
       FROM perf p
       WHERE vss.validator_index = p.validator_index
