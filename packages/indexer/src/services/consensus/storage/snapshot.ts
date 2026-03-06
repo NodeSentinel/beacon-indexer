@@ -220,7 +220,7 @@ export class SnapshotStorage {
             r.missed_reward,
             e.execution_reward,
             CASE WHEN v.balance > 0 AND r.consensus_reward IS NOT NULL
-              THEN (r.consensus_reward::numeric / v.balance * 8766)::numeric(5,2)
+              THEN (r.consensus_reward::numeric / v.balance * 8766 * 100)::numeric(5,2)
               ELSE NULL
             END AS apy_1h
           FROM att a
@@ -280,7 +280,7 @@ export class SnapshotStorage {
             ad.missed_reward,
             ad.execution_reward,
             CASE WHEN v.balance > 0 AND ad.consensus_reward IS NOT NULL
-              THEN (ad.consensus_reward::numeric / v.balance * 365.25)::numeric(5,2)
+              THEN (ad.consensus_reward::numeric / v.balance * 365.25 * 100)::numeric(5,2)
               ELSE NULL
             END AS apy_1d
           FROM archive_data ad
@@ -338,7 +338,7 @@ export class SnapshotStorage {
             ad.missed_reward,
             ad.execution_reward,
             CASE WHEN v.balance > 0 AND ad.consensus_reward IS NOT NULL
-              THEN (ad.consensus_reward::numeric / v.balance * 52.18)::numeric(5,2)
+              THEN (ad.consensus_reward::numeric / v.balance * 52.18 * 100)::numeric(5,2)
               ELSE NULL
             END AS apy_1w
           FROM archive_data ad
@@ -396,7 +396,7 @@ export class SnapshotStorage {
             ad.missed_reward,
             ad.execution_reward,
             CASE WHEN v.balance > 0 AND ad.consensus_reward IS NOT NULL
-              THEN (ad.consensus_reward::numeric / v.balance * 12)::numeric(5,2)
+              THEN (ad.consensus_reward::numeric / v.balance * 12 * 100)::numeric(5,2)
               ELSE NULL
             END AS apy_1m
           FROM archive_data ad
