@@ -124,13 +124,13 @@ export default function DashboardOverview() {
     };
   }, [clusterDetail]);
 
-  const gnoPrice = defaultStats.gnoPrice;
+  const tokenPrice = defaultStats.gnoPrice;
 
   return (
     <div className="py-3 md:py-8 space-y-4 md:space-y-8">
       <NotificationBanner notifications={demoNotifications} />
 
-      <ChainStatistics gnoPrice={gnoPrice} />
+      <ChainStatistics tokenPrice={tokenPrice} />
 
       <UserDashboard
         clusters={clusters}
@@ -160,13 +160,13 @@ export default function DashboardOverview() {
                 <ClusterOverviewContent
                   cluster={displayCluster}
                   stats={defaultStats}
-                  gnoPrice={gnoPrice}
+                  gnoPrice={tokenPrice}
                   showManageButton={!isAllSelected}
                   onManage={() => setManagingClusterId(displayCluster.id)}
                 />
               ) : null}
               <PerformanceMetricsContent data={emptyMissedAttestations} />
-              <EventsFeedContent events={emptyEvents} validators={[]} gnoPrice={gnoPrice} />
+              <EventsFeedContent events={emptyEvents} validators={[]} gnoPrice={tokenPrice} />
             </>
           );
         }}
