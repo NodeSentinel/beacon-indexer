@@ -2,27 +2,57 @@
 
 import { Users, Coins, ArrowUpCircle, ArrowDownCircle } from 'lucide-react';
 
-import { formatNumber } from '@/lib/utils';
+import { env } from '@/env';
+import { useChainStats } from '@/hooks/use-chain-stats';
+import { formatNumber, getTokenSymbol } from '@/lib/utils';
 
 interface ChainStatisticsProps {
-  gnoPrice: number;
+  tokenPrice: number;
 }
 
-export default function ChainStatistics({ gnoPrice }: ChainStatisticsProps) {
-  // Chain stats (placeholder - these would come from a chain stats API)
-  const totalStakedGno = 350000;
-  const activeValidators = 450450;
-  const joiningValidators = 2300;
-  const leavingValidators = 500;
+export default function ChainStatistics({ tokenPrice }: ChainStatisticsProps) {
+  const { data: chainStats, isLoading } = useChainStats();
+  const tokenSymbol = getTokenSymbol(env.NEXT_PUBLIC_CHAIN);
 
-  const activeStakedGno = activeValidators * 32;
-  const joiningStakedGno = joiningValidators * 32;
-  const leavingStakedGno = leavingValidators * 32;
+  const totalStaked = chainStats ? parseFloat(chainStats.totalStaked) : 0;
+  const activeValidators = chainStats?.totalActiveValidators ?? 0;
+  const joiningValidators = chainStats?.validatorsEntering ?? 0;
+  const leavingValidators = chainStats?.validatorsExiting ?? 0;
 
-  const totalStakedUsd = formatNumber(totalStakedGno * gnoPrice);
-  const activeStakedUsd = formatNumber(activeStakedGno * gnoPrice);
-  const joiningStakedUsd = formatNumber(joiningStakedGno * gnoPrice);
-  const leavingStakedUsd = formatNumber(leavingStakedGno * gnoPrice);
+  const activeStaked = activeValidators * 32;
+  const joiningStaked = joiningValidators * 32;
+  const leavingStaked = leavingValidators * 32;
+
+  const totalStakedUsd = formatNumber(totalStaked * tokenPrice);
+  const activeStakedUsd = formatNumber(activeStaked * tokenPrice);
+  const joiningStakedUsd = formatNumber(joiningStaked * tokenPrice);
+  const leavingStakedUsd = formatNumber(leavingStaked * tokenPrice);
+
+  if (isLoading) {
+    return (
+      <div className="space-y-2">
+        <h2 className="text-[10px] md:text-xs font-display text-muted-foreground uppercase tracking-wider">
+          Chain Statistics
+        </h2>
+        <div className="bg-muted/30 border border-border/50 rounded-lg p-2.5 md:p-5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5 md:gap-5">
+            {[...Array(3)].map((_, i) => (
+              <div
+                key={i}
+                className="bg-background border border-border/60 rounded-lg p-2.5 md:p-4"
+              >
+                <div className="animate-pulse space-y-2">
+                  <div className="h-4 bg-foreground/5 rounded w-1/3" />
+                  <div className="h-8 bg-foreground/5 rounded w-2/3" />
+                  <div className="h-3 bg-foreground/5 rounded w-1/2" />
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-2">
@@ -63,9 +93,11 @@ export default function ChainStatistics({ gnoPrice }: ChainStatisticsProps) {
                 </p>
                 <div className="flex items-baseline gap-1.5">
                   <span className="text-xl md:text-2xl font-display font-bold text-foreground">
-                    {(totalStakedGno / 1000).toFixed(0)}k
+                    {(totalStaked / 1000).toFixed(0)}k
                   </span>
-                  <span className="text-xs md:text-sm text-muted-foreground font-medium">GNO</span>
+                  <span className="text-xs md:text-sm text-muted-foreground font-medium">
+                    {tokenSymbol}
+                  </span>
                 </div>
                 <p className="text-[10px] md:text-xs text-muted-foreground/80 mt-0.5">
                   ${totalStakedUsd}
@@ -88,8 +120,9 @@ export default function ChainStatistics({ gnoPrice }: ChainStatisticsProps) {
                 </div>
                 <div>
                   <div className="flex items-baseline gap-1">
-                    <p className="text-lg md:text-2xl font-display font-bold text-white">2.3k</p>
-                    <span className="text-xs text-white/80">GNO</span>
+                    <p className="text-lg md:text-2xl font-display font-bold text-white">
+                      {formatNumber(joiningValidators)}
+                    </p>
                   </div>
                   <p className="text-[10px] md:text-xs text-muted-foreground/80 mt-0.5">
                     ${joiningStakedUsd}
@@ -107,8 +140,9 @@ export default function ChainStatistics({ gnoPrice }: ChainStatisticsProps) {
                 </div>
                 <div>
                   <div className="flex items-baseline gap-1">
-                    <p className="text-lg md:text-2xl font-display font-bold text-white">500</p>
-                    <span className="text-xs text-white/80">GNO</span>
+                    <p className="text-lg md:text-2xl font-display font-bold text-white">
+                      {formatNumber(leavingValidators)}
+                    </p>
                   </div>
                   <p className="text-[10px] md:text-xs text-muted-foreground/80 mt-0.5">
                     ${leavingStakedUsd}
