@@ -131,7 +131,7 @@ describe('Monthly Archive Process', () => {
       await createDailyPartition(day, [
         {
           validatorIndex: VALIDATOR_1,
-          dataBySlot: [[slot, 0, '100', '0', '0']],
+          dataBySlot: [[slot, 0, '100']],
           dataByEpoch: [[epoch, '10', '20', '30', '5', '0', '0', '0', '0']],
           attestationCount: 24,
           syncRewardTotal: BigInt(2400),
@@ -140,7 +140,7 @@ describe('Monthly Archive Process', () => {
         },
         {
           validatorIndex: VALIDATOR_2,
-          dataBySlot: [[slot, 2, '200', '0', '0']],
+          dataBySlot: [[slot, 2, '200']],
           dataByEpoch: [[epoch, '50', '60', '70', '10', '5', '3', '2', '1']],
           attestationCount: 24,
           syncRewardTotal: BigInt(4800),
@@ -209,10 +209,10 @@ describe('Monthly Archive Process', () => {
     expect(v2.clMissedRewardTotal).toBe(BigInt(7920)); // 30 × 264
 
     // Verify JSON arrays are concatenated and sorted by first element
-    const v1Slots = v1.dataBySlot as Array<[number, number, string, string, string]>;
+    const v1Slots = v1.dataBySlot as Array<(number | string)[]>;
     expect(v1Slots).toHaveLength(30);
     for (let i = 1; i < v1Slots.length; i++) {
-      expect(v1Slots[i][0]).toBeGreaterThan(v1Slots[i - 1][0]);
+      expect(v1Slots[i][0] as number).toBeGreaterThan(v1Slots[i - 1][0] as number);
     }
 
     const v1Epochs = v1.dataByEpoch as Array<

@@ -417,16 +417,22 @@ describe('Hourly Archive Process', () => {
     expect(validator200.clMissedRewardTotal).toBe(BigInt(148));
 
     // Verify JSON data structures
-    // Validator 100: data_by_slot should have 4 entries
-    const validator100Slots = validator100.dataBySlot as Array<
-      [number, number, string, string, string]
-    >;
+    // Validator 100: data_by_slot should have 4 entries with variable-length tuples
+    // Proposer slots → 5 elements, sync-only → 3, attestation-only → 2
+    const validator100Slots = validator100.dataBySlot as Array<(number | string)[]>;
     expect(validator100Slots.length).toBe(4);
-    expect(validator100Slots[0][0]).toBe(testSlots[0]); // slot
-    expect(validator100Slots[0][1]).toBe(0); // attestation_delay
-    expect(validator100Slots[0][2]).toBe('1000'); // sync_reward
-    expect(validator100Slots[0][3]).toBe('7000'); // exec_reward
-    expect(validator100Slots[0][4]).toBe('0'); // block_reward
+
+    // slot 0: proposer (exec_reward=7000), sync=1000 → 5 elements
+    expect(validator100Slots[0]).toEqual([testSlots[0], 0, '1000', '7000', '0']);
+
+    // slot 1: proposer (block_reward=5000), sync=2000 → 5 elements
+    expect(validator100Slots[1]).toEqual([testSlots[1], 3, '2000', '0', '5000']);
+
+    // slot 2: no sync, no proposer → 2 elements
+    expect(validator100Slots[2]).toEqual([testSlots[2], 6]);
+
+    // slot 3: no attestation, no sync, no proposer → 2 elements
+    expect(validator100Slots[3]).toEqual([testSlots[3], -1]);
 
     // Validator 100: data_by_epoch should have 2 entries
     const validator100Epochs = validator100.dataByEpoch as Array<

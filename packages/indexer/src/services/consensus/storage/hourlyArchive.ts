@@ -210,11 +210,20 @@ export class HourlyArchiveStorage {
                 jsonb_agg(
                   jsonb_build_array(
                     slot,
-                    COALESCE(attestation_delay, -1),
-                    COALESCE(sync_reward, 0)::text,
-                    COALESCE(exec_reward, 0::numeric)::text,
-                    COALESCE(block_reward, 0)::text
-                  ) ORDER BY slot
+                    COALESCE(attestation_delay, -1)
+                  ) || CASE
+                    WHEN exec_reward IS NOT NULL OR block_reward IS NOT NULL THEN
+                      jsonb_build_array(
+                        COALESCE(sync_reward, 0)::text,
+                        COALESCE(exec_reward, 0::numeric)::text,
+                        COALESCE(block_reward, 0)::text
+                      )
+                    WHEN sync_reward IS NOT NULL AND sync_reward != 0 THEN
+                      jsonb_build_array(sync_reward::text)
+                    ELSE
+                      '[]'::jsonb
+                  END
+                  ORDER BY slot
                 ) AS data_by_slot,
                 COALESCE(SUM(sync_reward), 0) AS sync_reward_total,
                 NULLIF(SUM(exec_reward), 0::numeric) AS exec_reward_total,

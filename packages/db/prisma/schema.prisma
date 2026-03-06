@@ -234,16 +234,20 @@ model ValidatorHourlyArchive {
   // DATA CONTRACT (JSON PAYLOADS)
   // ─────────────────────────────────────────────────────────────────────────────
   //
-  // dataBySlot: Slot-level data as array of tuples with absolute slot numbers.
-  //   Shape: Array<SlotRow>
-  //   SlotRow = [slot, attDelay, syncReward, execReward, blockReward]
-  //     - slot: number (absolute slot number)
-  //     - attDelay: number (-1 if no attestation info, otherwise delay in slots)
-  //     - syncReward: string (decimal, "0" if none)
-  //     - execReward: string (decimal, "0" if none)
-  //     - blockReward: string (decimal, "0" if none) 
-  // TODO: optimize execReward y blockReward para q no existan esos items if 0. also, add the proposed slot number. 
-  //   Example: [[800001, 1, "0", "0", "0"], [800033, 2, "5000", "0", "0"]]
+  // dataBySlot: Slot-level data as fixed-position, variable-length tuples.
+  //   Positions: [slot, attDelay, syncReward?, execReward?, blockReward?]
+  //     idx 0 - slot: number (absolute slot number)
+  //     idx 1 - attDelay: number (-1 if no attestation info, otherwise delay in slots)
+  //     idx 2 - syncReward: string (decimal) — omitted (with trailing fields) if "0"
+  //     idx 3 - execReward: string (decimal) — only present when validator proposed a block
+  //     idx 4 - blockReward: string (decimal) — only present when validator proposed a block
+  //   Trailing zeros are stripped; missing elements are implicitly "0".
+  //   Proposer rows always include idx 2 (syncReward) to preserve positional integrity.
+  //   Examples:
+  //     [800001, 1]                             — attestation only (~99.9%)
+  //     [800001, 1, "5000"]                     — attestation + sync committee
+  //     [800001, 1, 0, "7000", "12000"]         — proposer without sync
+  //     [800001, 1, "5000", "7000", "12000"]    — proposer with sync
   //
   // dataByEpoch: Epoch-level rewards data as array of tuples with absolute epoch numbers.
   //   Shape: Array<EpochRow>
@@ -257,9 +261,9 @@ model ValidatorHourlyArchive {
   // RETENTION MODEL
   // ─────────────────────────────────────────────────────────────────────────────
   // Hourly archives are kept for ~25 hours (rolling window). When hour 24 completes,
-  // data is aggregated to daily (JSON detail + aggregates) and the 24 hourly
-  // archives are deleted. All archive levels (daily, weekly, monthly) share the
-  // same schema: JSON payloads for granular data + aggregate columns for fast queries.
+  // data is aggregated to daily (aggregates only, no JSON detail) and the 24 hourly
+  // archives are deleted. This allows detailed per-slot/epoch data for recent history
+  // while keeping storage bounded.
   //
   // ─────────────────────────────────────────────────────────────────────────────
   // PARTITIONING
@@ -275,7 +279,7 @@ model ValidatorHourlyArchive {
   validatorIndex Int      @map("validator_index")
 
   // Compact JSON payloads (see data contract above)
-  dataBySlot  Json @map("data_by_slot") // [[slot, attDelay, sync, exec, block], ...]
+  dataBySlot  Json @map("data_by_slot") // [[slot, attDelay, sync?, exec?, block?], ...] — variable-length, trailing zeros stripped
   dataByEpoch Json @map("data_by_epoch") // [[epoch, head, target, source, inactivity, mH, mT, mS, mI], ...]
 
   // Aggregate columns for fast queries without JSON parsing
@@ -302,7 +306,7 @@ model ValidatorDailyArchive {
   validatorIndex Int      @map("validator_index")
 
   // Compact JSON payloads (concatenated from hourly archives)
-  dataBySlot  Json @map("data_by_slot") // [[slot, attDelay, sync, exec, block], ...]
+  dataBySlot  Json @map("data_by_slot") // [[slot, attDelay, sync?, exec?, block?], ...] — variable-length, trailing zeros stripped
   dataByEpoch Json @map("data_by_epoch") // [[epoch, head, target, source, inactivity, mH, mT, mS, mI], ...]
 
   // Aggregate columns for fast queries without JSON parsing
@@ -330,7 +334,7 @@ model ValidatorMonthlyArchive {
   validatorIndex Int      @map("validator_index")
 
   // Compact JSON payloads (concatenated from daily archives)
-  dataBySlot  Json @map("data_by_slot") // [[slot, attDelay, sync, exec, block], ...]
+  dataBySlot  Json @map("data_by_slot") // [[slot, attDelay, sync?, exec?, block?], ...] — variable-length, trailing zeros stripped
   dataByEpoch Json @map("data_by_epoch") // [[epoch, head, target, source, inactivity, mH, mT, mS, mI], ...]
 
   // Aggregate columns for fast queries without JSON parsing
