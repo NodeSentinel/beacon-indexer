@@ -124,8 +124,25 @@ export type Block = {
           block_hash: string;
         };
         graffiti: string;
-        proposer_slashings: string[];
-        attester_slashings: string[];
+        proposer_slashings: {
+          [K in 'signed_header_1' | 'signed_header_2']: {
+            message: {
+              slot: string;
+              proposer_index: string;
+              parent_root: string;
+              state_root: string;
+              body_root: string;
+            };
+            signature: string;
+          };
+        }[];
+        attester_slashings: {
+          [K in 'attestation_1' | 'attestation_2']: {
+            attesting_indices: string[];
+            data: Attestation['data'];
+            signature: string;
+          };
+        }[];
         attestations: Attestation[];
         deposits: {
           proof: string[];
