@@ -3,7 +3,7 @@ import { ClusterIdParamSchema, ClusterSnapshotSchema } from './schemas.js';
 import { publicProcedure } from '@/lib/orpc.js';
 import { ClusterStorage } from '@/storage/cluster.js';
 import { ApiResponseSchema } from '@/utils/response.js';
-import { formatBalance } from '@/utils/tokenFormat.js';
+import { formatBalance, formatWeiToToken } from '@/utils/tokenFormat.js';
 
 /**
  * Get cluster snapshot with aggregated performance metrics
@@ -31,6 +31,8 @@ export const getClusterSnapshot = publicProcedure
 
       const toNum = (v: string | null) => (v !== null ? Number(v) : null);
       const toBigStr = (v: bigint | null) => (v !== null ? formatBalance(v) : null);
+      const toExecReward = (v: string | null) =>
+        v !== null ? { wei: v, token: formatWeiToToken(v) } : null;
 
       return {
         success: true,
@@ -65,10 +67,10 @@ export const getClusterSnapshot = publicProcedure
           missedReward1w: toBigStr(row.missed_reward_1w),
           missedReward1m: toBigStr(row.missed_reward_1m),
 
-          executionReward1h: row.execution_reward_1h,
-          executionReward1d: row.execution_reward_1d,
-          executionReward1w: row.execution_reward_1w,
-          executionReward1m: row.execution_reward_1m,
+          executionReward1h: toExecReward(row.execution_reward_1h),
+          executionReward1d: toExecReward(row.execution_reward_1d),
+          executionReward1w: toExecReward(row.execution_reward_1w),
+          executionReward1m: toExecReward(row.execution_reward_1m),
         },
         meta: { timestamp: new Date().toISOString() },
       };

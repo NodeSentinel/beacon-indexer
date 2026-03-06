@@ -22,6 +22,7 @@ const envSchema = z.object({
   // Chain config (same as indexer)
   CHAIN: z.enum(['ethereum', 'gnosis']),
   CONSENSUS_LOOKBACK_SLOT: z.coerce.number().int().min(0).default(0),
+  NATIVE_TOKEN_DECIMALS: z.coerce.number().int().min(0).default(18),
 });
 
 export type Env = z.infer<typeof envSchema>;

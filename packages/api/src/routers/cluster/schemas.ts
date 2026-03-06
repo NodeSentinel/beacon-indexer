@@ -186,10 +186,10 @@ export const ClusterSnapshotSchema = z.object({
   missedReward1w: z.string().nullable(),
   missedReward1m: z.string().nullable(),
 
-  executionReward1h: z.string().nullable(),
-  executionReward1d: z.string().nullable(),
-  executionReward1w: z.string().nullable(),
-  executionReward1m: z.string().nullable(),
+  executionReward1h: z.object({ wei: z.string(), token: z.string() }).nullable(),
+  executionReward1d: z.object({ wei: z.string(), token: z.string() }).nullable(),
+  executionReward1w: z.object({ wei: z.string(), token: z.string() }).nullable(),
+  executionReward1m: z.object({ wei: z.string(), token: z.string() }).nullable(),
 });
 
 export type ClusterSnapshot = z.infer<typeof ClusterSnapshotSchema>;
