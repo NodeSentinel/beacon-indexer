@@ -151,3 +151,45 @@ export const AddValidatorsResponseSchema = z.object({
 });
 
 export type AddValidatorsResponse = z.infer<typeof AddValidatorsResponseSchema>;
+
+/**
+ * Cluster snapshot response schema — aggregated performance metrics
+ */
+export const ClusterSnapshotSchema = z.object({
+  activeCount: z.number(),
+  inactiveCount: z.number(),
+  statusBreakdown: z.record(z.string(), z.number()),
+
+  totalBalance: z.string(),
+  totalEffectiveBalance: z.string(),
+
+  attestationsTotal: z.number(),
+  attestationsMissed: z.number(),
+
+  performance1h: z.number().nullable(),
+  performance1d: z.number().nullable(),
+  performance1w: z.number().nullable(),
+  performance1m: z.number().nullable(),
+
+  apy1h: z.number().nullable(),
+  apy1d: z.number().nullable(),
+  apy1w: z.number().nullable(),
+  apy1m: z.number().nullable(),
+
+  consensusReward1h: z.string().nullable(),
+  consensusReward1d: z.string().nullable(),
+  consensusReward1w: z.string().nullable(),
+  consensusReward1m: z.string().nullable(),
+
+  missedReward1h: z.string().nullable(),
+  missedReward1d: z.string().nullable(),
+  missedReward1w: z.string().nullable(),
+  missedReward1m: z.string().nullable(),
+
+  executionReward1h: z.string().nullable(),
+  executionReward1d: z.string().nullable(),
+  executionReward1w: z.string().nullable(),
+  executionReward1m: z.string().nullable(),
+});
+
+export type ClusterSnapshot = z.infer<typeof ClusterSnapshotSchema>;
