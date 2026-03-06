@@ -4,7 +4,7 @@ Epic: https://github.com/NodeSentinel/beacon-chain-validators-monitor/issues/54
 
 ## Overview
 
-Extend the validators snapshot with performance metrics across multiple timeframes (1h, 1d, 1w, 1m). Track performance ratio, APY, and rewards (consensus, missed, execution) per timeframe. Enable Performance Table display on dashboard.
+Extend the validators snapshot with performance metrics across multiple timeframes (h, d, w, m). Track performance ratio, APY, and rewards (consensus, missed, execution) per timeframe. Enable Performance Table display on dashboard.
 
 ## 1. Schema (DB)
 
@@ -34,34 +34,34 @@ model ValidatorsSnapshotStats {
   attestationsMissed Int @map("attestations_missed")
 
   // Performance per timeframe (ratio 0.0000 - 1.0000)
-  performance1h Decimal? @map("performance_1h") @db.Decimal(5, 4)
-  performance1d Decimal? @map("performance_1d") @db.Decimal(5, 4)
-  performance1w Decimal? @map("performance_1w") @db.Decimal(5, 4)
-  performance1m Decimal? @map("performance_1m") @db.Decimal(5, 4)
+  performanceH Decimal? @map("performance_h") @db.Decimal(5, 4)
+  performanceD Decimal? @map("performance_d") @db.Decimal(5, 4)
+  performanceW Decimal? @map("performance_w") @db.Decimal(5, 4)
+  performanceM Decimal? @map("performance_m") @db.Decimal(5, 4)
 
   // APY per timeframe
-  apy1h Decimal? @map("apy_1h") @db.Decimal(5, 2)
-  apy1d Decimal? @map("apy_1d") @db.Decimal(5, 2)
-  apy1w Decimal? @map("apy_1w") @db.Decimal(5, 2)
-  apy1m Decimal? @map("apy_1m") @db.Decimal(5, 2)
+  apyH Decimal? @map("apy_h") @db.Decimal(5, 2)
+  apyD Decimal? @map("apy_d") @db.Decimal(5, 2)
+  apyW Decimal? @map("apy_w") @db.Decimal(5, 2)
+  apyM Decimal? @map("apy_m") @db.Decimal(5, 2)
 
   // Consensus rewards per timeframe
-  consensusReward1h BigInt? @map("consensus_reward_1h")
-  consensusReward1d BigInt? @map("consensus_reward_1d")
-  consensusReward1w BigInt? @map("consensus_reward_1w")
-  consensusReward1m BigInt? @map("consensus_reward_1m")
+  consensusRewardH BigInt? @map("consensus_reward_h")
+  consensusRewardD BigInt? @map("consensus_reward_d")
+  consensusRewardW BigInt? @map("consensus_reward_w")
+  consensusRewardM BigInt? @map("consensus_reward_m")
 
   // Missed rewards per timeframe
-  missedReward1h BigInt? @map("missed_reward_1h")
-  missedReward1d BigInt? @map("missed_reward_1d")
-  missedReward1w BigInt? @map("missed_reward_1w")
-  missedReward1m BigInt? @map("missed_reward_1m")
+  missedRewardH BigInt? @map("missed_reward_h")
+  missedRewardD BigInt? @map("missed_reward_d")
+  missedRewardW BigInt? @map("missed_reward_w")
+  missedRewardM BigInt? @map("missed_reward_m")
 
   // Execution rewards per timeframe
-  executionReward1h Decimal? @map("execution_reward_1h") @db.Decimal(78, 0)
-  executionReward1d Decimal? @map("execution_reward_1d") @db.Decimal(78, 0)
-  executionReward1w Decimal? @map("execution_reward_1w") @db.Decimal(78, 0)
-  executionReward1m Decimal? @map("execution_reward_1m") @db.Decimal(78, 0)
+  executionRewardH Decimal? @map("execution_reward_h") @db.Decimal(78, 0)
+  executionRewardD Decimal? @map("execution_reward_d") @db.Decimal(78, 0)
+  executionRewardW Decimal? @map("execution_reward_w") @db.Decimal(78, 0)
+  executionRewardM Decimal? @map("execution_reward_m") @db.Decimal(78, 0)
 
   updatedAt DateTime @default(now()) @map("updated_at") @db.Timestamp
 
@@ -87,18 +87,18 @@ A single new `snapshotMachine` replaces the current summary logic.
 | ------------------------- | ---------------------------------- | -------------------------------- | -------------------------------------------------------------------------------------------------- |
 | Attestations + inactivity | Every tick (if new slot processed) | Raw `committee`                  | `attestationsTotal`, `attestationsMissed`, `isInactive`, `consecutiveMissedAttestations`, `status` |
 | Balances                  | Every epoch                        | `validator` table                | `balance`, `effectiveBalance`, `beaconStatus`                                                      |
-| 1h                        | Every epoch completed              | Raw `committee` + `epochRewards` | `performance1h`, `apy1h`, `consensusReward1h`, `missedReward1h`, `executionReward1h`               |
-| 1d                        | Every 30 min                       | `ValidatorHourlyArchive`         | `performance1d`, `apy1d`, `consensusReward1d`, `missedReward1d`, `executionReward1d`               |
-| 1w                        | Every 3h                           | `ValidatorDailyArchive`          | `performance1w`, `apy1w`, `consensusReward1w`, `missedReward1w`, `executionReward1w`               |
-| 1m                        | Every 6h                           | `ValidatorDailyArchive`          | `performance1m`, `apy1m`, `consensusReward1m`, `missedReward1m`, `executionReward1m`               |
+| h                         | Every epoch completed              | Raw `committee` + `epochRewards` | `performanceH`, `apyH`, `consensusRewardH`, `missedRewardH`, `executionRewardH`                    |
+| d                         | Every 30 min                       | `ValidatorHourlyArchive`         | `performanceD`, `apyD`, `consensusRewardD`, `missedRewardD`, `executionRewardD`                    |
+| w                         | Every 3h                           | `ValidatorDailyArchive`          | `performanceW`, `apyW`, `consensusRewardW`, `missedRewardW`, `executionRewardW`                    |
+| m                         | Every 6h                           | `ValidatorDailyArchive`          | `performanceM`, `apyM`, `consensusRewardM`, `missedRewardM`, `executionRewardM`                    |
 
 ### In-memory tracking
 
 - `lastProcessedSlot: number | null` — for attestations
-- `lastEpochUpdate: number | null` — last epoch processed for balances + 1h
-- `last1dUpdate: number | null` — timestamp of last 1d update
-- `last1wUpdate: number | null` — timestamp of last 1w update
-- `last1mUpdate: number | null` — timestamp of last 1m update
+- `lastEpochUpdate: number | null` — last epoch processed for balances + h
+- `lastDUpdate: number | null` — timestamp of last d update
+- `lastWUpdate: number | null` — timestamp of last w update
+- `lastMUpdate: number | null` — timestamp of last m update
 
 ### Machine structure
 
@@ -118,10 +118,10 @@ Runs independently with its own timer. The controller queries indexer state (las
 
 - `updateAttestations(currentProcessedSlot)` — updates attestations, inactivity, consecutive missed. Uses `UPSERT` instead of `TRUNCATE + INSERT`.
 - `updateBalances(currentEpoch)` — updates balance, effectiveBalance, beaconStatus once per epoch.
-- `updatePerformance1h(currentEpoch)` — calculates from raw data (last hour)
-- `updatePerformance1d()` — calculates from `ValidatorHourlyArchive` (last 24h)
-- `updatePerformance1w()` — calculates from `ValidatorDailyArchive` (last 7 days)
-- `updatePerformance1m()` — calculates from `ValidatorDailyArchive` (last 30 days)
+- `updatePerformanceH(currentEpoch)` — calculates from raw data (last hour)
+- `updatePerformanceD()` — calculates from `ValidatorHourlyArchive` (last 24h)
+- `updatePerformanceW()` — calculates from `ValidatorDailyArchive` (last 7 days)
+- `updatePerformanceM()` — calculates from `ValidatorDailyArchive` (last 30 days)
 
 ### Key change
 
@@ -134,7 +134,7 @@ performance = attestationsOnTime / totalAttestations  (ratio 0-1)
 APY = (consensus_rewards_in_period / balance) * periods_per_year
 ```
 
-`periods_per_year`: 1h -> 8766, 1d -> 365.25, 1w -> 52.18, 1m -> 12
+`periods_per_year`: h -> 8766, d -> 365.25, w -> 52.18, m -> 12
 
 ## 4. API
 
@@ -161,32 +161,32 @@ APY = (consensus_rewards_in_period / balance) * periods_per_year
   attestationsMissed: number,
 
   // Performance per timeframe (weighted average)
-  performance1h: number | null,
-  performance1d: number | null,
-  performance1w: number | null,
-  performance1m: number | null,
+  performanceH: number | null,
+  performanceD: number | null,
+  performanceW: number | null,
+  performanceM: number | null,
 
   // APY per timeframe (weighted average by balance)
-  apy1h: number | null,
-  apy1d: number | null,
-  apy1w: number | null,
-  apy1m: number | null,
+  apyH: number | null,
+  apyD: number | null,
+  apyW: number | null,
+  apyM: number | null,
 
   // Rewards per timeframe (sum)
-  consensusReward1h: bigint | null,
-  consensusReward1d: bigint | null,
-  consensusReward1w: bigint | null,
-  consensusReward1m: bigint | null,
+  consensusRewardH: bigint | null,
+  consensusRewardD: bigint | null,
+  consensusRewardW: bigint | null,
+  consensusRewardM: bigint | null,
 
-  missedReward1h: bigint | null,
-  missedReward1d: bigint | null,
-  missedReward1w: bigint | null,
-  missedReward1m: bigint | null,
+  missedRewardH: bigint | null,
+  missedRewardD: bigint | null,
+  missedRewardW: bigint | null,
+  missedRewardM: bigint | null,
 
-  executionReward1h: bigint | null,
-  executionReward1d: bigint | null,
-  executionReward1w: bigint | null,
-  executionReward1m: bigint | null,
+  executionRewardH: string | null,
+  executionRewardD: string | null,
+  executionRewardW: string | null,
+  executionRewardM: string | null,
 }
 ```
 
@@ -196,10 +196,10 @@ Component inside the cluster dashboard overview:
 
 | Period | APY% | Consensus | Missed Rewards | Execution | Total USD |
 | ------ | ---- | --------- | -------------- | --------- | --------- |
-| 1h     | X%   | X GWei    | X GWei         | X GWei    | -         |
-| 1d     | X%   | X GWei    | X GWei         | X GWei    | -         |
-| 1w     | X%   | X GWei    | X GWei         | X GWei    | -         |
-| 1m     | X%   | X GWei    | X GWei         | X GWei    | -         |
+| h      | X%   | X GWei    | X GWei         | X GWei    | -         |
+| d      | X%   | X GWei    | X GWei         | X GWei    | -         |
+| w      | X%   | X GWei    | X GWei         | X GWei    | -         |
+| m      | X%   | X GWei    | X GWei         | X GWei    | -         |
 
 - Consumes `GET /clusters/:id/snapshot` (cached with TanStack Query)
 - `null` values shown as `-` (data not yet available)

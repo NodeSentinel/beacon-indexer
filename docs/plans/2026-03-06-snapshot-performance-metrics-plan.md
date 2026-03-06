@@ -2,7 +2,7 @@
 
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
-**Goal:** Extend the validators snapshot with performance metrics (performance ratio, APY, rewards) across 1h/1d/1w/1m timeframes, with a new XState machine, API endpoint, webapp table, and e2e tests for inactivity detection.
+**Goal:** Extend the validators snapshot with performance metrics (performance ratio, APY, rewards) across h/d/w/m timeframes, with a new XState machine, API endpoint, webapp table, and e2e tests for inactivity detection.
 
 **Architecture:** A single new `snapshotMachine` ticks every `slotDuration`, evaluating in-memory counters to decide what to update. The `SnapshotController` delegates to `SnapshotStorage` which uses raw SQL with `INSERT ... ON CONFLICT DO UPDATE` to update only the relevant columns per update level. The API exposes aggregated snapshot data per cluster, consumed by a new Performance Table component.
 
@@ -41,34 +41,34 @@ model ValidatorsSnapshotStats {
   attestationsMissed Int @map("attestations_missed")
 
   // Performance per timeframe (ratio 0.0000 - 1.0000)
-  performance1h Decimal? @map("performance_1h") @db.Decimal(5, 4)
-  performance1d Decimal? @map("performance_1d") @db.Decimal(5, 4)
-  performance1w Decimal? @map("performance_1w") @db.Decimal(5, 4)
-  performance1m Decimal? @map("performance_1m") @db.Decimal(5, 4)
+  performanceH Decimal? @map("performance_h") @db.Decimal(5, 4)
+  performanceD Decimal? @map("performance_d") @db.Decimal(5, 4)
+  performanceW Decimal? @map("performance_w") @db.Decimal(5, 4)
+  performanceM Decimal? @map("performance_m") @db.Decimal(5, 4)
 
   // APY per timeframe
-  apy1h Decimal? @map("apy_1h") @db.Decimal(5, 2)
-  apy1d Decimal? @map("apy_1d") @db.Decimal(5, 2)
-  apy1w Decimal? @map("apy_1w") @db.Decimal(5, 2)
-  apy1m Decimal? @map("apy_1m") @db.Decimal(5, 2)
+  apyH Decimal? @map("apy_h") @db.Decimal(5, 2)
+  apyD Decimal? @map("apy_d") @db.Decimal(5, 2)
+  apyW Decimal? @map("apy_1w") @db.Decimal(5, 2)
+  apyM Decimal? @map("apy_m") @db.Decimal(5, 2)
 
   // Consensus rewards per timeframe
-  consensusReward1h BigInt? @map("consensus_reward_1h")
-  consensusReward1d BigInt? @map("consensus_reward_1d")
-  consensusReward1w BigInt? @map("consensus_reward_1w")
-  consensusReward1m BigInt? @map("consensus_reward_1m")
+  consensusRewardH BigInt? @map("consensus_reward_h")
+  consensusRewardD BigInt? @map("consensus_reward_d")
+  consensusRewardW BigInt? @map("consensus_reward_w")
+  consensusRewardM BigInt? @map("consensus_reward_m")
 
   // Missed rewards per timeframe
-  missedReward1h BigInt? @map("missed_reward_1h")
-  missedReward1d BigInt? @map("missed_reward_1d")
-  missedReward1w BigInt? @map("missed_reward_1w")
-  missedReward1m BigInt? @map("missed_reward_1m")
+  missedRewardH BigInt? @map("missed_reward_h")
+  missedRewardD BigInt? @map("missed_reward_d")
+  missedRewardW BigInt? @map("missed_reward_w")
+  missedRewardM BigInt? @map("missed_reward_m")
 
   // Execution rewards per timeframe
-  executionReward1h Decimal? @map("execution_reward_1h") @db.Decimal(78, 0)
-  executionReward1d Decimal? @map("execution_reward_1d") @db.Decimal(78, 0)
-  executionReward1w Decimal? @map("execution_reward_1w") @db.Decimal(78, 0)
-  executionReward1m Decimal? @map("execution_reward_1m") @db.Decimal(78, 0)
+  executionRewardH Decimal? @map("execution_reward_h") @db.Decimal(78, 0)
+  executionRewardD Decimal? @map("execution_reward_d") @db.Decimal(78, 0)
+  executionRewardW Decimal? @map("execution_reward_w") @db.Decimal(78, 0)
+  executionRewardM Decimal? @map("execution_reward_m") @db.Decimal(78, 0)
 
   updatedAt DateTime @default(now()) @map("updated_at") @db.Timestamp
 
@@ -178,10 +178,10 @@ WHERE vss.validator_index = v.id
 
 Add empty methods that will be implemented in Task 4:
 
-- `updatePerformance1h(params)`
-- `updatePerformance1d(params)`
-- `updatePerformance1w(params)`
-- `updatePerformance1m(params)`
+- `updatePerformanceH(params)`
+- `updatePerformanceD(params)`
+- `updatePerformanceW(params)`
+- `updatePerformanceM(params)`
 
 Each takes relevant parameters and returns `Promise<void>`.
 
@@ -232,10 +232,10 @@ async updateBalances() {
 
 Add empty async methods that call the corresponding storage methods:
 
-- `updatePerformance1h()`
-- `updatePerformance1d()`
-- `updatePerformance1w()`
-- `updatePerformance1m()`
+- `updatePerformanceH()`
+- `updatePerformanceD()`
+- `updatePerformanceW()`
+- `updatePerformanceM()`
 
 **Step 5: Verify type-check**
 
@@ -498,18 +498,18 @@ type SnapshotContext = {
   // In-memory tracking
   lastProcessedSlot: number | null;
   lastEpochUpdate: number | null;
-  last1dUpdate: number | null;
-  last1wUpdate: number | null;
-  last1mUpdate: number | null;
+  lastDUpdate: number | null;
+  lastWUpdate: number | null;
+  lastMUpdate: number | null;
 };
 
 type TickResult = {
   updatedLevels: string[];
   lastProcessedSlot: number | null;
   lastEpochUpdate: number | null;
-  last1dUpdate: number | null;
-  last1wUpdate: number | null;
-  last1mUpdate: number | null;
+  lastDUpdate: number | null;
+  lastWUpdate: number | null;
+  lastMUpdate: number | null;
 };
 
 export const snapshotMachine = setup({
@@ -536,9 +536,9 @@ export const snapshotMachine = setup({
 
       let lastProcessedSlot = ctx.lastProcessedSlot;
       let lastEpochUpdate = ctx.lastEpochUpdate;
-      let last1dUpdate = ctx.last1dUpdate;
-      let last1wUpdate = ctx.last1wUpdate;
-      let last1mUpdate = ctx.last1mUpdate;
+      let lastDUpdate = ctx.lastDUpdate;
+      let lastWUpdate = ctx.lastWUpdate;
+      let lastMUpdate = ctx.lastMUpdate;
 
       // Level 1: Attestations (every tick if new slot processed)
       // The controller internally checks current processed slot
@@ -559,41 +559,41 @@ export const snapshotMachine = setup({
         updatedLevels.push('balances');
       }
 
-      // Level 3: 1h performance (every epoch)
+      // Level 3: h performance (every epoch)
       // Same trigger as balances
       if (lastEpochUpdate !== null) {
-        // await controller.updatePerformance1h();
-        // updatedLevels.push('1h');
+        // await controller.updatePerformanceH();
+        // updatedLevels.push('h');
       }
 
-      // Level 4: 1d performance (every 30 min)
-      if (last1dUpdate === null || now - last1dUpdate > 30 * 60 * 1000) {
-        // await controller.updatePerformance1d();
-        last1dUpdate = now;
-        // updatedLevels.push('1d');
+      // Level 4: d performance (every 30 min)
+      if (lastDUpdate === null || now - lastDUpdate > 30 * 60 * 1000) {
+        // await controller.updatePerformanceD();
+        lastDUpdate = now;
+        // updatedLevels.push('d');
       }
 
-      // Level 5: 1w performance (every 3h)
-      if (last1wUpdate === null || now - last1wUpdate > 3 * 60 * 60 * 1000) {
-        // await controller.updatePerformance1w();
-        last1wUpdate = now;
-        // updatedLevels.push('1w');
+      // Level 5: w performance (every 3h)
+      if (lastWUpdate === null || now - lastWUpdate > 3 * 60 * 60 * 1000) {
+        // await controller.updatePerformanceW();
+        lastWUpdate = now;
+        // updatedLevels.push('w');
       }
 
-      // Level 6: 1m performance (every 6h)
-      if (last1mUpdate === null || now - last1mUpdate > 6 * 60 * 60 * 1000) {
-        // await controller.updatePerformance1m();
-        last1mUpdate = now;
-        // updatedLevels.push('1m');
+      // Level 6: m performance (every 6h)
+      if (lastMUpdate === null || now - lastMUpdate > 6 * 60 * 60 * 1000) {
+        // await controller.updatePerformanceM();
+        lastMUpdate = now;
+        // updatedLevels.push('m');
       }
 
       return {
         updatedLevels,
         lastProcessedSlot,
         lastEpochUpdate,
-        last1dUpdate,
-        last1wUpdate,
-        last1mUpdate,
+        lastDUpdate,
+        lastWUpdate,
+        lastMUpdate,
       } satisfies TickResult;
     }),
   },
@@ -609,9 +609,9 @@ export const snapshotMachine = setup({
     missedAttestationsForInactivity: input.missedAttestationsForInactivity,
     lastProcessedSlot: null,
     lastEpochUpdate: null,
-    last1dUpdate: null,
-    last1wUpdate: null,
-    last1mUpdate: null,
+    lastDUpdate: null,
+    lastWUpdate: null,
+    lastMUpdate: null,
   }),
   states: {
     waiting: {
@@ -632,9 +632,9 @@ export const snapshotMachine = setup({
             assign({
               lastProcessedSlot: ({ event }) => event.output.lastProcessedSlot,
               lastEpochUpdate: ({ event }) => event.output.lastEpochUpdate,
-              last1dUpdate: ({ event }) => event.output.last1dUpdate,
-              last1wUpdate: ({ event }) => event.output.last1wUpdate,
-              last1mUpdate: ({ event }) => event.output.last1mUpdate,
+              lastDUpdate: ({ event }) => event.output.lastDUpdate,
+              lastWUpdate: ({ event }) => event.output.lastWUpdate,
+              lastMUpdate: ({ event }) => event.output.lastMUpdate,
             }),
             pinoLog(({ event }) => {
               const levels = event.output.updatedLevels;
@@ -786,24 +786,24 @@ git commit -m "feat(indexer): wire snapshot machine into indexer initialization"
 
 ---
 
-## Task 7: Performance Storage Methods (1h from raw data)
+## Task 7: Performance Storage Methods (h from raw data)
 
 **Files:**
 
 - Modify: `packages/indexer/src/services/consensus/storage/snapshot.ts`
 
-**Step 1: Implement `updatePerformance1h`**
+**Step 1: Implement `updatePerformanceH`**
 
 This method queries raw `committee` and `epoch_rewards` tables for the last hour to compute:
 
-- `performance_1h`: ratio of on-time attestations
-- `apy_1h`: `(consensus_rewards / balance) * 8766` (hours per year)
-- `consensus_reward_1h`: sum of consensus rewards
-- `missed_reward_1h`: sum of missed rewards
-- `execution_reward_1h`: sum of execution rewards (from slots where validator was proposer)
+- `performance_h`: ratio of on-time attestations
+- `apy_h`: `(consensus_rewards / balance) * 8766` (hours per year)
+- `consensus_reward_h`: sum of consensus rewards
+- `missed_reward_h`: sum of missed rewards
+- `execution_reward_h`: sum of execution rewards (from slots where validator was proposer)
 
 ```typescript
-async updatePerformance1h(params: {
+async updatePerformanceH(params: {
   minSlot: number;
   maxSlot: number;
   maxAttestationDelay: number;
@@ -833,7 +833,7 @@ async updatePerformance1h(params: {
           SUM(er.missed_head + er.missed_target + er.missed_source) AS missed_reward
         FROM epoch_rewards er
         JOIN user_validators uv ON er.validator_index = uv.validator_index
-        WHERE er.epoch BETWEEN (${params.minSlot}::int / ${params.maxSlot}::int) -- epoch range derived from slots
+        WHERE er.epoch BETWEEN FLOOR(${params.minSlot}::int / ${slotsPerEpoch}) AND FLOOR(${params.maxSlot}::int / ${slotsPerEpoch})
         GROUP BY er.validator_index
       ),
       performance_data AS (
@@ -842,24 +842,24 @@ async updatePerformance1h(params: {
           CASE WHEN a.total > 0
             THEN ((a.total - a.missed)::numeric / a.total)::numeric(5,4)
             ELSE NULL
-          END AS performance_1h,
+          END AS performance_h,
           r.consensus_reward,
           r.missed_reward,
           -- APY = (consensus_reward / balance) * 8766
           CASE WHEN v.balance > 0 AND r.consensus_reward IS NOT NULL
             THEN (r.consensus_reward::numeric / v.balance * 8766)::numeric(5,2)
             ELSE NULL
-          END AS apy_1h
+          END AS apy_h
         FROM attestations a
         LEFT JOIN rewards r ON a.validator_index = r.validator_index
         JOIN validator v ON v.id = a.validator_index
       )
     UPDATE validators_snapshot_stats vss
     SET
-      performance_1h = pd.performance_1h,
-      apy_1h = pd.apy_1h,
-      consensus_reward_1h = pd.consensus_reward,
-      missed_reward_1h = pd.missed_reward,
+      performance_h = pd.performance_h,
+      apy_h = pd.apy_h,
+      consensus_reward_h = pd.consensus_reward,
+      missed_reward_h = pd.missed_reward,
       updated_at = NOW()
     FROM performance_data pd
     WHERE vss.validator_index = pd.validator_index
@@ -879,23 +879,23 @@ pnpm type-check
 
 ```bash
 git add packages/indexer/src/services/consensus/storage/snapshot.ts
-git commit -m "feat(indexer): implement 1h performance storage method"
+git commit -m "feat(indexer): implement h performance storage method"
 ```
 
 ---
 
-## Task 8: Performance Storage Methods (1d/1w/1m from archives)
+## Task 8: Performance Storage Methods (d/w/m from archives)
 
 **Files:**
 
 - Modify: `packages/indexer/src/services/consensus/storage/snapshot.ts`
 
-**Step 1: Implement `updatePerformance1d`**
+**Step 1: Implement `updatePerformanceD`**
 
 Queries `ValidatorHourlyArchive` for the last 24 hours. The hourly archive has aggregate columns: `attestation_count`, `cl_reward_total`, `cl_missed_reward_total`, `exec_reward_total`.
 
 ```typescript
-async updatePerformance1d(): Promise<void> {
+async updatePerformanceD(): Promise<void> {
   const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000);
 
   await this.prisma.$executeRaw`
@@ -918,24 +918,24 @@ async updatePerformance1d(): Promise<void> {
         CASE WHEN (ad.consensus_reward + ad.missed_reward) > 0
           THEN (ad.consensus_reward::numeric / (ad.consensus_reward + ad.missed_reward))::numeric(5,4)
           ELSE NULL
-        END AS performance_1d,
+        END AS performance_d,
         ad.consensus_reward,
         ad.missed_reward,
         ad.execution_reward,
         CASE WHEN v.balance > 0 AND ad.consensus_reward IS NOT NULL
           THEN (ad.consensus_reward::numeric / v.balance * 365.25)::numeric(5,2)
           ELSE NULL
-        END AS apy_1d
+        END AS apy_d
       FROM archive_data ad
       JOIN validator v ON v.id = ad.validator_index
     )
     UPDATE validators_snapshot_stats vss
     SET
-      performance_1d = p.performance_1d,
-      apy_1d = p.apy_1d,
-      consensus_reward_1d = p.consensus_reward,
-      missed_reward_1d = p.missed_reward,
-      execution_reward_1d = p.execution_reward,
+      performance_d = p.performance_d,
+      apy_d = p.apy_d,
+      consensus_reward_d = p.consensus_reward,
+      missed_reward_d = p.missed_reward,
+      execution_reward_d = p.execution_reward,
       updated_at = NOW()
     FROM performance p
     WHERE vss.validator_index = p.validator_index
@@ -943,11 +943,11 @@ async updatePerformance1d(): Promise<void> {
 }
 ```
 
-**Step 2: Implement `updatePerformance1w`**
+**Step 2: Implement `updatePerformanceW`**
 
 Same pattern but queries `ValidatorDailyArchive` for the last 7 days. Uses `periods_per_year = 52.18`.
 
-**Step 3: Implement `updatePerformance1m`**
+**Step 3: Implement `updatePerformanceM`**
 
 Same pattern but queries `ValidatorDailyArchive` for the last 30 days. Uses `periods_per_year = 12`.
 
@@ -961,7 +961,7 @@ pnpm type-check
 
 ```bash
 git add packages/indexer/src/services/consensus/storage/snapshot.ts
-git commit -m "feat(indexer): implement 1d/1w/1m performance storage methods from archives"
+git commit -m "feat(indexer): implement d/w/m performance storage methods from archives"
 ```
 
 ---
@@ -978,38 +978,38 @@ git commit -m "feat(indexer): implement 1d/1w/1m performance storage methods fro
 Each method calls the corresponding storage method with computed parameters:
 
 ```typescript
-async updatePerformance1h() {
+async updatePerformanceH() {
   const currentTimestamp = Date.now();
   const currentSlot = this.beaconTime.getSlotNumberFromTimestamp(currentTimestamp);
   const oneHourAgoSlot = this.beaconTime.getSlotNumberFromTimestamp(currentTimestamp - ms('1h'));
 
-  await this.snapshotStorage.updatePerformance1h({
+  await this.snapshotStorage.updatePerformanceH({
     minSlot: oneHourAgoSlot,
     maxSlot: currentSlot,
     maxAttestationDelay: /* passed via constructor or params */,
   });
-  this.logger.info('Updated 1h performance metrics');
+  this.logger.info('Updated h performance metrics');
 }
 
-async updatePerformance1d() {
-  await this.snapshotStorage.updatePerformance1d();
-  this.logger.info('Updated 1d performance metrics');
+async updatePerformanceD() {
+  await this.snapshotStorage.updatePerformanceD();
+  this.logger.info('Updated d performance metrics');
 }
 
-async updatePerformance1w() {
-  await this.snapshotStorage.updatePerformance1w();
-  this.logger.info('Updated 1w performance metrics');
+async updatePerformanceW() {
+  await this.snapshotStorage.updatePerformanceW();
+  this.logger.info('Updated w performance metrics');
 }
 
-async updatePerformance1m() {
-  await this.snapshotStorage.updatePerformance1m();
-  this.logger.info('Updated 1m performance metrics');
+async updatePerformanceM() {
+  await this.snapshotStorage.updatePerformanceM();
+  this.logger.info('Updated m performance metrics');
 }
 ```
 
 **Step 2: Uncomment the performance calls in the machine**
 
-In `snapshot.machine.ts`, uncomment the calls to `controller.updatePerformance1h/1d/1w/1m` in the `runTick` actor. Add proper epoch detection logic for the 1h and balances levels.
+In `snapshot.machine.ts`, uncomment the calls to `controller.updatePerformanceH/D/W/M` in the `runTick` actor. Add proper epoch detection logic for the h and balances levels.
 
 **Step 3: Verify type-check**
 
@@ -1051,30 +1051,30 @@ export const ClusterSnapshotSchema = z.object({
   attestationsTotal: z.number(),
   attestationsMissed: z.number(),
 
-  performance1h: z.number().nullable(),
-  performance1d: z.number().nullable(),
-  performance1w: z.number().nullable(),
-  performance1m: z.number().nullable(),
+  performanceH: z.number().nullable(),
+  performanceD: z.number().nullable(),
+  performanceW: z.number().nullable(),
+  performanceM: z.number().nullable(),
 
-  apy1h: z.number().nullable(),
-  apy1d: z.number().nullable(),
-  apy1w: z.number().nullable(),
-  apy1m: z.number().nullable(),
+  apyH: z.number().nullable(),
+  apyD: z.number().nullable(),
+  apyW: z.number().nullable(),
+  apyM: z.number().nullable(),
 
-  consensusReward1h: z.string().nullable(),
-  consensusReward1d: z.string().nullable(),
-  consensusReward1w: z.string().nullable(),
-  consensusReward1m: z.string().nullable(),
+  consensusRewardH: z.string().nullable(),
+  consensusRewardD: z.string().nullable(),
+  consensusRewardW: z.string().nullable(),
+  consensusRewardM: z.string().nullable(),
 
-  missedReward1h: z.string().nullable(),
-  missedReward1d: z.string().nullable(),
-  missedReward1w: z.string().nullable(),
-  missedReward1m: z.string().nullable(),
+  missedRewardH: z.string().nullable(),
+  missedRewardD: z.string().nullable(),
+  missedRewardW: z.string().nullable(),
+  missedRewardM: z.string().nullable(),
 
-  executionReward1h: z.string().nullable(),
-  executionReward1d: z.string().nullable(),
-  executionReward1w: z.string().nullable(),
-  executionReward1m: z.string().nullable(),
+  executionRewardH: z.string().nullable(),
+  executionRewardD: z.string().nullable(),
+  executionRewardW: z.string().nullable(),
+  executionRewardM: z.string().nullable(),
 });
 ```
 
@@ -1096,16 +1096,16 @@ async getClusterSnapshot(clusterId: string) {
       SUM(vss.attestations_missed) AS attestations_missed,
       -- Weighted average performance
       CASE WHEN SUM(vss.attestations_total) > 0
-        THEN (SUM(COALESCE(vss.performance_1h, 0) * vss.attestations_total) / SUM(vss.attestations_total))::numeric(5,4)
-        ELSE NULL END AS performance_1h,
-      -- ... similar for 1d, 1w, 1m
+        THEN (SUM(COALESCE(vss.performance_h, 0) * vss.attestations_total) / SUM(vss.attestations_total))::numeric(5,4)
+        ELSE NULL END AS performance_h,
+      -- ... similar for d, w, m
       -- Weighted average APY by balance
       CASE WHEN SUM(vss.balance) > 0
-        THEN (SUM(COALESCE(vss.apy_1h, 0) * vss.balance) / SUM(vss.balance))::numeric(5,2)
-        ELSE NULL END AS apy_1h,
-      -- ... similar for 1d, 1w, 1m
+        THEN (SUM(COALESCE(vss.apy_h, 0) * vss.balance) / SUM(vss.balance))::numeric(5,2)
+        ELSE NULL END AS apy_h,
+      -- ... similar for d, w, m
       -- Sum rewards
-      SUM(vss.consensus_reward_1h) AS consensus_reward_1h,
+      SUM(vss.consensus_reward_h) AS consensus_reward_h,
       -- ... all reward fields
     FROM cluster_validator cv
     JOIN validators_snapshot_stats vss ON cv.validator_index = vss.validator_index
@@ -1206,7 +1206,7 @@ export function useClusterSnapshot(clusterId: string | null) {
 
 ```tsx
 // packages/webapp/components/validators/performance-table.tsx
-const PERIODS = ['1h', '1d', '1w', '1m'] as const;
+const PERIODS = ['h', 'd', 'w', 'm'] as const;
 
 type PerformanceTableProps = {
   snapshot: ClusterSnapshot | null;
