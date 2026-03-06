@@ -10,9 +10,10 @@ import EventsFeedContent from '@/components/validators/events-feed-content';
 import NotificationBanner, { type Notification } from '@/components/validators/notification-banner';
 import PerformanceMetricsContent from '@/components/validators/performance-metrics-content';
 import UserDashboard from '@/components/validators/user-dashboard';
+import { useClusterSnapshot } from '@/hooks/use-cluster-snapshot';
 import { useClusters, useCluster } from '@/hooks/use-clusters';
 import { CLUSTER_FILTER_ALL, type Cluster, type ClusterFilter } from '@/types/cluster';
-import type { Stats, MissedAttestation, ValidatorEvent } from '@/types/validator';
+import type { MissedAttestation, ValidatorEvent } from '@/types/validator';
 
 const demoNotifications: Notification[] = [];
 
@@ -32,31 +33,7 @@ const BEACON_STATUS_MAP: Record<
   8: 'exited', // withdrawal_done
 };
 
-// Default stats while we don't have a stats API
-const defaultStats: Stats = {
-  performance1h: 99.5,
-  balance: 0,
-  balanceUsd: 0,
-  claimable: 0,
-  claimableUsd: 0,
-  apyDay: 4.2,
-  apyWeek: 4.1,
-  apyMonth: 4.0,
-  gnoDay: 0,
-  gnoWeek: 0,
-  gnoMonth: 0,
-  xdaiDay: 0,
-  xdaiWeek: 0,
-  xdaiMonth: 0,
-  missedDay: 0,
-  missedWeek: 0,
-  missedMonth: 0,
-  totalDay: 0,
-  totalWeek: 0,
-  totalMonth: 0,
-  gnoPrice: 200,
-  lastUpdated: new Date().toISOString(),
-};
+const DEFAULT_TOKEN_PRICE = 200;
 
 // Empty data for charts while we don't have the API
 const emptyMissedAttestations: MissedAttestation[] = [];
@@ -72,6 +49,8 @@ export default function DashboardOverview() {
   // Fetch detailed cluster data when a specific cluster is selected
   const selectedClusterId = selectedCluster !== CLUSTER_FILTER_ALL ? selectedCluster : null;
   const { data: clusterDetail, isLoading: clusterDetailLoading } = useCluster(selectedClusterId);
+  const { data: clusterSnapshot, isLoading: snapshotLoading } =
+    useClusterSnapshot(selectedClusterId);
 
   // Transform API clusters to UI format (basic info for tabs)
   const clusters: Cluster[] = (apiClusters || []).map((c) => ({
@@ -124,7 +103,7 @@ export default function DashboardOverview() {
     };
   }, [clusterDetail]);
 
-  const tokenPrice = defaultStats.gnoPrice;
+  const tokenPrice = DEFAULT_TOKEN_PRICE;
 
   return (
     <div className="py-3 md:py-8 space-y-4 md:space-y-8">
@@ -159,7 +138,8 @@ export default function DashboardOverview() {
               ) : displayCluster ? (
                 <ClusterOverviewContent
                   cluster={displayCluster}
-                  stats={defaultStats}
+                  snapshot={clusterSnapshot ?? null}
+                  snapshotLoading={snapshotLoading}
                   gnoPrice={tokenPrice}
                   showManageButton={!isAllSelected}
                   onManage={() => setManagingClusterId(displayCluster.id)}
