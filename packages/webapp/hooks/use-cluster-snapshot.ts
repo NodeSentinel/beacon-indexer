@@ -43,7 +43,36 @@ export function useClusterSnapshot(clusterId: string | null) {
       if (!response.success) {
         throw new Error(response.error?.message || 'Failed to fetch cluster snapshot');
       }
-      return response.data as ClusterSnapshot;
+      const d = response.data!;
+      return {
+        activeCount: d.activeCount,
+        inactiveCount: d.inactiveCount,
+        statusBreakdown: d.statusBreakdown,
+        totalBalance: d.totalBalance,
+        totalEffectiveBalance: d.totalEffectiveBalance,
+        attestationsTotal: d.attestationsTotal,
+        attestationsMissed: d.attestationsMissed,
+        performance1h: d.performanceH,
+        performance1d: d.performanceD,
+        performance1w: d.performanceW,
+        performance1m: d.performanceM,
+        apy1h: d.apyH,
+        apy1d: d.apyD,
+        apy1w: d.apyW,
+        apy1m: d.apyM,
+        consensusReward1h: d.consensusRewardH,
+        consensusReward1d: d.consensusRewardD,
+        consensusReward1w: d.consensusRewardW,
+        consensusReward1m: d.consensusRewardM,
+        missedReward1h: d.missedRewardH,
+        missedReward1d: d.missedRewardD,
+        missedReward1w: d.missedRewardW,
+        missedReward1m: d.missedRewardM,
+        executionReward1h: d.executionRewardH,
+        executionReward1d: d.executionRewardD,
+        executionReward1w: d.executionRewardW,
+        executionReward1m: d.executionRewardM,
+      } satisfies ClusterSnapshot;
     },
     enabled: !!clusterId,
   });
