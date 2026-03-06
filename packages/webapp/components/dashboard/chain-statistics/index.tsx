@@ -7,15 +7,12 @@ import { useChainStats } from '@/hooks/use-chain-stats';
 import { useSyncStatus } from '@/hooks/use-sync-status';
 import { formatNumber, getTokenSymbol } from '@/lib/utils';
 
-interface ChainStatisticsProps {
-  tokenPrice: number;
-}
-
-export default function ChainStatistics({ tokenPrice }: ChainStatisticsProps) {
+export default function ChainStatistics() {
   const { data: chainStats, isLoading } = useChainStats();
   const { data: syncStatus } = useSyncStatus();
   const tokenSymbol = getTokenSymbol(env.NEXT_PUBLIC_CHAIN);
 
+  const tokenPrice = chainStats?.tokenPrice ?? 0;
   const totalStaked = chainStats ? parseFloat(chainStats.totalStaked) : 0;
   const activeValidators = chainStats?.totalActiveValidators ?? 0;
   const joiningValidators = chainStats?.validatorsEntering ?? 0;

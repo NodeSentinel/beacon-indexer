@@ -4,6 +4,7 @@ import { publicProcedure } from '@/lib/orpc.js';
 import { ClusterStorage } from '@/storage/cluster.js';
 import { ApiResponseSchema } from '@/utils/response.js';
 import { formatBalance, formatWeiToToken } from '@/utils/tokenFormat.js';
+import { getTokenPrice } from '@/utils/tokenPrice.js';
 
 /**
  * Get cluster snapshot with aggregated performance metrics
@@ -27,6 +28,13 @@ export const getClusterSnapshot = publicProcedure
           },
           meta: { timestamp: new Date().toISOString() },
         };
+      }
+
+      let tokenPrice = 0;
+      try {
+        tokenPrice = await getTokenPrice();
+      } catch {
+        // tokenPrice stays 0 if fetch fails
       }
 
       const toNum = (v: string | null) => (v !== null ? Number(v) : null);
@@ -71,6 +79,8 @@ export const getClusterSnapshot = publicProcedure
           executionRewardD: toExecReward(row.execution_reward_d),
           executionRewardW: toExecReward(row.execution_reward_w),
           executionRewardM: toExecReward(row.execution_reward_m),
+
+          tokenPrice,
         },
         meta: { timestamp: new Date().toISOString() },
       };

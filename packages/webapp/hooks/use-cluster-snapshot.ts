@@ -32,6 +32,7 @@ export interface ClusterSnapshot {
   executionReward1d: { wei: string; token: string } | null;
   executionReward1w: { wei: string; token: string } | null;
   executionReward1m: { wei: string; token: string } | null;
+  tokenPrice: number;
 }
 
 export function useClusterSnapshot(clusterId: string | null) {
@@ -72,6 +73,7 @@ export function useClusterSnapshot(clusterId: string | null) {
         executionReward1d: d.executionRewardD,
         executionReward1w: d.executionRewardW,
         executionReward1m: d.executionRewardM,
+        tokenPrice: d.tokenPrice,
       } satisfies ClusterSnapshot;
     },
     enabled: !!clusterId,

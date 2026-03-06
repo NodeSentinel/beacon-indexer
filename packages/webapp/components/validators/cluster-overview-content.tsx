@@ -41,6 +41,26 @@ function formatApy(value: number | null): string {
   return `${value.toFixed(2)}%`;
 }
 
+function formatUsd(value: string | null, price: number): string {
+  if (value === null) return '-';
+  const num = parseFloat(value);
+  if (isNaN(num)) return '-';
+  return `$${(num * price).toFixed(2)}`;
+}
+
+function formatTotalUsd(
+  consensusReward: string | null,
+  tokenPrice: number,
+  executionReward: string | null,
+): string {
+  const consensus = consensusReward !== null ? parseFloat(consensusReward) : 0;
+  const execution = executionReward !== null ? parseFloat(executionReward) : 0;
+  if (isNaN(consensus) && isNaN(execution)) return '-';
+  const total =
+    (isNaN(consensus) ? 0 : consensus) * tokenPrice + (isNaN(execution) ? 0 : execution);
+  return `$${total.toFixed(2)}`;
+}
+
 export default function ClusterOverviewContent({
   cluster,
   snapshot,
@@ -274,18 +294,33 @@ export default function ClusterOverviewContent({
                       <div className="text-base font-mono font-semibold">
                         {formatValue(getConsensusReward(key))} GNO
                       </div>
+                      <div className="text-xs text-muted-foreground">
+                        {formatUsd(getConsensusReward(key), gnoPrice)}
+                      </div>
                     </div>
                     <div className="space-y-0.5">
                       <div className="text-base font-mono font-semibold text-destructive">
                         {formatValue(getMissedReward(key))} GNO
+                      </div>
+                      <div className="text-xs text-muted-foreground">
+                        {formatUsd(getMissedReward(key), gnoPrice)}
                       </div>
                     </div>
                     <div className="space-y-0.5">
                       <div className="text-base font-mono font-semibold">
                         {formatValue(getExecutionReward(key)?.token ?? null)} xDAI
                       </div>
+                      <div className="text-xs text-muted-foreground">
+                        {formatUsd(getExecutionReward(key)?.token ?? null, 1)}
+                      </div>
                     </div>
-                    <div className="text-sm font-mono">-</div>
+                    <div className="text-sm font-mono">
+                      {formatTotalUsd(
+                        getConsensusReward(key),
+                        gnoPrice,
+                        getExecutionReward(key)?.token ?? null,
+                      )}
+                    </div>
                   </div>
                 ))
               )}
