@@ -15,7 +15,6 @@ describe('Monthly Archive Process', () => {
 
   // Test month: November 2025 (30 days)
   const TEST_MONTH_START = new Date('2025-11-01T00:00:00.000Z');
-  const TEST_MONTH_END = new Date('2025-12-01T00:00:00.000Z');
 
   // Retention: lastDay must be >= candidateMonthEnd + 30 days = Dec 31
   const RETENTION_DAY = new Date('2025-12-31T00:00:00.000Z');
