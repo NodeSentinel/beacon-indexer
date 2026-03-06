@@ -10,8 +10,7 @@ export class SnapshotStorage {
   constructor(private readonly prisma: PrismaClient) {}
 
   /**
-   * Update attestation stats and inactivity status for all validators in clusters.
-   * Uses INSERT ... ON CONFLICT to avoid wiping performance columns.
+   * Update attestation stats and inactivity status for all validators that have snapshot rows.
    *
    * A validator is considered "missed" if:
    *   - attestation_delay IS NULL, OR
@@ -43,10 +42,8 @@ export class SnapshotStorage {
     await this.prisma.$executeRaw`
       WITH
         user_validators AS (
-          SELECT DISTINCT cv.validator_index
-          FROM cluster_validator cv
-          JOIN validator v ON v.id = cv.validator_index
-          WHERE v.status IN (2, 3)
+          SELECT DISTINCT vss.validator_index
+          FROM validators_snapshot_stats vss
         ),
 
         attestations AS (
@@ -129,26 +126,19 @@ export class SnapshotStorage {
           JOIN validator v ON v.id = h.validator_index
         )
 
-      INSERT INTO validators_snapshot_stats (
-        validator_index, status, is_inactive, consecutive_missed_attestations,
-        attestations_total, attestations_missed, beacon_status,
-        balance, effective_balance, updated_at
-      )
-      SELECT
-        validator_index, status, is_inactive, consecutive_missed_attestations,
-        attestations_total, attestations_missed, beacon_status,
-        balance, effective_balance, NOW()
-      FROM snapshot_data
-      ON CONFLICT (validator_index) DO UPDATE SET
-        status = EXCLUDED.status,
-        is_inactive = EXCLUDED.is_inactive,
-        consecutive_missed_attestations = EXCLUDED.consecutive_missed_attestations,
-        attestations_total = EXCLUDED.attestations_total,
-        attestations_missed = EXCLUDED.attestations_missed,
-        beacon_status = EXCLUDED.beacon_status,
-        balance = EXCLUDED.balance,
-        effective_balance = EXCLUDED.effective_balance,
-        updated_at = EXCLUDED.updated_at
+      UPDATE validators_snapshot_stats vss
+      SET
+        status = sd.status,
+        is_inactive = sd.is_inactive,
+        consecutive_missed_attestations = sd.consecutive_missed_attestations,
+        attestations_total = sd.attestations_total,
+        attestations_missed = sd.attestations_missed,
+        beacon_status = sd.beacon_status,
+        balance = sd.balance,
+        effective_balance = sd.effective_balance,
+        updated_at = NOW()
+      FROM snapshot_data sd
+      WHERE vss.validator_index = sd.validator_index
     `;
   }
 
@@ -177,14 +167,17 @@ export class SnapshotStorage {
     minEpoch: number;
     maxEpoch: number;
     maxAttestationDelay: number;
+    validatorIndexes?: number[];
   }): Promise<void> {
-    const { minSlot, maxSlot, minEpoch, maxEpoch, maxAttestationDelay } = params;
+    const { minSlot, maxSlot, minEpoch, maxEpoch, maxAttestationDelay, validatorIndexes } = params;
 
     await this.prisma.$executeRaw`
       WITH
         user_validators AS (
           SELECT DISTINCT vss.validator_index
           FROM validators_snapshot_stats vss
+          WHERE (${validatorIndexes ?? null}::int[] IS NULL
+            OR vss.validator_index = ANY(${validatorIndexes ?? null}::int[]))
         ),
         att AS (
           SELECT
@@ -251,11 +244,18 @@ export class SnapshotStorage {
   /**
    * Update 1d performance metrics from ValidatorHourlyArchive (last 24h).
    */
-  async updatePerformance1d(): Promise<void> {
+  async updatePerformance1d(params?: { validatorIndexes?: number[] }): Promise<void> {
+    const validatorIndexes = params?.validatorIndexes;
     const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000);
 
     await this.prisma.$executeRaw`
       WITH
+        target_validators AS (
+          SELECT DISTINCT vss.validator_index
+          FROM validators_snapshot_stats vss
+          WHERE (${validatorIndexes ?? null}::int[] IS NULL
+            OR vss.validator_index = ANY(${validatorIndexes ?? null}::int[]))
+        ),
         archive_data AS (
           SELECT
             vha.validator_index,
@@ -265,6 +265,7 @@ export class SnapshotStorage {
             SUM(vha.cl_missed_reward_total) AS missed_reward,
             SUM(COALESCE(vha.exec_reward_total, 0)) AS execution_reward
           FROM validator_hourly_archive vha
+          JOIN target_validators tv ON vha.validator_index = tv.validator_index
           WHERE vha.timestamp >= ${cutoff}
           GROUP BY vha.validator_index
         ),
@@ -301,11 +302,18 @@ export class SnapshotStorage {
   /**
    * Update 1w performance metrics from ValidatorDailyArchive (last 7 days).
    */
-  async updatePerformance1w(): Promise<void> {
+  async updatePerformance1w(params?: { validatorIndexes?: number[] }): Promise<void> {
+    const validatorIndexes = params?.validatorIndexes;
     const cutoff = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
 
     await this.prisma.$executeRaw`
       WITH
+        target_validators AS (
+          SELECT DISTINCT vss.validator_index
+          FROM validators_snapshot_stats vss
+          WHERE (${validatorIndexes ?? null}::int[] IS NULL
+            OR vss.validator_index = ANY(${validatorIndexes ?? null}::int[]))
+        ),
         archive_data AS (
           SELECT
             vda.validator_index,
@@ -315,6 +323,7 @@ export class SnapshotStorage {
             SUM(vda.cl_missed_reward_total) AS missed_reward,
             SUM(COALESCE(vda.exec_reward_total, 0)) AS execution_reward
           FROM validator_daily_archive vda
+          JOIN target_validators tv ON vda.validator_index = tv.validator_index
           WHERE vda.timestamp >= ${cutoff}
           GROUP BY vda.validator_index
         ),
@@ -351,11 +360,18 @@ export class SnapshotStorage {
   /**
    * Update 1m performance metrics from ValidatorDailyArchive (last 30 days).
    */
-  async updatePerformance1m(): Promise<void> {
+  async updatePerformance1m(params?: { validatorIndexes?: number[] }): Promise<void> {
+    const validatorIndexes = params?.validatorIndexes;
     const cutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
 
     await this.prisma.$executeRaw`
       WITH
+        target_validators AS (
+          SELECT DISTINCT vss.validator_index
+          FROM validators_snapshot_stats vss
+          WHERE (${validatorIndexes ?? null}::int[] IS NULL
+            OR vss.validator_index = ANY(${validatorIndexes ?? null}::int[]))
+        ),
         archive_data AS (
           SELECT
             vda.validator_index,
@@ -365,6 +381,7 @@ export class SnapshotStorage {
             SUM(vda.cl_missed_reward_total) AS missed_reward,
             SUM(COALESCE(vda.exec_reward_total, 0)) AS execution_reward
           FROM validator_daily_archive vda
+          JOIN target_validators tv ON vda.validator_index = tv.validator_index
           WHERE vda.timestamp >= ${cutoff}
           GROUP BY vda.validator_index
         ),
@@ -395,6 +412,53 @@ export class SnapshotStorage {
         updated_at = NOW()
       FROM perf p
       WHERE vss.validator_index = p.validator_index
+    `;
+  }
+
+  /**
+   * Find validators that are in clusters but don't have a snapshot row yet.
+   */
+  async findNewValidators(): Promise<number[]> {
+    const rows = await this.prisma.$queryRaw<Array<{ validator_index: number }>>`
+      SELECT DISTINCT cv.validator_index
+      FROM cluster_validator cv
+      JOIN validator v ON v.id = cv.validator_index
+      WHERE v.status IN (2, 3)
+        AND NOT EXISTS (
+          SELECT 1 FROM validators_snapshot_stats vss
+          WHERE vss.validator_index = cv.validator_index
+        )
+    `;
+    return rows.map((r) => r.validator_index);
+  }
+
+  /**
+   * Insert base snapshot rows for new validators.
+   * Populates balance/status from the validator table. All performance fields start as NULL.
+   */
+  async insertNewValidatorSnapshots(validatorIndexes: number[]): Promise<void> {
+    if (validatorIndexes.length === 0) return;
+
+    await this.prisma.$executeRaw`
+      INSERT INTO validators_snapshot_stats (
+        validator_index, status, is_inactive, consecutive_missed_attestations,
+        attestations_total, attestations_missed, beacon_status,
+        balance, effective_balance, updated_at
+      )
+      SELECT
+        v.id,
+        'active',
+        false,
+        0,
+        0,
+        0,
+        v.status,
+        v.balance,
+        COALESCE(v.effective_balance, 0),
+        NOW()
+      FROM validator v
+      WHERE v.id = ANY(${validatorIndexes}::int[])
+      ON CONFLICT (validator_index) DO NOTHING
     `;
   }
 }

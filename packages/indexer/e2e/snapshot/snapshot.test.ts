@@ -93,6 +93,9 @@ describe('Snapshot - Inactivity Detection', () => {
         data: { clusterId: cluster.id, validatorIndex: id },
       });
     }
+
+    // Insert base snapshot rows for all validators
+    await snapshotStorage.insertNewValidatorSnapshots(validatorIds);
   }
 
   // Helper: insert a committee row (attestation)
@@ -293,19 +296,14 @@ describe('Snapshot - Inactivity Detection', () => {
     expect(row!.attestations_missed).toBe(1);
   });
 
-  it('should use UPSERT without wiping performance columns', async () => {
+  it('should UPDATE without wiping performance columns', async () => {
     await setupValidatorsInCluster([1]);
 
-    // Insert a row with some performance data
+    // Set some performance data on the existing row
     await prisma.$executeRaw`
-      INSERT INTO validators_snapshot_stats (
-        validator_index, status, is_inactive, consecutive_missed_attestations,
-        attestations_total, attestations_missed, balance, effective_balance,
-        performance_1h, apy_1h, consensus_reward_1h
-      ) VALUES (
-        1, 'active', false, 0, 0, 0, 32000000000, 32000000000,
-        0.9500, 3.50, 1000000
-      )
+      UPDATE validators_snapshot_stats
+      SET performance_1h = 0.9500, apy_1h = 3.50, consensus_reward_1h = 1000000
+      WHERE validator_index = 1
     `;
 
     // Now run attestation update
@@ -333,5 +331,108 @@ describe('Snapshot - Inactivity Detection', () => {
     expect(Number(row!.performance_1h)).toBeCloseTo(0.95, 2); // preserved
     expect(Number(row!.apy_1h)).toBeCloseTo(3.5, 1); // preserved
     expect(row!.consensus_reward_1h).toBe(BigInt(1000000)); // preserved
+  });
+});
+
+describe('Snapshot - New Validator Detection', () => {
+  let prisma: PrismaClient;
+  let snapshotStorage: SnapshotStorage;
+
+  beforeAll(async () => {
+    if (!process.env.DATABASE_URL) throw new Error('DATABASE_URL is not set');
+    prisma = new PrismaClient({ datasources: { db: { url: process.env.DATABASE_URL } } });
+    snapshotStorage = new SnapshotStorage(prisma);
+  });
+
+  beforeEach(async () => {
+    await prisma.$executeRawUnsafe(`DELETE FROM "validators_snapshot_stats"`);
+    await prisma.$executeRawUnsafe(`DELETE FROM "cluster_validator"`);
+    await prisma.$executeRawUnsafe(`DELETE FROM "cluster"`);
+    await prisma.$executeRawUnsafe(`DELETE FROM "user"`);
+    await prisma.$executeRawUnsafe(`DELETE FROM "validator"`);
+  });
+
+  afterAll(async () => {
+    await prisma.$disconnect();
+  });
+
+  async function createValidatorInCluster(validatorIds: number[]) {
+    await prisma.user.create({
+      data: { id: BigInt(1), userId: BigInt(1), username: 'test-user' },
+    });
+    const cluster = await prisma.cluster.create({
+      data: { name: 'test', ownerId: BigInt(1), visibility: 'private' },
+    });
+    for (const id of validatorIds) {
+      await prisma.validator.upsert({
+        where: { id },
+        create: {
+          id,
+          status: 2,
+          balance: BigInt(32_000_000_000),
+          effectiveBalance: BigInt(32_000_000_000),
+        },
+        update: {},
+      });
+      await prisma.clusterValidator.create({
+        data: { clusterId: cluster.id, validatorIndex: id },
+      });
+    }
+  }
+
+  it('should detect validators in clusters without snapshot rows', async () => {
+    await createValidatorInCluster([10, 20]);
+
+    const newIndexes = await snapshotStorage.findNewValidators();
+    expect(newIndexes).toHaveLength(2);
+    expect(newIndexes.sort((a, b) => a - b)).toEqual([10, 20]);
+  });
+
+  it('should return empty when all cluster validators have snapshot rows', async () => {
+    await createValidatorInCluster([10, 20]);
+    await snapshotStorage.insertNewValidatorSnapshots([10, 20]);
+
+    const newIndexes = await snapshotStorage.findNewValidators();
+    expect(newIndexes).toHaveLength(0);
+  });
+
+  it('should insert base snapshot rows for new validators', async () => {
+    await createValidatorInCluster([10]);
+    await snapshotStorage.insertNewValidatorSnapshots([10]);
+
+    const rows = await prisma.$queryRaw<
+      Array<{
+        validator_index: number;
+        status: string;
+        is_inactive: boolean;
+        attestations_total: number;
+        attestations_missed: number;
+      }>
+    >`SELECT * FROM validators_snapshot_stats WHERE validator_index = 10`;
+
+    const row = rows[0];
+    expect(row).not.toBeNull();
+    expect(row!.status).toBe('active');
+    expect(row!.is_inactive).toBe(false);
+    expect(row!.attestations_total).toBe(0);
+    expect(row!.attestations_missed).toBe(0);
+  });
+
+  it('should not overwrite existing snapshot rows on insert', async () => {
+    await createValidatorInCluster([10]);
+    await snapshotStorage.insertNewValidatorSnapshots([10]);
+
+    // Set performance data
+    await prisma.$executeRaw`
+      UPDATE validators_snapshot_stats SET performance_1h = 0.9500 WHERE validator_index = 10
+    `;
+
+    // Re-insert should be a no-op (ON CONFLICT DO NOTHING)
+    await snapshotStorage.insertNewValidatorSnapshots([10]);
+
+    const rows = await prisma.$queryRaw<Array<{ performance_1h: string | null }>>`
+      SELECT performance_1h FROM validators_snapshot_stats WHERE validator_index = 10
+    `;
+    expect(Number(rows[0]!.performance_1h)).toBeCloseTo(0.95, 2);
   });
 });

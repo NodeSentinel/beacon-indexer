@@ -16,6 +16,7 @@ type SnapshotContext = {
   last1dUpdate: number | null;
   last1wUpdate: number | null;
   last1mUpdate: number | null;
+  lastNewValidatorCheck: number | null;
 };
 
 type TickResult = {
@@ -25,8 +26,10 @@ type TickResult = {
   last1dUpdate: number | null;
   last1wUpdate: number | null;
   last1mUpdate: number | null;
+  lastNewValidatorCheck: number | null;
 };
 
+const INTERVAL_NEW_VALIDATOR_CHECK = 30 * 1000; // 30 seconds
 const INTERVAL_1D = 30 * 60 * 1000; // 30 minutes
 const INTERVAL_1W = 3 * 60 * 60 * 1000; // 3 hours
 const INTERVAL_1M = 6 * 60 * 60 * 1000; // 6 hours
@@ -57,6 +60,19 @@ export const snapshotMachine = setup({
       let last1dUpdate = ctx.last1dUpdate;
       let last1wUpdate = ctx.last1wUpdate;
       let last1mUpdate = ctx.last1mUpdate;
+      let lastNewValidatorCheck = ctx.lastNewValidatorCheck;
+
+      // Level 0: Detect and backfill new validators (every 30s)
+      if (
+        lastNewValidatorCheck === null ||
+        now - lastNewValidatorCheck >= INTERVAL_NEW_VALIDATOR_CHECK
+      ) {
+        const count = await controller.detectAndBackfillNewValidators(ctx.maxAttestationDelay);
+        if (count > 0) {
+          updatedLevels.push(`new-validators(${count})`);
+        }
+        lastNewValidatorCheck = now;
+      }
 
       // Level 1: Attestations + inactivity (every tick)
       await controller.updateAttestationsAndStatus({
@@ -108,6 +124,7 @@ export const snapshotMachine = setup({
         last1dUpdate,
         last1wUpdate,
         last1mUpdate,
+        lastNewValidatorCheck,
       } satisfies TickResult;
     }),
   },
@@ -126,6 +143,7 @@ export const snapshotMachine = setup({
     last1dUpdate: null,
     last1wUpdate: null,
     last1mUpdate: null,
+    lastNewValidatorCheck: null,
   }),
   states: {
     waiting: {
@@ -148,6 +166,7 @@ export const snapshotMachine = setup({
               last1dUpdate: ({ event }) => event.output.last1dUpdate,
               last1wUpdate: ({ event }) => event.output.last1wUpdate,
               last1mUpdate: ({ event }) => event.output.last1mUpdate,
+              lastNewValidatorCheck: ({ event }) => event.output.lastNewValidatorCheck,
             }),
             pinoLog(({ event }) => {
               const levels = event.output.updatedLevels;
