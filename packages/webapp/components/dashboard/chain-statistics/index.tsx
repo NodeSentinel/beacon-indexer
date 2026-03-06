@@ -4,6 +4,7 @@ import { Users, Coins, ArrowUpCircle, ArrowDownCircle } from 'lucide-react';
 
 import { env } from '@/env';
 import { useChainStats } from '@/hooks/use-chain-stats';
+import { useSyncStatus } from '@/hooks/use-sync-status';
 import { formatNumber, getTokenSymbol } from '@/lib/utils';
 
 interface ChainStatisticsProps {
@@ -12,6 +13,7 @@ interface ChainStatisticsProps {
 
 export default function ChainStatistics({ tokenPrice }: ChainStatisticsProps) {
   const { data: chainStats, isLoading } = useChainStats();
+  const { data: syncStatus } = useSyncStatus();
   const tokenSymbol = getTokenSymbol(env.NEXT_PUBLIC_CHAIN);
 
   const totalStaked = chainStats ? parseFloat(chainStats.totalStaked) : 0;
@@ -56,9 +58,23 @@ export default function ChainStatistics({ tokenPrice }: ChainStatisticsProps) {
 
   return (
     <div className="space-y-2">
-      <h2 className="text-[10px] md:text-xs font-display text-muted-foreground uppercase tracking-wider">
-        Chain Statistics
-      </h2>
+      <div className="flex items-center justify-between">
+        <h2 className="text-[10px] md:text-xs font-display text-muted-foreground uppercase tracking-wider">
+          Chain Statistics
+        </h2>
+        {syncStatus && (
+          <div className="flex items-center gap-1.5">
+            <div
+              className={`w-1.5 h-1.5 rounded-full ${syncStatus.isSynced ? 'bg-chart-2' : 'bg-warning animate-pulse'}`}
+            />
+            <span className="text-[10px] md:text-xs font-mono text-muted-foreground">
+              {formatNumber(syncStatus.currentSlot ?? 0)}
+              {' / '}
+              {formatNumber(syncStatus.processingSlot ?? 0)}
+            </span>
+          </div>
+        )}
+      </div>
       <div className="bg-muted/30 border border-border/50 rounded-lg p-2.5 md:p-5">
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5 md:gap-5">
           {/* Active Validators Card */}
