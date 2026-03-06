@@ -3,7 +3,8 @@ import { formatInTimeZone } from 'date-fns-tz';
 
 import { DailyArchiveStorage } from '../storage/dailyArchive.js';
 
-const MS_PER_DAY = 24 * 3600 * 1000;
+import { floorToUTCDay, floorToUTCHour } from '@/src/utils/date/index.js';
+
 const HOURS_PER_DAY = 24;
 
 /**
@@ -130,22 +131,6 @@ export class DailyArchiveController {
 
     return { dayStart: candidateDayStart, dayEnd: candidateDayEnd, expectedHourlyPartitions };
   }
-}
-
-/**
- * Floor a date to the start of its UTC day (00:00:00).
- * Note: date-fns startOfDay uses local timezone, so we floor manually for UTC.
- */
-function floorToUTCDay(date: Date): Date {
-  return new Date(Math.floor(date.getTime() / MS_PER_DAY) * MS_PER_DAY);
-}
-
-/**
- * Floor a date to the start of its UTC hour.
- */
-function floorToUTCHour(date: Date): Date {
-  const MS_PER_HOUR = 3600 * 1000;
-  return new Date(Math.floor(date.getTime() / MS_PER_HOUR) * MS_PER_HOUR);
 }
 
 /**

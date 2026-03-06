@@ -3,6 +3,8 @@ import { formatInTimeZone } from 'date-fns-tz';
 
 import { MonthlyArchiveStorage } from '../storage/monthlyArchive.js';
 
+import { floorToUTCDay, floorToUTCMonth } from '@/src/utils/date/index.js';
+
 const RETENTION_DAYS = 30;
 
 /**
@@ -139,23 +141,6 @@ export class MonthlyArchiveController {
       expectedDays,
     };
   }
-}
-
-/**
- * Floor a date to the start of its UTC month (1st day 00:00:00).
- * Note: date-fns startOfMonth uses local timezone, so we construct manually for UTC.
- */
-function floorToUTCMonth(date: Date): Date {
-  return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), 1));
-}
-
-/**
- * Floor a date to the start of its UTC day (00:00:00).
- * Note: date-fns startOfDay uses local timezone, so we floor manually for UTC.
- */
-function floorToUTCDay(date: Date): Date {
-  const MS_PER_DAY = 24 * 3600 * 1000;
-  return new Date(Math.floor(date.getTime() / MS_PER_DAY) * MS_PER_DAY);
 }
 
 /**
