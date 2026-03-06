@@ -69,15 +69,85 @@ const getEpochsToRelease = (epochs: Record<number, EpochStatus>): number[] => {
   return epochsToRelease;
 };
 
+// Final states for each parallel branch in the epoch processor
+const PROCESSOR_FINAL_STATES: Record<string, { label: string; done: string }> = {
+  committees: { label: 'comm', done: 'committeesFetched' },
+  syncingCommittees: { label: 'sync', done: 'syncCommitteesFetched' },
+  slotsProcessing: { label: 'slots', done: 'slotsProcessed' },
+  trackingValidatorsActivation: { label: 'activ', done: 'activationTracked' },
+  validatorsBalances: { label: 'bal', done: 'validatorsBalancesFetched' },
+  rewards: { label: 'rewards', done: 'rewardsFetched' },
+};
+
+// Extract the processing details for an epoch by inspecting child actor snapshots
+const getEpochProcessingDetails = (
+  self: { getSnapshot: () => { children: Record<string, unknown> } },
+  epoch: number,
+): string | null => {
+  try {
+    const orchestratorSnapshot = self.getSnapshot();
+    const workerActor = orchestratorSnapshot.children[`epochWorker:${epoch}`] as
+      | { getSnapshot: () => { value: unknown; children: Record<string, unknown> } }
+      | undefined;
+    if (!workerActor) return null;
+
+    const workerSnapshot = workerActor.getSnapshot();
+    const workerState = workerSnapshot.value;
+
+    // If worker is not in a compound state (e.g., still in creatingPartitions), show that
+    if (typeof workerState === 'string') return workerState;
+
+    const processorActor = workerSnapshot.children[`epochProcessor:${epoch}`] as
+      | { getSnapshot: () => { value: unknown } }
+      | undefined;
+    if (!processorActor) return null;
+
+    const processorState = processorActor.getSnapshot().value;
+
+    // If processor is in a simple state (waitingToProcessEpoch, markingEpochProcessed, etc.)
+    if (typeof processorState === 'string') return processorState;
+
+    const epochProcessing = (processorState as Record<string, unknown>).epochProcessing;
+    if (!epochProcessing || typeof epochProcessing !== 'object') return null;
+
+    const fetching = (epochProcessing as Record<string, unknown>).fetching;
+    if (!fetching || typeof fetching !== 'object') return null;
+
+    const branches: string[] = [];
+    for (const [key, config] of Object.entries(PROCESSOR_FINAL_STATES)) {
+      const state = (fetching as Record<string, string>)[key];
+      if (typeof state === 'string') {
+        branches.push(`${config.label}:${state === config.done ? 'done' : state}`);
+      }
+    }
+
+    return branches.join(', ');
+  } catch {
+    return null;
+  }
+};
+
 // Helper function to format queue state for logging
-const formatQueueState = (epochs: Record<number, EpochStatus>): string => {
+const formatQueueState = (
+  epochs: Record<number, EpochStatus>,
+  self?: { getSnapshot: () => { children: Record<string, unknown> } },
+): string => {
   const activeEpochs = Object.keys(epochs)
     .map((e) => parseInt(e))
     .sort((a, b) => a - b);
 
   if (activeEpochs.length === 0) return '[]';
 
-  return `[${activeEpochs.map((e) => `${e}:${epochs[e]}`).join(', ')}]`;
+  return `[${activeEpochs
+    .map((e) => {
+      const status = epochs[e];
+      if (status === 'processing' && self) {
+        const details = getEpochProcessingDetails(self, e);
+        return details ? `${e}:processing (${details})` : `${e}:processing`;
+      }
+      return `${e}:${status}`;
+    })
+    .join(', ')}]`;
 };
 
 export const epochOrchestratorMachine = setup({
@@ -195,8 +265,8 @@ export const epochOrchestratorMachine = setup({
                 return updatedEpochs;
               },
             }),
-            pinoLog(({ context }) => {
-              return `Queue after dequeue: ${formatQueueState(context.epochs)}`;
+            pinoLog(({ context, self }) => {
+              return `Queue after dequeue: ${formatQueueState(context.epochs, self)}`;
             }, 'EpochOrchestrator'),
           ],
           after: {
@@ -252,8 +322,8 @@ export const epochOrchestratorMachine = setup({
                     ({ event }) => `Spawned worker for epoch ${event.output!.epoch}`,
                     'EpochOrchestrator',
                   ),
-                  pinoLog(({ context }) => {
-                    return `Queue after enqueue: ${formatQueueState(context.epochs)}`;
+                  pinoLog(({ context, self }) => {
+                    return `Queue after enqueue: ${formatQueueState(context.epochs, self)}`;
                   }, 'EpochOrchestrator'),
                 ],
               },
@@ -298,8 +368,8 @@ export const epochOrchestratorMachine = setup({
             return context.epochs;
           },
         }),
-        pinoLog(({ context }) => {
-          return `Queue after epoch completed: ${formatQueueState(context.epochs)}`;
+        pinoLog(({ context, self }) => {
+          return `Queue after epoch completed: ${formatQueueState(context.epochs, self)}`;
         }, 'EpochOrchestrator'),
         // Forward EPOCH_PROCESSED to hourly archive actor to trigger archive check
         sendTo(
