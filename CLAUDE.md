@@ -18,3 +18,7 @@
 - Run e2e tests: `pnpm test:e2e:local` (from outside of a sandbox)
 - Lint: `pnpm lint`
 - Type-check: `pnpm type-check` is defined in the root and also on each package.
+
+## Docs
+
+- **`docs`**: project docs. See `docs/`.
