@@ -1,6 +1,6 @@
 'use client';
 
-import { ChevronDown, ChevronUp, Gift, Eye, Target, AlertCircle } from 'lucide-react';
+import { ChevronDown, ChevronUp, Gift, Eye, EyeOff, Target, AlertCircle } from 'lucide-react';
 import { useState, useMemo } from 'react';
 
 import DashboardCard from '@/components/dashboard/card';
@@ -156,7 +156,7 @@ function EpochRow({ epoch, isExpanded, onToggle }: EpochRowProps) {
         {/* Main Row - Compact Summary */}
         <CollapsibleTrigger asChild>
           <button className="w-full p-2.5 md:p-3 text-left hover:bg-muted/30 transition-colors">
-            {/* Mobile Layout: 3 rows */}
+            {/* Mobile Layout: 2 rows */}
             <div className="flex flex-col gap-2 md:hidden">
               {/* Row 1: Epoch, Slot */}
               <div className="flex items-center gap-3">
@@ -171,49 +171,53 @@ function EpochRow({ epoch, isExpanded, onToggle }: EpochRowProps) {
                   </div>
                 )}
               </div>
-              {/* Row 2: amount total (GWei only) */}
+              {/* Row 2: attestation indicators (left), rewards (right) */}
               <div className="flex items-center justify-between">
-                <div
-                  className={`text-sm normal-case ${isPositive ? 'text-success' : 'text-muted-foreground'}`}
-                >
-                  <span>
-                    {isPositive ? '+' : ''}
-                    {formatNumber(weiToGwei(totalRewards))} {REWARD_UNIT}
-                  </span>
-                </div>
-                {isExpanded ? (
-                  <ChevronUp className="size-4 text-muted-foreground" />
-                ) : (
-                  <ChevronDown className="size-4 text-muted-foreground" />
-                )}
-              </div>
-              {/* Row 3: delayed/on time (yellow/green), Block, Sync, Missed */}
-              <div className="flex items-center gap-2 flex-wrap">
-                {attestationDelay !== null &&
-                  attestationDelay !== undefined &&
-                  (attestationDelay <= 1 ? (
+                <div className="flex items-center gap-2 flex-wrap">
+                  {hasSlot &&
+                    (attestationDelay === null || attestationDelay === undefined ? (
+                      <span className="flex items-center gap-1 text-[10px] text-destructive">
+                        <EyeOff className="size-3" />
+                        missed
+                      </span>
+                    ) : attestationDelay <= 1 ? (
+                      <span className="flex items-center gap-1 text-[10px] text-success">
+                        <Eye className="size-3" />
+                        on time
+                      </span>
+                    ) : (
+                      <span className="flex items-center gap-1 text-[10px] text-warning">
+                        <Eye className="size-3" />+{attestationDelay}
+                      </span>
+                    ))}
+                  {hasBlockReward && (
                     <span className="flex items-center gap-1 text-[10px] text-success">
-                      <Eye className="size-3" />
-                      on time
+                      <Gift className="size-2.5" />
+                      Block
                     </span>
+                  )}
+                  {hasSyncReward && (
+                    <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
+                      <Target className="size-2.5" />
+                      Sync
+                    </span>
+                  )}
+                </div>
+                <div className="flex items-center gap-2">
+                  <div
+                    className={`text-sm normal-case ${isPositive ? 'text-success' : 'text-muted-foreground'}`}
+                  >
+                    <span>
+                      {isPositive ? '+' : ''}
+                      {formatNumber(weiToGwei(totalRewards))} {REWARD_UNIT}
+                    </span>
+                  </div>
+                  {isExpanded ? (
+                    <ChevronUp className="size-4 text-muted-foreground" />
                   ) : (
-                    <span className="flex items-center gap-1 text-[10px] text-warning">
-                      <Eye className="size-3" />
-                      delayed: {attestationDelay}
-                    </span>
-                  ))}
-                {hasBlockReward && (
-                  <span className="flex items-center gap-1 text-[10px] text-success">
-                    <Gift className="size-2.5" />
-                    Block
-                  </span>
-                )}
-                {hasSyncReward && (
-                  <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
-                    <Target className="size-2.5" />
-                    Sync
-                  </span>
-                )}
+                    <ChevronDown className="size-4 text-muted-foreground" />
+                  )}
+                </div>
               </div>
             </div>
 
@@ -234,17 +238,20 @@ function EpochRow({ epoch, isExpanded, onToggle }: EpochRowProps) {
               {/* Rewards Summary */}
               <div className="flex-1 flex items-center gap-3 justify-end">
                 {/* Attestation Delay */}
-                {attestationDelay !== null &&
-                  attestationDelay !== undefined &&
-                  (attestationDelay <= 1 ? (
+                {hasSlot &&
+                  (attestationDelay === null || attestationDelay === undefined ? (
+                    <span className="flex items-center gap-1 text-xs text-destructive">
+                      <EyeOff className="size-3.5" />
+                      missed
+                    </span>
+                  ) : attestationDelay <= 1 ? (
                     <span className="flex items-center gap-1 text-xs text-success">
                       <Eye className="size-3.5" />
                       on time
                     </span>
                   ) : (
                     <span className="flex items-center gap-1 text-xs text-warning">
-                      <Eye className="size-3.5" />
-                      delayed: {attestationDelay}
+                      <Eye className="size-3.5" />+{attestationDelay}
                     </span>
                   ))}
 
