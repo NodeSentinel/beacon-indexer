@@ -2,6 +2,7 @@ import { z } from 'zod';
 
 import { publicProcedure } from '@/lib/orpc.js';
 import { getPrisma } from '@/lib/prisma.js';
+import { beaconTime, chainConfig } from '@/utils/beaconTime.js';
 import { ApiResponseSchema } from '@/utils/response.js';
 import { formatBalance } from '@/utils/tokenFormat.js';
 
@@ -55,6 +56,43 @@ const getStats = publicProcedure
     };
   });
 
+const SyncStatusDataSchema = z.object({
+  currentSlot: z.number().int(),
+  processingSlot: z.number().int(),
+  slotDurationMs: z.number().int(),
+});
+
+const SyncStatusResponseSchema = ApiResponseSchema(SyncStatusDataSchema);
+
+const getSyncStatus = publicProcedure
+  .route({ method: 'GET', path: '/chain/sync-status' })
+  .output(SyncStatusResponseSchema)
+  .handler(async () => {
+    const prisma = getPrisma();
+    const currentSlot = beaconTime.getSlotNumberFromTimestamp(Date.now());
+
+    const lastProcessedSlot = await prisma.slot.findFirst({
+      where: { processed: true },
+      orderBy: { slot: 'desc' },
+      select: { slot: true },
+    });
+
+    const processingSlot = lastProcessedSlot ? lastProcessedSlot.slot + 1 : 0;
+
+    return {
+      success: true,
+      data: {
+        currentSlot,
+        processingSlot,
+        slotDurationMs: chainConfig.beacon.slotDuration,
+      },
+      meta: {
+        timestamp: new Date().toISOString(),
+      },
+    };
+  });
+
 export const chainRouter = {
   stats: getStats,
+  syncStatus: getSyncStatus,
 };
