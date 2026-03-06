@@ -5,6 +5,7 @@ import { getPrisma } from '@/lib/prisma.js';
 import { beaconTime, chainConfig } from '@/utils/beaconTime.js';
 import { ApiResponseSchema } from '@/utils/response.js';
 import { formatBalance } from '@/utils/tokenFormat.js';
+import { getTokenPrice } from '@/utils/tokenPrice.js';
 
 const ChainStatsDataSchema = z.object({
   epoch: z.number(),
@@ -13,6 +14,7 @@ const ChainStatsDataSchema = z.object({
   validatorsEntering: z.number(),
   validatorsExiting: z.number(),
   validatorsConsolidating: z.number(),
+  tokenPrice: z.number(),
 });
 
 const ChainStatsResponseSchema = ApiResponseSchema(ChainStatsDataSchema);
@@ -40,6 +42,13 @@ const getStats = publicProcedure
       };
     }
 
+    let tokenPrice = 0;
+    try {
+      tokenPrice = await getTokenPrice();
+    } catch {
+      // tokenPrice stays 0 if fetch fails
+    }
+
     return {
       success: true,
       data: {
@@ -49,6 +58,7 @@ const getStats = publicProcedure
         validatorsEntering: latestStats.validatorsEntering,
         validatorsExiting: latestStats.validatorsExiting,
         validatorsConsolidating: latestStats.validatorsConsolidating,
+        tokenPrice,
       },
       meta: {
         timestamp: new Date().toISOString(),

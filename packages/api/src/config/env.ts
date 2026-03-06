@@ -23,6 +23,10 @@ const envSchema = z.object({
   CHAIN: z.enum(['ethereum', 'gnosis']),
   CONSENSUS_LOOKBACK_SLOT: z.coerce.number().int().min(0).default(0),
   NATIVE_TOKEN_DECIMALS: z.coerce.number().int().min(0).default(18),
+
+  // Coingecko
+  COINGECKO_TOKEN_PRICE_API_URL: z.string().url(),
+  COINGECKO_TOKEN_NAME: z.string().min(1),
 });
 
 export type Env = z.infer<typeof envSchema>;

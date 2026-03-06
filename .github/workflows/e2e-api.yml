@@ -85,6 +85,8 @@ jobs:
           DATABASE_URL="postgresql://postgres:password@localhost:5433/beacon_test?schema=public" \
           API_TOKEN_SECRET="test-secret-must-be-at-least-32-characters-long" \
           CHAIN="gnosis" \
+          COINGECKO_TOKEN_PRICE_API_URL="https://api.coingecko.com/api/v3/simple/price" \
+          COINGECKO_TOKEN_NAME="gnosis" \
           pnpm vitest run --config vitest.e2e.config.ts --no-coverage
 
       - name: Cleanup

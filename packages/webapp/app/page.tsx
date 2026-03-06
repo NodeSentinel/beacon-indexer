@@ -10,6 +10,7 @@ import EventsFeedContent from '@/components/validators/events-feed-content';
 import NotificationBanner, { type Notification } from '@/components/validators/notification-banner';
 import PerformanceMetricsContent from '@/components/validators/performance-metrics-content';
 import UserDashboard from '@/components/validators/user-dashboard';
+import { useChainStats } from '@/hooks/use-chain-stats';
 import { useClusterSnapshot } from '@/hooks/use-cluster-snapshot';
 import { useClusters, useCluster } from '@/hooks/use-clusters';
 import { CLUSTER_FILTER_ALL, type Cluster, type ClusterFilter } from '@/types/cluster';
@@ -33,8 +34,6 @@ const BEACON_STATUS_MAP: Record<
   8: 'exited', // withdrawal_done
 };
 
-const DEFAULT_TOKEN_PRICE = 200;
-
 // Empty data for charts while we don't have the API
 const emptyMissedAttestations: MissedAttestation[] = [];
 const emptyEvents: ValidatorEvent[] = [];
@@ -44,6 +43,7 @@ export default function DashboardOverview() {
   const [managingClusterId, setManagingClusterId] = useState<string | null>(null);
   const [selectedCluster, setSelectedCluster] = useState<ClusterFilter>(CLUSTER_FILTER_ALL);
 
+  const { data: chainStats } = useChainStats();
   const { data: apiClusters, isLoading: clustersLoading, refetch: refetchClusters } = useClusters();
 
   // Fetch detailed cluster data when a specific cluster is selected
@@ -103,13 +103,13 @@ export default function DashboardOverview() {
     };
   }, [clusterDetail]);
 
-  const tokenPrice = DEFAULT_TOKEN_PRICE;
+  const tokenPrice = chainStats?.tokenPrice ?? 0;
 
   return (
     <div className="py-3 md:py-8 space-y-4 md:space-y-8">
       <NotificationBanner notifications={demoNotifications} />
 
-      <ChainStatistics tokenPrice={tokenPrice} />
+      <ChainStatistics />
 
       <UserDashboard
         clusters={clusters}
