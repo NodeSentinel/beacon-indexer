@@ -117,6 +117,31 @@ export function convertMGNOToGWei(mGNO: bigint | string): string {
 }
 
 /**
+ * Convert wei (as BigInt or string) to token amount as decimal string.
+ * Execution rewards are stored in wei and denominated in the native EL token
+ * (xDAI for Gnosis, ETH for Ethereum) — no TOKEN_MULTIPLIER applies.
+ * Uses NATIVE_TOKEN_DECIMALS from env config (default 18).
+ * @param wei - Amount in wei (BigInt or string representation)
+ * @returns Token amount as decimal string (e.g., "0.001628")
+ */
+export function formatWeiToToken(wei: bigint | string): string {
+  const decimals = env.NATIVE_TOKEN_DECIMALS;
+  const weiBigInt = typeof wei === 'string' ? BigInt(wei) : wei;
+  const weiString = weiBigInt.toString();
+  const weiLength = weiString.length;
+
+  if (weiLength <= decimals) {
+    const padded = weiString.padStart(decimals, '0');
+    const decimalPart = padded.replace(/0+$/, '');
+    return decimalPart ? `0.${decimalPart}` : '0';
+  }
+
+  const integerPart = weiString.slice(0, -decimals);
+  const decimalPart = weiString.slice(-decimals).replace(/0+$/, '');
+  return decimalPart ? `${integerPart}.${decimalPart}` : integerPart;
+}
+
+/**
  * Convert reward value from database to GWei
  * Handles both Ethereum (already in GWei) and Gnosis (stored as mGNO, needs conversion)
  * @param value - Value from database (BigInt or string)

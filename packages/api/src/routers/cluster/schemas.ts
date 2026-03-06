@@ -151,3 +151,45 @@ export const AddValidatorsResponseSchema = z.object({
 });
 
 export type AddValidatorsResponse = z.infer<typeof AddValidatorsResponseSchema>;
+
+/**
+ * Cluster snapshot response schema — aggregated performance metrics
+ */
+export const ClusterSnapshotSchema = z.object({
+  activeCount: z.number(),
+  inactiveCount: z.number(),
+  statusBreakdown: z.record(z.string(), z.number()),
+
+  totalBalance: z.string(),
+  totalEffectiveBalance: z.string(),
+
+  attestationsTotal: z.number(),
+  attestationsMissed: z.number(),
+
+  performanceH: z.number().nullable(),
+  performanceD: z.number().nullable(),
+  performanceW: z.number().nullable(),
+  performanceM: z.number().nullable(),
+
+  apyH: z.number().nullable(),
+  apyD: z.number().nullable(),
+  apyW: z.number().nullable(),
+  apyM: z.number().nullable(),
+
+  consensusRewardH: z.string().nullable(),
+  consensusRewardD: z.string().nullable(),
+  consensusRewardW: z.string().nullable(),
+  consensusRewardM: z.string().nullable(),
+
+  missedRewardH: z.string().nullable(),
+  missedRewardD: z.string().nullable(),
+  missedRewardW: z.string().nullable(),
+  missedRewardM: z.string().nullable(),
+
+  executionRewardH: z.object({ wei: z.string(), token: z.string() }).nullable(),
+  executionRewardD: z.object({ wei: z.string(), token: z.string() }).nullable(),
+  executionRewardW: z.object({ wei: z.string(), token: z.string() }).nullable(),
+  executionRewardM: z.object({ wei: z.string(), token: z.string() }).nullable(),
+});
+
+export type ClusterSnapshot = z.infer<typeof ClusterSnapshotSchema>;

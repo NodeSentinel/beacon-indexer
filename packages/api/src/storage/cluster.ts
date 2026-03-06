@@ -210,6 +210,107 @@ export class ClusterStorage {
   }
 
   /**
+   * Get aggregated snapshot data for a cluster's validators
+   */
+  async getClusterSnapshot(clusterId: string) {
+    const rows = await this.prisma.$queryRaw<
+      Array<{
+        active_count: bigint;
+        inactive_count: bigint;
+        total_balance: bigint | null;
+        total_effective_balance: bigint | null;
+        attestations_total: bigint | null;
+        attestations_missed: bigint | null;
+        performance_h: string | null;
+        performance_d: string | null;
+        performance_w: string | null;
+        performance_m: string | null;
+        apy_h: string | null;
+        apy_d: string | null;
+        apy_w: string | null;
+        apy_m: string | null;
+        consensus_reward_h: bigint | null;
+        consensus_reward_d: bigint | null;
+        consensus_reward_w: bigint | null;
+        consensus_reward_m: bigint | null;
+        missed_reward_h: bigint | null;
+        missed_reward_d: bigint | null;
+        missed_reward_w: bigint | null;
+        missed_reward_m: bigint | null;
+        execution_reward_h: string | null;
+        execution_reward_d: string | null;
+        execution_reward_w: string | null;
+        execution_reward_m: string | null;
+        beacon_status_breakdown: string;
+      }>
+    >`
+      SELECT
+        COUNT(*) FILTER (WHERE vss.is_inactive = false)::bigint AS active_count,
+        COUNT(*) FILTER (WHERE vss.is_inactive = true)::bigint AS inactive_count,
+        COALESCE(SUM(vss.balance), 0)::bigint AS total_balance,
+        COALESCE(SUM(vss.effective_balance), 0)::bigint AS total_effective_balance,
+        COALESCE(SUM(vss.attestations_total), 0)::bigint AS attestations_total,
+        COALESCE(SUM(vss.attestations_missed), 0)::bigint AS attestations_missed,
+        -- Weighted average performance (by attestation count)
+        CASE WHEN SUM(vss.attestations_total) > 0
+          THEN (SUM(COALESCE(vss.performance_h, 0) * vss.attestations_total)::numeric / SUM(vss.attestations_total))::numeric(5,4)::text
+          ELSE NULL END AS performance_h,
+        CASE WHEN SUM(vss.attestations_total) > 0
+          THEN (SUM(COALESCE(vss.performance_d, 0) * vss.attestations_total)::numeric / SUM(vss.attestations_total))::numeric(5,4)::text
+          ELSE NULL END AS performance_d,
+        CASE WHEN SUM(vss.attestations_total) > 0
+          THEN (SUM(COALESCE(vss.performance_w, 0) * vss.attestations_total)::numeric / SUM(vss.attestations_total))::numeric(5,4)::text
+          ELSE NULL END AS performance_w,
+        CASE WHEN SUM(vss.attestations_total) > 0
+          THEN (SUM(COALESCE(vss.performance_m, 0) * vss.attestations_total)::numeric / SUM(vss.attestations_total))::numeric(5,4)::text
+          ELSE NULL END AS performance_m,
+        -- Weighted average APY (by balance)
+        CASE WHEN SUM(vss.balance) > 0
+          THEN (SUM(COALESCE(vss.apy_h, 0) * vss.balance)::numeric / SUM(vss.balance))::numeric(5,2)::text
+          ELSE NULL END AS apy_h,
+        CASE WHEN SUM(vss.balance) > 0
+          THEN (SUM(COALESCE(vss.apy_d, 0) * vss.balance)::numeric / SUM(vss.balance))::numeric(5,2)::text
+          ELSE NULL END AS apy_d,
+        CASE WHEN SUM(vss.balance) > 0
+          THEN (SUM(COALESCE(vss.apy_w, 0) * vss.balance)::numeric / SUM(vss.balance))::numeric(5,2)::text
+          ELSE NULL END AS apy_w,
+        CASE WHEN SUM(vss.balance) > 0
+          THEN (SUM(COALESCE(vss.apy_m, 0) * vss.balance)::numeric / SUM(vss.balance))::numeric(5,2)::text
+          ELSE NULL END AS apy_m,
+        -- Sum rewards
+        SUM(vss.consensus_reward_h)::bigint AS consensus_reward_h,
+        SUM(vss.consensus_reward_d)::bigint AS consensus_reward_d,
+        SUM(vss.consensus_reward_w)::bigint AS consensus_reward_w,
+        SUM(vss.consensus_reward_m)::bigint AS consensus_reward_m,
+        SUM(vss.missed_reward_h)::bigint AS missed_reward_h,
+        SUM(vss.missed_reward_d)::bigint AS missed_reward_d,
+        SUM(vss.missed_reward_w)::bigint AS missed_reward_w,
+        SUM(vss.missed_reward_m)::bigint AS missed_reward_m,
+        SUM(vss.execution_reward_h)::text AS execution_reward_h,
+        SUM(vss.execution_reward_d)::text AS execution_reward_d,
+        SUM(vss.execution_reward_w)::text AS execution_reward_w,
+        SUM(vss.execution_reward_m)::text AS execution_reward_m,
+        -- Beacon status breakdown as JSON
+        COALESCE(
+          (SELECT json_object_agg(bs, cnt)::text
+           FROM (
+             SELECT vss2.beacon_status::text AS bs, COUNT(*)::int AS cnt
+             FROM cluster_validator cv2
+             JOIN validators_snapshot_stats vss2 ON cv2.validator_index = vss2.validator_index
+             WHERE cv2.cluster_id = ${clusterId}
+             GROUP BY vss2.beacon_status
+           ) sub),
+          '{}'
+        ) AS beacon_status_breakdown
+      FROM cluster_validator cv
+      JOIN validators_snapshot_stats vss ON cv.validator_index = vss.validator_index
+      WHERE cv.cluster_id = ${clusterId}
+    `;
+
+    return rows[0] ?? null;
+  }
+
+  /**
    * Check if cluster exists and belongs to owner
    */
   async existsForOwner(id: string, ownerId: bigint): Promise<boolean> {
