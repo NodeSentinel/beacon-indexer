@@ -1,3 +1,393 @@
+# Blocks Pagination Implementation Plan
+
+> **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
+
+**Goal:** Add a paginated blocks endpoint that returns proposed blocks for a cluster or validator, and wire it into the Events > Blocks tab UI.
+
+**Architecture:** New `blocks` procedure in the cluster router queries the `slot` table joined with `cluster_validator`. A new index on `(proposer_index, slot DESC)` enables efficient pagination. The webapp fetches blocks via a new hook and renders them with Prev/Next buttons.
+
+**Tech Stack:** Prisma (raw SQL), oRPC, Zod, React Query, Next.js
+
+---
+
+### Task 1: Add DB index on Slot.proposerIndex
+
+**Files:**
+
+- Modify: `packages/db/prisma/schema.prisma:100` (add index before `@@map("slot")`)
+
+**Step 1: Add the index**
+
+In `packages/db/prisma/schema.prisma`, inside the `Slot` model, change:
+
+```prisma
+  @@index([slot, processed])
+  @@map("slot")
+```
+
+to:
+
+```prisma
+  @@index([slot, processed])
+  @@index([proposerIndex, slot(sort: Desc)])
+  @@map("slot")
+```
+
+**Step 2: Generate migration**
+
+Run:
+
+```bash
+cd packages/db && npx prisma migrate dev --name add_slot_proposer_index
+```
+
+Expected: Migration created and applied successfully.
+
+**Step 3: Commit**
+
+```bash
+git add packages/db/prisma/
+git commit -m "db: add index on slot(proposer_index, slot DESC)"
+```
+
+---
+
+### Task 2: Add storage method for block proposals
+
+**Files:**
+
+- Modify: `packages/api/src/storage/cluster.ts` (add method at end of class)
+
+**Step 1: Add the `getBlockProposals` method**
+
+Add this method to the `ClusterStorage` class in `packages/api/src/storage/cluster.ts`:
+
+```typescript
+  /**
+   * Get paginated block proposals for a cluster or single validator
+   */
+  async getBlockProposals(params: {
+    clusterId?: string;
+    validatorIndex?: number;
+    page: number;
+    pageSize: number;
+  }) {
+    const { page, pageSize } = params;
+    const offset = (page - 1) * pageSize;
+
+    if (params.clusterId) {
+      const [rows, countResult] = await Promise.all([
+        this.prisma.$queryRaw<
+          Array<{
+            slot: number;
+            block_number: number | null;
+            proposer_index: number;
+            consensus_reward: bigint | null;
+            execution_reward: string | null;
+          }>
+        >`
+          SELECT s.slot, s.block_number, s.proposer_index, s.consensus_reward, s.execution_reward::text
+          FROM slot s
+          JOIN cluster_validator cv ON s.proposer_index = cv.validator_index
+          WHERE cv.cluster_id = ${params.clusterId}
+            AND s.proposer_index IS NOT NULL
+          ORDER BY s.slot DESC
+          LIMIT ${pageSize} OFFSET ${offset}
+        `,
+        this.prisma.$queryRaw<[{ count: bigint }]>`
+          SELECT COUNT(*)::bigint AS count
+          FROM slot s
+          JOIN cluster_validator cv ON s.proposer_index = cv.validator_index
+          WHERE cv.cluster_id = ${params.clusterId}
+            AND s.proposer_index IS NOT NULL
+        `,
+      ]);
+
+      return { rows, totalCount: Number(countResult[0].count) };
+    }
+
+    // Single validator
+    const validatorIndex = params.validatorIndex!;
+    const [rows, countResult] = await Promise.all([
+      this.prisma.$queryRaw<
+        Array<{
+          slot: number;
+          block_number: number | null;
+          proposer_index: number;
+          consensus_reward: bigint | null;
+          execution_reward: string | null;
+        }>
+      >`
+        SELECT slot, block_number, proposer_index, consensus_reward, execution_reward::text
+        FROM slot
+        WHERE proposer_index = ${validatorIndex}
+        ORDER BY slot DESC
+        LIMIT ${pageSize} OFFSET ${offset}
+      `,
+      this.prisma.$queryRaw<[{ count: bigint }]>`
+        SELECT COUNT(*)::bigint AS count
+        FROM slot
+        WHERE proposer_index = ${validatorIndex}
+      `,
+    ]);
+
+    return { rows, totalCount: Number(countResult[0].count) };
+  }
+```
+
+**Step 2: Commit**
+
+```bash
+git add packages/api/src/storage/cluster.ts
+git commit -m "feat(api): add getBlockProposals storage method"
+```
+
+---
+
+### Task 3: Add Zod schemas for blocks endpoint
+
+**Files:**
+
+- Modify: `packages/api/src/routers/cluster/schemas.ts` (add schemas at end of file)
+
+**Step 1: Add input and output schemas**
+
+Add at the end of `packages/api/src/routers/cluster/schemas.ts`:
+
+```typescript
+// Block proposals
+export const BlockProposalsInputSchema = z
+  .object({
+    clusterId: z.string().optional(),
+    validatorIndex: z.number().int().nonnegative().optional(),
+    page: z.number().int().positive().default(1),
+  })
+  .refine((data) => data.clusterId !== undefined || data.validatorIndex !== undefined, {
+    message: 'Either clusterId or validatorIndex must be provided',
+  })
+  .refine((data) => !(data.clusterId !== undefined && data.validatorIndex !== undefined), {
+    message: 'Only one of clusterId or validatorIndex can be provided',
+  });
+
+export const BlockProposalSchema = z.object({
+  slot: z.number(),
+  blockNumber: z.number().nullable(),
+  validatorIndex: z.number(),
+  timestamp: z.number(),
+  consensusReward: z.string().nullable(),
+  executionReward: z.string().nullable(),
+});
+
+export const BlockProposalsOutputSchema = z.object({
+  blocks: z.array(BlockProposalSchema),
+  totalCount: z.number(),
+  page: z.number(),
+  pageSize: z.number(),
+});
+```
+
+**Step 2: Commit**
+
+```bash
+git add packages/api/src/routers/cluster/schemas.ts
+git commit -m "feat(api): add block proposals schemas"
+```
+
+---
+
+### Task 4: Add blocks procedure in the API router
+
+**Files:**
+
+- Create: `packages/api/src/routers/cluster/blocks.ts`
+- Modify: `packages/api/src/routers/cluster/index.ts` (add blocks to router)
+
+**Step 1: Create the blocks procedure**
+
+Create `packages/api/src/routers/cluster/blocks.ts`:
+
+```typescript
+import { BlockProposalsInputSchema, BlockProposalsOutputSchema } from './schemas.js';
+
+import { publicProcedure } from '@/lib/orpc.js';
+import { ClusterStorage } from '@/storage/cluster.js';
+import { ApiResponseSchema } from '@/utils/response.js';
+import { formatBalance, formatWeiToToken } from '@/utils/tokenFormat.js';
+import { beaconTime } from '@/utils/beaconTime.js';
+
+const PAGE_SIZE = 10;
+
+/**
+ * Get paginated block proposals for a cluster or validator
+ * GET /blocks
+ */
+export const getBlockProposals = publicProcedure
+  .route({ method: 'GET', path: '/blocks' })
+  .input(BlockProposalsInputSchema)
+  .output(ApiResponseSchema(BlockProposalsOutputSchema))
+  .handler(async ({ input }) => {
+    try {
+      const storage = new ClusterStorage();
+      const { rows, totalCount } = await storage.getBlockProposals({
+        clusterId: input.clusterId,
+        validatorIndex: input.validatorIndex,
+        page: input.page,
+        pageSize: PAGE_SIZE,
+      });
+
+      const blocks = rows.map((row) => ({
+        slot: row.slot,
+        blockNumber: row.block_number,
+        validatorIndex: row.proposer_index,
+        timestamp: beaconTime.getTimestampFromSlotNumber(row.slot),
+        consensusReward: row.consensus_reward !== null ? formatBalance(row.consensus_reward) : null,
+        executionReward:
+          row.execution_reward !== null ? formatWeiToToken(row.execution_reward) : null,
+      }));
+
+      return {
+        success: true,
+        data: {
+          blocks,
+          totalCount,
+          page: input.page,
+          pageSize: PAGE_SIZE,
+        },
+        meta: { timestamp: new Date().toISOString() },
+      };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to fetch block proposals';
+      return {
+        success: false,
+        error: { code: 'BLOCK_PROPOSALS_ERROR', message },
+        meta: { timestamp: new Date().toISOString() },
+      };
+    }
+  });
+```
+
+**Step 2: Register in cluster router**
+
+In `packages/api/src/routers/cluster/index.ts`, add the import and export:
+
+Add import:
+
+```typescript
+import { getBlockProposals } from './blocks.js';
+```
+
+Add to the router object:
+
+```typescript
+blocks: getBlockProposals,
+```
+
+**Step 3: Verify types compile**
+
+Run:
+
+```bash
+cd packages/api && pnpm type-check
+```
+
+Expected: No type errors.
+
+**Step 4: Commit**
+
+```bash
+git add packages/api/src/routers/cluster/blocks.ts packages/api/src/routers/cluster/index.ts
+git commit -m "feat(api): add paginated block proposals endpoint"
+```
+
+---
+
+### Task 5: Add useBlockProposals hook in webapp
+
+**Files:**
+
+- Create: `packages/webapp/hooks/use-block-proposals.ts`
+
+**Step 1: Create the hook**
+
+Create `packages/webapp/hooks/use-block-proposals.ts`:
+
+```typescript
+'use client';
+
+import { useQuery } from '@tanstack/react-query';
+
+import { orpcClient } from '@/lib/orpc';
+
+export interface BlockProposal {
+  slot: number;
+  blockNumber: number | null;
+  validatorIndex: number;
+  timestamp: number;
+  consensusReward: string | null;
+  executionReward: string | null;
+}
+
+export interface BlockProposalsResult {
+  blocks: BlockProposal[];
+  totalCount: number;
+  page: number;
+  pageSize: number;
+}
+
+export function useBlockProposals(
+  params: { clusterId?: string; validatorIndex?: number } | null,
+  page: number = 1,
+) {
+  const hasFilter = params && (params.clusterId || params.validatorIndex !== undefined);
+
+  return useQuery({
+    queryKey: ['blockProposals', params?.clusterId, params?.validatorIndex, page],
+    queryFn: async () => {
+      if (!params) throw new Error('No filter provided');
+
+      const response = await orpcClient.cluster.blocks({
+        clusterId: params.clusterId,
+        validatorIndex: params.validatorIndex,
+        page,
+      });
+
+      if (!response.success) {
+        throw new Error(response.error?.message || 'Failed to fetch block proposals');
+      }
+
+      return response.data as BlockProposalsResult;
+    },
+    enabled: !!hasFilter,
+  });
+}
+```
+
+**Step 2: Commit**
+
+```bash
+git add packages/webapp/hooks/use-block-proposals.ts
+git commit -m "feat(webapp): add useBlockProposals hook"
+```
+
+---
+
+### Task 6: Update EventsFeedContent to use real blocks data
+
+**Files:**
+
+- Modify: `packages/webapp/components/validators/events-feed-content.tsx`
+- Modify: `packages/webapp/app/page.tsx`
+
+**Step 1: Update EventsFeedContent props and Blocks tab**
+
+Rewrite `packages/webapp/components/validators/events-feed-content.tsx`. The key changes:
+
+- Add `clusterId` prop
+- Import and use `useBlockProposals` hook for the Blocks tab
+- Add pagination state and Prev/Next buttons
+- Keep other tabs unchanged (they still use the `events` prop)
+
+```typescript
 'use client';
 
 import { useState } from 'react';
@@ -38,7 +428,6 @@ export default function EventsFeedContent({
 
   const incidentEvents = events.filter((e) => e.type === 'inactive' || e.type === 'slashed');
 
-  // Group incidents by timestamp and type for display
   const groupedIncidents = incidentEvents.reduce(
     (acc, event) => {
       const key = `${event.timestamp}-${event.type}`;
@@ -83,6 +472,48 @@ export default function EventsFeedContent({
           <UnderlineTabsTrigger value="withdrawals">Withdrawals</UnderlineTabsTrigger>
         </UnderlineTabsList>
 
+        <UnderlineTabsContent value="blocks" className="space-y-2 mt-4 min-h-[400px]">
+          {blocksLoading ? (
+            <div className="space-y-2">
+              {Array.from({ length: 3 }).map((_, i) => (
+                <div key={i} className="h-16 bg-foreground/5 rounded-lg animate-pulse" />
+              ))}
+            </div>
+          ) : blocksData && blocksData.blocks.length > 0 ? (
+            <div className="space-y-2">
+              {blocksData.blocks.map((block) => (
+                <BlockItem key={block.slot} block={block} />
+              ))}
+              {totalBlockPages > 1 && (
+                <div className="flex items-center justify-between pt-3 border-t border-border/50">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setBlocksPage((p) => Math.max(1, p - 1))}
+                    disabled={blocksPage <= 1}
+                  >
+                    Prev
+                  </Button>
+                  <span className="text-xs text-muted-foreground">
+                    Page {blocksPage} of {totalBlockPages}
+                  </span>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setBlocksPage((p) => Math.min(totalBlockPages, p + 1))}
+                    disabled={blocksPage >= totalBlockPages}
+                  >
+                    Next
+                  </Button>
+                </div>
+              )}
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground text-center py-8">No blocks proposed</p>
+          )}
+        </UnderlineTabsContent>
+
+        {/* incidents, consolidations, deposits, withdrawals tabs remain unchanged */}
         <UnderlineTabsContent value="incidents" className="space-y-2 mt-4 min-h-[400px]">
           {incidents.length > 0 ? (
             <div className="space-y-2">
@@ -94,7 +525,6 @@ export default function EventsFeedContent({
                   <div className="text-xl md:text-2xl font-display flex-shrink-0 text-destructive">
                     {incident.type === 'slashed' ? '✕' : '⚠'}
                   </div>
-
                   <div className="flex-1 text-left min-w-0">
                     <div className="flex items-center gap-2 mb-1 flex-wrap">
                       <Badge variant="destructive" className="text-xs">
@@ -146,47 +576,6 @@ export default function EventsFeedContent({
           )}
         </UnderlineTabsContent>
 
-        <UnderlineTabsContent value="blocks" className="space-y-2 mt-4 min-h-[400px]">
-          {blocksLoading ? (
-            <div className="space-y-2">
-              {Array.from({ length: 3 }).map((_, i) => (
-                <div key={i} className="h-16 bg-foreground/5 rounded-lg animate-pulse" />
-              ))}
-            </div>
-          ) : blocksData && blocksData.blocks.length > 0 ? (
-            <div className="space-y-2">
-              {blocksData.blocks.map((block) => (
-                <BlockItem key={block.slot} block={block} />
-              ))}
-              {totalBlockPages > 1 && (
-                <div className="flex items-center justify-between pt-3 border-t border-border/50">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setBlocksPage((p) => Math.max(1, p - 1))}
-                    disabled={blocksPage <= 1}
-                  >
-                    Prev
-                  </Button>
-                  <span className="text-xs text-muted-foreground">
-                    Page {blocksPage} of {totalBlockPages}
-                  </span>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setBlocksPage((p) => Math.min(totalBlockPages, p + 1))}
-                    disabled={blocksPage >= totalBlockPages}
-                  >
-                    Next
-                  </Button>
-                </div>
-              )}
-            </div>
-          ) : (
-            <p className="text-sm text-muted-foreground text-center py-8">No blocks proposed</p>
-          )}
-        </UnderlineTabsContent>
-
         <UnderlineTabsContent value="deposits" className="space-y-2 mt-4 min-h-[400px]">
           {deposits.length > 0 ? (
             deposits.map((event) => <EventItem key={event.id} event={event} gnoPrice={gnoPrice} />)
@@ -208,6 +597,8 @@ export default function EventsFeedContent({
     </div>
   );
 }
+
+// --- BlockItem component for real block proposal data ---
 
 interface BlockItemProps {
   block: {
@@ -309,6 +700,8 @@ function BlockItem({ block }: BlockItemProps) {
     </Collapsible>
   );
 }
+
+// --- EventItem component (unchanged, used by other tabs) ---
 
 interface EventItemProps {
   event: ValidatorEvent;
@@ -468,3 +861,56 @@ function EventItem({ event, gnoPrice: _gnoPrice }: EventItemProps) {
     </Collapsible>
   );
 }
+```
+
+**Step 2: Update page.tsx to pass clusterId**
+
+In `packages/webapp/app/page.tsx`, change line 147:
+
+From:
+
+```typescript
+<EventsFeedContent events={emptyEvents} validators={[]} gnoPrice={tokenPrice} />
+```
+
+To:
+
+```typescript
+<EventsFeedContent clusterId={selectedClusterId} events={emptyEvents} validators={[]} gnoPrice={tokenPrice} />
+```
+
+**Step 3: Verify types compile**
+
+Run:
+
+```bash
+cd packages/webapp && pnpm type-check
+```
+
+Expected: No type errors.
+
+**Step 4: Commit**
+
+```bash
+git add packages/webapp/
+git commit -m "feat(webapp): wire blocks tab to real paginated API data"
+```
+
+---
+
+### Task 7: Manual verification
+
+**Step 1: Start the API and webapp**
+
+Run the dev servers and verify:
+
+1. Select a cluster in the dashboard
+2. Navigate to the Events > Blocks tab
+3. Verify block proposals load from the API
+4. Test Prev/Next pagination
+5. Verify "No blocks proposed" shows for clusters with no proposals
+6. Verify loading skeleton shows while fetching
+
+**Step 2: Test without cluster selected**
+
+Verify the Blocks tab shows "No blocks proposed" when no cluster is selected (since `clusterId` will be `null` and the query is disabled).

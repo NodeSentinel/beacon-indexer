@@ -144,7 +144,12 @@ export default function DashboardOverview() {
                 />
               ) : null}
               <AnalyticsContent data={emptyMissedAttestations} />
-              <EventsFeedContent events={emptyEvents} validators={[]} gnoPrice={tokenPrice} />
+              <EventsFeedContent
+                clusterId={selectedClusterId}
+                events={emptyEvents}
+                validators={[]}
+                gnoPrice={tokenPrice}
+              />
             </div>
           );
         }}
