@@ -77,5 +77,6 @@ export function useClusterSnapshot(clusterId: string | null) {
       } satisfies ClusterSnapshot;
     },
     enabled: !!clusterId,
+    refetchInterval: 30_000,
   });
 }
