@@ -4,6 +4,7 @@ import { useState } from 'react';
 
 import ArrowRight from '@/components/icons/arrow-right';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import {
   UnderlineTabs,
@@ -11,20 +12,30 @@ import {
   UnderlineTabsList,
   UnderlineTabsTrigger,
 } from '@/components/underline-tabs';
+import { useBlockProposals } from '@/hooks/use-block-proposals';
 import { cn, formatTime } from '@/lib/utils';
 import type { ValidatorEvent, Validator } from '@/types/validator';
 
 interface EventsFeedContentProps {
+  clusterId: string | null;
   events: ValidatorEvent[];
   validators: Validator[];
   gnoPrice: number;
 }
 
 export default function EventsFeedContent({
+  clusterId,
   events,
   validators: _validators,
   gnoPrice,
 }: EventsFeedContentProps) {
+  const [blocksPage, setBlocksPage] = useState(1);
+
+  const { data: blocksData, isLoading: blocksLoading } = useBlockProposals(
+    clusterId ? { clusterId } : null,
+    blocksPage,
+  );
+
   const incidentEvents = events.filter((e) => e.type === 'inactive' || e.type === 'slashed');
 
   // Group incidents by timestamp and type for display
@@ -51,11 +62,12 @@ export default function EventsFeedContent({
   const incidents = Object.values(groupedIncidents);
 
   const consolidations = events.filter((e) => e.type === 'consolidation');
-  const blocks = events.filter((e) => e.type === 'block_proposed');
   const deposits = events.filter((e) => e.type === 'deposit');
   const withdrawals = events.filter(
     (e) => e.type === 'partial_withdrawal' || e.type === 'full_withdrawal',
   );
+
+  const totalBlockPages = blocksData ? Math.ceil(blocksData.totalCount / blocksData.pageSize) : 0;
 
   return (
     <div className="relative border border-border/50 rounded-lg p-3 md:p-4 pt-5 md:pt-6">
@@ -135,8 +147,41 @@ export default function EventsFeedContent({
         </UnderlineTabsContent>
 
         <UnderlineTabsContent value="blocks" className="space-y-2 mt-4 min-h-[400px]">
-          {blocks.length > 0 ? (
-            blocks.map((event) => <EventItem key={event.id} event={event} gnoPrice={gnoPrice} />)
+          {blocksLoading ? (
+            <div className="space-y-2">
+              {Array.from({ length: 3 }).map((_, i) => (
+                <div key={i} className="h-16 bg-foreground/5 rounded-lg animate-pulse" />
+              ))}
+            </div>
+          ) : blocksData && blocksData.blocks.length > 0 ? (
+            <div className="space-y-2">
+              {blocksData.blocks.map((block) => (
+                <BlockItem key={block.slot} block={block} />
+              ))}
+              {totalBlockPages > 1 && (
+                <div className="flex items-center justify-between pt-3 border-t border-border/50">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setBlocksPage((p) => Math.max(1, p - 1))}
+                    disabled={blocksPage <= 1}
+                  >
+                    Prev
+                  </Button>
+                  <span className="text-xs text-muted-foreground">
+                    Page {blocksPage} of {totalBlockPages}
+                  </span>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setBlocksPage((p) => Math.min(totalBlockPages, p + 1))}
+                    disabled={blocksPage >= totalBlockPages}
+                  >
+                    Next
+                  </Button>
+                </div>
+              )}
+            </div>
           ) : (
             <p className="text-sm text-muted-foreground text-center py-8">No blocks proposed</p>
           )}
@@ -161,6 +206,107 @@ export default function EventsFeedContent({
         </UnderlineTabsContent>
       </UnderlineTabs>
     </div>
+  );
+}
+
+interface BlockItemProps {
+  block: {
+    slot: number;
+    blockNumber: number | null;
+    validatorIndex: number;
+    timestamp: number;
+    consensusReward: string | null;
+    executionReward: string | null;
+  };
+}
+
+function BlockItem({ block }: BlockItemProps) {
+  const [isOpen, setIsOpen] = useState(false);
+
+  return (
+    <Collapsible open={isOpen} onOpenChange={setIsOpen}>
+      <CollapsibleTrigger className="w-full">
+        <div className="flex items-center gap-2 md:gap-3 p-3 rounded-lg bg-accent hover:bg-accent/80 transition-colors group cursor-pointer border border-border/50 hover:border-border">
+          <div className="text-xl md:text-2xl font-display flex-shrink-0 text-chart-1">■</div>
+
+          <div className="flex-1 text-left min-w-0">
+            <div className="flex items-center gap-2 mb-1 flex-wrap">
+              <Badge variant="default" className="text-xs">
+                Block Proposed
+              </Badge>
+              <span className="text-xs font-mono text-muted-foreground">
+                Val #{block.validatorIndex}
+              </span>
+            </div>
+            <p className="text-sm line-clamp-1">
+              Slot {block.slot.toLocaleString()}
+              {block.blockNumber !== null && ` · Block #${block.blockNumber.toLocaleString()}`}
+            </p>
+          </div>
+
+          <div className="flex flex-col md:flex-row items-end md:items-center gap-1 md:gap-3 flex-shrink-0">
+            {block.consensusReward && (
+              <span className="text-xs md:text-sm font-display text-success whitespace-nowrap">
+                {block.consensusReward} GNO
+              </span>
+            )}
+            <span className="text-xs text-muted-foreground whitespace-nowrap hidden md:inline">
+              {formatTime(new Date(block.timestamp).toISOString())}
+            </span>
+            <ArrowRight
+              className={cn(
+                'size-5 text-foreground/60 transition-transform flex-shrink-0',
+                isOpen && 'rotate-90',
+                'group-hover:text-foreground',
+              )}
+            />
+          </div>
+        </div>
+      </CollapsibleTrigger>
+
+      <CollapsibleContent>
+        <div className="px-3 py-3 ml-6 md:ml-11 space-y-2 text-sm border-l-2 border-border">
+          <div className="flex items-center justify-between gap-4">
+            <span className="text-muted-foreground text-xs md:text-sm">Validator Index</span>
+            <span className="font-mono text-xs md:text-sm">{block.validatorIndex}</span>
+          </div>
+          <div className="flex items-center justify-between gap-4">
+            <span className="text-muted-foreground text-xs md:text-sm">Slot</span>
+            <span className="font-mono text-xs md:text-sm">{block.slot.toLocaleString()}</span>
+          </div>
+          {block.blockNumber !== null && (
+            <div className="flex items-center justify-between gap-4">
+              <span className="text-muted-foreground text-xs md:text-sm">Block Number</span>
+              <span className="font-mono text-xs md:text-sm">
+                {block.blockNumber.toLocaleString()}
+              </span>
+            </div>
+          )}
+          <div className="flex items-center justify-between gap-4">
+            <span className="text-muted-foreground text-xs md:text-sm">Timestamp</span>
+            <span className="font-mono text-xs break-all">
+              {new Date(block.timestamp).toISOString()}
+            </span>
+          </div>
+          {block.consensusReward && (
+            <div className="flex items-center justify-between gap-4">
+              <span className="text-muted-foreground text-xs md:text-sm">Consensus Reward</span>
+              <span className="font-display text-success text-xs md:text-sm">
+                {block.consensusReward} GNO
+              </span>
+            </div>
+          )}
+          {block.executionReward && (
+            <div className="flex items-center justify-between gap-4">
+              <span className="text-muted-foreground text-xs md:text-sm">Execution Reward</span>
+              <span className="font-display text-success text-xs md:text-sm">
+                {block.executionReward}
+              </span>
+            </div>
+          )}
+        </div>
+      </CollapsibleContent>
+    </Collapsible>
   );
 }
 
