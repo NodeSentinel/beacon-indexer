@@ -65,7 +65,7 @@ export class AnalyticsStorage {
     >`
       SELECT
         vha.timestamp,
-        SUM(vha.missed_attestation_count)::bigint AS count,
+        COALESCE(SUM(vha.missed_attestation_count), 0)::bigint AS count,
         COUNT(DISTINCT vha.validator_index)::bigint AS validator_count
       FROM validator_hourly_archive vha
       WHERE vha.validator_index = ANY(${validatorIndexes})

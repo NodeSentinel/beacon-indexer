@@ -14,6 +14,9 @@ import { ApiResponseSchema } from '@/utils/response.js';
 const clusterStorage = new ClusterStorage();
 const analyticsStorage = new AnalyticsStorage();
 
+const ONE_HOUR_MS = 3_600_000;
+const TWENTY_FOUR_HOURS_MS = 24 * 60 * 60 * 1000;
+
 /**
  * Get validator indexes for a single cluster
  */
@@ -26,25 +29,6 @@ async function getValidatorIndexesForCluster(clusterId: string): Promise<number[
 }
 
 /**
- * Get all deduplicated validator indexes across all clusters for an owner
- */
-async function getAllValidatorIndexesForOwner(ownerId: string): Promise<number[]> {
-  const clusters = await clusterStorage.listByOwner(BigInt(ownerId));
-  const indexSet = new Set<number>();
-
-  for (const cluster of clusters) {
-    const clusterWithValidators = await clusterStorage.findByIdWithValidators(cluster.id);
-    if (clusterWithValidators) {
-      for (const v of clusterWithValidators.validators) {
-        indexSet.add(v.validatorIndex);
-      }
-    }
-  }
-
-  return Array.from(indexSet);
-}
-
-/**
  * Fetch missed attestations for a set of validators within a time range.
  * '1h' uses the committee table (recent per-slot data).
  * '24h' uses the validator_hourly_archive table (historical hourly data).
@@ -54,7 +38,7 @@ async function fetchMissedAttestations(
   range: '1h' | '24h',
 ): Promise<Array<{ timestamp: string; count: number; validatorCount: number }>> {
   if (range === '1h') {
-    const fromSlot = beaconTime.getSlotNumberFromTimestamp(Date.now() - 3_600_000);
+    const fromSlot = beaconTime.getSlotNumberFromTimestamp(Date.now() - ONE_HOUR_MS);
     const toSlot = beaconTime.getChainCurrentSlot();
     const rows = await analyticsStorage.getMissedAttestationsFromCommittee(
       validatorIndexes,
@@ -72,7 +56,7 @@ async function fetchMissedAttestations(
   }
 
   // 24h range
-  const fromTimestamp = new Date(Date.now() - 86_400_000);
+  const fromTimestamp = new Date(Date.now() - TWENTY_FOUR_HOURS_MS);
   const rows = await analyticsStorage.getMissedAttestationsFromArchive(
     validatorIndexes,
     fromTimestamp,
@@ -108,7 +92,9 @@ export const getAllClustersMissedAttestations = publicProcedure
   .input(MissedAttestationsAllInputSchema)
   .output(ApiResponseSchema(MissedAttestationsResponseSchema))
   .handler(async ({ input }) => {
-    const validatorIndexes = await getAllValidatorIndexesForOwner(input.ownerId);
+    const validatorIndexes = await clusterStorage.findAllValidatorIndexesByOwner(
+      BigInt(input.ownerId),
+    );
     const data = await fetchMissedAttestations(validatorIndexes, input.range);
     return { success: true, data, meta: { timestamp: new Date().toISOString() } };
   });
