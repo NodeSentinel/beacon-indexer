@@ -15,8 +15,9 @@ import UserDashboard from '@/components/validators/user-dashboard';
 import { useChainStats } from '@/hooks/use-chain-stats';
 import { useClusterSnapshot } from '@/hooks/use-cluster-snapshot';
 import { useClusters, useCluster } from '@/hooks/use-clusters';
+import { useMissedAttestations } from '@/hooks/use-missed-attestations';
 import { CLUSTER_FILTER_ALL, type Cluster, type ClusterFilter } from '@/types/cluster';
-import type { MissedAttestation, ValidatorEvent } from '@/types/validator';
+import type { ValidatorEvent } from '@/types/validator';
 
 const demoNotifications: Notification[] = [];
 
@@ -37,13 +38,13 @@ const BEACON_STATUS_MAP: Record<
 };
 
 // Empty data for charts while we don't have the API
-const emptyMissedAttestations: MissedAttestation[] = [];
 const emptyEvents: ValidatorEvent[] = [];
 
 export default function DashboardOverview() {
   const [clusterFormOpen, setClusterFormOpen] = useState(false);
   const [managingClusterId, setManagingClusterId] = useState<string | null>(null);
   const [selectedCluster, setSelectedCluster] = useState<ClusterFilter>(CLUSTER_FILTER_ALL);
+  const [analyticsTimeRange, setAnalyticsTimeRange] = useState<'1h' | '24h'>('1h');
 
   const { data: chainStats } = useChainStats();
   const { data: apiClusters, isLoading: clustersLoading, refetch: refetchClusters } = useClusters();
@@ -53,6 +54,11 @@ export default function DashboardOverview() {
   const { data: clusterDetail, isLoading: clusterDetailLoading } = useCluster(selectedClusterId);
   const { data: clusterSnapshot, isLoading: snapshotLoading } =
     useClusterSnapshot(selectedClusterId);
+  const { data: missedAttestations } = useMissedAttestations(
+    selectedClusterId,
+    null,
+    analyticsTimeRange,
+  );
 
   // Transform API clusters to UI format (basic info for tabs)
   const clusters: Cluster[] = (apiClusters || []).map((c) => ({
@@ -159,7 +165,11 @@ export default function DashboardOverview() {
                     onManage={() => setManagingClusterId(displayCluster.id)}
                   />
                 ) : null}
-                <AnalyticsContent data={emptyMissedAttestations} />
+                <AnalyticsContent
+                  data={missedAttestations ?? []}
+                  timeRange={analyticsTimeRange}
+                  onTimeRangeChange={setAnalyticsTimeRange}
+                />
                 <EventsFeedContent
                   clusterId={selectedClusterId}
                   events={emptyEvents}
