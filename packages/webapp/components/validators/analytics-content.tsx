@@ -13,14 +13,14 @@ import {
 } from '@/components/ui/select';
 import type { MissedAttestation } from '@/types/validator';
 
-interface PerformanceMetricsContentProps {
+interface AnalyticsContentProps {
   data: MissedAttestation[];
 }
 
 type TimeRange = '1h' | '24h' | '7d';
 type MetricType = 'consensus-rewards' | 'execution-rewards' | 'missed-attestations';
 
-export default function PerformanceMetricsContent({ data }: PerformanceMetricsContentProps) {
+export default function AnalyticsContent({ data }: AnalyticsContentProps) {
   const [timeRange, setTimeRange] = useState<TimeRange>('1h');
   const [metricType, setMetricType] = useState<MetricType>('missed-attestations');
 
@@ -107,7 +107,7 @@ export default function PerformanceMetricsContent({ data }: PerformanceMetricsCo
   return (
     <div className="relative border border-border/50 rounded-lg p-3 md:p-4 pt-5 md:pt-6">
       <span className="absolute -top-2.5 left-3 bg-transparent px-1.5 text-[10px] md:text-xs text-muted-foreground uppercase tracking-wider">
-        Performance Metrics
+        Analytics
       </span>
       {/* Header with selectors */}
       <div className="flex items-center justify-end mb-4">

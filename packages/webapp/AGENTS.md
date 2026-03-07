@@ -30,7 +30,7 @@ Main monitoring page with:
 Individual validator details:
 
 - Same structure as dashboard but for single validator.
-- Performance metrics, reward history, events.
+- Analytics, reward history, events.
 
 ## Data flow
 

@@ -4,11 +4,11 @@ import { useState, useMemo } from 'react';
 
 import ChainStatistics from '@/components/dashboard/chain-statistics';
 import { Sheet, SheetContent, SheetTitle } from '@/components/ui/sheet';
+import AnalyticsContent from '@/components/validators/analytics-content';
 import ClusterForm from '@/components/validators/cluster-form';
 import ClusterOverviewContent from '@/components/validators/cluster-overview-content';
 import EventsFeedContent from '@/components/validators/events-feed-content';
 import NotificationBanner, { type Notification } from '@/components/validators/notification-banner';
-import PerformanceMetricsContent from '@/components/validators/performance-metrics-content';
 import UserDashboard from '@/components/validators/user-dashboard';
 import { useChainStats } from '@/hooks/use-chain-stats';
 import { useClusterSnapshot } from '@/hooks/use-cluster-snapshot';
@@ -143,7 +143,7 @@ export default function DashboardOverview() {
                   onManage={() => setManagingClusterId(displayCluster.id)}
                 />
               ) : null}
-              <PerformanceMetricsContent data={emptyMissedAttestations} />
+              <AnalyticsContent data={emptyMissedAttestations} />
               <EventsFeedContent events={emptyEvents} validators={[]} gnoPrice={tokenPrice} />
             </div>
           );

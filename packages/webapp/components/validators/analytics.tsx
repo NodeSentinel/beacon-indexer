@@ -14,14 +14,14 @@ import {
 } from '@/components/ui/select';
 import type { MissedAttestation } from '@/types/validator';
 
-interface PerformanceMetricsProps {
+interface AnalyticsProps {
   data: MissedAttestation[];
 }
 
 type TimeRange = '1h' | '24h' | '7d';
 type MetricType = 'consensus-rewards' | 'execution-rewards' | 'missed-attestations';
 
-export default function PerformanceMetrics({ data }: PerformanceMetricsProps) {
+export default function Analytics({ data }: AnalyticsProps) {
   const [timeRange, setTimeRange] = useState<TimeRange>('1h');
   const [metricType, setMetricType] = useState<MetricType>('missed-attestations');
 
@@ -107,7 +107,7 @@ export default function PerformanceMetrics({ data }: PerformanceMetricsProps) {
 
   return (
     <DashboardCard
-      title="PERFORMANCE METRICS"
+      title="ANALYTICS"
       intent="default"
       addon={
         <div className="flex items-center gap-2">
