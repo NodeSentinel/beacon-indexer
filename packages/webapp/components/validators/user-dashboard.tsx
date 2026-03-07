@@ -123,14 +123,14 @@ export default function UserDashboard({
             isSticky && 'shadow-md',
           )}
         >
-          <div className="flex items-end justify-between">
-            <TabsList className="bg-transparent rounded-none p-0 gap-1 h-auto w-auto items-end">
+          <div className="flex items-end">
+            <TabsList className="bg-transparent rounded-none p-0 gap-0 h-auto w-auto items-end">
               {!hideAllTab && (
                 <TabsTrigger
                   value={CLUSTER_FILTER_ALL}
                   className={cn(
-                    'flex-initial rounded-none rounded-t-lg border border-b-0 border-border/40 bg-muted/40 px-4 md:px-5 py-2 md:py-2.5 text-sm text-muted-foreground hover:bg-muted/60 transition-colors',
-                    'data-[state=active]:bg-transparent data-[state=active]:text-foreground data-[state=active]:border-border/60 data-[state=active]:font-semibold',
+                    'flex-initial rounded-none border border-b-0 border-border/40 bg-muted/40 px-4 md:px-5 py-2 md:py-2.5 text-sm text-muted-foreground hover:bg-muted/60 transition-colors',
+                    'data-[state=active]:bg-transparent data-[state=active]:text-primary data-[state=active]:border-border/60 data-[state=active]:font-semibold',
                   )}
                 >
                   All
@@ -141,25 +141,28 @@ export default function UserDashboard({
                   key={cluster.id}
                   value={cluster.id}
                   className={cn(
-                    'flex-initial rounded-none rounded-t-lg border border-b-0 border-border/40 bg-muted/40 px-4 md:px-5 py-2 md:py-2.5 text-sm text-muted-foreground hover:bg-muted/60 transition-colors',
-                    'data-[state=active]:bg-transparent data-[state=active]:text-foreground data-[state=active]:border-border/60 data-[state=active]:font-semibold',
+                    'flex-initial rounded-none border border-b-0 border-border/40 bg-muted/40 px-4 md:px-5 py-2 md:py-2.5 text-sm text-muted-foreground hover:bg-muted/60 transition-colors',
+                    'data-[state=active]:bg-transparent data-[state=active]:text-primary data-[state=active]:border-border/60 data-[state=active]:font-semibold',
                   )}
                 >
                   {cluster.name}
                 </TabsTrigger>
               ))}
+              <TabsTrigger
+                value="__add_cluster__"
+                onClick={(e) => {
+                  e.preventDefault();
+                  onAddCluster();
+                }}
+                aria-label="Add cluster"
+                className={cn(
+                  'flex-initial rounded-none border border-b-0 border-border/40 bg-muted/40 px-4 md:px-5 py-2 md:py-2.5 text-sm text-muted-foreground hover:bg-muted/60 transition-colors',
+                  'data-[state=active]:bg-muted/40 data-[state=active]:text-muted-foreground data-[state=active]:font-normal',
+                )}
+              >
+                <Plus className="size-4" /> New
+              </TabsTrigger>
             </TabsList>
-            <button
-              onClick={(e) => {
-                e.preventDefault();
-                onAddCluster();
-              }}
-              aria-label="Add cluster"
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 mb-0.5 text-sm font-medium rounded-md border border-border/60 bg-transparent hover:bg-muted/40 transition-colors whitespace-nowrap"
-            >
-              <Plus className="size-3.5" />
-              Add Cluster
-            </button>
           </div>
         </div>
 

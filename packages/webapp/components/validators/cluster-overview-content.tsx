@@ -227,10 +227,13 @@ export default function ClusterOverviewContent({
         </div>
 
         {/* Balances */}
-        <div className="relative border border-border/50 rounded-lg p-3 md:p-4 pt-5 md:pt-6">
-          <span className="absolute -top-2.5 left-3 bg-transparent px-1.5 text-[10px] md:text-xs text-muted-foreground uppercase tracking-wider">
-            Balances
-          </span>
+        <div>
+          <div className="flex items-center gap-2 mb-3">
+            <span className="text-xs md:text-sm text-primary uppercase tracking-wider shrink-0">
+              Balances
+            </span>
+            <div className="flex-1 h-px bg-primary/20" />
+          </div>
           <div className="grid grid-cols-3 gap-3 md:gap-4 text-center">
             <div>
               <p className="text-[10px] md:text-xs text-muted-foreground mb-0.5">Balance</p>
@@ -257,10 +260,13 @@ export default function ClusterOverviewContent({
         </div>
 
         {/* Performance */}
-        <div className="relative border border-border/50 rounded-lg p-3 md:p-4 pt-5 md:pt-6">
-          <span className="absolute -top-2.5 left-3 bg-transparent px-1.5 text-[10px] md:text-xs text-muted-foreground uppercase tracking-wider">
-            Performance
-          </span>
+        <div>
+          <div className="flex items-center gap-2 mb-3">
+            <span className="text-xs md:text-sm text-primary uppercase tracking-wider shrink-0">
+              Performance
+            </span>
+            <div className="flex-1 h-px bg-primary/20" />
+          </div>
           {snapshotLoading ? (
             <div className="animate-pulse h-10 bg-foreground/5 rounded" />
           ) : (
@@ -278,10 +284,13 @@ export default function ClusterOverviewContent({
         </div>
 
         {/* Rewards - Cards on mobile, table on desktop */}
-        <div className="relative border border-border/50 rounded-lg p-3 md:p-4 pt-5 md:pt-6">
-          <span className="absolute -top-2.5 left-3 bg-transparent px-1.5 text-[10px] md:text-xs text-muted-foreground uppercase tracking-wider">
-            Rewards
-          </span>
+        <div>
+          <div className="flex items-center gap-2 mb-3">
+            <span className="text-xs md:text-sm text-primary uppercase tracking-wider shrink-0">
+              Rewards
+            </span>
+            <div className="flex-1 h-px bg-primary/20" />
+          </div>
 
           {snapshotLoading ? (
             <div className="animate-pulse space-y-3 py-3">

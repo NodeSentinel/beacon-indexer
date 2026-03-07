@@ -99,10 +99,13 @@ export default function AnalyticsContent({ data }: AnalyticsContentProps) {
   }, [chartData]);
 
   return (
-    <div className="relative border border-border/50 rounded-lg p-3 md:p-4 pt-5 md:pt-6">
-      <span className="absolute -top-2.5 left-3 bg-transparent px-1.5 text-[10px] md:text-xs text-muted-foreground uppercase tracking-wider">
-        Analytics
-      </span>
+    <div>
+      <div className="flex items-center gap-2 mb-3">
+        <span className="text-xs md:text-sm text-primary uppercase tracking-wider shrink-0">
+          Analytics
+        </span>
+        <div className="flex-1 h-px bg-primary/20" />
+      </div>
 
       <UnderlineTabs defaultValue="missed-attestations">
         <div className="flex items-center justify-between">
