@@ -384,6 +384,10 @@ model ValidatorsSnapshotStats {
   attestationsTotal  Int @map("attestations_total")
   attestationsMissed Int @map("attestations_missed")
 
+  // Missed attestation slots for the last hour (populated by indexer)
+  missedAttestationSlotsH Int[] @default([]) @map("missed_attestation_slots_h")
+  missedAttestationCountH Int   @default(0)  @map("missed_attestation_count_h")
+
   // Performance per timeframe (ratio 0.0000 - 1.0000)
   performanceH Decimal? @map("performance_h") @db.Decimal(5, 4)
   performanceD Decimal? @map("performance_d") @db.Decimal(5, 4)
