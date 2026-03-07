@@ -1,4 +1,5 @@
 import { addValidators } from './addValidators.js';
+import { getBlockProposals } from './blocks.js';
 import { createCluster } from './create.js';
 import { deleteCluster } from './delete.js';
 import { getCluster } from './get.js';
@@ -16,4 +17,5 @@ export const clusterRouter = {
   addValidators,
   removeValidators,
   snapshot: getClusterSnapshot,
+  blocks: getBlockProposals,
 };
