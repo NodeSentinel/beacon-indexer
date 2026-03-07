@@ -58,28 +58,6 @@ export class ExecutionClient {
     return this.limiter(async () => {
       // Define endpoints
       const endpoints = [
-        // Blockscout
-        // https://eth.blockscout.com/api/v2/blocks
-        {
-          url: `${this.config.executionApiUrl}/api/v2/blocks/${blockNumber}`,
-          name: 'Blockscout',
-          process: (response: AxiosResponse<Blockscout_Blocks>) => {
-            const blockInfo = response.data;
-            const minerReward = blockInfo.rewards.find((r) => r.type === 'Miner Reward');
-
-            if (!blockInfo.miner || !blockInfo.miner.hash || !minerReward) {
-              throw new Error(`Unexpected block response: ${JSON.stringify(blockInfo)}`);
-            }
-
-            const result: BlockResponse = {
-              address: blockInfo.miner.hash,
-              timestamp: new Date(blockInfo.timestamp),
-              amount: minerReward?.reward ?? '0',
-              blockNumber: blockInfo.height,
-            };
-            return result;
-          },
-        },
         // Etherscan
         // https://api.etherscan.io/v2/api?chainid=1&module=block&action=getblockreward&blockno=2165403&apikey=YourApiKeyToken
         {
@@ -105,6 +83,28 @@ export class ExecutionClient {
               timestamp: new Date(Number(blockInfo.result.timeStamp) * 1000),
               amount: blockInfo.result.blockReward,
               blockNumber: Number(blockInfo.result.blockNumber),
+            };
+            return result;
+          },
+        },
+        // Blockscout
+        // https://eth.blockscout.com/api/v2/blocks
+        {
+          url: `${this.config.executionApiUrl}/api/v2/blocks/${blockNumber}`,
+          name: 'Blockscout',
+          process: (response: AxiosResponse<Blockscout_Blocks>) => {
+            const blockInfo = response.data;
+            const minerReward = blockInfo.rewards.find((r) => r.type === 'Miner Reward');
+
+            if (!blockInfo.miner || !blockInfo.miner.hash || !minerReward) {
+              throw new Error(`Unexpected block response: ${JSON.stringify(blockInfo)}`);
+            }
+
+            const result: BlockResponse = {
+              address: blockInfo.miner.hash,
+              timestamp: new Date(blockInfo.timestamp),
+              amount: minerReward?.reward ?? '0',
+              blockNumber: blockInfo.height,
             };
             return result;
           },
