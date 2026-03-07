@@ -183,7 +183,8 @@ export class SnapshotStorage {
           SELECT
             c.validator_index,
             COUNT(*) AS total,
-            SUM(CASE WHEN c.attestation_delay IS NULL OR c.attestation_delay > ${maxAttestationDelay}::int THEN 1 ELSE 0 END) AS missed
+            SUM(CASE WHEN c.attestation_delay IS NULL OR c.attestation_delay > ${maxAttestationDelay}::int THEN 1 ELSE 0 END) AS missed,
+            ARRAY_AGG(c.slot) FILTER (WHERE c.attestation_delay IS NULL OR c.attestation_delay > ${maxAttestationDelay}::int) AS missed_slots
           FROM committee c
           JOIN user_validators uv ON c.validator_index = uv.validator_index
           WHERE c.slot BETWEEN ${minSlot}::int AND ${maxSlot}::int
@@ -216,6 +217,8 @@ export class SnapshotStorage {
               THEN ((a.total - a.missed)::numeric / a.total)::numeric(5,4)
               ELSE NULL
             END AS performance_h,
+            COALESCE(a.missed_slots, '{}') AS missed_attestation_slots_h,
+            COALESCE(a.missed, 0)::int AS missed_attestation_count_h,
             r.consensus_reward,
             r.missed_reward,
             e.execution_reward,
@@ -231,6 +234,8 @@ export class SnapshotStorage {
       UPDATE validators_snapshot_stats vss
       SET
         performance_h = p.performance_h,
+        missed_attestation_slots_h = p.missed_attestation_slots_h,
+        missed_attestation_count_h = p.missed_attestation_count_h,
         apy_h = p.apy_h,
         consensus_reward_h = p.consensus_reward,
         missed_reward_h = p.missed_reward,
