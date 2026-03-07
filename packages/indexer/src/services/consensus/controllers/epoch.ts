@@ -302,4 +302,17 @@ export class EpochController extends EpochControllerHelpers {
   async markValidatorsActivationFetched(epoch: number): Promise<void> {
     await this.epochStorage.updateValidatorsActivationFetched(epoch);
   }
+
+  /**
+   * Check if all prior unprocessed epochs have their committees fetched.
+   * Used to prevent race conditions in parallel epoch processing:
+   * the first slot of epoch N contains attestations referencing prior epoch slots,
+   * so prior epochs' committees must be saved before processing epoch N slots.
+   *
+   * @returns true if all prior unprocessed epochs have committees ready
+   */
+  async isPriorEpochCommitteesReady(epoch: number): Promise<boolean> {
+    const hasMissing = await this.epochStorage.hasPriorEpochsWithoutCommittees(epoch);
+    return !hasMissing;
+  }
 }

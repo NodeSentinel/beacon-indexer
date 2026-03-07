@@ -191,6 +191,18 @@ export const epochProcessorMachine = setup({
         return { success: true };
       },
     ),
+    checkPriorEpochCommittees: fromPromise(
+      async ({
+        input,
+      }: {
+        input: {
+          epochController: EpochController;
+          epoch: number;
+        };
+      }) => {
+        return input.epochController.isPriorEpochCommitteesReady(input.epoch);
+      },
+    ),
     slotOrchestratorMachine,
   },
   guards: {
@@ -209,6 +221,9 @@ export const epochProcessorMachine = setup({
     },
     hasEpochEnded: ({ context }): boolean => {
       return context.services.beaconTime.hasEpochEnded(context.epoch);
+    },
+    isPriorEpochCommitteesReady: ({ event }): boolean => {
+      return 'output' in event && event.output === true;
     },
     canFetchRewards: ({ context }): boolean => {
       return (
@@ -422,11 +437,49 @@ export const epochProcessorMachine = setup({
             },
             slotsProcessing: {
               description: 'Process slots for the epoch. Waits for committees to be ready.',
-              initial: 'waitingForCommittees',
+              initial: 'waitingForPriorEpochDependencies',
               states: {
+                waitingForPriorEpochDependencies: {
+                  entry: pinoLog(
+                    ({ context }) =>
+                      `Waiting for prior epoch dependencies before processing epoch ${context.epoch}`,
+                    'EpochProcessor:slotsProcessing',
+                  ),
+                  invoke: {
+                    src: 'checkPriorEpochCommittees',
+                    input: ({ context }) => ({
+                      epochController: context.services.epochController,
+                      epoch: context.epoch,
+                    }),
+                    onDone: [
+                      {
+                        guard: 'isPriorEpochCommitteesReady',
+                        target: 'waitingForCommittees',
+                      },
+                      {
+                        target: 'retryingPriorEpochDependencies',
+                      },
+                    ],
+                    onError: {
+                      target: 'retryingPriorEpochDependencies',
+                      actions: pinoLog(
+                        ({ context, event }) =>
+                          `error checking prior epoch dependencies for epoch ${context.epoch}: ${event.error}`,
+                        'EpochProcessor:slotsProcessing',
+                        'error',
+                      ),
+                    },
+                  },
+                },
+                retryingPriorEpochDependencies: {
+                  after: {
+                    slotDurationHalf: 'waitingForPriorEpochDependencies',
+                  },
+                },
                 waitingForCommittees: {
                   entry: pinoLog(
-                    ({ context }) => `Waiting for committees for epoch ${context.epoch}`,
+                    ({ context }) =>
+                      `Prior epoch committees ready. Waiting for current epoch committees for epoch ${context.epoch}`,
                     'EpochProcessor:slotsProcessing',
                   ),
                   after: {

@@ -38,6 +38,8 @@ const mockEpochController = {
   isValidatorsBalancesFetched: vi.fn(),
   isRewardsFetched: vi.fn(),
   isValidatorsActivationFetched: vi.fn(),
+  getEpochByNumber: vi.fn(),
+  isPriorEpochCommitteesReady: vi.fn(),
 } as unknown as EpochController;
 
 const mockValidatorsController = {
@@ -108,6 +110,12 @@ vi.mock('@/src/xstate/multiMachineLogger.js', () => ({
 function resetMocks() {
   vi.clearAllMocks();
   (mockEpochController.fetchCommittees as ReturnType<typeof vi.fn>).mockResolvedValue(undefined);
+  (mockEpochController.getEpochByNumber as ReturnType<typeof vi.fn>).mockResolvedValue({
+    committeesFetched: true,
+  });
+  (mockEpochController.isPriorEpochCommitteesReady as ReturnType<typeof vi.fn>).mockResolvedValue(
+    true,
+  );
   (mockEpochController.fetchSyncCommittees as ReturnType<typeof vi.fn>).mockResolvedValue(
     undefined,
   );
@@ -427,31 +435,42 @@ describe('epochProcessorMachine', () => {
     });
 
     describe('slotsProcessing', () => {
-      test('should wait for committees before processing', async () => {
+      test('should wait for prior epoch committees before processing', async () => {
         vi.setSystemTime(new Date(EPOCH_101_START_TIME + 50));
 
+        // Block fetchCommittees so the committees branch doesn't complete immediately
         const committeesPromise = createControllablePromise<void>();
         (mockEpochController.fetchCommittees as ReturnType<typeof vi.fn>).mockReturnValue(
           committeesPromise.promise,
         );
+
+        // Initially, prior epoch committees are not ready
+        let priorEpochCommitteesReady = false;
+        (
+          mockEpochController.isPriorEpochCommitteesReady as ReturnType<typeof vi.fn>
+        ).mockImplementation(() => Promise.resolve(priorEpochCommitteesReady));
 
         const { actor, stateTransitions, subscription } = createAndStartActor(
           epochProcessorMachine,
           createProcessorMachineDefaultInput(100),
         );
 
-        await vi.runAllTimersAsync();
+        // Advance time to let the actor check prior epoch and enter retry loop
+        await vi.advanceTimersByTimeAsync(100);
 
-        // Should be waiting for committees
+        // Should be retrying prior epoch check (prior epoch N-1 committees not ready)
         let lastState = getLastState(stateTransitions);
         let slotsState = getNestedState(lastState, 'epochProcessing.fetching.slotsProcessing') as
           | string
           | null;
-        expect(slotsState).toBe('waitingForCommittees');
+        expect(slotsState).toBe('retryingPriorEpochDependencies');
 
-        // Complete committees
+        // Simulate prior epoch committees becoming ready and resolve current epoch committees
+        priorEpochCommitteesReady = true;
         committeesPromise.resolve();
-        await vi.runAllTimersAsync();
+
+        // Advance past retry delay (slotDuration/2 = 5ms) and let transitions settle
+        await vi.advanceTimersByTimeAsync(100);
 
         // Should now be running the slots orchestrator
         lastState = getLastState(stateTransitions);
@@ -459,6 +478,9 @@ describe('epochProcessorMachine', () => {
           | string
           | null;
         expect(slotsState).toBe('runningSlotsOrchestrator');
+
+        // Verify isPriorEpochCommitteesReady was called for epoch 100
+        expect(mockEpochController.isPriorEpochCommitteesReady).toHaveBeenCalledWith(100);
 
         actor.stop();
         subscription.unsubscribe();
@@ -513,12 +535,14 @@ describe('epochProcessorMachine', () => {
           )
           .filter((s) => s !== null);
 
+        const priorEpochIndex = slotsStates.indexOf('waitingForPriorEpochDependencies');
         const waitingIndex = slotsStates.indexOf('waitingForCommittees');
         const runningIndex = slotsStates.indexOf('runningSlotsOrchestrator');
         const updatingIndex = slotsStates.indexOf('updatingSlotsFetched');
         const processedIndex = slotsStates.indexOf('slotsProcessed');
 
-        expect(waitingIndex).toBeGreaterThanOrEqual(0);
+        expect(priorEpochIndex).toBeGreaterThanOrEqual(0);
+        expect(waitingIndex).toBeGreaterThan(priorEpochIndex);
         expect(runningIndex).toBeGreaterThan(waitingIndex);
         expect(updatingIndex).toBeGreaterThan(runningIndex);
         expect(processedIndex).toBeGreaterThan(updatingIndex);

@@ -168,6 +168,21 @@ export class EpochStorage {
   }
 
   /**
+   * Check if any unprocessed epoch before the given epoch has committeesFetched = false.
+   * Returns true if there are prior epochs missing committees data.
+   */
+  async hasPriorEpochsWithoutCommittees(epoch: number): Promise<boolean> {
+    const count = await this.prisma.epoch.count({
+      where: {
+        epoch: { lt: epoch },
+        processed: false,
+        committeesFetched: false,
+      },
+    });
+    return count > 0;
+  }
+
+  /**
    * Check if sync committee for a specific epoch is already fetched
    */
   async isSyncCommitteeForEpochInDB(epoch: number): Promise<{ isFetched: boolean }> {
