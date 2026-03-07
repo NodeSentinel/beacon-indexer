@@ -70,7 +70,11 @@ export class PartitionStorage {
       // PostgreSQL 42P07: relation already exists — concurrent DDL race condition
       // when multiple epoch workers try to create the same partition simultaneously.
       // Safe to ignore since the partition exists, which is what we wanted.
-      if (error instanceof Error && 'code' in error && error.code === '42P07') {
+      if (
+        error instanceof Error &&
+        'meta' in error &&
+        (error as { meta?: { code?: string } }).meta?.code === '42P07'
+      ) {
         return;
       }
       throw error;
@@ -102,7 +106,11 @@ export class PartitionStorage {
       // PostgreSQL 42P07: relation already exists — concurrent DDL race condition
       // when multiple epoch workers try to create the same partition simultaneously.
       // Safe to ignore since the partition exists, which is what we wanted.
-      if (error instanceof Error && 'code' in error && error.code === '42P07') {
+      if (
+        error instanceof Error &&
+        'meta' in error &&
+        (error as { meta?: { code?: string } }).meta?.code === '42P07'
+      ) {
         return;
       }
       throw error;
