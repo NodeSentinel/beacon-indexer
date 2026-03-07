@@ -87,10 +87,11 @@ export class SnapshotController {
    */
   async updatePerformanceH(maxAttestationDelay: number, validatorIndexes?: number[]) {
     const currentTimestamp = Date.now();
-    // Use getChainCurrentSlot() to exclude recent slots still within the
-    // delaySlotsToHead window — attestations for those slots may not have
-    // been included yet and would be falsely counted as missed.
-    const maxSlot = this.beaconTime.getChainCurrentSlot();
+    // Exclude slots where attestations may still be pending inclusion.
+    // A validator at slot S has until S + maxAttestationDelay to be included.
+    // We have data up to rawSlot - delaySlotsToHead. So the safe upper bound is:
+    // rawSlot - delaySlotsToHead - maxAttestationDelay
+    const maxSlot = this.beaconTime.getChainCurrentSlot() - maxAttestationDelay;
     const oneHourAgoSlot = this.beaconTime.getSlotNumberFromTimestamp(currentTimestamp - ms('1h'));
     const minEpoch = this.beaconTime.getEpochFromSlot(oneHourAgoSlot);
     const maxEpoch = this.beaconTime.getEpochFromSlot(maxSlot);
