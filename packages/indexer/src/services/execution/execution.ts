@@ -43,7 +43,7 @@ export class ExecutionClient {
       baseDelay: config.baseDelay ?? ms('1s'), // Default to 1s base delay
     };
     this.limiter = pLimit(config.requestsPerSecond);
-    this.axiosInstance = axios.create();
+    this.axiosInstance = axios.create({ timeout: ms('3s') });
 
     // Setup interceptors
     this.axiosInstance.interceptors.request.use(async (config: InternalAxiosRequestConfig) => {
@@ -111,24 +111,20 @@ export class ExecutionClient {
         },
       ];
 
-      // Try all endpoints in each attempt, with exponential backoff between attempts
+      // Try all endpoints in sequence, then backoff and retry the full cycle
       return await pRetry(
         async () => {
           let lastError: unknown;
 
-          // Try all endpoints in sequence (first Blockscout, then Etherscan)
-          // Return immediately if any succeeds
           for (const endpoint of endpoints) {
             try {
               const response = await this.axiosInstance.get(endpoint.url);
               return endpoint.process(response);
             } catch (error) {
               lastError = error;
-              // Continue to next endpoint if this one fails
             }
           }
 
-          // If all endpoints failed, throw error to trigger retry with backoff
           throw lastError || new Error(`All endpoints failed for block ${blockNumber}`);
         },
         {
