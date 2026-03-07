@@ -87,15 +87,18 @@ export class SnapshotController {
    */
   async updatePerformanceH(maxAttestationDelay: number, validatorIndexes?: number[]) {
     const currentTimestamp = Date.now();
-    const currentSlot = this.beaconTime.getSlotNumberFromTimestamp(currentTimestamp);
+    // Use getChainCurrentSlot() to exclude recent slots still within the
+    // delaySlotsToHead window — attestations for those slots may not have
+    // been included yet and would be falsely counted as missed.
+    const maxSlot = this.beaconTime.getChainCurrentSlot();
     const oneHourAgoSlot = this.beaconTime.getSlotNumberFromTimestamp(currentTimestamp - ms('1h'));
     const minEpoch = this.beaconTime.getEpochFromSlot(oneHourAgoSlot);
-    const maxEpoch = this.beaconTime.getEpochFromSlot(currentSlot);
+    const maxEpoch = this.beaconTime.getEpochFromSlot(maxSlot);
 
     try {
       await this.snapshotStorage.updatePerformanceH({
         minSlot: oneHourAgoSlot,
-        maxSlot: currentSlot,
+        maxSlot,
         minEpoch,
         maxEpoch,
         maxAttestationDelay,
