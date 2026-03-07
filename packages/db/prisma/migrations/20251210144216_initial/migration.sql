@@ -254,17 +254,39 @@ INSERT INTO "public"."archive" ("id", "last_hour", "last_day", "last_month")
 VALUES (1, NULL, NULL, NULL);
 
 -- CreateTable
-CREATE TABLE "public"."validators_status_summary" (
+CREATE TABLE "public"."validators_snapshot_stats" (
     "validator_index" INTEGER NOT NULL,
     "status" VARCHAR(10) NOT NULL,
     "attestations_total" INTEGER NOT NULL,
     "attestations_missed" INTEGER NOT NULL,
-    "performance" DECIMAL(5,2) NOT NULL,
+    "is_inactive" BOOLEAN NOT NULL DEFAULT false,
+    "consecutive_missed_attestations" INTEGER NOT NULL DEFAULT 0,
+    "effective_balance" BIGINT NOT NULL DEFAULT 0,
+    "performance_h" DECIMAL(5, 4),
+    "performance_d" DECIMAL(5, 4),
+    "performance_w" DECIMAL(5, 4),
+    "performance_m" DECIMAL(5, 4),
+    "apy_h" DECIMAL(5, 2),
+    "apy_d" DECIMAL(5, 2),
+    "apy_w" DECIMAL(5, 2),
+    "apy_m" DECIMAL(5, 2),
+    "consensus_reward_h" BIGINT,
+    "consensus_reward_d" BIGINT,
+    "consensus_reward_w" BIGINT,
+    "consensus_reward_m" BIGINT,
+    "missed_reward_h" BIGINT,
+    "missed_reward_d" BIGINT,
+    "missed_reward_w" BIGINT,
+    "missed_reward_m" BIGINT,
+    "execution_reward_h" DECIMAL(78, 0),
+    "execution_reward_d" DECIMAL(78, 0),
+    "execution_reward_w" DECIMAL(78, 0),
+    "execution_reward_m" DECIMAL(78, 0),
     "beacon_status" INTEGER,
     "balance" BIGINT NOT NULL,
     "updated_at" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
-    CONSTRAINT "validators_status_summary_pkey" PRIMARY KEY ("validator_index")
+    CONSTRAINT "validators_snapshot_stats_pkey" PRIMARY KEY ("validator_index")
 );
 
 -- CreateTable
@@ -339,6 +361,9 @@ CREATE INDEX "committee_validator_index_slot_attestation_delay_idx" ON "public".
 
 -- CreateIndex
 CREATE INDEX "slot_slot_processed_idx" ON "public"."slot"("slot", "processed");
+
+-- CreateIndex
+CREATE INDEX "slot_proposer_index_slot_idx" ON "public"."slot"("proposer_index", "slot" DESC);
 
 -- CreateIndex (for validator_hourly_archive - query validator history newest-first)
 CREATE INDEX "validator_hourly_archive_validator_timestamp_idx" ON "public"."validator_hourly_archive"("validator_index", "timestamp" DESC);

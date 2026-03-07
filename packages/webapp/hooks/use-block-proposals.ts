@@ -31,7 +31,7 @@ export function useBlockProposals(
     queryFn: async () => {
       if (!params) throw new Error('No filter provided');
 
-      const response = await orpcClient.cluster.blocks({
+      const response = await orpcClient.blocks.list({
         clusterId: params.clusterId,
         validatorIndex: params.validatorIndex,
         page,

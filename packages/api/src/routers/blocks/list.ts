@@ -1,7 +1,7 @@
 import { BlockProposalsInputSchema, BlockProposalsOutputSchema } from './schemas.js';
 
 import { publicProcedure } from '@/lib/orpc.js';
-import { ClusterStorage } from '@/storage/cluster.js';
+import { BlockStorage } from '@/storage/block.js';
 import { beaconTime } from '@/utils/beaconTime.js';
 import { ApiResponseSchema } from '@/utils/response.js';
 import { formatBalance, formatWeiToToken } from '@/utils/tokenFormat.js';
@@ -12,13 +12,13 @@ const PAGE_SIZE = 10;
  * Get paginated block proposals for a cluster or validator
  * GET /blocks
  */
-export const getBlockProposals = publicProcedure
+export const listBlockProposals = publicProcedure
   .route({ method: 'GET', path: '/blocks' })
   .input(BlockProposalsInputSchema)
   .output(ApiResponseSchema(BlockProposalsOutputSchema))
   .handler(async ({ input }) => {
     try {
-      const storage = new ClusterStorage();
+      const storage = new BlockStorage();
       const { rows, totalCount } = await storage.getBlockProposals({
         clusterId: input.clusterId,
         validatorIndex: input.validatorIndex,
