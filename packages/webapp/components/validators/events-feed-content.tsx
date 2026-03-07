@@ -88,20 +88,35 @@ export default function EventsFeedContent({
 
       <Tabs defaultValue="incidents" className="w-full">
         <div className="overflow-x-auto -mx-1 px-1 scrollbar-thin">
-          <TabsList className="inline-flex w-auto min-w-full md:grid md:w-full md:grid-cols-5 h-auto">
-            <TabsTrigger value="incidents" className="h-10 flex-shrink-0 px-3 md:px-3">
+          <TabsList className="inline-flex w-auto min-w-full md:w-full bg-transparent p-0 h-auto border-b border-border/50 rounded-none gap-0">
+            <TabsTrigger
+              value="incidents"
+              className="h-9 flex-shrink-0 px-3 md:px-4 rounded-none border-b-2 border-transparent data-[state=active]:border-b-primary data-[state=active]:bg-transparent text-xs uppercase tracking-wider"
+            >
               Incidents
             </TabsTrigger>
-            <TabsTrigger value="consolidations" className="h-10 flex-shrink-0 px-3 md:px-3">
+            <TabsTrigger
+              value="consolidations"
+              className="h-9 flex-shrink-0 px-3 md:px-4 rounded-none border-b-2 border-transparent data-[state=active]:border-b-primary data-[state=active]:bg-transparent text-xs uppercase tracking-wider"
+            >
               Consolidations
             </TabsTrigger>
-            <TabsTrigger value="blocks" className="h-10 flex-shrink-0 px-3 md:px-3">
+            <TabsTrigger
+              value="blocks"
+              className="h-9 flex-shrink-0 px-3 md:px-4 rounded-none border-b-2 border-transparent data-[state=active]:border-b-primary data-[state=active]:bg-transparent text-xs uppercase tracking-wider"
+            >
               Blocks
             </TabsTrigger>
-            <TabsTrigger value="deposits" className="h-10 flex-shrink-0 px-3 md:px-3">
+            <TabsTrigger
+              value="deposits"
+              className="h-9 flex-shrink-0 px-3 md:px-4 rounded-none border-b-2 border-transparent data-[state=active]:border-b-primary data-[state=active]:bg-transparent text-xs uppercase tracking-wider"
+            >
               Deposits
             </TabsTrigger>
-            <TabsTrigger value="withdrawals" className="h-10 flex-shrink-0 px-3 md:px-3">
+            <TabsTrigger
+              value="withdrawals"
+              className="h-9 flex-shrink-0 px-3 md:px-4 rounded-none border-b-2 border-transparent data-[state=active]:border-b-primary data-[state=active]:bg-transparent text-xs uppercase tracking-wider"
+            >
               Withdrawals
             </TabsTrigger>
           </TabsList>
