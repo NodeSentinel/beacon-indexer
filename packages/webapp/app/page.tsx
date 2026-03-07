@@ -126,14 +126,12 @@ export default function DashboardOverview() {
           const isLoadingCluster = clusterDetailLoading && selectedCluster !== CLUSTER_FILTER_ALL;
 
           return (
-            <>
+            <div className="p-4 md:p-6 space-y-4 md:space-y-5">
               {isLoadingCluster ? (
-                <div className="p-4 md:p-6">
-                  <div className="animate-pulse space-y-4">
-                    <div className="h-8 bg-foreground/5 rounded w-1/3" />
-                    <div className="h-24 bg-foreground/5 rounded" />
-                    <div className="h-48 bg-foreground/5 rounded" />
-                  </div>
+                <div className="animate-pulse space-y-4">
+                  <div className="h-8 bg-foreground/5 rounded w-1/3" />
+                  <div className="h-24 bg-foreground/5 rounded" />
+                  <div className="h-48 bg-foreground/5 rounded" />
                 </div>
               ) : displayCluster ? (
                 <ClusterOverviewContent
@@ -147,7 +145,7 @@ export default function DashboardOverview() {
               ) : null}
               <PerformanceMetricsContent data={emptyMissedAttestations} />
               <EventsFeedContent events={emptyEvents} validators={[]} gnoPrice={tokenPrice} />
-            </>
+            </div>
           );
         }}
       </UserDashboard>

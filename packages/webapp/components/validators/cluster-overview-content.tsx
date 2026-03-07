@@ -181,26 +181,35 @@ export default function ClusterOverviewContent({
   };
 
   return (
-    <div className="border-t border-border/50 p-4 md:p-6">
-      <div className="space-y-4 md:space-y-6">
-        {/* Unified header: Cluster name, validators status, and manage button */}
-        <div className="flex items-center justify-between gap-3 pb-2.5 md:pb-3 border-b border-border/50">
+    <div>
+      <div className="space-y-4 md:space-y-5">
+        {/* Validators status and manage button */}
+        <div className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-3 md:gap-4 flex-wrap min-w-0">
-            <h2 className="text-lg md:text-xl font-semibold truncate">{cluster.name}</h2>
-
-            <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-primary/10 text-primary border border-primary/20 font-semibold text-xs md:text-sm shrink-0">
-              {totalValidators} VALIDATOR{totalValidators !== 1 ? 'S' : ''}
+            <span className="text-sm md:text-base font-semibold shrink-0 text-primary">
+              {totalValidators} Validator{totalValidators !== 1 ? 's' : ''}
             </span>
 
-            {getStatusDisplay().map((status) => (
-              <div key={status.label} className="flex items-center gap-1.5 shrink-0">
-                <span className="text-sm">{status.emoji}</span>
-                <span className={`text-sm font-semibold ${status.color}`}>{status.count}</span>
-                <span className="text-xs text-muted-foreground capitalize hidden sm:inline">
-                  {status.label}
-                </span>
-              </div>
-            ))}
+            {getStatusDisplay().length > 0 && (
+              <>
+                <div className="h-4 w-px bg-border" />
+                <div className="flex items-center gap-2.5 md:gap-3 flex-wrap">
+                  {getStatusDisplay().map((status) => (
+                    <div key={status.label} className="inline-flex items-center gap-1.5 shrink-0">
+                      <span className="text-sm">{status.emoji}</span>
+                      <span
+                        className={`text-sm md:text-base font-bold font-display ${status.color}`}
+                      >
+                        {status.count}
+                      </span>
+                      <span className="text-xs text-muted-foreground capitalize hidden sm:inline">
+                        {status.label}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
           </div>
 
           {showManageButton && onManage && (
@@ -211,49 +220,56 @@ export default function ClusterOverviewContent({
               onClick={onManage}
             >
               <Settings className="size-4 md:mr-2" />
-              <span className="hidden md:inline">Manage</span>
+              <span className="hidden md:inline">Edit Cluster</span>
             </Button>
           )}
         </div>
 
-        {/* Balances section */}
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-2.5 md:gap-4 pb-3.5 md:pb-4 border-b border-border">
-          <div>
-            <p className="text-xs text-muted-foreground mb-0.5 md:mb-1">BALANCE</p>
-            <span className="text-base md:text-xl font-display">
-              {cluster.totalBalance.toFixed(2)} GNO
-            </span>
-            <p className="text-xs text-muted-foreground">${balanceUsd}</p>
-          </div>
-          <div>
-            <p className="text-xs text-muted-foreground mb-0.5 md:mb-1">EFFECTIVE BALANCE</p>
-            <span className="text-base md:text-xl font-display">
-              {cluster.totalEffectiveBalance.toFixed(0)} GNO
-            </span>
-            <p className="text-xs text-muted-foreground">${effectiveBalanceUsd}</p>
-          </div>
-          <div className="col-span-2 md:col-span-1">
-            <p className="text-xs text-muted-foreground mb-0.5 md:mb-1">CLAIMABLE</p>
-            <span className="text-base md:text-xl font-display text-white">
-              {cluster.claimableRewards.toFixed(2)} GNO
-            </span>
-            <p className="text-xs text-muted-foreground">${claimableUsd}</p>
+        {/* Balances */}
+        <div className="relative border border-border/50 rounded-lg p-3 md:p-4 pt-5 md:pt-6">
+          <span className="absolute -top-2.5 left-3 bg-transparent px-1.5 text-[10px] md:text-xs text-muted-foreground uppercase tracking-wider">
+            Balances
+          </span>
+          <div className="grid grid-cols-3 gap-3 md:gap-4 text-center">
+            <div>
+              <p className="text-[10px] md:text-xs text-muted-foreground mb-0.5">Balance</p>
+              <p className="text-sm md:text-lg font-display font-semibold">
+                {cluster.totalBalance.toFixed(2)} GNO
+              </p>
+              <p className="text-[10px] text-muted-foreground">${balanceUsd}</p>
+            </div>
+            <div>
+              <p className="text-[10px] md:text-xs text-muted-foreground mb-0.5">Effective</p>
+              <p className="text-sm md:text-lg font-display font-semibold">
+                {cluster.totalEffectiveBalance.toFixed(0)} GNO
+              </p>
+              <p className="text-[10px] text-muted-foreground">${effectiveBalanceUsd}</p>
+            </div>
+            <div>
+              <p className="text-[10px] md:text-xs text-muted-foreground mb-0.5">Claimable</p>
+              <p className="text-sm md:text-lg font-display font-semibold">
+                {cluster.claimableRewards.toFixed(2)} GNO
+              </p>
+              <p className="text-[10px] text-muted-foreground">${claimableUsd}</p>
+            </div>
           </div>
         </div>
 
-        {/* Performance metrics */}
-        <div className="pb-3.5 md:pb-4 border-b border-border">
-          <p className="text-[10px] md:text-xs text-muted-foreground mb-2.5 md:mb-3">PERFORMANCE</p>
+        {/* Performance */}
+        <div className="relative border border-border/50 rounded-lg p-3 md:p-4 pt-5 md:pt-6">
+          <span className="absolute -top-2.5 left-3 bg-transparent px-1.5 text-[10px] md:text-xs text-muted-foreground uppercase tracking-wider">
+            Performance
+          </span>
           {snapshotLoading ? (
-            <div className="animate-pulse h-12 bg-foreground/5 rounded" />
+            <div className="animate-pulse h-10 bg-foreground/5 rounded" />
           ) : (
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5 md:gap-4">
+            <div className="grid grid-cols-4 gap-3 md:gap-4 text-center">
               {PERIODS.map(({ label, key }) => (
                 <div key={key}>
-                  <p className="text-xs text-muted-foreground mb-0.5 md:mb-1">{label}</p>
-                  <span className="text-xl md:text-2xl font-display text-white">
+                  <p className="text-[10px] md:text-xs text-muted-foreground mb-0.5">{label}</p>
+                  <p className="text-sm md:text-lg font-display font-semibold">
                     {formatPercent(getPerformance(key))}
-                  </span>
+                  </p>
                 </div>
               ))}
             </div>
@@ -261,13 +277,16 @@ export default function ClusterOverviewContent({
         </div>
 
         {/* APY table */}
-        <div className="relative -mx-3 px-3 md:mx-0 md:px-0">
+        <div className="relative border border-border/50 rounded-lg p-3 md:p-4 pt-5 md:pt-6">
+          <span className="absolute -top-2.5 left-3 bg-transparent px-1.5 text-[10px] md:text-xs text-muted-foreground uppercase tracking-wider">
+            Rewards
+          </span>
           <div
-            className="overflow-x-auto overscroll-contain"
+            className="overflow-x-auto overscroll-contain -mx-3 px-3 md:mx-0 md:px-0"
             style={{ overscrollBehaviorX: 'contain', overscrollBehaviorY: 'auto' }}
           >
             <div className="min-w-[600px] md:min-w-0">
-              <div className="grid grid-cols-6 gap-4 text-center pb-2.5 md:pb-3 border-b border-border">
+              <div className="grid grid-cols-6 gap-4 text-center pb-2.5 md:pb-3">
                 <div className="text-xs text-muted-foreground">PERIOD</div>
                 <div className="text-xs text-muted-foreground">APY%</div>
                 <div className="text-xs text-muted-foreground">CONSENSUS</div>
@@ -284,10 +303,7 @@ export default function ClusterOverviewContent({
                 </div>
               ) : (
                 PERIODS.map(({ label, key }, idx) => (
-                  <div
-                    key={key}
-                    className={`grid grid-cols-6 gap-4 text-center py-2.5 md:py-3 ${idx < PERIODS.length - 1 ? 'border-b border-border/50' : ''}`}
-                  >
+                  <div key={key} className="grid grid-cols-6 gap-4 text-center py-2.5 md:py-3">
                     <div className="text-sm font-medium">{label}</div>
                     <div className="text-sm font-display text-white">{formatApy(getApy(key))}</div>
                     <div className="space-y-0.5">

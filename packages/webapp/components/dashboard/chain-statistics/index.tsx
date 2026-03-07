@@ -1,11 +1,56 @@
 'use client';
 
+import type { LucideIcon } from 'lucide-react';
 import { Users, Coins, ArrowUpCircle, ArrowDownCircle } from 'lucide-react';
 
 import { env } from '@/env';
 import { useChainStats } from '@/hooks/use-chain-stats';
 import { useSyncStatus } from '@/hooks/use-sync-status';
 import { formatNumber, getTokenSymbol } from '@/lib/utils';
+
+interface StatCardProps {
+  icon: LucideIcon;
+  iconColor: string;
+  iconBg: string;
+  label: string;
+  value: string;
+  suffix?: string;
+  subValue: string;
+}
+
+function StatCard({
+  icon: Icon,
+  iconColor,
+  iconBg,
+  label,
+  value,
+  suffix,
+  subValue,
+}: StatCardProps) {
+  return (
+    <div className="border border-border/60 rounded-lg p-2.5 md:p-3.5">
+      <div className="flex items-start gap-2 md:gap-3">
+        <div className={`p-1.5 md:p-2 ${iconBg} rounded-lg`}>
+          <Icon className={`w-3.5 h-3.5 md:w-4 md:h-4 ${iconColor}`} />
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-[10px] md:text-xs text-muted-foreground uppercase tracking-wide mb-0.5 md:mb-1">
+            {label}
+          </p>
+          <div className="flex items-baseline gap-1.5">
+            <span className="text-xl md:text-2xl font-display font-bold text-foreground truncate">
+              {value}
+            </span>
+            {suffix && (
+              <span className="text-xs md:text-sm text-muted-foreground font-medium">{suffix}</span>
+            )}
+          </div>
+          <p className="text-[10px] md:text-xs text-muted-foreground/80 mt-0.5">{subValue}</p>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export default function ChainStatistics() {
   const { data: chainStats, isLoading } = useChainStats();
@@ -22,10 +67,10 @@ export default function ChainStatistics() {
   const joiningStaked = joiningValidators * 32;
   const leavingStaked = leavingValidators * 32;
 
-  const totalStakedUsd = formatNumber(totalStaked * tokenPrice);
-  const activeStakedUsd = formatNumber(activeStaked * tokenPrice);
-  const joiningStakedUsd = formatNumber(joiningStaked * tokenPrice);
-  const leavingStakedUsd = formatNumber(leavingStaked * tokenPrice);
+  const totalStakedUsd = formatNumber(totalStaked * tokenPrice, 0);
+  const activeStakedUsd = formatNumber(activeStaked * tokenPrice, 0);
+  const joiningStakedUsd = formatNumber(joiningStaked * tokenPrice, 0);
+  const leavingStakedUsd = formatNumber(leavingStaked * tokenPrice, 0);
 
   if (isLoading) {
     return (
@@ -33,21 +78,16 @@ export default function ChainStatistics() {
         <h2 className="text-[10px] md:text-xs font-display text-muted-foreground uppercase tracking-wider">
           Chain Statistics
         </h2>
-        <div className="bg-muted/30 border border-border/50 rounded-lg p-2.5 md:p-5">
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5 md:gap-5">
-            {[...Array(3)].map((_, i) => (
-              <div
-                key={i}
-                className="bg-background border border-border/60 rounded-lg p-2.5 md:p-4"
-              >
-                <div className="animate-pulse space-y-2">
-                  <div className="h-4 bg-foreground/5 rounded w-1/3" />
-                  <div className="h-8 bg-foreground/5 rounded w-2/3" />
-                  <div className="h-3 bg-foreground/5 rounded w-1/2" />
-                </div>
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 md:gap-3">
+          {[...Array(4)].map((_, i) => (
+            <div key={i} className="border border-border/60 rounded-lg p-2.5 md:p-3.5">
+              <div className="animate-pulse space-y-2">
+                <div className="h-4 bg-foreground/5 rounded w-1/3" />
+                <div className="h-8 bg-foreground/5 rounded w-2/3" />
+                <div className="h-3 bg-foreground/5 rounded w-1/2" />
               </div>
-            ))}
-          </div>
+            </div>
+          ))}
         </div>
       </div>
     );
@@ -72,99 +112,40 @@ export default function ChainStatistics() {
           </div>
         )}
       </div>
-      <div className="bg-muted/30 border border-border/50 rounded-lg p-2.5 md:p-5">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5 md:gap-5">
-          {/* Active Validators Card */}
-          <div className="bg-background border border-border/60 rounded-lg p-2.5 md:p-4">
-            <div className="flex items-start gap-2 md:gap-3">
-              <div className="p-1.5 md:p-2 bg-chart-2/10 rounded-lg">
-                <Users className="w-3.5 h-3.5 md:w-4 md:h-4 text-chart-2" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-[10px] md:text-xs text-muted-foreground uppercase tracking-wide mb-0.5 md:mb-1">
-                  Active
-                </p>
-                <p className="text-xl md:text-2xl font-display font-bold text-foreground truncate">
-                  {formatNumber(activeValidators)}
-                </p>
-                <p className="text-[10px] md:text-xs text-muted-foreground/80 mt-0.5">
-                  ${activeStakedUsd}
-                </p>
-              </div>
-            </div>
-          </div>
-
-          {/* Staked GNO Card */}
-          <div className="bg-background border border-border/60 rounded-lg p-2.5 md:p-4">
-            <div className="flex items-start gap-2 md:gap-3">
-              <div className="p-1.5 md:p-2 bg-primary/10 rounded-lg">
-                <Coins className="w-3.5 h-3.5 md:w-4 md:h-4 text-primary" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-[10px] md:text-xs text-muted-foreground uppercase tracking-wide mb-0.5 md:mb-1">
-                  Staked
-                </p>
-                <div className="flex items-baseline gap-1.5">
-                  <span className="text-xl md:text-2xl font-display font-bold text-foreground">
-                    {(totalStaked / 1000).toFixed(0)}k
-                  </span>
-                  <span className="text-xs md:text-sm text-muted-foreground font-medium">
-                    {tokenSymbol}
-                  </span>
-                </div>
-                <p className="text-[10px] md:text-xs text-muted-foreground/80 mt-0.5">
-                  ${totalStakedUsd}
-                </p>
-              </div>
-            </div>
-          </div>
-
-          {/* Joining/Leaving Card */}
-          <div className="bg-background border border-border/60 rounded-lg p-2.5 md:p-4 sm:col-span-2 lg:col-span-1">
-            <div className="grid grid-cols-2 gap-3 md:gap-4">
-              <div className="flex flex-col gap-1.5 md:gap-2">
-                <div className="flex items-center gap-1.5 md:gap-2">
-                  <div className="p-1 md:p-1.5 bg-chart-2/10 rounded">
-                    <ArrowUpCircle className="w-3 h-3 md:w-3.5 md:h-3.5 text-chart-2" />
-                  </div>
-                  <span className="text-[10px] md:text-xs text-muted-foreground uppercase tracking-wide">
-                    Joining
-                  </span>
-                </div>
-                <div>
-                  <div className="flex items-baseline gap-1">
-                    <p className="text-lg md:text-2xl font-display font-bold text-white">
-                      {formatNumber(joiningValidators)}
-                    </p>
-                  </div>
-                  <p className="text-[10px] md:text-xs text-muted-foreground/80 mt-0.5">
-                    ${joiningStakedUsd}
-                  </p>
-                </div>
-              </div>
-              <div className="flex flex-col gap-1.5 md:gap-2">
-                <div className="flex items-center gap-1.5 md:gap-2">
-                  <div className="p-1 md:p-1.5 bg-warning/10 rounded">
-                    <ArrowDownCircle className="w-3 h-3 md:w-3.5 md:h-3.5 text-warning" />
-                  </div>
-                  <span className="text-[10px] md:text-xs text-muted-foreground uppercase tracking-wide">
-                    Leaving
-                  </span>
-                </div>
-                <div>
-                  <div className="flex items-baseline gap-1">
-                    <p className="text-lg md:text-2xl font-display font-bold text-white">
-                      {formatNumber(leavingValidators)}
-                    </p>
-                  </div>
-                  <p className="text-[10px] md:text-xs text-muted-foreground/80 mt-0.5">
-                    ${leavingStakedUsd}
-                  </p>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 md:gap-3">
+        <StatCard
+          icon={Users}
+          iconColor="text-chart-2"
+          iconBg="bg-chart-2/10"
+          label="Active"
+          value={formatNumber(activeValidators)}
+          subValue={`$${activeStakedUsd}`}
+        />
+        <StatCard
+          icon={Coins}
+          iconColor="text-primary"
+          iconBg="bg-primary/10"
+          label="Staked"
+          value={`${(totalStaked / 1000).toFixed(0)}k`}
+          suffix={tokenSymbol}
+          subValue={`$${totalStakedUsd}`}
+        />
+        <StatCard
+          icon={ArrowUpCircle}
+          iconColor="text-chart-2"
+          iconBg="bg-chart-2/10"
+          label="Joining"
+          value={formatNumber(joiningValidators)}
+          subValue={`$${joiningStakedUsd}`}
+        />
+        <StatCard
+          icon={ArrowDownCircle}
+          iconColor="text-warning"
+          iconBg="bg-warning/10"
+          label="Leaving"
+          value={formatNumber(leavingValidators)}
+          subValue={`$${leavingStakedUsd}`}
+        />
       </div>
     </div>
   );

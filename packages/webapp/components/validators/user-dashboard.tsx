@@ -108,42 +108,65 @@ export default function UserDashboard({
   }
 
   return (
-    <div className="bg-card rounded-lg">
+    <div>
       {/* Sentinel element for intersection observer */}
       <div ref={sentinelRef} className="h-0" />
 
       <Tabs
         value={selectedCluster}
         onValueChange={(value) => setSelectedCluster(value as ClusterFilter)}
-        className="flex flex-col"
+        className="flex flex-col gap-0"
       >
         <div
           className={cn(
-            'sticky top-0 z-10 bg-card rounded-t-lg transition-shadow duration-200 overflow-x-auto scrollbar-none',
+            'sticky top-0 z-10 transition-shadow duration-200 overflow-x-auto scrollbar-none',
             isSticky && 'shadow-md',
           )}
         >
-          <TabsList className="bg-transparent p-3 gap-2 h-auto">
-            {!hideAllTab && <TabsTrigger value={CLUSTER_FILTER_ALL}>All</TabsTrigger>}
-            {clusters.map((cluster) => (
-              <TabsTrigger key={cluster.id} value={cluster.id}>
-                {cluster.name}
-              </TabsTrigger>
-            ))}
+          <div className="flex items-end justify-between">
+            <TabsList className="bg-transparent rounded-none p-0 gap-1 h-auto w-auto items-end">
+              {!hideAllTab && (
+                <TabsTrigger
+                  value={CLUSTER_FILTER_ALL}
+                  className={cn(
+                    'flex-initial rounded-none rounded-t-lg border border-b-0 border-border/40 bg-muted/40 px-4 md:px-5 py-2 md:py-2.5 text-sm text-muted-foreground hover:bg-muted/60 transition-colors',
+                    'data-[state=active]:bg-transparent data-[state=active]:text-foreground data-[state=active]:border-border/60 data-[state=active]:font-semibold',
+                  )}
+                >
+                  All
+                </TabsTrigger>
+              )}
+              {clusters.map((cluster) => (
+                <TabsTrigger
+                  key={cluster.id}
+                  value={cluster.id}
+                  className={cn(
+                    'flex-initial rounded-none rounded-t-lg border border-b-0 border-border/40 bg-muted/40 px-4 md:px-5 py-2 md:py-2.5 text-sm text-muted-foreground hover:bg-muted/60 transition-colors',
+                    'data-[state=active]:bg-transparent data-[state=active]:text-foreground data-[state=active]:border-border/60 data-[state=active]:font-semibold',
+                  )}
+                >
+                  {cluster.name}
+                </TabsTrigger>
+              ))}
+            </TabsList>
             <button
               onClick={(e) => {
                 e.preventDefault();
                 onAddCluster();
               }}
               aria-label="Add cluster"
-              className="inline-flex items-center justify-center rounded-md px-3 py-2 text-sm font-medium text-foreground/60 hover:text-foreground hover:bg-foreground/10 transition-colors"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 mb-0.5 mr-2 text-sm font-medium rounded-md border border-border/60 bg-transparent hover:bg-muted/40 transition-colors whitespace-nowrap"
             >
-              <Plus className="size-4" />
+              <Plus className="size-3.5" />
+              Add Cluster
             </button>
-          </TabsList>
+          </div>
         </div>
 
-        <TabsContent value={selectedCluster} className="m-0">
+        <TabsContent
+          value={selectedCluster}
+          className="m-0 border border-border/60 rounded-b-lg rounded-tr-lg"
+        >
           {children({ selectedCluster, displayCluster, isAllSelected })}
         </TabsContent>
       </Tabs>
@@ -153,15 +176,12 @@ export default function UserDashboard({
 
 function UserDashboardSkeleton() {
   return (
-    <div className="bg-card rounded-lg">
-      <div className="p-3">
-        <div className="flex gap-2">
-          <div className="h-9 w-16 bg-foreground/5 rounded-md animate-pulse" />
-          <div className="h-9 w-24 bg-foreground/5 rounded-md animate-pulse" />
-          <div className="h-9 w-24 bg-foreground/5 rounded-md animate-pulse" />
-        </div>
+    <div>
+      <div className="flex gap-0">
+        <div className="h-10 w-24 border border-border/60 border-b-0 rounded-t-lg animate-pulse" />
+        <div className="h-10 w-28 bg-foreground/5 rounded-t-lg animate-pulse" />
       </div>
-      <div className="p-4 space-y-4">
+      <div className="border border-border/60 rounded-b-lg rounded-tr-lg p-4 space-y-4">
         <div className="h-32 bg-foreground/5 rounded animate-pulse" />
         <div className="h-64 bg-foreground/5 rounded animate-pulse" />
         <div className="h-48 bg-foreground/5 rounded animate-pulse" />

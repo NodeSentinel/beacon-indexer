@@ -71,10 +71,12 @@ export default function EventsFeedContent({
   );
 
   return (
-    <div className="border-t border-border/50 p-4 md:p-6">
-      {/* Header with title and filter */}
-      <div className="flex items-center justify-between gap-4 mb-4">
-        <h3 className="text-xs font-medium text-muted-foreground tracking-wider">EVENTS</h3>
+    <div className="relative border border-border/50 rounded-lg p-3 md:p-4 pt-5 md:pt-6">
+      <span className="absolute -top-2.5 left-3 bg-transparent px-1.5 text-[10px] md:text-xs text-muted-foreground uppercase tracking-wider">
+        Events
+      </span>
+      {/* Header with filter */}
+      <div className="flex items-center justify-end gap-4 mb-4">
         <Input
           placeholder="Filter validators (e.g., 123, 456)"
           value={validatorFilter}

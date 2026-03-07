@@ -105,12 +105,12 @@ export default function PerformanceMetricsContent({ data }: PerformanceMetricsCo
   }, [chartData, metricType]);
 
   return (
-    <div className="border-t border-border/50 p-4 md:p-6">
-      {/* Header with title and selectors */}
-      <div className="flex items-center justify-between mb-4">
-        <h3 className="text-xs font-medium text-muted-foreground tracking-wider">
-          PERFORMANCE METRICS
-        </h3>
+    <div className="relative border border-border/50 rounded-lg p-3 md:p-4 pt-5 md:pt-6">
+      <span className="absolute -top-2.5 left-3 bg-transparent px-1.5 text-[10px] md:text-xs text-muted-foreground uppercase tracking-wider">
+        Performance Metrics
+      </span>
+      {/* Header with selectors */}
+      <div className="flex items-center justify-end mb-4">
         <div className="flex items-center gap-2">
           <Select value={metricType} onValueChange={(value) => setMetricType(value as MetricType)}>
             <SelectTrigger className="w-36 md:w-44 h-8">
