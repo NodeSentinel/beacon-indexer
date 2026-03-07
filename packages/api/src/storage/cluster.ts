@@ -311,6 +311,24 @@ export class ClusterStorage {
   }
 
   /**
+   * Get all unique validator indexes across all clusters for an owner
+   */
+  async findAllValidatorIndexesByOwner(ownerId: bigint): Promise<number[]> {
+    const results = await this.prisma.clusterValidator.findMany({
+      where: {
+        cluster: {
+          ownerId,
+        },
+      },
+      select: {
+        validatorIndex: true,
+      },
+      distinct: ['validatorIndex'],
+    });
+    return results.map((r) => r.validatorIndex);
+  }
+
+  /**
    * Check if cluster exists and belongs to owner
    */
   async existsForOwner(id: string, ownerId: bigint): Promise<boolean> {
