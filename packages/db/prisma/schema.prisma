@@ -368,7 +368,7 @@ model Archive {
 }
 
 model ValidatorsSnapshotStats {
-  validatorIndex                Int      @id @map("validator_index")
+  validatorIndex                Int      @id(map: "validators_snapshot_stats_pkey") @map("validator_index")
 
   // State
   status                        String   @map("status") @db.VarChar(10)
@@ -377,7 +377,7 @@ model ValidatorsSnapshotStats {
 
   // Balances
   balance          BigInt @map("balance")
-  effectiveBalance BigInt @map("effective_balance")
+  effectiveBalance BigInt @default(0) @map("effective_balance")
   beaconStatus     Int?   @map("beacon_status")
 
   // Attestations (updated per slot)
