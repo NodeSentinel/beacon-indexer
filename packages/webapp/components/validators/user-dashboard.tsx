@@ -155,7 +155,7 @@ export default function UserDashboard({
                 onAddCluster();
               }}
               aria-label="Add cluster"
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 mb-0.5 mr-2 text-sm font-medium rounded-md border border-border/60 bg-transparent hover:bg-muted/40 transition-colors whitespace-nowrap"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 mb-0.5 text-sm font-medium rounded-md border border-border/60 bg-transparent hover:bg-muted/40 transition-colors whitespace-nowrap"
             >
               <Plus className="size-3.5" />
               Add Cluster

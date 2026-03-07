@@ -4,6 +4,7 @@ import { Settings } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import type { ClusterSnapshot } from '@/hooks/use-cluster-snapshot';
+import { formatNumber } from '@/lib/utils';
 import type { Cluster } from '@/types/cluster';
 
 interface ClusterOverviewContentProps {
@@ -45,7 +46,7 @@ function formatUsd(value: string | null, price: number): string {
   if (value === null) return '-';
   const num = parseFloat(value);
   if (isNaN(num)) return '-';
-  return `$${(num * price).toFixed(2)}`;
+  return `$${formatNumber(num * price)}`;
 }
 
 function formatTotalUsd(
@@ -58,7 +59,7 @@ function formatTotalUsd(
   if (isNaN(consensus) && isNaN(execution)) return '-';
   const total =
     (isNaN(consensus) ? 0 : consensus) * tokenPrice + (isNaN(execution) ? 0 : execution);
-  return `$${total.toFixed(2)}`;
+  return `$${formatNumber(total)}`;
 }
 
 export default function ClusterOverviewContent({
@@ -121,9 +122,9 @@ export default function ClusterOverviewContent({
 
   const totalValidators = cluster.validators.length;
 
-  const balanceUsd = (cluster.totalBalance * gnoPrice).toFixed(2);
-  const effectiveBalanceUsd = (cluster.totalEffectiveBalance * gnoPrice).toFixed(0);
-  const claimableUsd = (cluster.claimableRewards * gnoPrice).toFixed(2);
+  const balanceUsd = formatNumber(cluster.totalBalance * gnoPrice);
+  const effectiveBalanceUsd = formatNumber(cluster.totalEffectiveBalance * gnoPrice, 0);
+  const claimableUsd = formatNumber(cluster.claimableRewards * gnoPrice);
 
   const getPerformance = (key: PeriodKey): number | null => {
     if (!snapshot) return null;
@@ -276,34 +277,83 @@ export default function ClusterOverviewContent({
           )}
         </div>
 
-        {/* APY table */}
+        {/* Rewards - Cards on mobile, table on desktop */}
         <div className="relative border border-border/50 rounded-lg p-3 md:p-4 pt-5 md:pt-6">
           <span className="absolute -top-2.5 left-3 bg-transparent px-1.5 text-[10px] md:text-xs text-muted-foreground uppercase tracking-wider">
             Rewards
           </span>
-          <div
-            className="overflow-x-auto overscroll-contain -mx-3 px-3 md:mx-0 md:px-0"
-            style={{ overscrollBehaviorX: 'contain', overscrollBehaviorY: 'auto' }}
-          >
-            <div className="min-w-[600px] md:min-w-0">
-              <div className="grid grid-cols-6 gap-4 text-center pb-2.5 md:pb-3">
-                <div className="text-xs text-muted-foreground">PERIOD</div>
-                <div className="text-xs text-muted-foreground">APY%</div>
-                <div className="text-xs text-muted-foreground">CONSENSUS</div>
-                <div className="text-xs text-muted-foreground">MISSED REWARDS</div>
-                <div className="text-xs text-muted-foreground">EXECUTION</div>
-                <div className="text-xs text-muted-foreground">TOTAL USD</div>
+
+          {snapshotLoading ? (
+            <div className="animate-pulse space-y-3 py-3">
+              {[1, 2, 3, 4].map((i) => (
+                <div key={i} className="h-10 bg-foreground/5 rounded" />
+              ))}
+            </div>
+          ) : (
+            <>
+              {/* Mobile: stacked periods with dividers */}
+              <div className="md:hidden divide-y divide-border/40">
+                {PERIODS.map(({ label, key }) => (
+                  <div key={key} className="py-3 first:pt-0 last:pb-0">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-sm font-semibold">{label}</span>
+                      <span className="text-sm font-display">{formatApy(getApy(key))}</span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-x-4 gap-y-2">
+                      <div>
+                        <p className="text-[10px] text-muted-foreground uppercase">Consensus</p>
+                        <p className="text-sm font-mono font-semibold">
+                          {formatValue(getConsensusReward(key))} GNO
+                        </p>
+                        <p className="text-[10px] text-muted-foreground">
+                          {formatUsd(getConsensusReward(key), gnoPrice)}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] text-muted-foreground uppercase">Missed</p>
+                        <p className="text-sm font-mono font-semibold text-destructive">
+                          {formatValue(getMissedReward(key))} GNO
+                        </p>
+                        <p className="text-[10px] text-muted-foreground">
+                          {formatUsd(getMissedReward(key), gnoPrice)}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] text-muted-foreground uppercase">Execution</p>
+                        <p className="text-sm font-mono font-semibold">
+                          {formatValue(getExecutionReward(key)?.token ?? null)} xDAI
+                        </p>
+                        <p className="text-[10px] text-muted-foreground">
+                          {formatUsd(getExecutionReward(key)?.token ?? null, 1)}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] text-muted-foreground uppercase">Total USD</p>
+                        <p className="text-sm font-mono font-semibold">
+                          {formatTotalUsd(
+                            getConsensusReward(key),
+                            gnoPrice,
+                            getExecutionReward(key)?.token ?? null,
+                          )}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                ))}
               </div>
 
-              {snapshotLoading ? (
-                <div className="animate-pulse space-y-3 py-3">
-                  {[1, 2, 3, 4].map((i) => (
-                    <div key={i} className="h-10 bg-foreground/5 rounded" />
-                  ))}
+              {/* Desktop: table layout */}
+              <div className="hidden md:block">
+                <div className="grid grid-cols-6 gap-4 text-center pb-3">
+                  <div className="text-xs text-muted-foreground">PERIOD</div>
+                  <div className="text-xs text-muted-foreground">APY%</div>
+                  <div className="text-xs text-muted-foreground">CONSENSUS</div>
+                  <div className="text-xs text-muted-foreground">MISSED REWARDS</div>
+                  <div className="text-xs text-muted-foreground">EXECUTION</div>
+                  <div className="text-xs text-muted-foreground">TOTAL USD</div>
                 </div>
-              ) : (
-                PERIODS.map(({ label, key }, idx) => (
-                  <div key={key} className="grid grid-cols-6 gap-4 text-center py-2.5 md:py-3">
+                {PERIODS.map(({ label, key }) => (
+                  <div key={key} className="grid grid-cols-6 gap-4 text-center py-3">
                     <div className="text-sm font-medium">{label}</div>
                     <div className="text-sm font-display text-white">{formatApy(getApy(key))}</div>
                     <div className="space-y-0.5">
@@ -338,10 +388,10 @@ export default function ClusterOverviewContent({
                       )}
                     </div>
                   </div>
-                ))
-              )}
-            </div>
-          </div>
+                ))}
+              </div>
+            </>
+          )}
         </div>
       </div>
     </div>
