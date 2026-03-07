@@ -136,13 +136,13 @@ const createPinoLogger = () => {
   });
 };
 
-// Create the initial logger
-let logger = createPinoLogger();
-
-// Ensure the logs directory exists
+// Ensure the logs directory exists before creating the logger
 if (!fs.existsSync(logsDir)) {
   fs.mkdirSync(logsDir, { recursive: true });
 }
+
+// Create the initial logger
+let logger = createPinoLogger();
 
 // Function to rotate logs daily
 const rotateLogsDaily = () => {
