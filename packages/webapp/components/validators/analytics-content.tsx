@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Tooltip } from 'recharts';
 
 import { ChartContainer } from '@/components/ui/chart';
@@ -21,61 +21,55 @@ import type { MissedAttestation } from '@/types/validator';
 
 interface AnalyticsContentProps {
   data: MissedAttestation[];
+  timeRange: '1h' | '24h';
+  onTimeRangeChange: (range: '1h' | '24h') => void;
 }
 
-type TimeRange = '1h' | '24h';
-
-export default function AnalyticsContent({ data }: AnalyticsContentProps) {
-  const [timeRange, setTimeRange] = useState<TimeRange>('1h');
-
+export default function AnalyticsContent({
+  data,
+  timeRange,
+  onTimeRangeChange,
+}: AnalyticsContentProps) {
   const chartData = useMemo(() => {
-    const now = new Date();
-    let filteredData = [...data];
+    const now = Date.now();
 
-    if (timeRange === '1h') {
-      const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000);
-      filteredData = data.filter((item) => new Date(item.timestamp) >= oneHourAgo);
-    } else if (timeRange === '24h') {
-      const oneDayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
-      filteredData = data.filter((item) => new Date(item.timestamp) >= oneDayAgo);
+    // Build fixed time buckets: 1h = 6 buckets of 10min, 24h = 24 buckets of 1h
+    const bucketMs = timeRange === '1h' ? 10 * 60 * 1000 : 60 * 60 * 1000;
+    const totalMs = timeRange === '1h' ? 60 * 60 * 1000 : 24 * 60 * 60 * 1000;
+    const bucketCount = totalMs / bucketMs;
+
+    // Align start to bucket boundary
+    const start = Math.floor((now - totalMs) / bucketMs) * bucketMs;
+
+    // Aggregate data into buckets
+    const dataByBucket = new Map<number, { count: number; maxValidators: number }>();
+    for (const item of data) {
+      const ts = new Date(item.timestamp).getTime();
+      if (ts < start) continue;
+      const bucketKey = Math.floor((ts - start) / bucketMs);
+      if (bucketKey >= bucketCount) continue;
+      const existing = dataByBucket.get(bucketKey);
+      if (existing) {
+        existing.count += item.count;
+        existing.maxValidators = Math.max(existing.maxValidators, item.validatorCount);
+      } else {
+        dataByBucket.set(bucketKey, { count: item.count, maxValidators: item.validatorCount });
+      }
     }
 
-    // Return empty if no data (don't generate random mock data - causes SSR hydration issues)
-    if (filteredData.length === 0) {
-      return [];
-    }
-
-    return filteredData.map((item, i) => {
-      const date = new Date(item.timestamp);
-      let timeLabel = '';
-
-      timeLabel = date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
-
-      // Use deterministic values based on index to avoid SSR hydration mismatch
-      const seed = (i + 1) * 0.1;
-      const executionReward = Number((0.3 + seed * 0.5).toFixed(3));
-      const source = Number((0.25 + seed * 0.05).toFixed(3));
-      const target = Number((0.26 + seed * 0.04).toFixed(3));
-      const head = Number((0.24 + seed * 0.06).toFixed(3));
-      const syncCommittee = i % 5 === 0 ? Number((0.15 + seed * 0.05).toFixed(3)) : 0;
-      const missed = Number((seed * 0.15).toFixed(3));
-      const consensusTotal = 1.0;
+    return Array.from({ length: bucketCount }, (_, i) => {
+      const bucketStart = new Date(start + i * bucketMs);
+      const timeLabel = bucketStart.toLocaleTimeString('en-GB', {
+        hour: '2-digit',
+        minute: '2-digit',
+      });
+      const bucket = dataByBucket.get(i);
 
       return {
         time: timeLabel,
-        // Missed Attestations data (yellow)
-        missedValue: item.count * item.validatorCount,
-        slot: item.count,
-        validators: item.validatorCount,
-        // Execution Rewards data (green)
-        execution: executionReward,
-        // Consensus Rewards data (blue + red stacked)
-        source,
-        target,
-        head,
-        syncCommittee,
-        missed,
-        consensusTotal,
+        missedValue: bucket?.count ?? 0,
+        slot: bucket?.count ?? 0,
+        validators: bucket?.maxValidators ?? 0,
       };
     });
   }, [data, timeRange]);
@@ -87,16 +81,16 @@ export default function AnalyticsContent({ data }: AnalyticsContentProps) {
     return { totalMissed, maxValidators };
   }, [chartData]);
 
+  // Rewards tab uses placeholder stats until rewards endpoint is implemented
   const rewardsStats = useMemo(() => {
-    const totalSource = chartData.reduce((sum, item) => sum + item.source, 0).toFixed(2);
-    const totalTarget = chartData.reduce((sum, item) => sum + item.target, 0).toFixed(2);
-    const totalHead = chartData.reduce((sum, item) => sum + item.head, 0).toFixed(2);
-    const totalSyncCommittee = chartData
-      .reduce((sum, item) => sum + item.syncCommittee, 0)
-      .toFixed(2);
-    const totalMissed = chartData.reduce((sum, item) => sum + item.missed, 0).toFixed(2);
-    return { totalSource, totalTarget, totalHead, totalSyncCommittee, totalMissed };
-  }, [chartData]);
+    return {
+      totalSource: '0.00',
+      totalTarget: '0.00',
+      totalHead: '0.00',
+      totalSyncCommittee: '0.00',
+      totalMissed: '0.00',
+    };
+  }, []);
 
   return (
     <div>
@@ -110,18 +104,21 @@ export default function AnalyticsContent({ data }: AnalyticsContentProps) {
       <UnderlineTabs defaultValue="missed-attestations">
         <div className="flex items-center justify-between">
           <UnderlineTabsList className="border-b-0">
-            <UnderlineTabsTrigger value="missed-attestations">
-              Missed Attestations
-            </UnderlineTabsTrigger>
+            <UnderlineTabsTrigger value="missed-attestations">Miss-Attest</UnderlineTabsTrigger>
             <UnderlineTabsTrigger value="rewards">Rewards</UnderlineTabsTrigger>
           </UnderlineTabsList>
-          <Select value={timeRange} onValueChange={(value) => setTimeRange(value as TimeRange)}>
-            <SelectTrigger className="w-24 md:w-28 h-8">
+          <Select
+            value={timeRange}
+            onValueChange={(value) => onTimeRangeChange(value as '1h' | '24h')}
+          >
+            <SelectTrigger className="w-auto h-7 border-0 bg-transparent text-xs text-muted-foreground gap-1 px-2 hover:text-foreground transition-colors">
               <SelectValue />
             </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="1h">Last 1h</SelectItem>
-              <SelectItem value="24h" disabled>
+            <SelectContent align="end">
+              <SelectItem value="1h" className="text-xs">
+                Last 1h
+              </SelectItem>
+              <SelectItem value="24h" className="text-xs">
                 Last 24h
               </SelectItem>
             </SelectContent>
@@ -129,7 +126,7 @@ export default function AnalyticsContent({ data }: AnalyticsContentProps) {
         </div>
 
         <UnderlineTabsContent value="missed-attestations" className="mt-4">
-          {chartData.length === 0 ? (
+          {data.length === 0 ? (
             <div className="flex items-center justify-center h-[300px] text-muted-foreground">
               No data available
             </div>
