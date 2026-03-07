@@ -55,8 +55,10 @@ export class HourlyArchiveController {
     }
 
     // Check readiness using the candidate's ranges (from partition names)
-    // Throws exception on error (handled by XState machine's onError)
-    await this.checkReadinessForCandidate(candidate);
+    const isReady = await this.checkReadinessForCandidate(candidate);
+    if (!isReady) {
+      return null;
+    }
 
     // Execute atomic archive: create partition + aggregate + drop partitions
     // Generate hourly archive partition name
@@ -84,20 +86,21 @@ export class HourlyArchiveController {
   /**
    * Check if a candidate hour is ready to be archived.
    * Uses the slot/epoch ranges derived from the partition names.
-   * @throws Error if not ready
+   * @returns true if ready, false if not yet ready (expected condition)
+   * @throws Error only on unexpected failures
    */
-  private async checkReadinessForCandidate(candidate: HourArchiveCandidate): Promise<void> {
+  private async checkReadinessForCandidate(candidate: HourArchiveCandidate): Promise<boolean> {
     // Check if already archived
     const alreadyArchived = await this.storage.archiveExistsForHour(candidate.hourStart);
     if (alreadyArchived) {
-      throw new Error('Already archived');
+      return false;
     }
 
     // Check if all slots are processed
     // If the last slot is processed, it means data exists (no need for separate existence check)
     const slotsReady = await this.storage.allSlotsProcessed(candidate.startSlot, candidate.endSlot);
     if (!slotsReady) {
-      throw new Error('Not all slots processed');
+      return false;
     }
 
     // Check if all epochs are processed
@@ -106,7 +109,9 @@ export class HourlyArchiveController {
       candidate.endEpoch,
     );
     if (!epochsReady) {
-      throw new Error('Not all epochs processed');
+      return false;
     }
+
+    return true;
   }
 }
