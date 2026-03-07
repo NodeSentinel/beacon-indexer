@@ -14,7 +14,7 @@ export function useMissedAttestations(
   const userId = useUserId();
 
   return useQuery({
-    queryKey: ['missedAttestations', clusterId, validatorIndex, range],
+    queryKey: ['missedAttestations', clusterId, validatorIndex, range, userId],
     queryFn: async (): Promise<MissedAttestation[]> => {
       let response;
 
@@ -34,7 +34,7 @@ export function useMissedAttestations(
 
       return response.data as MissedAttestation[];
     },
-    enabled: !!clusterId || validatorIndex !== null,
+    enabled: (!!clusterId && (clusterId !== 'all' || !!userId)) || validatorIndex !== null,
     refetchInterval: 30_000,
   });
 }
