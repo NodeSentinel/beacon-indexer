@@ -62,9 +62,19 @@ export class PartitionStorage {
     const pgRangeEnd = rangeEnd + 1;
     // Note: FOR VALUES FROM/TO must use literal values, not parameters
     // Using $executeRawUnsafe because partition range values must be literals
-    await this.prisma.$executeRawUnsafe(
-      `CREATE TABLE IF NOT EXISTS "${partitionName}" PARTITION OF "${tableName}" FOR VALUES FROM (${rangeStart}) TO (${pgRangeEnd})`,
-    );
+    try {
+      await this.prisma.$executeRawUnsafe(
+        `CREATE TABLE IF NOT EXISTS "${partitionName}" PARTITION OF "${tableName}" FOR VALUES FROM (${rangeStart}) TO (${pgRangeEnd})`,
+      );
+    } catch (error: unknown) {
+      // PostgreSQL 42P07: relation already exists — concurrent DDL race condition
+      // when multiple epoch workers try to create the same partition simultaneously.
+      // Safe to ignore since the partition exists, which is what we wanted.
+      if (error instanceof Error && 'code' in error && error.code === '42P07') {
+        return;
+      }
+      throw error;
+    }
   }
 
   /**
@@ -84,9 +94,19 @@ export class PartitionStorage {
   ): Promise<void> {
     // PostgreSQL partition ranges use FROM (inclusive) TO (exclusive)
     // Timestamp values must be quoted as literals
-    await this.prisma.$executeRawUnsafe(
-      `CREATE TABLE IF NOT EXISTS "${partitionName}" PARTITION OF "${tableName}" FOR VALUES FROM ('${rangeStart}') TO ('${rangeEnd}')`,
-    );
+    try {
+      await this.prisma.$executeRawUnsafe(
+        `CREATE TABLE IF NOT EXISTS "${partitionName}" PARTITION OF "${tableName}" FOR VALUES FROM ('${rangeStart}') TO ('${rangeEnd}')`,
+      );
+    } catch (error: unknown) {
+      // PostgreSQL 42P07: relation already exists — concurrent DDL race condition
+      // when multiple epoch workers try to create the same partition simultaneously.
+      // Safe to ignore since the partition exists, which is what we wanted.
+      if (error instanceof Error && 'code' in error && error.code === '42P07') {
+        return;
+      }
+      throw error;
+    }
   }
 
   /**
