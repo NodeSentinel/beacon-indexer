@@ -14,7 +14,6 @@ import { ApiResponseSchema } from '@/utils/response.js';
 const clusterStorage = new ClusterStorage();
 const analyticsStorage = new AnalyticsStorage();
 
-const ONE_HOUR_MS = 3_600_000;
 const TWENTY_FOUR_HOURS_MS = 24 * 60 * 60 * 1000;
 
 /**
@@ -30,7 +29,7 @@ async function getValidatorIndexesForCluster(clusterId: string): Promise<number[
 
 /**
  * Fetch missed attestations for a set of validators within a time range.
- * '1h' uses the committee table (recent per-slot data).
+ * '1h' reads pre-computed data from the snapshot table (consistent with performance_h).
  * '24h' uses the validator_hourly_archive table (historical hourly data).
  */
 async function fetchMissedAttestations(
@@ -38,14 +37,9 @@ async function fetchMissedAttestations(
   range: '1h' | '24h',
 ): Promise<Array<{ timestamp: string; count: number; validatorCount: number }>> {
   if (range === '1h') {
-    const fromSlot = beaconTime.getSlotNumberFromTimestamp(Date.now() - ONE_HOUR_MS);
-    const toSlot = beaconTime.getChainCurrentSlot();
-    const rows = await analyticsStorage.getMissedAttestationsFromCommittee(
+    const rows = await analyticsStorage.getMissedAttestationsFromSnapshot(
       validatorIndexes,
-      fromSlot,
-      toSlot,
       chainConfig.beacon.slotsPerEpoch,
-      chainConfig.beacon.maxAttestationDelay,
     );
 
     return rows.map((row) => ({
