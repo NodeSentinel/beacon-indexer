@@ -126,84 +126,74 @@ export default function AnalyticsContent({
         </div>
 
         <UnderlineTabsContent value="missed-attestations" className="mt-4">
-          {data.length === 0 ? (
-            <div className="flex items-center justify-center h-[300px] text-muted-foreground">
-              No data available
-            </div>
-          ) : (
-            <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-3 md:gap-4 pb-4">
-                <div>
-                  <p className="text-xs text-muted-foreground mb-1">TOTAL MISSED</p>
-                  <span className="text-xl md:text-2xl font-display text-destructive">
-                    {missedStats.totalMissed}
-                  </span>
-                </div>
-                <div>
-                  <p className="text-xs text-muted-foreground mb-1">VALIDATORS AFFECTED</p>
-                  <span className="text-xl md:text-2xl font-display text-warning">
-                    {missedStats.maxValidators}
-                  </span>
-                </div>
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-3 md:gap-4 pb-4">
+              <div>
+                <p className="text-xs text-muted-foreground mb-1">TOTAL MISSED</p>
+                <span className="text-xl md:text-2xl font-display text-destructive">
+                  {missedStats.totalMissed}
+                </span>
               </div>
+              <div>
+                <p className="text-xs text-muted-foreground mb-1">VALIDATORS AFFECTED</p>
+                <span className="text-xl md:text-2xl font-display text-warning">
+                  {missedStats.maxValidators}
+                </span>
+              </div>
+            </div>
 
-              <ChartContainer
-                config={{
-                  missedValue: {
-                    label: 'Missed',
-                    color: '#fbbf24',
-                  },
-                }}
-                className="h-[250px] md:h-[300px] w-full"
-              >
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                    <CartesianGrid
-                      strokeDasharray="3 3"
-                      stroke="hsl(var(--border))"
-                      opacity={0.3}
-                    />
-                    <XAxis
-                      dataKey="time"
-                      stroke="#888888"
-                      fontSize={10}
-                      tickLine={false}
-                      axisLine={false}
-                      tick={{ fill: '#888888' }}
-                    />
-                    <YAxis
-                      stroke="#888888"
-                      fontSize={10}
-                      tickLine={false}
-                      axisLine={false}
-                      tick={{ fill: '#888888' }}
-                    />
-                    <Tooltip
-                      content={({ active, payload }) => {
-                        if (!active || !payload || !payload.length) return null;
-                        const data = payload[0].payload;
-                        return (
-                          <div className="rounded-lg border bg-background p-3 shadow-md">
-                            <div className="space-y-1">
-                              <div className="flex items-center justify-between gap-4">
-                                <span className="text-xs text-muted-foreground">Slots:</span>
-                                <span className="text-sm font-display">{data.slot}</span>
-                              </div>
-                              <div className="flex items-center justify-between gap-4">
-                                <span className="text-xs text-muted-foreground">Validators:</span>
-                                <span className="text-sm font-display">{data.validators}</span>
-                              </div>
+            <ChartContainer
+              config={{
+                missedValue: {
+                  label: 'Missed',
+                  color: '#fbbf24',
+                },
+              }}
+              className="h-[250px] md:h-[300px] w-full"
+            >
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.3} />
+                  <XAxis
+                    dataKey="time"
+                    stroke="#888888"
+                    fontSize={10}
+                    tickLine={false}
+                    axisLine={false}
+                    tick={{ fill: '#888888' }}
+                  />
+                  <YAxis
+                    stroke="#888888"
+                    fontSize={10}
+                    tickLine={false}
+                    axisLine={false}
+                    tick={{ fill: '#888888' }}
+                  />
+                  <Tooltip
+                    content={({ active, payload }) => {
+                      if (!active || !payload || !payload.length) return null;
+                      const data = payload[0].payload;
+                      return (
+                        <div className="rounded-lg border bg-background p-3 shadow-md">
+                          <div className="space-y-1">
+                            <div className="flex items-center justify-between gap-4">
+                              <span className="text-xs text-muted-foreground">Slots:</span>
+                              <span className="text-sm font-display">{data.slot}</span>
+                            </div>
+                            <div className="flex items-center justify-between gap-4">
+                              <span className="text-xs text-muted-foreground">Validators:</span>
+                              <span className="text-sm font-display">{data.validators}</span>
                             </div>
                           </div>
-                        );
-                      }}
-                    />
-                    <Bar dataKey="missedValue" fill="#fbbf24" radius={[4, 4, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
-              </ChartContainer>
-            </div>
-          )}
+                        </div>
+                      );
+                    }}
+                  />
+                  <Bar dataKey="missedValue" fill="#fbbf24" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </ChartContainer>
+          </div>
         </UnderlineTabsContent>
 
         <UnderlineTabsContent value="rewards" className="mt-4">

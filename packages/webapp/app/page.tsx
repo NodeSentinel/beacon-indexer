@@ -16,6 +16,7 @@ import { useChainStats } from '@/hooks/use-chain-stats';
 import { useClusterSnapshot } from '@/hooks/use-cluster-snapshot';
 import { useClusters, useCluster } from '@/hooks/use-clusters';
 import { useMissedAttestations } from '@/hooks/use-missed-attestations';
+import { useUserId } from '@/lib/user-id';
 import { CLUSTER_FILTER_ALL, type Cluster, type ClusterFilter } from '@/types/cluster';
 import type { ValidatorEvent } from '@/types/validator';
 
@@ -46,6 +47,7 @@ export default function DashboardOverview() {
   const [selectedCluster, setSelectedCluster] = useState<ClusterFilter>(CLUSTER_FILTER_ALL);
   const [analyticsTimeRange, setAnalyticsTimeRange] = useState<'1h' | '24h'>('1h');
 
+  const userId = useUserId();
   const { data: chainStats } = useChainStats();
   const { data: apiClusters, isLoading: clustersLoading, refetch: refetchClusters } = useClusters();
 
@@ -119,7 +121,15 @@ export default function DashboardOverview() {
 
       <ChainStatistics />
 
-      {!clustersLoading && clusters.length === 0 ? (
+      {!userId || clustersLoading ? (
+        <div className="border border-border/60 rounded-lg p-8 md:p-12 space-y-4">
+          <div className="animate-pulse space-y-4">
+            <div className="h-8 bg-foreground/5 rounded w-1/3" />
+            <div className="h-24 bg-foreground/5 rounded" />
+            <div className="h-48 bg-foreground/5 rounded" />
+          </div>
+        </div>
+      ) : clusters.length === 0 ? (
         <div className="border border-border/60 rounded-lg p-8 md:p-12 flex flex-col items-center text-center space-y-4">
           <Server className="size-10 text-muted-foreground" />
           <h2 className="text-xl md:text-2xl font-display">Create your first cluster</h2>
