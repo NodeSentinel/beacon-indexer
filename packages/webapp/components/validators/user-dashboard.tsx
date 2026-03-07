@@ -168,7 +168,7 @@ export default function UserDashboard({
 
         <TabsContent
           value={selectedCluster}
-          className="m-0 border border-border/60 rounded-b-lg rounded-tr-lg"
+          className="m-0 border-y md:border border-border/60 md:rounded-b-lg md:rounded-tr-lg"
         >
           {children({ selectedCluster, displayCluster, isAllSelected })}
         </TabsContent>

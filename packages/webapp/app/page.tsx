@@ -126,7 +126,7 @@ export default function DashboardOverview() {
           const isLoadingCluster = clusterDetailLoading && selectedCluster !== CLUSTER_FILTER_ALL;
 
           return (
-            <div className="p-4 md:p-6 space-y-4 md:space-y-5">
+            <div className="px-2 py-4 md:p-6 space-y-4 md:space-y-5">
               {isLoadingCluster ? (
                 <div className="animate-pulse space-y-4">
                   <div className="h-8 bg-foreground/5 rounded w-1/3" />
