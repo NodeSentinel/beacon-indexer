@@ -7,7 +7,12 @@ import ArrowRight from '@/components/icons/arrow-right';
 import { Badge } from '@/components/ui/badge';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Input } from '@/components/ui/input';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import {
+  UnderlineTabs,
+  UnderlineTabsContent,
+  UnderlineTabsList,
+  UnderlineTabsTrigger,
+} from '@/components/underline-tabs';
 import { cn } from '@/lib/utils';
 import { formatTime } from '@/lib/utils'; // Import formatTime function
 import type { ValidatorEvent, Validator } from '@/types/validator';
@@ -82,43 +87,16 @@ export default function EventsFeed({ events, validators: _validators, gnoPrice }
         />
       }
     >
-      <Tabs defaultValue="incidents" className="w-full">
-        <div className="overflow-x-auto -mx-1 px-1 scrollbar-thin">
-          <TabsList className="inline-flex w-auto min-w-full md:w-full bg-transparent p-0 h-auto border-b border-border/50 rounded-none gap-0">
-            <TabsTrigger
-              value="incidents"
-              className="h-9 flex-shrink-0 px-3 md:px-4 rounded-none border-b-2 border-transparent data-[state=active]:border-b-primary data-[state=active]:bg-transparent text-xs uppercase tracking-wider"
-            >
-              Incidents
-            </TabsTrigger>
-            <TabsTrigger
-              value="consolidations"
-              className="h-9 flex-shrink-0 px-3 md:px-4 rounded-none border-b-2 border-transparent data-[state=active]:border-b-primary data-[state=active]:bg-transparent text-xs uppercase tracking-wider"
-            >
-              Consolidations
-            </TabsTrigger>
-            <TabsTrigger
-              value="blocks"
-              className="h-9 flex-shrink-0 px-3 md:px-4 rounded-none border-b-2 border-transparent data-[state=active]:border-b-primary data-[state=active]:bg-transparent text-xs uppercase tracking-wider"
-            >
-              Blocks
-            </TabsTrigger>
-            <TabsTrigger
-              value="deposits"
-              className="h-9 flex-shrink-0 px-3 md:px-4 rounded-none border-b-2 border-transparent data-[state=active]:border-b-primary data-[state=active]:bg-transparent text-xs uppercase tracking-wider"
-            >
-              Deposits
-            </TabsTrigger>
-            <TabsTrigger
-              value="withdrawals"
-              className="h-9 flex-shrink-0 px-3 md:px-4 rounded-none border-b-2 border-transparent data-[state=active]:border-b-primary data-[state=active]:bg-transparent text-xs uppercase tracking-wider"
-            >
-              Withdrawals
-            </TabsTrigger>
-          </TabsList>
-        </div>
+      <UnderlineTabs defaultValue="incidents">
+        <UnderlineTabsList>
+          <UnderlineTabsTrigger value="incidents">Incidents</UnderlineTabsTrigger>
+          <UnderlineTabsTrigger value="consolidations">Consolidations</UnderlineTabsTrigger>
+          <UnderlineTabsTrigger value="blocks">Blocks</UnderlineTabsTrigger>
+          <UnderlineTabsTrigger value="deposits">Deposits</UnderlineTabsTrigger>
+          <UnderlineTabsTrigger value="withdrawals">Withdrawals</UnderlineTabsTrigger>
+        </UnderlineTabsList>
 
-        <TabsContent value="incidents" className="space-y-2 mt-4 min-h-[400px]">
+        <UnderlineTabsContent value="incidents" className="space-y-2 mt-4 min-h-[400px]">
           {incidents.length > 0 ? (
             <div className="space-y-2">
               {incidents.map((incident, idx) => (
@@ -169,9 +147,9 @@ export default function EventsFeed({ events, validators: _validators, gnoPrice }
           ) : (
             <p className="text-sm text-muted-foreground text-center py-8">No incidents</p>
           )}
-        </TabsContent>
+        </UnderlineTabsContent>
 
-        <TabsContent value="consolidations" className="space-y-2 mt-4 min-h-[400px]">
+        <UnderlineTabsContent value="consolidations" className="space-y-2 mt-4 min-h-[400px]">
           {consolidations.length > 0 ? (
             consolidations.map((event) => (
               <EventItem key={event.id} event={event} gnoPrice={gnoPrice} />
@@ -179,25 +157,25 @@ export default function EventsFeed({ events, validators: _validators, gnoPrice }
           ) : (
             <p className="text-sm text-muted-foreground text-center py-8">No consolidations</p>
           )}
-        </TabsContent>
+        </UnderlineTabsContent>
 
-        <TabsContent value="blocks" className="space-y-2 mt-4 min-h-[400px]">
+        <UnderlineTabsContent value="blocks" className="space-y-2 mt-4 min-h-[400px]">
           {blocks.length > 0 ? (
             blocks.map((event) => <EventItem key={event.id} event={event} gnoPrice={gnoPrice} />)
           ) : (
             <p className="text-sm text-muted-foreground text-center py-8">No blocks proposed</p>
           )}
-        </TabsContent>
+        </UnderlineTabsContent>
 
-        <TabsContent value="deposits" className="space-y-2 mt-4 min-h-[400px]">
+        <UnderlineTabsContent value="deposits" className="space-y-2 mt-4 min-h-[400px]">
           {deposits.length > 0 ? (
             deposits.map((event) => <EventItem key={event.id} event={event} gnoPrice={gnoPrice} />)
           ) : (
             <p className="text-sm text-muted-foreground text-center py-8">No deposits</p>
           )}
-        </TabsContent>
+        </UnderlineTabsContent>
 
-        <TabsContent value="withdrawals" className="space-y-2 mt-4 min-h-[400px]">
+        <UnderlineTabsContent value="withdrawals" className="space-y-2 mt-4 min-h-[400px]">
           {withdrawals.length > 0 ? (
             withdrawals.map((event) => (
               <EventItem key={event.id} event={event} gnoPrice={gnoPrice} />
@@ -205,8 +183,8 @@ export default function EventsFeed({ events, validators: _validators, gnoPrice }
           ) : (
             <p className="text-sm text-muted-foreground text-center py-8">No withdrawals</p>
           )}
-        </TabsContent>
-      </Tabs>
+        </UnderlineTabsContent>
+      </UnderlineTabs>
     </DashboardCard>
   );
 }
