@@ -23,7 +23,7 @@ interface AnalyticsContentProps {
   data: MissedAttestation[];
 }
 
-type TimeRange = '1h' | '24h' | '7d';
+type TimeRange = '1h' | '24h';
 
 export default function AnalyticsContent({ data }: AnalyticsContentProps) {
   const [timeRange, setTimeRange] = useState<TimeRange>('1h');
@@ -49,13 +49,7 @@ export default function AnalyticsContent({ data }: AnalyticsContentProps) {
       const date = new Date(item.timestamp);
       let timeLabel = '';
 
-      if (timeRange === '1h') {
-        timeLabel = date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
-      } else if (timeRange === '24h') {
-        timeLabel = date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
-      } else {
-        timeLabel = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-      }
+      timeLabel = date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
 
       // Use deterministic values based on index to avoid SSR hydration mismatch
       const seed = (i + 1) * 0.1;
@@ -110,30 +104,26 @@ export default function AnalyticsContent({ data }: AnalyticsContentProps) {
         Analytics
       </span>
 
-      <div className="flex items-center justify-end mb-4">
-        <Select value={timeRange} onValueChange={(value) => setTimeRange(value as TimeRange)}>
-          <SelectTrigger className="w-16 md:w-20 h-8">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="1h">1h</SelectItem>
-            <SelectItem value="24h" disabled>
-              24h
-            </SelectItem>
-            <SelectItem value="7d" disabled>
-              7d
-            </SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
-
       <UnderlineTabs defaultValue="missed-attestations">
-        <UnderlineTabsList>
-          <UnderlineTabsTrigger value="missed-attestations">
-            Missed Attestations
-          </UnderlineTabsTrigger>
-          <UnderlineTabsTrigger value="rewards">Rewards</UnderlineTabsTrigger>
-        </UnderlineTabsList>
+        <div className="flex items-center justify-between">
+          <UnderlineTabsList className="border-b-0">
+            <UnderlineTabsTrigger value="missed-attestations">
+              Missed Attestations
+            </UnderlineTabsTrigger>
+            <UnderlineTabsTrigger value="rewards">Rewards</UnderlineTabsTrigger>
+          </UnderlineTabsList>
+          <Select value={timeRange} onValueChange={(value) => setTimeRange(value as TimeRange)}>
+            <SelectTrigger className="w-24 md:w-28 h-8">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="1h">Last 1h</SelectItem>
+              <SelectItem value="24h" disabled>
+                Last 24h
+              </SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
 
         <UnderlineTabsContent value="missed-attestations" className="mt-4">
           {chartData.length === 0 ? (

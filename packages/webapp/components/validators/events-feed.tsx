@@ -6,7 +6,6 @@ import DashboardCard from '@/components/dashboard/card';
 import ArrowRight from '@/components/icons/arrow-right';
 import { Badge } from '@/components/ui/badge';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import { Input } from '@/components/ui/input';
 import {
   UnderlineTabs,
   UnderlineTabsContent,
@@ -24,23 +23,6 @@ interface EventsFeedProps {
 }
 
 export default function EventsFeed({ events, validators: _validators, gnoPrice }: EventsFeedProps) {
-  const [validatorFilter, setValidatorFilter] = useState<string>('');
-
-  const filterEventsByValidator = (eventList: ValidatorEvent[]) => {
-    if (!validatorFilter.trim()) return eventList;
-
-    const filterIndices = validatorFilter
-      .split(',')
-      .map((v) => v.trim())
-      .filter((v) => v !== '');
-
-    if (filterIndices.length === 0) return eventList;
-
-    return eventList.filter((e) =>
-      filterIndices.some((index) => e.validatorIndex.toString() === index),
-    );
-  };
-
   const incidentEvents = events.filter((e) => e.type === 'inactive' || e.type === 'slashed');
 
   // Group incidents by timestamp and type for display
@@ -66,32 +48,20 @@ export default function EventsFeed({ events, validators: _validators, gnoPrice }
 
   const incidents = Object.values(groupedIncidents);
 
-  const consolidations = filterEventsByValidator(events.filter((e) => e.type === 'consolidation'));
-  const blocks = filterEventsByValidator(events.filter((e) => e.type === 'block_proposed'));
-  const deposits = filterEventsByValidator(events.filter((e) => e.type === 'deposit'));
-  const withdrawals = filterEventsByValidator(
-    events.filter((e) => e.type === 'partial_withdrawal' || e.type === 'full_withdrawal'),
+  const consolidations = events.filter((e) => e.type === 'consolidation');
+  const blocks = events.filter((e) => e.type === 'block_proposed');
+  const deposits = events.filter((e) => e.type === 'deposit');
+  const withdrawals = events.filter(
+    (e) => e.type === 'partial_withdrawal' || e.type === 'full_withdrawal',
   );
 
   return (
-    <DashboardCard
-      title="EVENTS"
-      intent="default"
-      addon={
-        <Input
-          placeholder="Filter validators (e.g., 123, 456)"
-          value={validatorFilter}
-          onChange={(e) => setValidatorFilter(e.target.value)}
-          className="w-48 md:w-64 h-8 text-xs md:text-sm"
-          disabled
-        />
-      }
-    >
-      <UnderlineTabs defaultValue="incidents">
+    <DashboardCard title="EVENTS" intent="default">
+      <UnderlineTabs defaultValue="blocks">
         <UnderlineTabsList>
+          <UnderlineTabsTrigger value="blocks">Blocks</UnderlineTabsTrigger>
           <UnderlineTabsTrigger value="incidents">Incidents</UnderlineTabsTrigger>
           <UnderlineTabsTrigger value="consolidations">Consolidations</UnderlineTabsTrigger>
-          <UnderlineTabsTrigger value="blocks">Blocks</UnderlineTabsTrigger>
           <UnderlineTabsTrigger value="deposits">Deposits</UnderlineTabsTrigger>
           <UnderlineTabsTrigger value="withdrawals">Withdrawals</UnderlineTabsTrigger>
         </UnderlineTabsList>
