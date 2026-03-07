@@ -34,9 +34,10 @@ interface ClusterFormProps {
   clusterId: string | null;
   onClose: () => void;
   onSaved?: () => void;
+  onDeleted?: () => void;
 }
 
-export default function ClusterForm({ clusterId, onClose, onSaved }: ClusterFormProps) {
+export default function ClusterForm({ clusterId, onClose, onSaved, onDeleted }: ClusterFormProps) {
   const { toast } = useToast();
 
   // Fetch full cluster details when in edit mode
@@ -133,16 +134,13 @@ export default function ClusterForm({ clusterId, onClose, onSaved }: ClusterForm
 
         toast({ title: 'Cluster updated', description: `${name} has been updated` });
       } else {
-        // Create new cluster
-        const newCluster = await createCluster.mutateAsync({
+        // Create new cluster with validators
+        await createCluster.mutateAsync({
           name,
+          validatorIndexes,
           visibility,
           feeRecipientAddress: feeRecipient || null,
         });
-
-        if (newCluster && validatorIndexes.length > 0) {
-          await addValidatorsMutation.mutateAsync({ clusterId: newCluster.id, validatorIndexes });
-        }
 
         toast({ title: 'Cluster created', description: `${name} has been created` });
       }
@@ -169,6 +167,7 @@ export default function ClusterForm({ clusterId, onClose, onSaved }: ClusterForm
         title: 'Cluster deleted',
         description: `${clusterDetails?.name || 'Cluster'} has been deleted`,
       });
+      onDeleted?.();
       onSaved?.();
       onClose();
     } catch (error) {
@@ -255,7 +254,12 @@ export default function ClusterForm({ clusterId, onClose, onSaved }: ClusterForm
           <Button
             type="submit"
             className="w-full"
-            disabled={!name.trim() || isSaving || !!feeRecipientError}
+            disabled={
+              !name.trim() ||
+              isSaving ||
+              !!feeRecipientError ||
+              (!clusterId && validators.length === 0)
+            }
           >
             {isSaving ? (
               <>

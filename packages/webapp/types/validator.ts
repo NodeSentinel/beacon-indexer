@@ -1,4 +1,4 @@
-import type { Cluster, Group } from './cluster';
+import type { Cluster } from './cluster';
 
 export interface Validator {
   id: string;
@@ -77,7 +77,7 @@ export interface ValidatorEvent {
 }
 
 export interface ValidatorData {
-  groups: Group[];
+  groups: Cluster[];
   clusters: Cluster[];
   alertConfig: AlertConfig;
   stats: Stats;

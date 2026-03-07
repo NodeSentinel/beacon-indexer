@@ -1,8 +1,10 @@
 'use client';
 
+import { Plus, Server } from 'lucide-react';
 import { useState, useMemo } from 'react';
 
 import ChainStatistics from '@/components/dashboard/chain-statistics';
+import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTitle } from '@/components/ui/sheet';
 import AnalyticsContent from '@/components/validators/analytics-content';
 import ClusterForm from '@/components/validators/cluster-form';
@@ -111,49 +113,64 @@ export default function DashboardOverview() {
 
       <ChainStatistics />
 
-      <UserDashboard
-        clusters={clusters}
-        isLoading={clustersLoading}
-        onAddCluster={() => setClusterFormOpen(true)}
-        hideAllTab={true}
-        selectedCluster={selectedCluster}
-        onClusterChange={setSelectedCluster}
-      >
-        {({ isAllSelected }) => {
-          // Use detailed cluster when available, fallback to basic cluster info
-          const displayCluster =
-            detailedCluster || clusters.find((c) => c.id === selectedCluster) || null;
-          const isLoadingCluster = clusterDetailLoading && selectedCluster !== CLUSTER_FILTER_ALL;
+      {!clustersLoading && clusters.length === 0 ? (
+        <div className="border border-border/60 rounded-lg p-8 md:p-12 flex flex-col items-center text-center space-y-4">
+          <Server className="size-10 text-muted-foreground" />
+          <h2 className="text-xl md:text-2xl font-display">Create your first cluster</h2>
+          <p className="text-muted-foreground max-w-md text-sm md:text-base">
+            A cluster represents a physical machine running a group of validators. Create one per
+            machine you operate. If you are a solo staker, you probably only need one.
+          </p>
+          <Button onClick={() => setClusterFormOpen(true)} className="mt-2">
+            <Plus className="size-4 mr-2" />
+            Add Cluster
+          </Button>
+        </div>
+      ) : (
+        <UserDashboard
+          clusters={clusters}
+          isLoading={clustersLoading}
+          onAddCluster={() => setClusterFormOpen(true)}
+          hideAllTab={true}
+          selectedCluster={selectedCluster}
+          onClusterChange={setSelectedCluster}
+        >
+          {({ isAllSelected }) => {
+            // Use detailed cluster when available, fallback to basic cluster info
+            const displayCluster =
+              detailedCluster || clusters.find((c) => c.id === selectedCluster) || null;
+            const isLoadingCluster = clusterDetailLoading && selectedCluster !== CLUSTER_FILTER_ALL;
 
-          return (
-            <div className="px-2 py-4 md:p-6 space-y-4 md:space-y-5">
-              {isLoadingCluster ? (
-                <div className="animate-pulse space-y-4">
-                  <div className="h-8 bg-foreground/5 rounded w-1/3" />
-                  <div className="h-24 bg-foreground/5 rounded" />
-                  <div className="h-48 bg-foreground/5 rounded" />
-                </div>
-              ) : displayCluster ? (
-                <ClusterOverviewContent
-                  cluster={displayCluster}
-                  snapshot={clusterSnapshot ?? null}
-                  snapshotLoading={snapshotLoading}
+            return (
+              <div className="px-2 py-4 md:p-6 space-y-4 md:space-y-5">
+                {isLoadingCluster ? (
+                  <div className="animate-pulse space-y-4">
+                    <div className="h-8 bg-foreground/5 rounded w-1/3" />
+                    <div className="h-24 bg-foreground/5 rounded" />
+                    <div className="h-48 bg-foreground/5 rounded" />
+                  </div>
+                ) : displayCluster ? (
+                  <ClusterOverviewContent
+                    cluster={displayCluster}
+                    snapshot={clusterSnapshot ?? null}
+                    snapshotLoading={snapshotLoading}
+                    gnoPrice={tokenPrice}
+                    showManageButton={!isAllSelected}
+                    onManage={() => setManagingClusterId(displayCluster.id)}
+                  />
+                ) : null}
+                <AnalyticsContent data={emptyMissedAttestations} />
+                <EventsFeedContent
+                  clusterId={selectedClusterId}
+                  events={emptyEvents}
+                  validators={[]}
                   gnoPrice={tokenPrice}
-                  showManageButton={!isAllSelected}
-                  onManage={() => setManagingClusterId(displayCluster.id)}
                 />
-              ) : null}
-              <AnalyticsContent data={emptyMissedAttestations} />
-              <EventsFeedContent
-                clusterId={selectedClusterId}
-                events={emptyEvents}
-                validators={[]}
-                gnoPrice={tokenPrice}
-              />
-            </div>
-          );
-        }}
-      </UserDashboard>
+              </div>
+            );
+          }}
+        </UserDashboard>
+      )}
 
       <Sheet open={clusterFormOpen} onOpenChange={setClusterFormOpen}>
         <SheetContent side="right" className="w-full sm:max-w-2xl overflow-y-auto">
@@ -179,6 +196,11 @@ export default function DashboardOverview() {
               clusterId={managingClusterId}
               onClose={() => setManagingClusterId(null)}
               onSaved={() => refetchClusters()}
+              onDeleted={() => {
+                if (selectedCluster === managingClusterId) {
+                  setSelectedCluster(CLUSTER_FILTER_ALL);
+                }
+              }}
             />
           </div>
         </SheetContent>

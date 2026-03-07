@@ -85,6 +85,13 @@ describe('Cluster API E2E Tests', () => {
 
   describe('POST /clusters', () => {
     it('should create a cluster successfully', async () => {
+      // Ensure test validators exist for the create request
+      await prisma.validator.upsert({
+        where: { id: 1 },
+        update: {},
+        create: { id: 1, balance: BigInt(32000000000) },
+      });
+
       const response = await fetch(`${baseUrl}/clusters`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -92,6 +99,7 @@ describe('Cluster API E2E Tests', () => {
           name: 'Test Cluster',
           visibility: 'private',
           ownerId: testOwnerId,
+          validatorIndexes: [1],
         }),
       });
 
@@ -109,6 +117,13 @@ describe('Cluster API E2E Tests', () => {
     });
 
     it('should create a cluster with feeRecipientAddress', async () => {
+      // Ensure test validator exists for the create request
+      await prisma.validator.upsert({
+        where: { id: 1 },
+        update: {},
+        create: { id: 1, balance: BigInt(32000000000) },
+      });
+
       const feeRecipient = '0x1234567890123456789012345678901234567890';
       const response = await fetch(`${baseUrl}/clusters`, {
         method: 'POST',
@@ -118,6 +133,7 @@ describe('Cluster API E2E Tests', () => {
           visibility: 'shared',
           feeRecipientAddress: feeRecipient,
           ownerId: testOwnerId,
+          validatorIndexes: [1],
         }),
       });
 

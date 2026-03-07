@@ -14,7 +14,7 @@ interface FeeRecipientInputProps {
 export function FeeRecipientInput({ value, onChange, error }: FeeRecipientInputProps) {
   return (
     <div className="space-y-2">
-      <Label htmlFor="feeRecipient">Execution Rewards Fee Recipient Address</Label>
+      <Label htmlFor="feeRecipient">Fee Recipient Address (Execution Rewards)</Label>
       <div className="relative">
         <Input
           id="feeRecipient"

@@ -13,6 +13,7 @@ export function ValidatorChip({ index, onRemove }: ValidatorChipProps) {
       <span className="font-mono text-primary">{index}</span>
       <button
         type="button"
+        tabIndex={-1}
         onClick={onRemove}
         className="size-5 inline-flex items-center justify-center rounded text-primary/60 hover:text-destructive hover:bg-destructive/10 opacity-50 group-hover:opacity-100 transition-opacity"
       >

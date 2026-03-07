@@ -22,6 +22,8 @@ export const createCluster = publicProcedure
         feeRecipientAddress: input.feeRecipientAddress ?? null,
       });
 
+      await storage.addValidators(cluster.id, input.validatorIndexes);
+
       return {
         success: true,
         data: {

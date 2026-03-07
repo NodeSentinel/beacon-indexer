@@ -52,6 +52,7 @@ export function useCreateCluster() {
   return useMutation({
     mutationFn: async (data: {
       name: string;
+      validatorIndexes: number[];
       visibility?: 'private' | 'shared';
       feeRecipientAddress?: string | null;
     }) => {

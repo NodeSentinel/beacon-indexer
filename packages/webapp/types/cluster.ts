@@ -29,12 +29,6 @@ export interface Cluster {
   createdAt?: string;
 }
 
-// Backward compatibility aliases
-export type Group = Cluster;
-export type Node = Cluster;
-
 export const CLUSTER_FILTER_ALL = 'all' as const;
 
 export type ClusterFilter = typeof CLUSTER_FILTER_ALL | string;
-export type GroupFilter = ClusterFilter;
-export type NodeFilter = ClusterFilter;

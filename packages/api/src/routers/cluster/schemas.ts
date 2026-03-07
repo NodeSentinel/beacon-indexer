@@ -23,6 +23,7 @@ export const CreateClusterInputSchema = z.object({
   visibility: ClusterVisibilitySchema.default('private'),
   feeRecipientAddress: ethereumAddressSchema.nullable().optional(),
   ownerId: z.string(),
+  validatorIndexes: z.array(z.number().int().nonnegative()).min(1),
 });
 
 export type CreateClusterInput = z.infer<typeof CreateClusterInputSchema>;
