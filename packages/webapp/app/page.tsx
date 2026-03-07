@@ -55,7 +55,7 @@ export default function DashboardOverview() {
   const { data: clusterSnapshot, isLoading: snapshotLoading } =
     useClusterSnapshot(selectedClusterId);
   const { data: missedAttestations } = useMissedAttestations(
-    selectedClusterId,
+    selectedCluster,
     null,
     analyticsTimeRange,
   );
