@@ -1,11 +1,13 @@
 'use client';
 
-import { Server, Bell, Settings, MessageSquare } from 'lucide-react';
+import { Bell, Settings, MessageSquare } from 'lucide-react';
 import Link from 'next/link';
 import * as React from 'react';
 
 import AlertConfiguration from './alert-configuration';
 
+import NodeSentinelIcon from '@/components/icons/nodesentinel-icon';
+import NodeSentinelWordmark from '@/components/icons/nodesentinel-wordmark';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent } from '@/components/ui/sheet';
 import type { ValidatorData } from '@/types/validator';
@@ -21,11 +23,9 @@ export default function ValidatorHeader() {
       <header className="sticky top-0 z-50 w-full border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
         <div className="max-w-7xl mx-auto px-4 lg:px-8">
           <div className="flex h-16 items-center justify-between">
-            <Link href="/" className="flex items-center gap-3">
-              <div className="h-9 w-9 bg-primary rounded flex items-center justify-center">
-                <Server className="size-5 text-primary-foreground" />
-              </div>
-              <span className="font-display text-xl hidden sm:inline-block">Validator Monitor</span>
+            <Link href="/" className="flex items-center gap-2.5">
+              <NodeSentinelIcon className="h-9 w-9 text-foreground" />
+              <NodeSentinelWordmark className="h-5 hidden sm:inline-block text-foreground" />
             </Link>
 
             <nav className="hidden md:flex items-center gap-2">
