@@ -2,8 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
-import chalk from 'chalk';
-import Pino, { DestinationStream, pino } from 'pino';
+import Pino, { pino } from 'pino';
 
 // Note: We use process.env directly instead of importing from @/src/lib/env.js
 // because pino.ts is a low-level infrastructure module that only needs optional
@@ -28,28 +27,17 @@ const getCurrentLogFileName = () => {
   return `${day}-${month}-${year}.log`;
 };
 
-// Helper function to apply color to text using chalk
-const applyColor = (text: string, colorName = 'white'): string => {
-  if (!colorName) return text;
-
-  // Map color names to chalk methods
-  const colorMap: Record<string, (text: string) => string> = {
-    blue: chalk.blue,
-    cyan: chalk.cyan,
-    green: chalk.green,
-    red: chalk.red,
-    yellow: chalk.yellow,
-    magenta: chalk.magenta,
-    white: chalk.white,
-    gray: chalk.gray,
-  };
-
-  const colorFn = colorMap[colorName];
-  return colorFn ? colorFn(text) : text;
+// Function to get the current day's error log file name
+const getCurrentErrorLogFileName = () => {
+  const now = new Date();
+  const day = String(now.getDate()).padStart(2, '0');
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const year = now.getFullYear();
+  return `errors-${day}-${month}-${year}.log`;
 };
 
-// Function to create a logger with optional context and color
-const createLogger = (initialContext: string | null, enabled: boolean = true, color = 'yellow') => {
+// Function to create a logger with optional context
+const createLogger = (initialContext: string | null, enabled: boolean = true) => {
   const _initialContext = initialContext;
   // Add context state that can be modified
   let currentContext = initialContext;
@@ -62,10 +50,7 @@ const createLogger = (initialContext: string | null, enabled: boolean = true, co
     // Only skip logging if enabled is false AND it's not an error
     if (!enabled && level !== 'error') return;
 
-    // Include context in the message itself for cleaner output with optional color
-    const contextualMessage = currentContext
-      ? `${applyColor(`[${currentContext}]`, color)} ${applyColor(message)}`
-      : applyColor(message);
+    const contextualMessage = currentContext ? `[${currentContext}] ${message}` : message;
 
     // Only pass an object if there are additional arguments, otherwise just pass the message
     if (args.length > 0) {
@@ -95,26 +80,27 @@ export type CustomLogger = ReturnType<typeof createLogger>;
 
 // Modify the logger creation to be a function
 const createPinoLogger = () => {
-  let logDestination: DestinationStream | undefined;
-  let transport;
+  const targets: Pino.TransportTargetOptions[] = [];
+
   if (LOG_OUTPUT === 'file') {
     const logPath = path.join(logsDir, getCurrentLogFileName());
-    logDestination = Pino.destination({ dest: logPath, sync: false });
-    transport = {
+    targets.push({
       target: 'pino-pretty',
+      level: process.env.LOG_LEVEL || 'info',
       options: {
         destination: logPath,
-        colorize: false, // Disable colors for file output
+        colorize: false,
         messageFormat: '{msg}',
         ignore: 'pid,hostname',
         translateTime: 'HH:MM:ss.l',
         singleLine: true,
         hideObject: false,
       },
-    };
+    });
   } else {
-    transport = {
+    targets.push({
       target: 'pino-pretty',
+      level: process.env.LOG_LEVEL || 'info',
       options: {
         colorize: true,
         messageFormat: '{msg}',
@@ -123,37 +109,45 @@ const createPinoLogger = () => {
         singleLine: true,
         hideObject: false,
       },
-    };
+    });
   }
 
-  return pino(
-    {
-      level: process.env.LOG_LEVEL || 'info',
-      timestamp: () => `,"time":"${new Date().toISOString()}"`,
-      base: null, // This removes pid and hostname
-      transport, // Use the transport configuration here
+  // Always write errors to a separate file for post-mortem debugging
+  const errorLogPath = path.join(logsDir, getCurrentErrorLogFileName());
+  targets.push({
+    target: 'pino-pretty',
+    level: 'error',
+    options: {
+      destination: errorLogPath,
+      colorize: false,
+      messageFormat: '{msg}',
+      ignore: 'pid,hostname',
+      translateTime: 'HH:MM:ss.l',
+      singleLine: true,
+      hideObject: false,
     },
-    LOG_OUTPUT === 'file' ? logDestination : undefined,
-  );
+  });
+
+  return pino({
+    level: process.env.LOG_LEVEL || 'info',
+    timestamp: () => `,"time":"${new Date().toISOString()}"`,
+    base: null,
+    transport: { targets },
+  });
 };
 
 // Create the initial logger
 let logger = createPinoLogger();
 
-// Ensure the logs directory exists if file output is used
-if (LOG_OUTPUT === 'file') {
-  if (!fs.existsSync(logsDir)) {
-    fs.mkdirSync(logsDir, { recursive: true });
-  }
+// Ensure the logs directory exists
+if (!fs.existsSync(logsDir)) {
+  fs.mkdirSync(logsDir, { recursive: true });
 }
 
 // Function to rotate logs daily
 const rotateLogsDaily = () => {
-  if (LOG_OUTPUT === 'file') {
-    // Create a new logger instance with the new file
-    logger = createPinoLogger();
-    console.log('Log rotated to new file:', getCurrentLogFileName());
-  }
+  logger = createPinoLogger();
+  console.log('Log rotated to new file:', getCurrentLogFileName());
 };
 
 // Calculate milliseconds until midnight

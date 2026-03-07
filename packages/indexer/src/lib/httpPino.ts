@@ -14,8 +14,7 @@ interface ExtendedAxiosRequestConfig extends InternalAxiosRequestConfig {
   };
 }
 
-// Create the HTTP logger using the existing createLogger function with blue color
-const httpLogger = createLogger('HTTP', true, 'blue');
+const httpLogger = createLogger('HTTP');
 
 /**
  * Extract endpoint path from a full URL
