@@ -408,13 +408,15 @@ export class EpochStorage {
     },
   ) {
     await this.prisma.$transaction(async (tx) => {
-      await tx.syncCommittee.create({
-        data: {
+      await tx.syncCommittee.upsert({
+        where: { fromEpoch_toEpoch: { fromEpoch, toEpoch } },
+        create: {
           fromEpoch,
           toEpoch,
           validators: syncCommitteeData.validators,
           validatorAggregates: syncCommitteeData.validator_aggregates,
         },
+        update: {},
       });
 
       await tx.epoch.update({
