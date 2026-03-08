@@ -193,12 +193,33 @@ export class SnapshotStorage {
         rew AS (
           SELECT
             er.validator_index,
-            SUM(er.head + er.target + er.source) AS consensus_reward,
-            SUM(er.missed_head + er.missed_target + er.missed_source) AS missed_reward
+            SUM(er.head + er.target + er.source + er.inactivity) AS epoch_reward,
+            SUM(er.missed_head + er.missed_target + er.missed_source + er.missed_inactivity) AS missed_reward
           FROM epoch_rewards er
           JOIN user_validators uv ON er.validator_index = uv.validator_index
           WHERE er.epoch BETWEEN ${minEpoch}::int AND ${maxEpoch}::int
           GROUP BY er.validator_index
+        ),
+        sync_rew AS (
+          SELECT
+            scr.validator_index,
+            SUM(scr.sync_committee_reward) AS sync_reward
+          FROM sync_committee_rewards scr
+          JOIN user_validators uv ON scr.validator_index = uv.validator_index
+          WHERE scr.slot BETWEEN ${minSlot}::int AND ${maxSlot}::int
+          GROUP BY scr.validator_index
+        ),
+        block_rew AS (
+          SELECT
+            s.proposer_index AS validator_index,
+            SUM(s.consensus_reward) AS block_reward
+          FROM slot s
+          JOIN user_validators uv ON s.proposer_index = uv.validator_index
+          WHERE s.slot BETWEEN ${minSlot}::int AND ${maxSlot}::int
+            AND s.proposer_index IS NOT NULL
+            AND s.consensus_reward IS NOT NULL
+            AND s.consensus_reward > 0
+          GROUP BY s.proposer_index
         ),
         exec_rew AS (
           SELECT
@@ -219,15 +240,17 @@ export class SnapshotStorage {
             END AS performance_h,
             COALESCE(a.missed_slots, '{}') AS missed_attestation_slots_h,
             COALESCE(a.missed, 0)::int AS missed_attestation_count_h,
-            r.consensus_reward,
+            COALESCE(r.epoch_reward, 0) + COALESCE(sr.sync_reward, 0) + COALESCE(br.block_reward, 0) AS consensus_reward,
             r.missed_reward,
             e.execution_reward,
-            CASE WHEN v.balance > 0 AND r.consensus_reward IS NOT NULL
-              THEN (r.consensus_reward::numeric / v.balance * 8766 * 100)::numeric(5,2)
+            CASE WHEN v.balance > 0 AND (r.epoch_reward IS NOT NULL OR sr.sync_reward IS NOT NULL OR br.block_reward IS NOT NULL)
+              THEN ((COALESCE(r.epoch_reward, 0) + COALESCE(sr.sync_reward, 0) + COALESCE(br.block_reward, 0))::numeric / v.balance * 8766 * 100)::numeric(5,2)
               ELSE NULL
             END AS apy_h
           FROM att a
           LEFT JOIN rew r ON a.validator_index = r.validator_index
+          LEFT JOIN sync_rew sr ON a.validator_index = sr.validator_index
+          LEFT JOIN block_rew br ON a.validator_index = br.validator_index
           LEFT JOIN exec_rew e ON a.validator_index = e.validator_index
           JOIN validator v ON v.id = a.validator_index
         )
@@ -247,50 +270,224 @@ export class SnapshotStorage {
   }
 
   /**
-   * Update d performance metrics from ValidatorHourlyArchive (last 24h).
+   * Update d performance metrics combining hourly archives + live data.
+   *
+   * Reads archive.lastHour to determine the boundary between archived and live data,
+   * then combines both sources in a single atomic query:
+   * - Archived hours from validator_hourly_archive (up to lastHour)
+   * - Live hours from committee/epoch_rewards/sync_committee_rewards/slot (complete hours only)
+   *
+   * Chain params are needed to convert timestamps to slot/epoch ranges in SQL.
    */
-  async updatePerformanceD(params?: { validatorIndexes?: number[] }): Promise<void> {
-    const validatorIndexes = params?.validatorIndexes;
-    const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000);
+  async updatePerformanceD(params: {
+    genesisTimeSec: number;
+    secPerSlot: number;
+    slotsPerEpoch: number;
+    maxAttestationDelay: number;
+    validatorIndexes?: number[];
+  }): Promise<void> {
+    const { genesisTimeSec, secPerSlot, slotsPerEpoch, maxAttestationDelay, validatorIndexes } =
+      params;
 
     await this.prisma.$executeRaw`
       WITH
+        -- Chain configuration for timestamp → slot/epoch conversion
+        chain AS (
+          SELECT
+            ${genesisTimeSec}::bigint AS genesis_sec,
+            ${secPerSlot}::int AS sec_per_slot,
+            ${slotsPerEpoch}::int AS slots_per_epoch
+        ),
+
+        -- Read last archived hour from archive control table
+        archive_info AS (
+          SELECT last_hour FROM archive WHERE id = 1
+        ),
+
+        -- Time boundaries:
+        -- - archived data covers up to last_hour (inclusive)
+        -- - live data covers from last_hour+1h to the start of current (incomplete) hour
+        time_bounds AS (
+          SELECT
+            ai.last_hour,
+            ai.last_hour + interval '1 hour' AS live_start,
+            date_trunc('hour', NOW() AT TIME ZONE 'UTC') AS live_end
+          FROM archive_info ai
+        ),
+
+        -- Convert time boundaries to slot/epoch ranges
+        slot_bounds AS (
+          SELECT
+            FLOOR((EXTRACT(EPOCH FROM tb.live_start) - c.genesis_sec) / c.sec_per_slot)::int AS live_start_slot,
+            FLOOR((EXTRACT(EPOCH FROM tb.live_end) - c.genesis_sec) / c.sec_per_slot)::int - 1 AS live_end_slot,
+            FLOOR((EXTRACT(EPOCH FROM tb.live_start) - c.genesis_sec) / c.sec_per_slot / c.slots_per_epoch)::int AS live_start_epoch,
+            FLOOR((EXTRACT(EPOCH FROM tb.live_end) - c.genesis_sec) / c.sec_per_slot / c.slots_per_epoch)::int - 1 AS live_end_epoch,
+            GREATEST(0, EXTRACT(EPOCH FROM tb.live_end - tb.live_start)::int / 3600) AS live_hours,
+            tb.last_hour
+          FROM time_bounds tb
+          CROSS JOIN chain c
+        ),
+
         target_validators AS (
           SELECT DISTINCT vss.validator_index
           FROM validators_snapshot_stats vss
           WHERE (${validatorIndexes ?? null}::int[] IS NULL
             OR vss.validator_index = ANY(${validatorIndexes ?? null}::int[]))
         ),
-        archive_data AS (
+
+        -- ARCHIVED DATA: get (24 - live_hours) most recent archived hours
+        ranked_archive_hours AS (
+          SELECT timestamp,
+            ROW_NUMBER() OVER (ORDER BY timestamp DESC) AS rn
+          FROM (
+            SELECT DISTINCT timestamp
+            FROM validator_hourly_archive
+            WHERE timestamp <= (SELECT last_hour FROM slot_bounds)
+          ) sub
+        ),
+        filtered_archive_hours AS (
+          SELECT timestamp FROM ranked_archive_hours
+          WHERE rn <= GREATEST(0, 24 - (SELECT live_hours FROM slot_bounds))
+        ),
+        archive_hour_count AS (
+          SELECT COUNT(*)::int AS n FROM filtered_archive_hours
+        ),
+
+        archive_agg AS (
           SELECT
             vha.validator_index,
-            SUM(vha.attestation_count) AS att_count,
-            SUM(COALESCE(vha.missed_attestation_count, 0)) AS missed_att_count,
-            SUM(vha.cl_reward_total) AS consensus_reward,
+            SUM(vha.cl_reward_total) + SUM(COALESCE(vha.sync_reward_total, 0)) + SUM(COALESCE(vha.block_reward_total, 0)) AS consensus_reward,
             SUM(vha.cl_missed_reward_total) AS missed_reward,
-            SUM(COALESCE(vha.exec_reward_total, 0)) AS execution_reward
+            SUM(COALESCE(vha.exec_reward_total, 0)) AS execution_reward,
+            SUM(vha.attestation_count)::bigint AS att_count,
+            SUM(COALESCE(vha.missed_attestation_count, 0))::bigint AS missed_att_count
           FROM validator_hourly_archive vha
           JOIN target_validators tv ON vha.validator_index = tv.validator_index
-          WHERE vha.timestamp >= ${cutoff}
+          WHERE vha.timestamp IN (SELECT timestamp FROM filtered_archive_hours)
           GROUP BY vha.validator_index
         ),
+
+        -- LIVE DATA: complete hours between lastHour+1h and current hour start
+        live_att AS (
+          SELECT
+            c.validator_index,
+            COUNT(*)::bigint AS att_count,
+            SUM(CASE WHEN c.attestation_delay IS NULL OR c.attestation_delay > ${maxAttestationDelay}::int THEN 1 ELSE 0 END)::bigint AS missed_att_count
+          FROM committee c
+          JOIN target_validators tv ON c.validator_index = tv.validator_index
+          CROSS JOIN slot_bounds sb
+          WHERE sb.live_hours > 0
+            AND c.slot BETWEEN sb.live_start_slot AND sb.live_end_slot
+          GROUP BY c.validator_index
+        ),
+
+        live_rew AS (
+          SELECT
+            er.validator_index,
+            SUM(er.head + er.target + er.source + er.inactivity) AS epoch_reward,
+            SUM(er.missed_head + er.missed_target + er.missed_source + er.missed_inactivity) AS missed_reward
+          FROM epoch_rewards er
+          JOIN target_validators tv ON er.validator_index = tv.validator_index
+          CROSS JOIN slot_bounds sb
+          WHERE sb.live_hours > 0
+            AND er.epoch BETWEEN sb.live_start_epoch AND sb.live_end_epoch
+          GROUP BY er.validator_index
+        ),
+
+        live_sync AS (
+          SELECT
+            scr.validator_index,
+            SUM(scr.sync_committee_reward) AS sync_reward
+          FROM sync_committee_rewards scr
+          JOIN target_validators tv ON scr.validator_index = tv.validator_index
+          CROSS JOIN slot_bounds sb
+          WHERE sb.live_hours > 0
+            AND scr.slot BETWEEN sb.live_start_slot AND sb.live_end_slot
+          GROUP BY scr.validator_index
+        ),
+
+        live_block AS (
+          SELECT
+            s.proposer_index AS validator_index,
+            SUM(s.consensus_reward) AS block_reward
+          FROM slot s
+          JOIN target_validators tv ON s.proposer_index = tv.validator_index
+          CROSS JOIN slot_bounds sb
+          WHERE sb.live_hours > 0
+            AND s.slot BETWEEN sb.live_start_slot AND sb.live_end_slot
+            AND s.proposer_index IS NOT NULL
+            AND s.consensus_reward IS NOT NULL AND s.consensus_reward > 0
+          GROUP BY s.proposer_index
+        ),
+
+        live_exec AS (
+          SELECT
+            s.proposer_index AS validator_index,
+            SUM(COALESCE(s.execution_reward, 0)) AS execution_reward
+          FROM slot s
+          JOIN target_validators tv ON s.proposer_index = tv.validator_index
+          CROSS JOIN slot_bounds sb
+          WHERE sb.live_hours > 0
+            AND s.slot BETWEEN sb.live_start_slot AND sb.live_end_slot
+            AND s.proposer_index IS NOT NULL
+          GROUP BY s.proposer_index
+        ),
+
+        live_agg AS (
+          SELECT
+            COALESCE(la.validator_index, lr.validator_index) AS validator_index,
+            COALESCE(lr.epoch_reward, 0) + COALESCE(ls.sync_reward, 0) + COALESCE(lb.block_reward, 0) AS consensus_reward,
+            COALESCE(lr.missed_reward, 0) AS missed_reward,
+            COALESCE(le.execution_reward, 0) AS execution_reward,
+            COALESCE(la.att_count, 0)::bigint AS att_count,
+            COALESCE(la.missed_att_count, 0)::bigint AS missed_att_count
+          FROM live_att la
+          FULL OUTER JOIN live_rew lr ON la.validator_index = lr.validator_index
+          LEFT JOIN live_sync ls ON COALESCE(la.validator_index, lr.validator_index) = ls.validator_index
+          LEFT JOIN live_block lb ON COALESCE(la.validator_index, lr.validator_index) = lb.validator_index
+          LEFT JOIN live_exec le ON COALESCE(la.validator_index, lr.validator_index) = le.validator_index
+        ),
+
+        -- COMBINE archive + live
+        combined AS (
+          SELECT
+            validator_index,
+            SUM(consensus_reward) AS consensus_reward,
+            SUM(missed_reward) AS missed_reward,
+            SUM(execution_reward) AS execution_reward,
+            SUM(att_count) AS att_count,
+            SUM(missed_att_count) AS missed_att_count
+          FROM (
+            SELECT * FROM archive_agg
+            UNION ALL
+            SELECT * FROM live_agg
+          ) all_data
+          GROUP BY validator_index
+        ),
+
+        total_hours AS (
+          SELECT (SELECT n FROM archive_hour_count) + (SELECT live_hours FROM slot_bounds)::int AS n
+        ),
+
         perf AS (
           SELECT
-            ad.validator_index,
-            CASE WHEN ad.att_count > 0
-              THEN ((ad.att_count - ad.missed_att_count)::numeric / ad.att_count)::numeric(5,4)
+            c.validator_index,
+            CASE WHEN c.att_count > 0
+              THEN ((c.att_count - c.missed_att_count)::numeric / c.att_count)::numeric(5,4)
               ELSE NULL
             END AS performance_d,
-            ad.consensus_reward,
-            ad.missed_reward,
-            ad.execution_reward,
-            CASE WHEN v.balance > 0 AND ad.consensus_reward IS NOT NULL
-              THEN (ad.consensus_reward::numeric / v.balance * 365.25 * 100)::numeric(5,2)
+            c.consensus_reward,
+            c.missed_reward,
+            c.execution_reward,
+            CASE WHEN v.balance > 0 AND c.consensus_reward IS NOT NULL AND th.n > 0
+              THEN (c.consensus_reward::numeric / v.balance * (8766.0 / th.n) * 100)::numeric(5,2)
               ELSE NULL
             END AS apy_d
-          FROM archive_data ad
-          JOIN validator v ON v.id = ad.validator_index
+          FROM combined c
+          JOIN validator v ON v.id = c.validator_index
+          CROSS JOIN total_hours th
         )
+
       UPDATE validators_snapshot_stats vss
       SET
         performance_d = p.performance_d,
@@ -306,10 +503,12 @@ export class SnapshotStorage {
 
   /**
    * Update w performance metrics from ValidatorDailyArchive (last 7 days).
+   *
+   * Uses the 7 most recent archived days to ensure a full week of data.
+   * APY is adjusted by the actual number of days covered (365.25 / days_covered * 100).
    */
   async updatePerformanceW(params?: { validatorIndexes?: number[] }): Promise<void> {
     const validatorIndexes = params?.validatorIndexes;
-    const cutoff = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
 
     await this.prisma.$executeRaw`
       WITH
@@ -319,17 +518,26 @@ export class SnapshotStorage {
           WHERE (${validatorIndexes ?? null}::int[] IS NULL
             OR vss.validator_index = ANY(${validatorIndexes ?? null}::int[]))
         ),
+        recent_days AS (
+          SELECT DISTINCT timestamp
+          FROM validator_daily_archive
+          ORDER BY timestamp DESC
+          LIMIT 7
+        ),
+        day_count AS (
+          SELECT COUNT(*)::int AS n FROM recent_days
+        ),
         archive_data AS (
           SELECT
             vda.validator_index,
             SUM(vda.attestation_count) AS att_count,
             SUM(COALESCE(vda.missed_attestation_count, 0)) AS missed_att_count,
-            SUM(vda.cl_reward_total) AS consensus_reward,
+            SUM(vda.cl_reward_total) + SUM(COALESCE(vda.sync_reward_total, 0)) + SUM(COALESCE(vda.block_reward_total, 0)) AS consensus_reward,
             SUM(vda.cl_missed_reward_total) AS missed_reward,
             SUM(COALESCE(vda.exec_reward_total, 0)) AS execution_reward
           FROM validator_daily_archive vda
           JOIN target_validators tv ON vda.validator_index = tv.validator_index
-          WHERE vda.timestamp >= ${cutoff}
+          WHERE vda.timestamp IN (SELECT timestamp FROM recent_days)
           GROUP BY vda.validator_index
         ),
         perf AS (
@@ -342,12 +550,13 @@ export class SnapshotStorage {
             ad.consensus_reward,
             ad.missed_reward,
             ad.execution_reward,
-            CASE WHEN v.balance > 0 AND ad.consensus_reward IS NOT NULL
-              THEN (ad.consensus_reward::numeric / v.balance * 52.18 * 100)::numeric(5,2)
+            CASE WHEN v.balance > 0 AND ad.consensus_reward IS NOT NULL AND dc.n > 0
+              THEN (ad.consensus_reward::numeric / v.balance * (365.25 / dc.n) * 100)::numeric(5,2)
               ELSE NULL
             END AS apy_w
           FROM archive_data ad
           JOIN validator v ON v.id = ad.validator_index
+          CROSS JOIN day_count dc
         )
       UPDATE validators_snapshot_stats vss
       SET
@@ -364,10 +573,12 @@ export class SnapshotStorage {
 
   /**
    * Update m performance metrics from ValidatorDailyArchive (last 30 days).
+   *
+   * Uses the 30 most recent archived days to ensure a full month of data.
+   * APY is adjusted by the actual number of days covered (365.25 / days_covered * 100).
    */
   async updatePerformanceM(params?: { validatorIndexes?: number[] }): Promise<void> {
     const validatorIndexes = params?.validatorIndexes;
-    const cutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
 
     await this.prisma.$executeRaw`
       WITH
@@ -377,17 +588,26 @@ export class SnapshotStorage {
           WHERE (${validatorIndexes ?? null}::int[] IS NULL
             OR vss.validator_index = ANY(${validatorIndexes ?? null}::int[]))
         ),
+        recent_days AS (
+          SELECT DISTINCT timestamp
+          FROM validator_daily_archive
+          ORDER BY timestamp DESC
+          LIMIT 30
+        ),
+        day_count AS (
+          SELECT COUNT(*)::int AS n FROM recent_days
+        ),
         archive_data AS (
           SELECT
             vda.validator_index,
             SUM(vda.attestation_count) AS att_count,
             SUM(COALESCE(vda.missed_attestation_count, 0)) AS missed_att_count,
-            SUM(vda.cl_reward_total) AS consensus_reward,
+            SUM(vda.cl_reward_total) + SUM(COALESCE(vda.sync_reward_total, 0)) + SUM(COALESCE(vda.block_reward_total, 0)) AS consensus_reward,
             SUM(vda.cl_missed_reward_total) AS missed_reward,
             SUM(COALESCE(vda.exec_reward_total, 0)) AS execution_reward
           FROM validator_daily_archive vda
           JOIN target_validators tv ON vda.validator_index = tv.validator_index
-          WHERE vda.timestamp >= ${cutoff}
+          WHERE vda.timestamp IN (SELECT timestamp FROM recent_days)
           GROUP BY vda.validator_index
         ),
         perf AS (
@@ -400,12 +620,13 @@ export class SnapshotStorage {
             ad.consensus_reward,
             ad.missed_reward,
             ad.execution_reward,
-            CASE WHEN v.balance > 0 AND ad.consensus_reward IS NOT NULL
-              THEN (ad.consensus_reward::numeric / v.balance * 12 * 100)::numeric(5,2)
+            CASE WHEN v.balance > 0 AND ad.consensus_reward IS NOT NULL AND dc.n > 0
+              THEN (ad.consensus_reward::numeric / v.balance * (365.25 / dc.n) * 100)::numeric(5,2)
               ELSE NULL
             END AS apy_m
           FROM archive_data ad
           JOIN validator v ON v.id = ad.validator_index
+          CROSS JOIN day_count dc
         )
       UPDATE validators_snapshot_stats vss
       SET

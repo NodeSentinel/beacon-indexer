@@ -97,7 +97,7 @@ export const snapshotMachine = setup({
 
       // Level 4: d performance (every 30 min)
       if (lastDUpdate === null || now - lastDUpdate >= INTERVAL_D) {
-        await controller.updatePerformanceD();
+        await controller.updatePerformanceD(ctx.maxAttestationDelay);
         lastDUpdate = now;
         updatedLevels.push('d');
       }

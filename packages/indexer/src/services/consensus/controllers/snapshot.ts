@@ -113,13 +113,25 @@ export class SnapshotController {
   }
 
   /**
-   * Update d performance metrics from hourly archives.
+   * Update d performance metrics combining hourly archives + live data.
    */
-  async updatePerformanceD(validatorIndexes?: number[]) {
+  async updatePerformanceD(maxAttestationDelay: number, validatorIndexes?: number[]) {
+    const genesisTimeSec = Math.floor(this.beaconTime.getTimestampFromSlotNumber(0) / 1000);
+    const secPerSlot = Math.floor(
+      (this.beaconTime.getTimestampFromSlotNumber(1) -
+        this.beaconTime.getTimestampFromSlotNumber(0)) /
+        1000,
+    );
+    const slotsPerEpoch = this.beaconTime.getEpochSlots(0).endSlot + 1;
+
     try {
-      await this.snapshotStorage.updatePerformanceD(
-        validatorIndexes ? { validatorIndexes } : undefined,
-      );
+      await this.snapshotStorage.updatePerformanceD({
+        genesisTimeSec,
+        secPerSlot,
+        slotsPerEpoch,
+        maxAttestationDelay,
+        validatorIndexes,
+      });
       this.logger.info('Updated d performance metrics');
     } catch (error) {
       this.logger.error('Error updating d performance', error);
@@ -170,7 +182,7 @@ export class SnapshotController {
 
     await this.snapshotStorage.insertNewValidatorSnapshots(newIndexes);
     await this.updatePerformanceH(maxAttestationDelay, newIndexes);
-    await this.updatePerformanceD(newIndexes);
+    await this.updatePerformanceD(maxAttestationDelay, newIndexes);
     await this.updatePerformanceW(newIndexes);
     await this.updatePerformanceM(newIndexes);
 
