@@ -1,5 +1,6 @@
 'use client';
 
+import { HelpCircle } from 'lucide-react';
 import { useMemo } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Tooltip } from 'recharts';
 
@@ -11,6 +12,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { Tooltip as UiTooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import {
   UnderlineTabs,
   UnderlineTabsContent,
@@ -20,6 +22,47 @@ import {
 import { bucketByTime, type AnalyticsTimeRange } from '@/lib/analytics-buckets';
 import { formatNumber } from '@/lib/utils';
 import type { MissedAttestation, Reward } from '@/types/validator';
+
+function RewardHeader({
+  label,
+  help,
+  value,
+  token,
+  color,
+  tokenPrice: price,
+  isDestructive,
+}: {
+  label: string;
+  help: string;
+  value: number;
+  token: string;
+  color: string;
+  tokenPrice: number;
+  isDestructive?: boolean;
+}) {
+  return (
+    <div>
+      <div className="flex items-center gap-1 mb-1">
+        <p className="text-[10px] md:text-[11px] text-muted-foreground">{label}</p>
+        <UiTooltip>
+          <TooltipTrigger asChild>
+            <HelpCircle className="size-3 text-muted-foreground/60 cursor-help" />
+          </TooltipTrigger>
+          <TooltipContent className="max-w-[220px]">{help}</TooltipContent>
+        </UiTooltip>
+      </div>
+      <span
+        className={`text-base md:text-lg font-normal ${isDestructive ? 'text-destructive' : ''}`}
+        style={isDestructive ? undefined : { color }}
+      >
+        {fmtToken(value)} {token}
+      </span>
+      <span className="block text-[10px] md:text-xs text-muted-foreground">
+        {toUsd(value, price)}
+      </span>
+    </div>
+  );
+}
 
 /** Format a token value to USD string */
 function toUsd(tokenValue: number, price: number): string {
@@ -285,52 +328,63 @@ export default function AnalyticsContent({
           ) : (
             <div className="space-y-4">
               <div className="grid grid-cols-2 md:grid-cols-4 gap-2 md:gap-3 pb-4">
-                <div>
-                  <p className="text-[10px] md:text-[11px] text-muted-foreground mb-1">SOURCE</p>
-                  <span className="text-base md:text-lg font-normal text-[#3b82f6]">
-                    {fmtToken(rewardsStats.source)} GNO
-                  </span>
-                </div>
-                <div>
-                  <p className="text-[10px] md:text-[11px] text-muted-foreground mb-1">TARGET</p>
-                  <span className="text-base md:text-lg font-normal text-[#10b981]">
-                    {fmtToken(rewardsStats.target)} GNO
-                  </span>
-                </div>
-                <div>
-                  <p className="text-[10px] md:text-[11px] text-muted-foreground mb-1">HEAD</p>
-                  <span className="text-base md:text-lg font-normal text-[#8b5cf6]">
-                    {fmtToken(rewardsStats.head)} GNO
-                  </span>
-                </div>
-                <div>
-                  <p className="text-[10px] md:text-[11px] text-muted-foreground mb-1">SYNC</p>
-                  <span className="text-base md:text-lg font-normal text-[#fbbf24]">
-                    {fmtToken(rewardsStats.syncCommittee)} GNO
-                  </span>
-                </div>
-                <div>
-                  <p className="text-[10px] md:text-[11px] text-muted-foreground mb-1">
-                    BLOCK (CL)
-                  </p>
-                  <span className="text-base md:text-lg font-normal text-[#f97316]">
-                    {fmtToken(rewardsStats.blockConsensus)} GNO
-                  </span>
-                </div>
-                <div>
-                  <p className="text-[10px] md:text-[11px] text-muted-foreground mb-1">
-                    BLOCK (EL)
-                  </p>
-                  <span className="text-base md:text-lg font-normal text-[#06b6d4]">
-                    {fmtToken(rewardsStats.blockExecution)} xDAI
-                  </span>
-                </div>
-                <div>
-                  <p className="text-[10px] md:text-[11px] text-muted-foreground mb-1">MISSED</p>
-                  <span className="text-base md:text-lg font-normal text-destructive">
-                    {fmtToken(rewardsStats.missed)} GNO
-                  </span>
-                </div>
+                <RewardHeader
+                  label="SOURCE"
+                  help="Reward for correctly identifying the justified checkpoint. This is the largest component of attestation rewards."
+                  value={rewardsStats.source}
+                  token="GNO"
+                  color="#3b82f6"
+                  tokenPrice={tokenPrice}
+                />
+                <RewardHeader
+                  label="TARGET"
+                  help="Reward for correctly voting on the epoch checkpoint (target). Validators earn this by agreeing on the correct target block."
+                  value={rewardsStats.target}
+                  token="GNO"
+                  color="#10b981"
+                  tokenPrice={tokenPrice}
+                />
+                <RewardHeader
+                  label="HEAD"
+                  help="Reward for correctly voting on the most recent block (head of the chain). A smaller component of attestation rewards."
+                  value={rewardsStats.head}
+                  token="GNO"
+                  color="#8b5cf6"
+                  tokenPrice={tokenPrice}
+                />
+                <RewardHeader
+                  label="SYNC"
+                  help="Reward for participating in a sync committee. Only ~512 validators are randomly selected every ~27 hours, so this may be zero most of the time."
+                  value={rewardsStats.syncCommittee}
+                  token="GNO"
+                  color="#fbbf24"
+                  tokenPrice={tokenPrice}
+                />
+                <RewardHeader
+                  label="BLOCK (CL)"
+                  help="Consensus layer reward earned when your validator is randomly selected to propose a block. Includes attestation packing and sync aggregate rewards."
+                  value={rewardsStats.blockConsensus}
+                  token="GNO"
+                  color="#f97316"
+                  tokenPrice={tokenPrice}
+                />
+                <RewardHeader
+                  label="BLOCK (EL)"
+                  help="Execution layer reward (tips) earned when your validator proposes a block. Paid in the native token (xDAI on Gnosis, ETH on Ethereum)."
+                  value={rewardsStats.blockExecution}
+                  token="xDAI"
+                  color="#06b6d4"
+                  tokenPrice={1}
+                />
+                <RewardHeader
+                  label="MISSED"
+                  help="Penalties incurred when your validator fails to attest or attests incorrectly. Small amounts are normal; large values may indicate downtime."
+                  value={rewardsStats.missed}
+                  token="GNO"
+                  color="hsl(var(--destructive))"
+                  tokenPrice={tokenPrice}
+                  isDestructive
+                />
               </div>
 
               <ChartContainer
