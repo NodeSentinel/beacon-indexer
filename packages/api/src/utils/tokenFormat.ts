@@ -103,20 +103,6 @@ export function formatBalance(gwei: bigint | string | null | undefined): string 
 }
 
 /**
- * Convert mGNO to GWei (for Gnosis chain only)
- * In Gnosis: 1 GNO = 32 mGNO, 1 GNO = 1e9 GWei
- * Therefore: 1 mGNO = 1e9 / 32 GWei = 31,250,000 GWei
- * @param mGNO - Amount in mGNO (BigInt or string)
- * @returns Amount in GWei as string
- */
-export function convertMGNOToGWei(mGNO: bigint | string): string {
-  const mGNOBigInt = typeof mGNO === 'string' ? BigInt(mGNO) : mGNO;
-  // 1 mGNO = 1e9 / 32 GWei = 31,250,000 GWei
-  const gwei = (mGNOBigInt * GWEI_PER_TOKEN) / TOKEN_MULTIPLIER;
-  return gwei.toString();
-}
-
-/**
  * Convert wei (as BigInt or string) to token amount as decimal string.
  * Execution rewards are stored in wei and denominated in the native EL token
  * (xDAI for Gnosis, ETH for Ethereum) — no TOKEN_MULTIPLIER applies.
@@ -139,26 +125,4 @@ export function formatWeiToToken(wei: bigint | string): string {
   const integerPart = weiString.slice(0, -decimals);
   const decimalPart = weiString.slice(-decimals).replace(/0+$/, '');
   return decimalPart ? `${integerPart}.${decimalPart}` : integerPart;
-}
-
-/**
- * Convert reward value from database to GWei
- * Handles both Ethereum (already in GWei) and Gnosis (stored as mGNO, needs conversion)
- * @param value - Value from database (BigInt or string)
- * @returns Value in GWei as string
- */
-export function convertRewardToGWei(value: bigint | string | null | undefined): string {
-  if (value === null || value === undefined) {
-    return '0';
-  }
-
-  const valueBigInt = typeof value === 'string' ? BigInt(value) : value;
-
-  if (env.CHAIN === 'gnosis') {
-    // In Gnosis, rewards are stored as mGNO, convert to GWei
-    return convertMGNOToGWei(valueBigInt);
-  } else {
-    // In Ethereum, rewards are already in GWei
-    return valueBigInt.toString();
-  }
 }

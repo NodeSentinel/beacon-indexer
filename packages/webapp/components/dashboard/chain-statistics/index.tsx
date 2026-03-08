@@ -38,7 +38,7 @@ function StatCard({
             {label}
           </p>
           <div className="flex items-baseline gap-1.5">
-            <span className="text-xl md:text-2xl font-display font-bold text-foreground truncate">
+            <span className="text-xl md:text-2xl font-normal font-bold text-foreground truncate">
               {value}
             </span>
             {suffix && (
@@ -75,7 +75,7 @@ export default function ChainStatistics() {
   if (isLoading) {
     return (
       <div className="space-y-2">
-        <h2 className="text-[10px] md:text-xs font-display text-muted-foreground uppercase tracking-wider">
+        <h2 className="text-[10px] md:text-xs font-normal text-muted-foreground uppercase tracking-wider">
           Chain Statistics
         </h2>
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 md:gap-3">
@@ -96,7 +96,7 @@ export default function ChainStatistics() {
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-between">
-        <h2 className="text-[10px] md:text-xs font-display text-muted-foreground uppercase tracking-wider">
+        <h2 className="text-[10px] md:text-xs font-normal text-muted-foreground uppercase tracking-wider">
           Chain Statistics
         </h2>
         {syncStatus && (

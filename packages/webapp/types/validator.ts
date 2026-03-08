@@ -56,6 +56,25 @@ export interface MissedAttestation {
   validatorCount: number; // number of validators that missed
 }
 
+export interface Reward {
+  timestamp: string;
+  /** CL rewards in token units (GNO or ETH) */
+  head: string;
+  target: string;
+  source: string;
+  inactivity: string;
+  syncCommittee: string;
+  missed: string;
+  blockConsensus: string;
+  /** Execution reward in native EL token (xDAI or ETH) */
+  blockExecution: string;
+}
+
+export interface RewardsResponse {
+  items: Reward[];
+  tokenPrice: number;
+}
+
 export interface ValidatorEvent {
   id: string;
   type:

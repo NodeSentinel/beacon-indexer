@@ -198,7 +198,7 @@ export default function ClusterOverviewContent({
                     <div key={status.label} className="inline-flex items-center gap-1.5 shrink-0">
                       <span className="text-sm">{status.emoji}</span>
                       <span
-                        className={`text-sm md:text-base font-bold font-display ${status.color}`}
+                        className={`text-sm md:text-base font-bold font-normal ${status.color}`}
                       >
                         {status.count}
                       </span>
@@ -236,21 +236,21 @@ export default function ClusterOverviewContent({
           <div className="grid grid-cols-3 gap-3 md:gap-4 md:text-center">
             <div>
               <p className="text-[10px] md:text-xs text-muted-foreground mb-0.5">Balance</p>
-              <p className="text-sm md:text-lg font-display font-semibold">
+              <p className="text-sm md:text-lg font-normal font-semibold">
                 {cluster.totalBalance.toFixed(2)} GNO
               </p>
               <p className="text-[10px] text-muted-foreground">${balanceUsd}</p>
             </div>
             <div>
               <p className="text-[10px] md:text-xs text-muted-foreground mb-0.5">Effective</p>
-              <p className="text-sm md:text-lg font-display font-semibold">
+              <p className="text-sm md:text-lg font-normal font-semibold">
                 {cluster.totalEffectiveBalance.toFixed(0)} GNO
               </p>
               <p className="text-[10px] text-muted-foreground">${effectiveBalanceUsd}</p>
             </div>
             <div>
               <p className="text-[10px] md:text-xs text-muted-foreground mb-0.5">Claimable</p>
-              <p className="text-sm md:text-lg font-display font-semibold">
+              <p className="text-sm md:text-lg font-normal font-semibold">
                 {cluster.claimableRewards.toFixed(2)} GNO
               </p>
               <p className="text-[10px] text-muted-foreground">${claimableUsd}</p>
@@ -273,7 +273,7 @@ export default function ClusterOverviewContent({
               {PERIODS.map(({ label, key }) => (
                 <div key={key}>
                   <p className="text-[10px] md:text-xs text-muted-foreground mb-0.5">{label}</p>
-                  <p className="text-sm md:text-lg font-display font-semibold">
+                  <p className="text-sm md:text-lg font-normal font-semibold">
                     {formatPercent(getPerformance(key))}
                   </p>
                 </div>
@@ -304,8 +304,8 @@ export default function ClusterOverviewContent({
                 {PERIODS.map(({ label, key }) => (
                   <div key={key} className="space-y-1.5">
                     <div className="flex items-center gap-2">
-                      <span className="text-sm font-display font-semibold">{label}</span>
-                      <span className="text-sm font-display font-semibold">
+                      <span className="text-sm font-normal font-semibold">{label}</span>
+                      <span className="text-sm font-normal font-semibold">
                         {formatApy(getApy(key))}
                       </span>
                       <span className="text-[10px] text-muted-foreground">APY</span>
@@ -368,7 +368,7 @@ export default function ClusterOverviewContent({
                     className="grid grid-cols-6 gap-4 text-center py-2 border-t border-border/30"
                   >
                     <div className="text-sm font-semibold">{label}</div>
-                    <div className="text-sm font-display">{formatApy(getApy(key))}</div>
+                    <div className="text-sm font-normal">{formatApy(getApy(key))}</div>
                     <div>
                       <div className="text-sm font-mono">
                         {formatValue(getConsensusReward(key))} GNO

@@ -8,6 +8,7 @@ import {
   getAllClustersMissedAttestations,
 } from './missed-attestations.js';
 import { removeValidators } from './removeValidators.js';
+import { getClusterRewards, getAllClustersRewards } from './rewards.js';
 import { getClusterSnapshot } from './snapshot.js';
 import { updateCluster } from './update.js';
 
@@ -22,4 +23,6 @@ export const clusterRouter = {
   snapshot: getClusterSnapshot,
   missedAttestations: getClusterMissedAttestations,
   allMissedAttestations: getAllClustersMissedAttestations,
+  rewards: getClusterRewards,
+  allRewards: getAllClustersRewards,
 };

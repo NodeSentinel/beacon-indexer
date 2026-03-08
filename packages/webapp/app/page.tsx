@@ -16,6 +16,7 @@ import { useChainStats } from '@/hooks/use-chain-stats';
 import { useClusterSnapshot } from '@/hooks/use-cluster-snapshot';
 import { useClusters, useCluster } from '@/hooks/use-clusters';
 import { useMissedAttestations } from '@/hooks/use-missed-attestations';
+import { useRewards } from '@/hooks/use-rewards';
 import { useUserId } from '@/lib/user-id';
 import { CLUSTER_FILTER_ALL, type Cluster, type ClusterFilter } from '@/types/cluster';
 import type { ValidatorEvent } from '@/types/validator';
@@ -61,6 +62,7 @@ export default function DashboardOverview() {
     null,
     analyticsTimeRange,
   );
+  const { data: rewards } = useRewards(selectedCluster, null, analyticsTimeRange);
 
   // Transform API clusters to UI format (basic info for tabs)
   const clusters: Cluster[] = (apiClusters || []).map((c) => ({
@@ -177,8 +179,10 @@ export default function DashboardOverview() {
                 ) : null}
                 <AnalyticsContent
                   data={missedAttestations ?? []}
+                  rewardsData={rewards?.items ?? []}
                   timeRange={analyticsTimeRange}
                   onTimeRangeChange={setAnalyticsTimeRange}
+                  tokenPrice={rewards?.tokenPrice ?? tokenPrice}
                 />
                 <EventsFeedContent
                   clusterId={selectedClusterId}

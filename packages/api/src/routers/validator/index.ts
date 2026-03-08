@@ -6,6 +6,7 @@ import { searchValidators } from './search.js';
 import { ValidatorController } from '@/controllers/validator.js';
 import { publicProcedure } from '@/lib/orpc.js';
 import { getValidatorMissedAttestations } from '@/routers/cluster/missed-attestations.js';
+import { getValidatorRewards } from '@/routers/cluster/rewards.js';
 import { ApiResponseSchema } from '@/utils/response.js';
 
 /**
@@ -63,4 +64,5 @@ export const validatorRouter = {
   getValidator,
   search: searchValidators,
   missedAttestations: getValidatorMissedAttestations,
+  rewards: getValidatorRewards,
 };
