@@ -25,7 +25,7 @@ export default function ValidatorHeader() {
           <div className="flex h-16 items-center justify-between">
             <Link href="/" className="flex items-center gap-2.5">
               <NodeSentinelIcon className="h-9 w-9 text-foreground" />
-              <NodeSentinelWordmark className="h-5 hidden sm:inline-block text-foreground" />
+              <NodeSentinelWordmark className="h-5 text-foreground" />
             </Link>
 
             <nav className="hidden md:flex items-center gap-2">
