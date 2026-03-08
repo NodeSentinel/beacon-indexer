@@ -293,113 +293,62 @@ export default function ClusterOverviewContent({
           </div>
 
           {snapshotLoading ? (
-            <div className="animate-pulse space-y-3 py-3">
+            <div className="animate-pulse space-y-2 py-2">
               {[1, 2, 3, 4].map((i) => (
-                <div key={i} className="h-10 bg-foreground/5 rounded" />
+                <div key={i} className="h-8 bg-foreground/5 rounded" />
               ))}
             </div>
           ) : (
-            <>
-              {/* Mobile: stacked periods with dividers */}
-              <div className="md:hidden divide-y divide-border/40">
-                {PERIODS.map(({ label, key }) => (
-                  <div key={key} className="py-3 first:pt-0 last:pb-0">
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-sm font-semibold">{label}</span>
-                      <span className="text-sm font-display">{formatApy(getApy(key))}</span>
-                    </div>
-                    <div className="grid grid-cols-2 gap-x-4 gap-y-2">
-                      <div>
-                        <p className="text-[10px] text-muted-foreground uppercase">Consensus</p>
-                        <p className="text-sm font-mono font-semibold">
-                          {formatValue(getConsensusReward(key))} GNO
-                        </p>
-                        <p className="text-[10px] text-muted-foreground">
-                          {formatUsd(getConsensusReward(key), gnoPrice)}
-                        </p>
-                      </div>
-                      <div>
-                        <p className="text-[10px] text-muted-foreground uppercase">Missed</p>
-                        <p className="text-sm font-mono font-semibold text-destructive">
-                          {formatValue(getMissedReward(key))} GNO
-                        </p>
-                        <p className="text-[10px] text-muted-foreground">
-                          {formatUsd(getMissedReward(key), gnoPrice)}
-                        </p>
-                      </div>
-                      <div>
-                        <p className="text-[10px] text-muted-foreground uppercase">Execution</p>
-                        <p className="text-sm font-mono font-semibold">
-                          {formatValue(getExecutionReward(key)?.token ?? null)} xDAI
-                        </p>
-                        <p className="text-[10px] text-muted-foreground">
-                          {formatUsd(getExecutionReward(key)?.token ?? null, 1)}
-                        </p>
-                      </div>
-                      <div>
-                        <p className="text-[10px] text-muted-foreground uppercase">Total USD</p>
-                        <p className="text-sm font-mono font-semibold">
-                          {formatTotalUsd(
-                            getConsensusReward(key),
-                            gnoPrice,
-                            getExecutionReward(key)?.token ?? null,
-                          )}
-                        </p>
-                      </div>
-                    </div>
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-2 md:gap-3">
+              {PERIODS.map(({ label, key }) => (
+                <div key={key} className="space-y-1.5">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm md:text-lg font-display font-semibold">{label}</span>
+                    <span className="text-sm md:text-lg font-display font-semibold">
+                      {formatApy(getApy(key))}
+                    </span>
                   </div>
-                ))}
-              </div>
-
-              {/* Desktop: table layout */}
-              <div className="hidden md:block">
-                <div className="grid grid-cols-6 gap-4 text-center pb-3">
-                  <div className="text-xs text-muted-foreground">PERIOD</div>
-                  <div className="text-xs text-muted-foreground">APY%</div>
-                  <div className="text-xs text-muted-foreground">CONSENSUS</div>
-                  <div className="text-xs text-muted-foreground">MISSED REWARDS</div>
-                  <div className="text-xs text-muted-foreground">EXECUTION</div>
-                  <div className="text-xs text-muted-foreground">TOTAL USD</div>
-                </div>
-                {PERIODS.map(({ label, key }) => (
-                  <div key={key} className="grid grid-cols-6 gap-4 text-center py-3">
-                    <div className="text-sm font-medium">{label}</div>
-                    <div className="text-sm font-display text-white">{formatApy(getApy(key))}</div>
-                    <div className="space-y-0.5">
-                      <div className="text-base font-mono font-semibold">
+                  <div className="space-y-1 text-xs">
+                    <div className="flex justify-between items-center">
+                      <span className="text-muted-foreground">Consensus</span>
+                      <span className="font-mono">
                         {formatValue(getConsensusReward(key))} GNO
-                      </div>
-                      <div className="text-xs text-muted-foreground">
-                        {formatUsd(getConsensusReward(key), gnoPrice)}
-                      </div>
+                        <span className="text-muted-foreground ml-1">
+                          ({formatUsd(getConsensusReward(key), gnoPrice)})
+                        </span>
+                      </span>
                     </div>
-                    <div className="space-y-0.5">
-                      <div className="text-base font-mono font-semibold text-destructive">
+                    <div className="flex justify-between items-center">
+                      <span className="text-muted-foreground">Missed</span>
+                      <span className="font-mono text-destructive">
                         {formatValue(getMissedReward(key))} GNO
-                      </div>
-                      <div className="text-xs text-muted-foreground">
-                        {formatUsd(getMissedReward(key), gnoPrice)}
-                      </div>
+                        <span className="text-muted-foreground ml-1">
+                          ({formatUsd(getMissedReward(key), gnoPrice)})
+                        </span>
+                      </span>
                     </div>
-                    <div className="space-y-0.5">
-                      <div className="text-base font-mono font-semibold">
+                    <div className="flex justify-between items-center">
+                      <span className="text-muted-foreground">Execution</span>
+                      <span className="font-mono">
                         {formatValue(getExecutionReward(key)?.token ?? null)} xDAI
-                      </div>
-                      <div className="text-xs text-muted-foreground">
-                        {formatUsd(getExecutionReward(key)?.token ?? null, 1)}
-                      </div>
+                        <span className="text-muted-foreground ml-1">
+                          ({formatUsd(getExecutionReward(key)?.token ?? null, 1)})
+                        </span>
+                      </span>
                     </div>
-                    <div className="text-sm font-mono">
-                      {formatTotalUsd(
-                        getConsensusReward(key),
-                        gnoPrice,
-                        getExecutionReward(key)?.token ?? null,
-                      )}
+                    <div className="flex justify-end items-center border-t border-border/40 pt-1">
+                      <span className="font-mono font-semibold">
+                        {formatTotalUsd(
+                          getConsensusReward(key),
+                          gnoPrice,
+                          getExecutionReward(key)?.token ?? null,
+                        )}
+                      </span>
                     </div>
                   </div>
-                ))}
-              </div>
-            </>
+                </div>
+              ))}
+            </div>
           )}
         </div>
       </div>

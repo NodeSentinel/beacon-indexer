@@ -229,41 +229,23 @@ function BlockItem({ block }: BlockItemProps) {
   return (
     <Collapsible open={isOpen} onOpenChange={setIsOpen}>
       <CollapsibleTrigger className="w-full">
-        <div className="flex items-center gap-2 md:gap-3 p-3 rounded-lg bg-accent hover:bg-accent/80 transition-colors group cursor-pointer border border-border/50 hover:border-border">
-          <div className="text-xl md:text-2xl font-display flex-shrink-0 text-chart-1">■</div>
-
-          <div className="flex-1 text-left min-w-0">
-            <div className="flex items-center gap-2 mb-1 flex-wrap">
-              <Badge variant="default" className="text-xs">
-                Block Proposed
-              </Badge>
-              <span className="text-xs font-mono text-muted-foreground">
-                Val #{block.validatorIndex}
-              </span>
-            </div>
-            <p className="text-sm line-clamp-1">
-              Slot {block.slot.toLocaleString()}
-              {block.blockNumber !== null && ` · Block #${block.blockNumber.toLocaleString()}`}
-            </p>
-          </div>
-
-          <div className="flex flex-col md:flex-row items-end md:items-center gap-1 md:gap-3 flex-shrink-0">
-            {block.consensusReward && (
-              <span className="text-xs md:text-sm font-display text-success whitespace-nowrap">
-                {block.consensusReward} GNO
-              </span>
-            )}
-            <span className="text-xs text-muted-foreground whitespace-nowrap hidden md:inline">
-              {formatTime(new Date(block.timestamp).toISOString())}
+        <div className="flex items-center gap-2 md:gap-3 p-2 md:p-3 rounded-lg bg-accent hover:bg-accent/80 transition-colors group cursor-pointer border border-border/50 hover:border-border">
+          <div className="flex-1 flex items-center gap-2 text-left min-w-0">
+            <span className="text-xs md:text-sm font-mono text-muted-foreground whitespace-nowrap">
+              Val #{block.validatorIndex}
             </span>
-            <ArrowRight
-              className={cn(
-                'size-5 text-foreground/60 transition-transform flex-shrink-0',
-                isOpen && 'rotate-90',
-                'group-hover:text-foreground',
-              )}
-            />
+            <span className="text-xs md:text-sm font-mono whitespace-nowrap">
+              Slot #{block.slot.toLocaleString()}
+            </span>
           </div>
+
+          <ArrowRight
+            className={cn(
+              'size-4 text-foreground/60 transition-transform flex-shrink-0',
+              isOpen && 'rotate-90',
+              'group-hover:text-foreground',
+            )}
+          />
         </div>
       </CollapsibleTrigger>
 
