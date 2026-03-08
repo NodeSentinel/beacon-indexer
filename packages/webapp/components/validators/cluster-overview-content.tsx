@@ -187,13 +187,12 @@ export default function ClusterOverviewContent({
         {/* Validators status and manage button */}
         <div className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-3 md:gap-4 flex-wrap min-w-0">
-            <span className="text-sm md:text-base font-semibold shrink-0 text-primary">
+            <span className="text-xs md:text-sm font-semibold shrink-0 text-primary border border-primary/40 bg-primary/10 rounded px-2.5 py-0.5">
               {totalValidators} Validator{totalValidators !== 1 ? 's' : ''}
             </span>
 
             {getStatusDisplay().length > 0 && (
               <>
-                <div className="h-4 w-px bg-border" />
                 <div className="flex items-center gap-2.5 md:gap-3 flex-wrap">
                   {getStatusDisplay().map((status) => (
                     <div key={status.label} className="inline-flex items-center gap-1.5 shrink-0">
@@ -234,7 +233,7 @@ export default function ClusterOverviewContent({
             </span>
             <div className="flex-1 h-px bg-primary/20" />
           </div>
-          <div className="grid grid-cols-3 gap-3 md:gap-4 text-center">
+          <div className="grid grid-cols-3 gap-3 md:gap-4 md:text-center">
             <div>
               <p className="text-[10px] md:text-xs text-muted-foreground mb-0.5">Balance</p>
               <p className="text-sm md:text-lg font-display font-semibold">
@@ -270,7 +269,7 @@ export default function ClusterOverviewContent({
           {snapshotLoading ? (
             <div className="animate-pulse h-10 bg-foreground/5 rounded" />
           ) : (
-            <div className="grid grid-cols-4 gap-3 md:gap-4 text-center">
+            <div className="grid grid-cols-4 gap-3 md:gap-4 md:text-center">
               {PERIODS.map(({ label, key }) => (
                 <div key={key}>
                   <p className="text-[10px] md:text-xs text-muted-foreground mb-0.5">{label}</p>
@@ -299,56 +298,112 @@ export default function ClusterOverviewContent({
               ))}
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-2 md:gap-3">
-              {PERIODS.map(({ label, key }) => (
-                <div key={key} className="space-y-1.5">
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm md:text-lg font-display font-semibold">{label}</span>
-                    <span className="text-sm md:text-lg font-display font-semibold">
-                      {formatApy(getApy(key))}
-                    </span>
+            <>
+              {/* Mobile: stacked cards */}
+              <div className="md:hidden space-y-2">
+                {PERIODS.map(({ label, key }) => (
+                  <div key={key} className="space-y-1.5">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-display font-semibold">{label}</span>
+                      <span className="text-sm font-display font-semibold">
+                        {formatApy(getApy(key))}
+                      </span>
+                      <span className="text-[10px] text-muted-foreground">APY</span>
+                    </div>
+                    <div className="space-y-1 text-xs">
+                      <div className="flex justify-between items-center">
+                        <span className="text-muted-foreground">Consensus</span>
+                        <span className="font-mono">
+                          {formatValue(getConsensusReward(key))} GNO
+                          <span className="text-muted-foreground ml-1">
+                            ({formatUsd(getConsensusReward(key), gnoPrice)})
+                          </span>
+                        </span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-muted-foreground">Missed</span>
+                        <span className="font-mono text-destructive">
+                          {formatValue(getMissedReward(key))} GNO
+                          <span className="text-muted-foreground ml-1">
+                            ({formatUsd(getMissedReward(key), gnoPrice)})
+                          </span>
+                        </span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-muted-foreground">Execution</span>
+                        <span className="font-mono">
+                          {formatValue(getExecutionReward(key)?.token ?? null)} xDAI
+                          <span className="text-muted-foreground ml-1">
+                            ({formatUsd(getExecutionReward(key)?.token ?? null, 1)})
+                          </span>
+                        </span>
+                      </div>
+                      <div className="flex justify-end items-center border-t border-border/40 pt-1">
+                        <span className="font-mono font-semibold">
+                          {formatTotalUsd(
+                            getConsensusReward(key),
+                            gnoPrice,
+                            getExecutionReward(key)?.token ?? null,
+                          )}
+                        </span>
+                      </div>
+                    </div>
                   </div>
-                  <div className="space-y-1 text-xs">
-                    <div className="flex justify-between items-center">
-                      <span className="text-muted-foreground">Consensus</span>
-                      <span className="font-mono">
-                        {formatValue(getConsensusReward(key))} GNO
-                        <span className="text-muted-foreground ml-1">
-                          ({formatUsd(getConsensusReward(key), gnoPrice)})
-                        </span>
-                      </span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-muted-foreground">Missed</span>
-                      <span className="font-mono text-destructive">
-                        {formatValue(getMissedReward(key))} GNO
-                        <span className="text-muted-foreground ml-1">
-                          ({formatUsd(getMissedReward(key), gnoPrice)})
-                        </span>
-                      </span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-muted-foreground">Execution</span>
-                      <span className="font-mono">
-                        {formatValue(getExecutionReward(key)?.token ?? null)} xDAI
-                        <span className="text-muted-foreground ml-1">
-                          ({formatUsd(getExecutionReward(key)?.token ?? null, 1)})
-                        </span>
-                      </span>
-                    </div>
-                    <div className="flex justify-end items-center border-t border-border/40 pt-1">
-                      <span className="font-mono font-semibold">
-                        {formatTotalUsd(
-                          getConsensusReward(key),
-                          gnoPrice,
-                          getExecutionReward(key)?.token ?? null,
-                        )}
-                      </span>
-                    </div>
-                  </div>
+                ))}
+              </div>
+
+              {/* Desktop: table layout */}
+              <div className="hidden md:block">
+                <div className="grid grid-cols-6 gap-4 text-center pb-3">
+                  <div className="text-xs text-muted-foreground">PERIOD</div>
+                  <div className="text-xs text-muted-foreground">APY</div>
+                  <div className="text-xs text-muted-foreground">CONSENSUS</div>
+                  <div className="text-xs text-muted-foreground">MISSED</div>
+                  <div className="text-xs text-muted-foreground">EXECUTION</div>
+                  <div className="text-xs text-muted-foreground">TOTAL</div>
                 </div>
-              ))}
-            </div>
+                {PERIODS.map(({ label, key }) => (
+                  <div
+                    key={key}
+                    className="grid grid-cols-6 gap-4 text-center py-2 border-t border-border/30"
+                  >
+                    <div className="text-sm font-semibold">{label}</div>
+                    <div className="text-sm font-display">{formatApy(getApy(key))}</div>
+                    <div>
+                      <div className="text-sm font-mono">
+                        {formatValue(getConsensusReward(key))} GNO
+                      </div>
+                      <div className="text-[10px] text-muted-foreground">
+                        {formatUsd(getConsensusReward(key), gnoPrice)}
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-sm font-mono text-destructive">
+                        {formatValue(getMissedReward(key))} GNO
+                      </div>
+                      <div className="text-[10px] text-muted-foreground">
+                        {formatUsd(getMissedReward(key), gnoPrice)}
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-sm font-mono">
+                        {formatValue(getExecutionReward(key)?.token ?? null)} xDAI
+                      </div>
+                      <div className="text-[10px] text-muted-foreground">
+                        {formatUsd(getExecutionReward(key)?.token ?? null, 1)}
+                      </div>
+                    </div>
+                    <div className="text-sm font-mono font-semibold">
+                      {formatTotalUsd(
+                        getConsensusReward(key),
+                        gnoPrice,
+                        getExecutionReward(key)?.token ?? null,
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </>
           )}
         </div>
       </div>
