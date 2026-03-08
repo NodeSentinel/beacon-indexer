@@ -66,6 +66,8 @@ async function fetchRewards(
       });
     }
 
+    const epochByEpoch = new Map(epochRows.map((r) => [r.epoch, r]));
+
     const allEpochs = new Set([
       ...epochRows.map((r) => r.epoch),
       ...syncRows.map((r) => r.epoch),
@@ -75,7 +77,7 @@ async function fetchRewards(
     return Array.from(allEpochs)
       .sort((a, b) => a - b)
       .map((epoch) => {
-        const er = epochRows.find((r) => r.epoch === epoch);
+        const er = epochByEpoch.get(epoch);
         const syncReward = syncByEpoch.get(epoch) ?? BigInt(0);
         const block = blockByEpoch.get(epoch);
         const timestamp = new Date(beaconTime.getTimestampFromEpochNumber(epoch)).toISOString();

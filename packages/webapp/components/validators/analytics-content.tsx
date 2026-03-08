@@ -209,7 +209,7 @@ export default function AnalyticsContent({
         syncCommittee: d.syncCommittee * tokenPrice,
         blockConsensus: d.blockConsensus * tokenPrice,
         blockExecution: d.blockExecution, // xDAI ≈ $1
-        missed: d.missed * tokenPrice,
+        missed: -d.missed * tokenPrice,
         // Keep raw values for tooltip
         _raw: d,
       })),
