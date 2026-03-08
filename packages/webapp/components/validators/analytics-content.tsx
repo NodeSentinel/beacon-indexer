@@ -353,6 +353,15 @@ export default function AnalyticsContent({
                   tokenPrice={tokenPrice}
                 />
                 <RewardHeader
+                  label="MISSED"
+                  help="Penalties incurred when your validator fails to attest or attests incorrectly. Small amounts are normal; large values may indicate downtime."
+                  value={rewardsStats.missed}
+                  token="GNO"
+                  color="hsl(var(--destructive))"
+                  tokenPrice={tokenPrice}
+                  isDestructive
+                />
+                <RewardHeader
                   label="SYNC"
                   help="Reward for participating in a sync committee. Only ~512 validators are randomly selected every ~27 hours, so this may be zero most of the time."
                   value={rewardsStats.syncCommittee}
@@ -375,15 +384,6 @@ export default function AnalyticsContent({
                   token="xDAI"
                   color="#06b6d4"
                   tokenPrice={1}
-                />
-                <RewardHeader
-                  label="MISSED"
-                  help="Penalties incurred when your validator fails to attest or attests incorrectly. Small amounts are normal; large values may indicate downtime."
-                  value={rewardsStats.missed}
-                  token="GNO"
-                  color="hsl(var(--destructive))"
-                  tokenPrice={tokenPrice}
-                  isDestructive
                 />
               </div>
 
@@ -459,6 +459,15 @@ export default function AnalyticsContent({
                                   </span>
                                 </span>
                               </div>
+                              <div className="flex items-center justify-between gap-4">
+                                <span className="text-muted-foreground">Missed:</span>
+                                <span className="font-normal text-destructive">
+                                  {fmtToken(raw.missed)} GNO{' '}
+                                  <span className="text-muted-foreground">
+                                    ({toUsd(raw.missed, tokenPrice)})
+                                  </span>
+                                </span>
+                              </div>
                               {raw.syncCommittee > 0 && (
                                 <div className="flex items-center justify-between gap-4">
                                   <span className="text-muted-foreground">Sync Committee:</span>
@@ -492,15 +501,6 @@ export default function AnalyticsContent({
                                   </span>
                                 </div>
                               )}
-                              <div className="flex items-center justify-between gap-4">
-                                <span className="text-muted-foreground">Missed:</span>
-                                <span className="font-normal text-destructive">
-                                  {fmtToken(raw.missed)} GNO{' '}
-                                  <span className="text-muted-foreground">
-                                    ({toUsd(raw.missed, tokenPrice)})
-                                  </span>
-                                </span>
-                              </div>
                               <div className="flex items-center justify-between gap-4 pt-1 border-t">
                                 <span className="text-muted-foreground">Total:</span>
                                 <span className="font-normal">{toUsd(raw.totalUsd, 1)}</span>
