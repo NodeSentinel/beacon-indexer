@@ -211,13 +211,13 @@ export default function AnalyticsContent({
             <div className="grid grid-cols-2 gap-3 md:gap-4 pb-4">
               <div>
                 <p className="text-xs text-muted-foreground mb-1">TOTAL MISSED</p>
-                <span className="text-xl md:text-2xl font-display text-destructive">
+                <span className="text-xl md:text-2xl font-normal text-destructive">
                   {missedStats.totalMissed}
                 </span>
               </div>
               <div>
                 <p className="text-xs text-muted-foreground mb-1">VALIDATORS AFFECTED</p>
-                <span className="text-xl md:text-2xl font-display text-warning">
+                <span className="text-xl md:text-2xl font-normal text-warning">
                   {missedStats.maxValidators}
                 </span>
               </div>
@@ -259,11 +259,11 @@ export default function AnalyticsContent({
                           <div className="space-y-1">
                             <div className="flex items-center justify-between gap-4">
                               <span className="text-xs text-muted-foreground">Slots:</span>
-                              <span className="text-sm font-display">{data.slot}</span>
+                              <span className="text-sm font-normal">{data.slot}</span>
                             </div>
                             <div className="flex items-center justify-between gap-4">
                               <span className="text-xs text-muted-foreground">Validators:</span>
-                              <span className="text-sm font-display">{data.validators}</span>
+                              <span className="text-sm font-normal">{data.validators}</span>
                             </div>
                           </div>
                         </div>
@@ -287,25 +287,25 @@ export default function AnalyticsContent({
               <div className="grid grid-cols-2 md:grid-cols-4 gap-2 md:gap-3 pb-4">
                 <div>
                   <p className="text-[10px] md:text-[11px] text-muted-foreground mb-1">SOURCE</p>
-                  <span className="text-base md:text-lg font-display text-[#3b82f6]">
+                  <span className="text-base md:text-lg font-normal text-[#3b82f6]">
                     {fmtToken(rewardsStats.source)} GNO
                   </span>
                 </div>
                 <div>
                   <p className="text-[10px] md:text-[11px] text-muted-foreground mb-1">TARGET</p>
-                  <span className="text-base md:text-lg font-display text-[#10b981]">
+                  <span className="text-base md:text-lg font-normal text-[#10b981]">
                     {fmtToken(rewardsStats.target)} GNO
                   </span>
                 </div>
                 <div>
                   <p className="text-[10px] md:text-[11px] text-muted-foreground mb-1">HEAD</p>
-                  <span className="text-base md:text-lg font-display text-[#8b5cf6]">
+                  <span className="text-base md:text-lg font-normal text-[#8b5cf6]">
                     {fmtToken(rewardsStats.head)} GNO
                   </span>
                 </div>
                 <div>
                   <p className="text-[10px] md:text-[11px] text-muted-foreground mb-1">SYNC</p>
-                  <span className="text-base md:text-lg font-display text-[#fbbf24]">
+                  <span className="text-base md:text-lg font-normal text-[#fbbf24]">
                     {fmtToken(rewardsStats.syncCommittee)} GNO
                   </span>
                 </div>
@@ -313,7 +313,7 @@ export default function AnalyticsContent({
                   <p className="text-[10px] md:text-[11px] text-muted-foreground mb-1">
                     BLOCK (CL)
                   </p>
-                  <span className="text-base md:text-lg font-display text-[#f97316]">
+                  <span className="text-base md:text-lg font-normal text-[#f97316]">
                     {fmtToken(rewardsStats.blockConsensus)} GNO
                   </span>
                 </div>
@@ -321,13 +321,13 @@ export default function AnalyticsContent({
                   <p className="text-[10px] md:text-[11px] text-muted-foreground mb-1">
                     BLOCK (EL)
                   </p>
-                  <span className="text-base md:text-lg font-display text-[#06b6d4]">
+                  <span className="text-base md:text-lg font-normal text-[#06b6d4]">
                     {fmtToken(rewardsStats.blockExecution)} xDAI
                   </span>
                 </div>
                 <div>
                   <p className="text-[10px] md:text-[11px] text-muted-foreground mb-1">MISSED</p>
-                  <span className="text-base md:text-lg font-display text-destructive">
+                  <span className="text-base md:text-lg font-normal text-destructive">
                     {fmtToken(rewardsStats.missed)} GNO
                   </span>
                 </div>

@@ -94,7 +94,7 @@ export default function EventsFeedContent({
                   key={idx}
                   className="flex items-center gap-2 md:gap-4 p-3 rounded-lg bg-destructive/10 border border-destructive/30"
                 >
-                  <div className="text-xl md:text-2xl font-display flex-shrink-0 text-destructive">
+                  <div className="text-xl md:text-2xl font-normal flex-shrink-0 text-destructive">
                     {incident.type === 'slashed' ? '✕' : '⚠'}
                   </div>
 
@@ -276,7 +276,7 @@ function BlockItem({ block }: BlockItemProps) {
           {block.consensusReward && (
             <div className="flex items-center justify-between gap-4">
               <span className="text-muted-foreground text-xs md:text-sm">Consensus Reward</span>
-              <span className="font-display text-success text-xs md:text-sm">
+              <span className="font-normal text-success text-xs md:text-sm">
                 {block.consensusReward} GNO
               </span>
             </div>
@@ -284,7 +284,7 @@ function BlockItem({ block }: BlockItemProps) {
           {block.executionReward && (
             <div className="flex items-center justify-between gap-4">
               <span className="text-muted-foreground text-xs md:text-sm">Execution Reward</span>
-              <span className="font-display text-success text-xs md:text-sm">
+              <span className="font-normal text-success text-xs md:text-sm">
                 {block.executionReward}
               </span>
             </div>
@@ -378,7 +378,7 @@ function EventItem({ event, gnoPrice: _gnoPrice }: EventItemProps) {
         <div className="flex items-center gap-2 md:gap-3 p-3 rounded-lg bg-accent hover:bg-accent/80 transition-colors group cursor-pointer border border-border/50 hover:border-border">
           <div
             className={cn(
-              'text-xl md:text-2xl font-display flex-shrink-0',
+              'text-xl md:text-2xl font-normal flex-shrink-0',
               getEventColor(event.type),
             )}
           >
@@ -399,7 +399,7 @@ function EventItem({ event, gnoPrice: _gnoPrice }: EventItemProps) {
 
           <div className="flex flex-col md:flex-row items-end md:items-center gap-1 md:gap-3 flex-shrink-0">
             {event.amount && (
-              <span className="text-xs md:text-sm font-display text-success whitespace-nowrap">
+              <span className="text-xs md:text-sm font-normal text-success whitespace-nowrap">
                 {event.amount} GNO
               </span>
             )}
@@ -432,7 +432,7 @@ function EventItem({ event, gnoPrice: _gnoPrice }: EventItemProps) {
           {event.amount && (
             <div className="flex items-center justify-between gap-4">
               <span className="text-muted-foreground text-xs md:text-sm">Amount</span>
-              <span className="font-display text-success text-xs md:text-sm">
+              <span className="font-normal text-success text-xs md:text-sm">
                 {event.amount} GNO
               </span>
             </div>
