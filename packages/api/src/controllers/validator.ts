@@ -10,7 +10,7 @@ import type {
 } from '@/routers/validator/schemas.js';
 import { ValidatorStorage } from '@/storage/validator.js';
 import { beaconTime, chainConfig } from '@/utils/beaconTime.js';
-import { convertRewardToGWei, formatBalance } from '@/utils/tokenFormat.js';
+import { formatBalance } from '@/utils/tokenFormat.js';
 
 /** Reverse map: numeric status id → Beacon API string */
 const STATUS_BY_ID: Record<number, string> = Object.fromEntries(
@@ -88,21 +88,19 @@ export class ValidatorController {
     const epochsMap = new Map<number, Epoch>();
 
     // Initialize epochs from epoch_rewards
-    // Rewards are stored in mGNO for Gnosis or GWei for Ethereum
-    // Convert to GWei for consistent output
+    // Rewards are stored in Gwei — use formatBalance to convert to token units
     for (const epochReward of epochRewardsRows) {
       epochsMap.set(epochReward.epoch, {
         epoch: epochReward.epoch,
         rewards: {
-          // All rewards converted to GWei (mGNO -> GWei for Gnosis, already GWei for Ethereum)
-          head: convertRewardToGWei(epochReward.head),
-          target: convertRewardToGWei(epochReward.target),
-          source: convertRewardToGWei(epochReward.source),
-          inactivity: convertRewardToGWei(epochReward.inactivity),
-          missedHead: convertRewardToGWei(epochReward.missed_head),
-          missedTarget: convertRewardToGWei(epochReward.missed_target),
-          missedSource: convertRewardToGWei(epochReward.missed_source),
-          missedInactivity: convertRewardToGWei(epochReward.missed_inactivity),
+          head: formatBalance(epochReward.head),
+          target: formatBalance(epochReward.target),
+          source: formatBalance(epochReward.source),
+          inactivity: formatBalance(epochReward.inactivity),
+          missedHead: formatBalance(epochReward.missed_head),
+          missedTarget: formatBalance(epochReward.missed_target),
+          missedSource: formatBalance(epochReward.missed_source),
+          missedInactivity: formatBalance(epochReward.missed_inactivity),
         },
         slot: null,
       });
