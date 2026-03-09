@@ -38,6 +38,7 @@ services:
       sh -c "
         apk add --no-cache openssl &&
         npm install -g pnpm@9.2.0 &&
+        pnpm install --frozen-lockfile &&
         echo 'Waiting for database to be ready...' &&
         pnpm exec prisma migrate deploy --schema=./packages/db/prisma/schema.prisma &&
         echo 'Database migration completed successfully!'
