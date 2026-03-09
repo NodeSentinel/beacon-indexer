@@ -291,15 +291,15 @@ export default function ClusterOverviewContent({
                   </div>
                 ))}
               </div>
-              <div className="grid grid-cols-4 gap-3 md:gap-4 md:text-center">
+              <div className="grid grid-cols-4 gap-3 md:gap-4 md:text-center mt-1.5 pt-1.5 border-t border-border/20">
                 <div>
-                  <p className="text-[10px] md:text-xs text-muted-foreground">avg delay:</p>
+                  <p className="text-[10px] md:text-xs text-muted-foreground/60">avg delay:</p>
                 </div>
                 {PERIODS.filter(({ key }) => key !== '1h').map(({ key }) => {
                   const delay = getAvgDelay(key);
                   return (
                     <div key={key}>
-                      <p className="text-[10px] md:text-xs text-muted-foreground">
+                      <p className="text-[10px] md:text-xs text-muted-foreground/60">
                         {delay !== null ? `${(delay + 1).toFixed(2)} slots` : '-'}
                       </p>
                     </div>
