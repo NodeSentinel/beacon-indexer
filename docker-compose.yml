@@ -3,7 +3,6 @@ services:
     build:
       context: .
       dockerfile: packages/db/Dockerfile
-    platform: linux/arm64
     container_name: beacon_db
     env_file:
       - packages/db/.env
@@ -24,7 +23,6 @@ services:
 
   migrate:
     image: node:22-alpine
-    platform: linux/arm64
     working_dir: /app
     volumes:
       - .:/app
@@ -57,8 +55,6 @@ services:
     build:
       context: .
       dockerfile: packages/indexer/Dockerfile
-      platforms:
-        - linux/arm64
     depends_on:
       migrate:
         condition: service_completed_successfully
@@ -75,8 +71,6 @@ services:
     build:
       context: .
       dockerfile: packages/api/Dockerfile
-      platforms:
-        - linux/arm64
     depends_on:
       migrate:
         condition: service_completed_successfully
