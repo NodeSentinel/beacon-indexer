@@ -241,6 +241,12 @@ export class ClusterStorage {
         execution_reward_d: string | null;
         execution_reward_w: string | null;
         execution_reward_m: string | null;
+        attestation_efficiency_d: string | null;
+        attestation_efficiency_w: string | null;
+        attestation_efficiency_m: string | null;
+        avg_attestation_delay_d: string | null;
+        avg_attestation_delay_w: string | null;
+        avg_attestation_delay_m: string | null;
         beacon_status_breakdown: string;
       }>
     >`
@@ -290,6 +296,26 @@ export class ClusterStorage {
         SUM(vss.execution_reward_d)::text AS execution_reward_d,
         SUM(vss.execution_reward_w)::text AS execution_reward_w,
         SUM(vss.execution_reward_m)::text AS execution_reward_m,
+        -- Weighted average attestation efficiency (by attestation count)
+        CASE WHEN SUM(vss.attestations_total) > 0
+          THEN (SUM(COALESCE(vss.attestation_efficiency_d, 0) * vss.attestations_total)::numeric / SUM(vss.attestations_total))::real::text
+          ELSE NULL END AS attestation_efficiency_d,
+        CASE WHEN SUM(vss.attestations_total) > 0
+          THEN (SUM(COALESCE(vss.attestation_efficiency_w, 0) * vss.attestations_total)::numeric / SUM(vss.attestations_total))::real::text
+          ELSE NULL END AS attestation_efficiency_w,
+        CASE WHEN SUM(vss.attestations_total) > 0
+          THEN (SUM(COALESCE(vss.attestation_efficiency_m, 0) * vss.attestations_total)::numeric / SUM(vss.attestations_total))::real::text
+          ELSE NULL END AS attestation_efficiency_m,
+        -- Weighted average attestation delay (by attestation count)
+        CASE WHEN SUM(vss.attestations_total) > 0
+          THEN (SUM(COALESCE(vss.avg_attestation_delay_d, 0) * vss.attestations_total)::numeric / SUM(vss.attestations_total))::real::text
+          ELSE NULL END AS avg_attestation_delay_d,
+        CASE WHEN SUM(vss.attestations_total) > 0
+          THEN (SUM(COALESCE(vss.avg_attestation_delay_w, 0) * vss.attestations_total)::numeric / SUM(vss.attestations_total))::real::text
+          ELSE NULL END AS avg_attestation_delay_w,
+        CASE WHEN SUM(vss.attestations_total) > 0
+          THEN (SUM(COALESCE(vss.avg_attestation_delay_m, 0) * vss.attestations_total)::numeric / SUM(vss.attestations_total))::real::text
+          ELSE NULL END AS avg_attestation_delay_m,
         -- Beacon status breakdown as JSON
         COALESCE(
           (SELECT json_object_agg(bs, cnt)::text

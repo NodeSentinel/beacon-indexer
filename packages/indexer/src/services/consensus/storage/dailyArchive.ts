@@ -120,7 +120,9 @@ export class DailyArchiveStorage {
               NULLIF(SUM(COALESCE(exec_reward_total, 0::numeric)), 0::numeric) AS exec_reward_total,
               NULLIF(SUM(COALESCE(block_reward_total, 0::bigint)), 0::bigint) AS block_reward_total,
               SUM(cl_reward_total) AS cl_reward_total,
-              SUM(cl_missed_reward_total) AS cl_missed_reward_total
+              SUM(cl_missed_reward_total) AS cl_missed_reward_total,
+              (SUM(avg_attestation_delay * attestation_count) / NULLIF(SUM(attestation_count), 0))::real AS avg_attestation_delay,
+              (SUM(attestation_efficiency * attestation_count) / NULLIF(SUM(attestation_count), 0))::real AS attestation_efficiency
             FROM validator_hourly_archive
             WHERE "timestamp" >= ${dayStart}::timestamp
               AND "timestamp" < ${nextDayStart}::timestamp
@@ -157,7 +159,9 @@ export class DailyArchiveStorage {
             exec_reward_total,
             block_reward_total,
             cl_reward_total,
-            cl_missed_reward_total
+            cl_missed_reward_total,
+            avg_attestation_delay,
+            attestation_efficiency
           )
           SELECT
             ${dayStart}::timestamp AS timestamp,
@@ -170,7 +174,9 @@ export class DailyArchiveStorage {
             ha.exec_reward_total,
             ha.block_reward_total,
             COALESCE(ha.cl_reward_total, 0) AS cl_reward_total,
-            COALESCE(ha.cl_missed_reward_total, 0) AS cl_missed_reward_total
+            COALESCE(ha.cl_missed_reward_total, 0) AS cl_missed_reward_total,
+            ha.avg_attestation_delay,
+            ha.attestation_efficiency
           FROM hourly_agg ha
           LEFT JOIN slot_json sj ON ha.validator_index = sj.validator_index
           LEFT JOIN epoch_json ej ON ha.validator_index = ej.validator_index

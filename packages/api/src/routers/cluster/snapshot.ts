@@ -80,6 +80,14 @@ export const getClusterSnapshot = publicProcedure
           executionRewardW: toExecReward(row.execution_reward_w),
           executionRewardM: toExecReward(row.execution_reward_m),
 
+          attestationEfficiencyD: toNum(row.attestation_efficiency_d),
+          attestationEfficiencyW: toNum(row.attestation_efficiency_w),
+          attestationEfficiencyM: toNum(row.attestation_efficiency_m),
+
+          avgAttestationDelayD: toNum(row.avg_attestation_delay_d),
+          avgAttestationDelayW: toNum(row.avg_attestation_delay_w),
+          avgAttestationDelayM: toNum(row.avg_attestation_delay_m),
+
           tokenPrice,
         },
         meta: { timestamp: new Date().toISOString() },

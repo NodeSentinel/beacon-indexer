@@ -199,7 +199,16 @@ export class HourlyArchiveStorage {
               SELECT
                 validator_index,
                 COUNT(*) FILTER (WHERE attestation_delay IS NOT NULL AND attestation_delay <= ${maxAttestationDelay}::int) AS attestation_count,
-                COUNT(*) FILTER (WHERE attestation_delay IS NULL OR attestation_delay > ${maxAttestationDelay}::int) AS missed_attestation_count
+                COUNT(*) FILTER (WHERE attestation_delay IS NULL OR attestation_delay > ${maxAttestationDelay}::int) AS missed_attestation_count,
+                AVG(attestation_delay) FILTER (WHERE attestation_delay IS NOT NULL)::real AS avg_attestation_delay,
+                (SUM(CASE
+                  WHEN attestation_delay IS NULL THEN 0.0
+                  WHEN attestation_delay <= 1 THEN 1.0
+                  WHEN attestation_delay = 2 THEN 0.75
+                  WHEN attestation_delay = 3 THEN 0.50
+                  WHEN attestation_delay <= 5 THEN 0.25
+                  ELSE 0.0
+                END) / NULLIF(COUNT(*), 0))::real AS attestation_efficiency
               FROM attestations
               GROUP BY validator_index
             ),
@@ -281,7 +290,9 @@ export class HourlyArchiveStorage {
             exec_reward_total,
             block_reward_total,
             cl_reward_total,
-            cl_missed_reward_total
+            cl_missed_reward_total,
+            avg_attestation_delay,
+            attestation_efficiency
           )
           SELECT
             ${timestamp}::timestamp AS timestamp,
@@ -294,7 +305,9 @@ export class HourlyArchiveStorage {
             sa.exec_reward_total,
             sa.block_reward_total,
             COALESCE(ej.cl_reward_total, 0) AS cl_reward_total,
-            COALESCE(ej.cl_missed_reward_total, 0) AS cl_missed_reward_total
+            COALESCE(ej.cl_missed_reward_total, 0) AS cl_missed_reward_total,
+            aa.avg_attestation_delay,
+            aa.attestation_efficiency
           FROM slot_agg sa
           FULL OUTER JOIN epoch_json ej ON sa.validator_index = ej.validator_index
           LEFT JOIN attestation_agg aa ON COALESCE(sa.validator_index, ej.validator_index) = aa.validator_index
