@@ -29,13 +29,13 @@ services:
     env_file:
       - packages/db/.env
     environment:
-      - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?schema=public
       - DOCKER_ENV=true
     depends_on:
       postgres:
         condition: service_healthy
     command: >
       sh -c "
+        export DATABASE_URL=postgresql://$$POSTGRES_USER:$$POSTGRES_PASSWORD@postgres:5432/$$POSTGRES_DB?schema=public &&
         apk add --no-cache openssl &&
         npm install -g pnpm@9.2.0 &&
         pnpm install --frozen-lockfile &&
