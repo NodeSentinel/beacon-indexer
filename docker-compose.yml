@@ -39,7 +39,7 @@ services:
         apk add --no-cache openssl &&
         npm install -g pnpm@9.2.0 &&
         echo 'Waiting for database to be ready...' &&
-        node scripts/setDbUrl.js pnpm exec prisma migrate deploy --schema=./packages/db/prisma/schema.prisma &&
+        pnpm exec prisma migrate deploy --schema=./packages/db/prisma/schema.prisma &&
         echo 'Database migration completed successfully!'
       "
     networks:
