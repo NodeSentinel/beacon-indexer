@@ -300,7 +300,7 @@ export default function ClusterOverviewContent({
                   return (
                     <div key={key}>
                       <p className="text-[10px] md:text-xs text-muted-foreground">
-                        {delay !== null ? `${delay.toFixed(1)} slots` : '-'}
+                        {delay !== null ? `${(delay + 1).toFixed(2)} slots` : '-'}
                       </p>
                     </div>
                   );
