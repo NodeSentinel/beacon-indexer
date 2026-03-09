@@ -29,7 +29,7 @@ services:
     env_file:
       - packages/db/.env
     environment:
-      - DATABASE_URL=postgresql://beacon_user:beacon_password@postgres:5432/dev_beacon?schema=public
+      - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?schema=public
       - DOCKER_ENV=true
     depends_on:
       postgres:
