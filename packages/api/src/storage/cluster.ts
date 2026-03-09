@@ -296,26 +296,20 @@ export class ClusterStorage {
         SUM(vss.execution_reward_d)::text AS execution_reward_d,
         SUM(vss.execution_reward_w)::text AS execution_reward_w,
         SUM(vss.execution_reward_m)::text AS execution_reward_m,
-        -- Weighted average attestation efficiency (by attestation count)
-        CASE WHEN SUM(vss.attestations_total) > 0
-          THEN (SUM(COALESCE(vss.attestation_efficiency_d, 0) * vss.attestations_total)::numeric / SUM(vss.attestations_total))::real::text
-          ELSE NULL END AS attestation_efficiency_d,
-        CASE WHEN SUM(vss.attestations_total) > 0
-          THEN (SUM(COALESCE(vss.attestation_efficiency_w, 0) * vss.attestations_total)::numeric / SUM(vss.attestations_total))::real::text
-          ELSE NULL END AS attestation_efficiency_w,
-        CASE WHEN SUM(vss.attestations_total) > 0
-          THEN (SUM(COALESCE(vss.attestation_efficiency_m, 0) * vss.attestations_total)::numeric / SUM(vss.attestations_total))::real::text
-          ELSE NULL END AS attestation_efficiency_m,
-        -- Weighted average attestation delay (by attestation count)
-        CASE WHEN SUM(vss.attestations_total) > 0
-          THEN (SUM(COALESCE(vss.avg_attestation_delay_d, 0) * vss.attestations_total)::numeric / SUM(vss.attestations_total))::real::text
-          ELSE NULL END AS avg_attestation_delay_d,
-        CASE WHEN SUM(vss.attestations_total) > 0
-          THEN (SUM(COALESCE(vss.avg_attestation_delay_w, 0) * vss.attestations_total)::numeric / SUM(vss.attestations_total))::real::text
-          ELSE NULL END AS avg_attestation_delay_w,
-        CASE WHEN SUM(vss.attestations_total) > 0
-          THEN (SUM(COALESCE(vss.avg_attestation_delay_m, 0) * vss.attestations_total)::numeric / SUM(vss.attestations_total))::real::text
-          ELSE NULL END AS avg_attestation_delay_m,
+        -- Weighted average attestation efficiency (only validators that have data)
+        (SUM(vss.attestation_efficiency_d * vss.attestations_total) / NULLIF(SUM(CASE WHEN vss.attestation_efficiency_d IS NOT NULL THEN vss.attestations_total ELSE 0 END), 0))::real::text
+          AS attestation_efficiency_d,
+        (SUM(vss.attestation_efficiency_w * vss.attestations_total) / NULLIF(SUM(CASE WHEN vss.attestation_efficiency_w IS NOT NULL THEN vss.attestations_total ELSE 0 END), 0))::real::text
+          AS attestation_efficiency_w,
+        (SUM(vss.attestation_efficiency_m * vss.attestations_total) / NULLIF(SUM(CASE WHEN vss.attestation_efficiency_m IS NOT NULL THEN vss.attestations_total ELSE 0 END), 0))::real::text
+          AS attestation_efficiency_m,
+        -- Weighted average attestation delay (only validators that have data)
+        (SUM(vss.avg_attestation_delay_d * vss.attestations_total) / NULLIF(SUM(CASE WHEN vss.avg_attestation_delay_d IS NOT NULL THEN vss.attestations_total ELSE 0 END), 0))::real::text
+          AS avg_attestation_delay_d,
+        (SUM(vss.avg_attestation_delay_w * vss.attestations_total) / NULLIF(SUM(CASE WHEN vss.avg_attestation_delay_w IS NOT NULL THEN vss.attestations_total ELSE 0 END), 0))::real::text
+          AS avg_attestation_delay_w,
+        (SUM(vss.avg_attestation_delay_m * vss.attestations_total) / NULLIF(SUM(CASE WHEN vss.avg_attestation_delay_m IS NOT NULL THEN vss.attestations_total ELSE 0 END), 0))::real::text
+          AS avg_attestation_delay_m,
         -- Beacon status breakdown as JSON
         COALESCE(
           (SELECT json_object_agg(bs, cnt)::text

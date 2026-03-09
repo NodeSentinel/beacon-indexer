@@ -361,8 +361,8 @@ export class SnapshotStorage {
             SUM(COALESCE(vha.exec_reward_total, 0)) AS execution_reward,
             SUM(vha.attestation_count)::bigint AS att_count,
             SUM(COALESCE(vha.missed_attestation_count, 0))::bigint AS missed_att_count,
-            (SUM(vha.avg_attestation_delay * vha.attestation_count) / NULLIF(SUM(vha.attestation_count), 0))::real AS avg_att_delay,
-            (SUM(vha.attestation_efficiency * vha.attestation_count) / NULLIF(SUM(vha.attestation_count), 0))::real AS att_efficiency
+            (SUM(vha.avg_attestation_delay * vha.attestation_count) / NULLIF(SUM(CASE WHEN vha.avg_attestation_delay IS NOT NULL THEN vha.attestation_count ELSE 0 END), 0))::real AS avg_att_delay,
+            (SUM(vha.attestation_efficiency * vha.attestation_count) / NULLIF(SUM(CASE WHEN vha.attestation_efficiency IS NOT NULL THEN vha.attestation_count ELSE 0 END), 0))::real AS att_efficiency
           FROM validator_hourly_archive vha
           JOIN target_validators tv ON vha.validator_index = tv.validator_index
           WHERE vha.timestamp IN (SELECT timestamp FROM filtered_archive_hours)
@@ -470,8 +470,8 @@ export class SnapshotStorage {
             SUM(execution_reward) AS execution_reward,
             SUM(att_count) AS att_count,
             SUM(missed_att_count) AS missed_att_count,
-            (SUM(avg_att_delay * att_count) / NULLIF(SUM(att_count), 0))::real AS avg_att_delay,
-            (SUM(att_efficiency * att_count) / NULLIF(SUM(att_count), 0))::real AS att_efficiency
+            (SUM(avg_att_delay * att_count) / NULLIF(SUM(CASE WHEN avg_att_delay IS NOT NULL THEN att_count ELSE 0 END), 0))::real AS avg_att_delay,
+            (SUM(att_efficiency * att_count) / NULLIF(SUM(CASE WHEN att_efficiency IS NOT NULL THEN att_count ELSE 0 END), 0))::real AS att_efficiency
           FROM (
             SELECT * FROM archive_agg
             UNION ALL
@@ -554,8 +554,8 @@ export class SnapshotStorage {
             SUM(vda.cl_reward_total) + SUM(COALESCE(vda.sync_reward_total, 0)) + SUM(COALESCE(vda.block_reward_total, 0)) AS consensus_reward,
             SUM(vda.cl_missed_reward_total) AS missed_reward,
             SUM(COALESCE(vda.exec_reward_total, 0)) AS execution_reward,
-            (SUM(vda.avg_attestation_delay * vda.attestation_count) / NULLIF(SUM(vda.attestation_count), 0))::real AS avg_att_delay,
-            (SUM(vda.attestation_efficiency * vda.attestation_count) / NULLIF(SUM(vda.attestation_count), 0))::real AS att_efficiency
+            (SUM(vda.avg_attestation_delay * vda.attestation_count) / NULLIF(SUM(CASE WHEN vda.avg_attestation_delay IS NOT NULL THEN vda.attestation_count ELSE 0 END), 0))::real AS avg_att_delay,
+            (SUM(vda.attestation_efficiency * vda.attestation_count) / NULLIF(SUM(CASE WHEN vda.attestation_efficiency IS NOT NULL THEN vda.attestation_count ELSE 0 END), 0))::real AS att_efficiency
           FROM validator_daily_archive vda
           JOIN target_validators tv ON vda.validator_index = tv.validator_index
           WHERE vda.timestamp IN (SELECT timestamp FROM recent_days)
@@ -630,8 +630,8 @@ export class SnapshotStorage {
             SUM(vda.cl_reward_total) + SUM(COALESCE(vda.sync_reward_total, 0)) + SUM(COALESCE(vda.block_reward_total, 0)) AS consensus_reward,
             SUM(vda.cl_missed_reward_total) AS missed_reward,
             SUM(COALESCE(vda.exec_reward_total, 0)) AS execution_reward,
-            (SUM(vda.avg_attestation_delay * vda.attestation_count) / NULLIF(SUM(vda.attestation_count), 0))::real AS avg_att_delay,
-            (SUM(vda.attestation_efficiency * vda.attestation_count) / NULLIF(SUM(vda.attestation_count), 0))::real AS att_efficiency
+            (SUM(vda.avg_attestation_delay * vda.attestation_count) / NULLIF(SUM(CASE WHEN vda.avg_attestation_delay IS NOT NULL THEN vda.attestation_count ELSE 0 END), 0))::real AS avg_att_delay,
+            (SUM(vda.attestation_efficiency * vda.attestation_count) / NULLIF(SUM(CASE WHEN vda.attestation_efficiency IS NOT NULL THEN vda.attestation_count ELSE 0 END), 0))::real AS att_efficiency
           FROM validator_daily_archive vda
           JOIN target_validators tv ON vda.validator_index = tv.validator_index
           WHERE vda.timestamp IN (SELECT timestamp FROM recent_days)

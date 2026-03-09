@@ -114,8 +114,8 @@ export class MonthlyArchiveStorage {
               NULLIF(SUM(COALESCE(block_reward_total, 0::bigint)), 0::bigint) AS block_reward_total,
               SUM(cl_reward_total) AS cl_reward_total,
               SUM(cl_missed_reward_total) AS cl_missed_reward_total,
-              (SUM(avg_attestation_delay * attestation_count) / NULLIF(SUM(attestation_count), 0))::real AS avg_attestation_delay,
-              (SUM(attestation_efficiency * attestation_count) / NULLIF(SUM(attestation_count), 0))::real AS attestation_efficiency
+              (SUM(avg_attestation_delay * attestation_count) / NULLIF(SUM(CASE WHEN avg_attestation_delay IS NOT NULL THEN attestation_count ELSE 0 END), 0))::real AS avg_attestation_delay,
+              (SUM(attestation_efficiency * attestation_count) / NULLIF(SUM(CASE WHEN attestation_efficiency IS NOT NULL THEN attestation_count ELSE 0 END), 0))::real AS attestation_efficiency
             FROM validator_daily_archive
             WHERE "timestamp" >= ${monthStart}::timestamp
               AND "timestamp" < ${nextMonthStart}::timestamp
