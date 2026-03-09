@@ -291,6 +291,8 @@ model ValidatorHourlyArchive {
   blockRewardTotal       BigInt?  @map("block_reward_total") // Sum of block proposal rewards - NULL if 0
   clRewardTotal          BigInt   @default(0) @map("cl_reward_total") // Sum of consensus layer rewards (head+target+source+inactivity)
   clMissedRewardTotal    BigInt   @default(0) @map("cl_missed_reward_total") // Sum of missed CL rewards
+  avgAttestationDelay    Float?   @map("avg_attestation_delay") @db.Real // Average inclusion delay in slots (NULL if no attestations)
+  attestationEfficiency  Float?   @map("attestation_efficiency") @db.Real // Weighted efficiency score 0.0–1.0 (NULL if no attestations)
 
   @@id([timestamp, validatorIndex])
   @@map("validator_hourly_archive")
@@ -318,6 +320,8 @@ model ValidatorDailyArchive {
   blockRewardTotal       BigInt?  @map("block_reward_total")
   clRewardTotal          BigInt   @default(0) @map("cl_reward_total")
   clMissedRewardTotal    BigInt   @default(0) @map("cl_missed_reward_total")
+  avgAttestationDelay    Float?   @map("avg_attestation_delay") @db.Real
+  attestationEfficiency  Float?   @map("attestation_efficiency") @db.Real
 
   @@id([timestamp, validatorIndex])
   @@map("validator_daily_archive")
@@ -346,6 +350,8 @@ model ValidatorMonthlyArchive {
   blockRewardTotal       BigInt?  @map("block_reward_total")
   clRewardTotal          BigInt   @default(0) @map("cl_reward_total")
   clMissedRewardTotal    BigInt   @default(0) @map("cl_missed_reward_total")
+  avgAttestationDelay    Float?   @map("avg_attestation_delay") @db.Real
+  attestationEfficiency  Float?   @map("attestation_efficiency") @db.Real
 
   @@id([timestamp, validatorIndex])
   @@map("validator_monthly_archive")
@@ -417,6 +423,16 @@ model ValidatorsSnapshotStats {
   executionRewardD Decimal? @map("execution_reward_d") @db.Decimal(78, 0)
   executionRewardW Decimal? @map("execution_reward_w") @db.Decimal(78, 0)
   executionRewardM Decimal? @map("execution_reward_m") @db.Decimal(78, 0)
+
+  // Attestation efficiency per timeframe (weighted score 0.0–1.0)
+  attestationEfficiencyD Float? @map("attestation_efficiency_d") @db.Real
+  attestationEfficiencyW Float? @map("attestation_efficiency_w") @db.Real
+  attestationEfficiencyM Float? @map("attestation_efficiency_m") @db.Real
+
+  // Average attestation delay per timeframe (in slots)
+  avgAttestationDelayD Float? @map("avg_attestation_delay_d") @db.Real
+  avgAttestationDelayW Float? @map("avg_attestation_delay_w") @db.Real
+  avgAttestationDelayM Float? @map("avg_attestation_delay_m") @db.Real
 
   updatedAt DateTime @default(now()) @map("updated_at") @db.Timestamp
 

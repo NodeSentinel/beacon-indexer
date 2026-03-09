@@ -32,6 +32,12 @@ export interface ClusterSnapshot {
   executionReward1d: { wei: string; token: string } | null;
   executionReward1w: { wei: string; token: string } | null;
   executionReward1m: { wei: string; token: string } | null;
+  attestationEfficiency1d: number | null;
+  attestationEfficiency1w: number | null;
+  attestationEfficiency1m: number | null;
+  avgAttestationDelay1d: number | null;
+  avgAttestationDelay1w: number | null;
+  avgAttestationDelay1m: number | null;
   tokenPrice: number;
 }
 
@@ -73,6 +79,12 @@ export function useClusterSnapshot(clusterId: string | null) {
         executionReward1d: d.executionRewardD,
         executionReward1w: d.executionRewardW,
         executionReward1m: d.executionRewardM,
+        attestationEfficiency1d: d.attestationEfficiencyD,
+        attestationEfficiency1w: d.attestationEfficiencyW,
+        attestationEfficiency1m: d.attestationEfficiencyM,
+        avgAttestationDelay1d: d.avgAttestationDelayD,
+        avgAttestationDelay1w: d.avgAttestationDelayW,
+        avgAttestationDelay1m: d.avgAttestationDelayM,
         tokenPrice: d.tokenPrice,
       } satisfies ClusterSnapshot;
     },

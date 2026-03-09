@@ -113,7 +113,9 @@ export class MonthlyArchiveStorage {
               NULLIF(SUM(COALESCE(exec_reward_total, 0::numeric)), 0::numeric) AS exec_reward_total,
               NULLIF(SUM(COALESCE(block_reward_total, 0::bigint)), 0::bigint) AS block_reward_total,
               SUM(cl_reward_total) AS cl_reward_total,
-              SUM(cl_missed_reward_total) AS cl_missed_reward_total
+              SUM(cl_missed_reward_total) AS cl_missed_reward_total,
+              (SUM(avg_attestation_delay * attestation_count) / NULLIF(SUM(CASE WHEN avg_attestation_delay IS NOT NULL THEN attestation_count ELSE 0 END), 0))::real AS avg_attestation_delay,
+              (SUM(attestation_efficiency * attestation_count) / NULLIF(SUM(CASE WHEN attestation_efficiency IS NOT NULL THEN attestation_count ELSE 0 END), 0))::real AS attestation_efficiency
             FROM validator_daily_archive
             WHERE "timestamp" >= ${monthStart}::timestamp
               AND "timestamp" < ${nextMonthStart}::timestamp
@@ -150,7 +152,9 @@ export class MonthlyArchiveStorage {
             exec_reward_total,
             block_reward_total,
             cl_reward_total,
-            cl_missed_reward_total
+            cl_missed_reward_total,
+            avg_attestation_delay,
+            attestation_efficiency
           )
           SELECT
             ${monthStart}::timestamp AS timestamp,
@@ -163,7 +167,9 @@ export class MonthlyArchiveStorage {
             da.exec_reward_total,
             da.block_reward_total,
             COALESCE(da.cl_reward_total, 0) AS cl_reward_total,
-            COALESCE(da.cl_missed_reward_total, 0) AS cl_missed_reward_total
+            COALESCE(da.cl_missed_reward_total, 0) AS cl_missed_reward_total,
+            da.avg_attestation_delay,
+            da.attestation_efficiency
           FROM daily_agg da
           LEFT JOIN slot_json sj ON da.validator_index = sj.validator_index
           LEFT JOIN epoch_json ej ON da.validator_index = ej.validator_index

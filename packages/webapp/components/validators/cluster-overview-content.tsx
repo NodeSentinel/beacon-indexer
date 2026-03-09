@@ -137,6 +137,17 @@ export default function ClusterOverviewContent({
     return map[key];
   };
 
+  const getAvgDelay = (key: PeriodKey): number | null => {
+    if (!snapshot) return null;
+    const map: Record<PeriodKey, number | null> = {
+      '1h': null,
+      '1d': snapshot.avgAttestationDelay1d,
+      '1w': snapshot.avgAttestationDelay1w,
+      '1m': snapshot.avgAttestationDelay1m,
+    };
+    return map[key];
+  };
+
   const getApy = (key: PeriodKey): number | null => {
     if (!snapshot) return null;
     const map: Record<PeriodKey, number | null> = {
@@ -269,16 +280,33 @@ export default function ClusterOverviewContent({
           {snapshotLoading ? (
             <div className="animate-pulse h-10 bg-foreground/5 rounded" />
           ) : (
-            <div className="grid grid-cols-4 gap-3 md:gap-4 md:text-center">
-              {PERIODS.map(({ label, key }) => (
-                <div key={key}>
-                  <p className="text-[10px] md:text-xs text-muted-foreground mb-0.5">{label}</p>
-                  <p className="text-sm md:text-lg font-normal font-semibold">
-                    {formatPercent(getPerformance(key))}
-                  </p>
+            <>
+              <div className="grid grid-cols-4 gap-3 md:gap-4 md:text-center">
+                {PERIODS.map(({ label, key }) => (
+                  <div key={key}>
+                    <p className="text-[10px] md:text-xs text-muted-foreground mb-0.5">{label}</p>
+                    <p className="text-sm md:text-lg font-normal font-semibold">
+                      {formatPercent(getPerformance(key))}
+                    </p>
+                  </div>
+                ))}
+              </div>
+              <div className="grid grid-cols-4 gap-3 md:gap-4 md:text-center mt-1.5 pt-1.5 border-t border-border/20">
+                <div>
+                  <p className="text-[10px] md:text-xs text-muted-foreground/60">avg delay:</p>
                 </div>
-              ))}
-            </div>
+                {PERIODS.filter(({ key }) => key !== '1h').map(({ key }) => {
+                  const delay = getAvgDelay(key);
+                  return (
+                    <div key={key}>
+                      <p className="text-[10px] md:text-xs text-muted-foreground/60">
+                        {delay !== null ? `${(delay + 1).toFixed(2)} slots` : '-'}
+                      </p>
+                    </div>
+                  );
+                })}
+              </div>
+            </>
           )}
         </div>
 

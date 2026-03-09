@@ -191,6 +191,8 @@ CREATE TABLE "public"."validator_hourly_archive" (
     "block_reward_total" BIGINT,
     "cl_reward_total" BIGINT NOT NULL DEFAULT 0,
     "cl_missed_reward_total" BIGINT NOT NULL DEFAULT 0,
+    "avg_attestation_delay" REAL,
+    "attestation_efficiency" REAL,
 
     CONSTRAINT "validator_hourly_archive_pkey" PRIMARY KEY ("timestamp","validator_index")
 ) PARTITION BY RANGE ("timestamp");
@@ -212,6 +214,8 @@ CREATE TABLE "public"."validator_daily_archive" (
     "block_reward_total" BIGINT,
     "cl_reward_total" BIGINT NOT NULL DEFAULT 0,
     "cl_missed_reward_total" BIGINT NOT NULL DEFAULT 0,
+    "avg_attestation_delay" REAL,
+    "attestation_efficiency" REAL,
 
     CONSTRAINT "validator_daily_archive_pkey" PRIMARY KEY ("timestamp","validator_index")
 ) PARTITION BY RANGE ("timestamp");
@@ -233,6 +237,8 @@ CREATE TABLE "public"."validator_monthly_archive" (
     "block_reward_total" BIGINT,
     "cl_reward_total" BIGINT NOT NULL DEFAULT 0,
     "cl_missed_reward_total" BIGINT NOT NULL DEFAULT 0,
+    "avg_attestation_delay" REAL,
+    "attestation_efficiency" REAL,
 
     CONSTRAINT "validator_monthly_archive_pkey" PRIMARY KEY ("timestamp","validator_index")
 ) PARTITION BY RANGE ("timestamp");
@@ -284,6 +290,12 @@ CREATE TABLE "public"."validators_snapshot_stats" (
     "execution_reward_d" DECIMAL(78, 0),
     "execution_reward_w" DECIMAL(78, 0),
     "execution_reward_m" DECIMAL(78, 0),
+    "attestation_efficiency_d" REAL,
+    "attestation_efficiency_w" REAL,
+    "attestation_efficiency_m" REAL,
+    "avg_attestation_delay_d" REAL,
+    "avg_attestation_delay_w" REAL,
+    "avg_attestation_delay_m" REAL,
     "beacon_status" INTEGER,
     "balance" BIGINT NOT NULL,
     "updated_at" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,

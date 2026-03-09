@@ -192,6 +192,14 @@ export const ClusterSnapshotSchema = z.object({
   executionRewardW: z.object({ wei: z.string(), token: z.string() }).nullable(),
   executionRewardM: z.object({ wei: z.string(), token: z.string() }).nullable(),
 
+  attestationEfficiencyD: z.number().nullable(),
+  attestationEfficiencyW: z.number().nullable(),
+  attestationEfficiencyM: z.number().nullable(),
+
+  avgAttestationDelayD: z.number().nullable(),
+  avgAttestationDelayW: z.number().nullable(),
+  avgAttestationDelayM: z.number().nullable(),
+
   tokenPrice: z.number(),
 });
 
