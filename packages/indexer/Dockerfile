@@ -14,6 +14,8 @@ COPY package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.base.json ./
 # Copy only package.json and tsconfig for each package (minimal files needed for install)
 COPY packages/db/package.json ./packages/db/package.json
 COPY packages/db/tsconfig.json ./packages/db/tsconfig.json
+COPY packages/beacon-utils/package.json ./packages/beacon-utils/package.json
+COPY packages/beacon-utils/tsconfig.json ./packages/beacon-utils/tsconfig.json
 COPY packages/indexer/package.json ./packages/indexer/package.json
 
 # Copy Prisma schema (needed for prisma generate during postinstall, but we skip it)
@@ -26,6 +28,7 @@ RUN pnpm install --frozen-lockfile
 
 # Now copy source code (changes here won't invalidate the install cache)
 COPY packages/db/src ./packages/db/src
+COPY packages/beacon-utils ./packages/beacon-utils
 COPY packages/indexer ./packages/indexer
 COPY scripts/setDbUrl.js ./scripts/setDbUrl.js
 
@@ -34,6 +37,9 @@ RUN pnpm exec prisma generate --schema=./packages/db/prisma/schema.prisma
 
 # Build the db package first
 RUN pnpm --filter @beacon-indexer/db run build
+
+# Build beacon-utils
+RUN pnpm --filter @beacon-indexer/beacon-utils run build
 
 # Build the indexer package after db is ready
 RUN pnpm --filter indexer run build
