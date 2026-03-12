@@ -21,7 +21,7 @@ export class MultiMachineLogger {
 
   constructor() {
     // Create logs directory if it doesn't exist
-    const logsDir = path.join(process.cwd(), 'logs');
+    const logsDir = process.env.LOG_DIR || path.join(process.cwd(), 'logs');
     if (!fs.existsSync(logsDir)) {
       fs.mkdirSync(logsDir, { recursive: true });
     }
