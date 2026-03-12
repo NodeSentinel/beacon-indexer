@@ -76,6 +76,25 @@ export function createHttpServer() {
   });
 
   const server = createServer(async (req, res) => {
+    // Set CORS headers on every response (including 404s and errors)
+    const origin = req.headers.origin;
+    if (origin && isOriginAllowed(origin)) {
+      res.setHeader('Access-Control-Allow-Origin', origin);
+      res.setHeader('Access-Control-Allow-Credentials', 'true');
+      res.setHeader(
+        'Access-Control-Allow-Headers',
+        'Content-Type, Authorization, x-telegram-init-data',
+      );
+      res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+    }
+
+    // Handle preflight requests
+    if (req.method === 'OPTIONS') {
+      res.statusCode = 204;
+      res.end();
+      return;
+    }
+
     try {
       const url = new URL(req.url || '', `http://${req.headers.host}`);
       const pathname = url.pathname;
