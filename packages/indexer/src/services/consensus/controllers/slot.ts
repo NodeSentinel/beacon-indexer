@@ -113,6 +113,13 @@ export class SlotController extends SlotControllerHelpers {
       (attestation) => +attestation.data.slot >= this.beaconTime.getLookbackSlot(),
     );
 
+    // A block can legitimately have 0 attestations (e.g. network partition,
+    // proposer issue, or post-fork startup). Mark as processed and return.
+    if (filteredAttestations.length === 0) {
+      await this.slotStorage.saveSlotAttestations([], slotNumber);
+      return;
+    }
+
     // get committee sizes for attestations
     const committeesCountInSlot = await this.getCommitteeSizesForAttestations(
       slotNumber,
