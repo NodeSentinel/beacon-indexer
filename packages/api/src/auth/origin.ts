@@ -20,7 +20,7 @@ function matchesPattern(origin: string, pattern: string): boolean {
   if (pattern === '*') return true;
 
   if (pattern.includes('*')) {
-    const escaped = pattern.replace(/[.+?^${}()|[\]\\]/g, '\\$&').replace('\\*', '[a-zA-Z0-9-]+');
+    const escaped = pattern.replace(/[.+?^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '[a-zA-Z0-9-]+');
     return new RegExp(`^${escaped}$`).test(origin);
   }
 
