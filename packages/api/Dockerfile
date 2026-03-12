@@ -17,7 +17,6 @@ COPY packages/db/tsconfig.json ./packages/db/tsconfig.json
 COPY packages/beacon-utils/package.json ./packages/beacon-utils/package.json
 COPY packages/beacon-utils/tsconfig.json ./packages/beacon-utils/tsconfig.json
 COPY packages/api/package.json ./packages/api/package.json
-COPY packages/indexer/package.json ./packages/indexer/package.json
 
 # Copy Prisma schema (needed for prisma generate during postinstall, but we skip it)
 COPY packages/db/prisma ./packages/db/prisma
@@ -31,8 +30,6 @@ RUN pnpm install --frozen-lockfile
 COPY packages/db/src ./packages/db/src
 COPY packages/beacon-utils ./packages/beacon-utils
 COPY packages/api ./packages/api
-COPY packages/indexer/src/config ./packages/indexer/src/config
-COPY packages/indexer/src/services/consensus/utils/beaconTime.ts ./packages/indexer/src/services/consensus/utils/beaconTime.ts
 COPY scripts/setDbUrl.js ./scripts/setDbUrl.js
 
 # Generate Prisma client from db package
