@@ -309,8 +309,9 @@ model ValidatorDailyArchive {
   validatorIndex Int      @map("validator_index")
 
   // Compact JSON payloads (concatenated from hourly archives)
-  dataBySlot  Json @map("data_by_slot") // [[slot, attDelay, sync?, exec?, block?], ...] — variable-length, trailing zeros stripped
-  dataByEpoch Json @map("data_by_epoch") // [[epoch, head, target, source, inactivity, mH, mT, mS, mI], ...]
+  // Nullable: cleaned to NULL for partitions older than 8 days to reclaim disk space
+  dataBySlot  Json? @map("data_by_slot") // [[slot, attDelay, sync?, exec?, block?], ...] — variable-length, trailing zeros stripped
+  dataByEpoch Json? @map("data_by_epoch") // [[epoch, head, target, source, inactivity, mH, mT, mS, mI], ...]
 
   // Aggregate columns for fast queries without JSON parsing
   attestationCount       Int      @default(0) @map("attestation_count") @db.SmallInt

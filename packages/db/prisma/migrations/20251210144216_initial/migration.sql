@@ -205,8 +205,8 @@ CREATE TABLE "public"."validator_hourly_archive" (
 CREATE TABLE "public"."validator_daily_archive" (
     "timestamp" TIMESTAMP NOT NULL,
     "validator_index" INTEGER NOT NULL,
-    "data_by_slot" JSONB NOT NULL,
-    "data_by_epoch" JSONB NOT NULL,
+    "data_by_slot" JSONB,
+    "data_by_epoch" JSONB,
     "attestation_count" SMALLINT NOT NULL DEFAULT 0,
     "missed_attestation_count" SMALLINT,
     "sync_reward_total" BIGINT NOT NULL DEFAULT 0,
