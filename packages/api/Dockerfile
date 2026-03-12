@@ -38,15 +38,6 @@ RUN pnpm exec prisma generate --schema=./packages/db/prisma/schema.prisma
 # Build the db package first
 RUN pnpm --filter @beacon-indexer/db run build
 
-# Build beacon-utils
-RUN pnpm --filter @beacon-indexer/beacon-utils run build
-
-# Build the api package after db is ready
-RUN pnpm --filter @beacon-indexer/api run build
-
-# Verify the build output
-RUN ls -la packages/api/dist/
-
 # Set working directory to the api package
 WORKDIR /app/packages/api
 
