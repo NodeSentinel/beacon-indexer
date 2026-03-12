@@ -30,7 +30,7 @@ docker run --name e2e-postgres \
     -e POSTGRES_DB=beacon_test \
     -e POSTGRES_USER=postgres \
     -e POSTGRES_PASSWORD=password \
-    -p 5433:5432 \
+    -p 5499:5432 \
     --tmpfs /var/lib/postgresql/data \
     -d postgres:16
 
@@ -51,7 +51,7 @@ done
 
 # Setup database
 echo -e "${GREEN}🗄️  Setting up database...${NC}"
-DATABASE_URL="postgresql://postgres:password@localhost:5433/beacon_test?schema=public" \
+DATABASE_URL="postgresql://postgres:password@localhost:5499/beacon_test?schema=public" \
 pnpm --filter @beacon-indexer/db exec prisma migrate deploy --schema=prisma/schema.prisma
 
 # Store the root directory
@@ -61,7 +61,7 @@ ROOT_DIR=$(pwd)
 run_indexer_e2e() {
     echo -e "${GREEN}🧪 Running indexer E2E tests...${NC}"
     cd "$ROOT_DIR/packages/indexer"
-    DATABASE_URL="postgresql://postgres:password@localhost:5433/beacon_test?schema=public" \
+    DATABASE_URL="postgresql://postgres:password@localhost:5499/beacon_test?schema=public" \
     pnpm test:e2e
 }
 
@@ -69,7 +69,7 @@ run_indexer_e2e() {
 run_api_e2e() {
     echo -e "${GREEN}🧪 Running API E2E tests...${NC}"
     cd "$ROOT_DIR/packages/api"
-    DATABASE_URL="postgresql://postgres:password@localhost:5433/beacon_test?schema=public" \
+    DATABASE_URL="postgresql://postgres:password@localhost:5499/beacon_test?schema=public" \
     API_TOKEN_SECRET="test-secret-must-be-at-least-32-characters-long" \
     CHAIN="gnosis" \
     pnpm test:e2e
