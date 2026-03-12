@@ -1,4 +1,5 @@
 import { env } from '@/config/env.js';
+import { logger } from '@/lib/logger.js';
 
 /**
  * Parse ALLOWED_ORIGINS env var into an array of patterns.
@@ -31,8 +32,13 @@ function matchesPattern(origin: string, pattern: string): boolean {
  * Returns true if the given origin is in the allowed list.
  */
 export function isOriginAllowed(origin: string | undefined): boolean {
-  if (!origin) return false;
+  if (!origin) {
+    logger.debug({ origin }, 'CORS: no origin header');
+    return false;
+  }
 
   const patterns = parseAllowedOrigins();
-  return patterns.some((pattern) => matchesPattern(origin, pattern));
+  const allowed = patterns.some((pattern) => matchesPattern(origin, pattern));
+  logger.info({ origin, patterns, allowed }, 'CORS: origin check');
+  return allowed;
 }

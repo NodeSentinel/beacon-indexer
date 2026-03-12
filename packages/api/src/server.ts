@@ -76,6 +76,11 @@ export function createHttpServer() {
   });
 
   const server = createServer(async (req, res) => {
+    logger.info(
+      { method: req.method, url: req.url, origin: req.headers.origin },
+      'Incoming request',
+    );
+
     try {
       const url = new URL(req.url || '', `http://${req.headers.host}`);
       const pathname = url.pathname;
@@ -93,6 +98,8 @@ export function createHttpServer() {
           logger,
         },
       });
+
+      logger.info({ matched: result.matched, responseHeaders: res.getHeaders() }, 'Handler result');
 
       if (!result.matched) {
         res.statusCode = 404;
