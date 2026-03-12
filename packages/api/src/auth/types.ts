@@ -2,7 +2,6 @@
  * Supported authentication strategies
  */
 export enum AuthStrategy {
-  TOKEN = 'token',
   TELEGRAM = 'telegram',
 }
 
@@ -13,17 +12,6 @@ export interface AuthenticatedUser {
   id: string;
   strategy: AuthStrategy;
   metadata?: Record<string, unknown>;
-}
-
-/**
- * Token-based authenticated user
- */
-export interface TokenUser extends AuthenticatedUser {
-  strategy: AuthStrategy.TOKEN;
-  userId: string;
-  metadata?: {
-    scopes?: string[];
-  };
 }
 
 /**
@@ -42,7 +30,7 @@ export interface TelegramUser extends AuthenticatedUser {
 /**
  * Union type of all possible authenticated users
  */
-export type User = TokenUser | TelegramUser;
+export type User = TelegramUser;
 
 /**
  * Auth context that will be added by auth middleware

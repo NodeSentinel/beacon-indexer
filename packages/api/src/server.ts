@@ -7,6 +7,7 @@ import { onError } from '@orpc/server';
 import { RPCHandler } from '@orpc/server/node';
 import { CORSPlugin } from '@orpc/server/plugins';
 
+import { isOriginAllowed } from './auth/origin.js';
 import { logger } from './lib/logger.js';
 import { router } from './routers/index.js';
 
@@ -19,7 +20,10 @@ export function createHttpServer() {
   // Handler for traditional HTTP requests (OpenAPI/REST-like)
   const openApiHandler = new OpenAPIHandler(router, {
     plugins: [
-      new CORSPlugin(),
+      new CORSPlugin({
+        origin: (origin) => (isOriginAllowed(origin) ? origin : null),
+        credentials: true,
+      }),
       new LoggingHandlerPlugin({
         logger,
         generateId: () => crypto.randomUUID(),
@@ -45,7 +49,10 @@ export function createHttpServer() {
   // Handler for oRPC client (RPCLink)
   const rpcHandler = new RPCHandler(router, {
     plugins: [
-      new CORSPlugin(),
+      new CORSPlugin({
+        origin: (origin) => (isOriginAllowed(origin) ? origin : null),
+        credentials: true,
+      }),
       new LoggingHandlerPlugin({
         logger,
         generateId: () => crypto.randomUUID(),

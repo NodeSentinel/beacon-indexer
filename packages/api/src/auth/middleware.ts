@@ -1,86 +1,76 @@
 import { ORPCError } from '@orpc/server';
 
+import { isOriginAllowed } from './origin.js';
 import { authenticateTelegram } from './strategies/telegram.js';
-import { authenticateToken } from './strategies/token.js';
+import { authenticateApiKey } from './strategies/token.js';
 import type { AuthContext } from './types.js';
 
 import { baseProcedure } from '@/lib/orpc.js';
 
 /**
- * Authentication middleware for oRPC
- * Supports multiple authentication strategies
+ * Access control middleware for oRPC.
+ *
+ * Allows a request through if ANY of these conditions is met:
+ *  1. The Origin header matches ALLOWED_ORIGINS
+ *  2. A valid API key is provided via Authorization header
+ *  3. Valid Telegram initData is provided (for future Telegram Mini App auth)
  */
-export const authMiddleware = baseProcedure.use(async ({ context, next }) => {
+export const accessMiddleware = baseProcedure.use(async ({ context, next }) => {
   const { headers } = context;
 
-  // Extract authorization header
+  const origin = Array.isArray(headers.origin) ? headers.origin[0] : headers.origin;
   const authHeader = Array.isArray(headers.authorization)
     ? headers.authorization[0]
     : headers.authorization;
-
-  // Extract telegram init data (for Telegram Mini Apps)
   const telegramInitData = Array.isArray(headers['x-telegram-init-data'])
     ? headers['x-telegram-init-data'][0]
     : headers['x-telegram-init-data'];
 
-  let user: AuthContext['user'];
+  // 1. Origin whitelist — browser requests from allowed domains
+  if (isOriginAllowed(origin)) {
+    return next({ context });
+  }
 
-  // Try Telegram authentication first
+  // 2. Telegram Mini App auth
   if (telegramInitData) {
-    user = await authenticateTelegram(telegramInitData);
-  }
-  // Then try token authentication
-  else if (authHeader) {
-    user = await authenticateToken(authHeader);
-  }
-  // No authentication provided
-  else {
-    throw new ORPCError('UNAUTHORIZED', {
-      message: 'Authentication required',
+    const user = await authenticateTelegram(telegramInitData);
+    return next({
+      context: {
+        ...context,
+        user,
+      },
     });
   }
 
-  // Add user to context
-  return next({
-    context: {
-      ...context,
-      user,
-    },
+  // 3. API key — non-browser clients
+  if (authHeader) {
+    authenticateApiKey(authHeader);
+    return next({ context });
+  }
+
+  throw new ORPCError('UNAUTHORIZED', {
+    message: 'Authentication required',
   });
 });
 
 /**
- * Protected procedure that requires authentication
- * Use this as base for all authenticated endpoints
+ * Telegram-authenticated procedure.
+ * Requires valid Telegram initData — use for endpoints that need a user identity.
  */
-export const protectedProcedure = authMiddleware;
-
-/**
- * Optional auth middleware - adds user to context if authenticated, but doesn't require it
- */
-export const optionalAuthMiddleware = baseProcedure.use(async ({ context, next }) => {
+export const telegramAuthProcedure = baseProcedure.use(async ({ context, next }) => {
   const { headers } = context;
-
-  const authHeader = Array.isArray(headers.authorization)
-    ? headers.authorization[0]
-    : headers.authorization;
 
   const telegramInitData = Array.isArray(headers['x-telegram-init-data'])
     ? headers['x-telegram-init-data'][0]
     : headers['x-telegram-init-data'];
 
-  let user: AuthContext['user'] | null = null;
-
-  try {
-    if (telegramInitData) {
-      user = await authenticateTelegram(telegramInitData);
-    } else if (authHeader) {
-      user = await authenticateToken(authHeader);
-    }
-  } catch {
-    // Ignore authentication errors for optional auth
-    user = null;
+  if (!telegramInitData) {
+    throw new ORPCError('UNAUTHORIZED', {
+      message: 'Telegram authentication required',
+    });
   }
+
+  const user: AuthContext['user'] = await authenticateTelegram(telegramInitData);
 
   return next({
     context: {
