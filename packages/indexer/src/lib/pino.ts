@@ -1,6 +1,5 @@
 import fs from 'fs';
 import path from 'path';
-import { fileURLToPath } from 'url';
 
 import Pino, { pino } from 'pino';
 
@@ -11,12 +10,9 @@ import Pino, { pino } from 'pino';
 // needed for logging and would break in test environments where these variables
 // may not be set. This keeps the logging module decoupled from the full app config.
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
 // Log configuration - using process.env directly for flexibility
 const LOG_OUTPUT = process.env.LOG_OUTPUT || 'console';
-const logsDir = path.join(__dirname, '../../logs');
+const logsDir = process.env.LOG_DIR || path.join(process.cwd(), 'logs');
 
 // Function to get the current day's log file name
 const getCurrentLogFileName = () => {
