@@ -58,7 +58,7 @@ services:
       context: .
       dockerfile: packages/indexer/Dockerfile
     volumes:
-      - indexer_logs:/app/logs
+      - ./packages/indexer/logs:/app/logs
     depends_on:
       migrate:
         condition: service_completed_successfully
@@ -108,4 +108,3 @@ networks:
 
 volumes:
   beacon_postgres_data:
-  indexer_logs:
