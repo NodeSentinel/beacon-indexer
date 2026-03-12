@@ -45,7 +45,7 @@ import { pinoLog } from '@/src/xstate/pinoLog.js';
  */
 
 // Maximum number of epochs to process in parallel
-const MAX_PARALLEL_EPOCHS = 3;
+const MAX_PARALLEL_EPOCHS = 2;
 
 type EpochStatus = 'processing' | 'completed';
 
