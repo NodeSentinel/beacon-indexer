@@ -196,20 +196,19 @@ describe('epochOrchestratorMachine', () => {
   });
 
   test(`should spawn up to ${MAX_PARALLEL_EPOCHS} epochs in parallel and not exceed capacity`, async () => {
-    // Arrange
+    // Arrange - create promises dynamically based on MAX_PARALLEL_EPOCHS
     type EpochType = ReturnType<typeof createMockEpoch> | null;
-    const epoch100Promise = createControllablePromise<EpochType>();
-    const epoch101Promise = createControllablePromise<EpochType>();
-    const epoch102Promise = createControllablePromise<EpochType>();
-    const epoch103Promise = createControllablePromise<EpochType>();
+    const BASE_EPOCH = 100;
+    const epochPromises = Array.from({ length: MAX_PARALLEL_EPOCHS }, () =>
+      createControllablePromise<EpochType>(),
+    );
+    const overflowPromise = createControllablePromise<EpochType>(); // Should NOT be spawned
     const blockingPromise = createControllablePromise<EpochType>(); // Never resolved
 
-    vi.mocked(mockEpochController.getMinEpochToProcessExcluding)
-      .mockReturnValueOnce(epoch100Promise.promise)
-      .mockReturnValueOnce(epoch101Promise.promise)
-      .mockReturnValueOnce(epoch102Promise.promise)
-      .mockReturnValueOnce(epoch103Promise.promise) // Returns epoch but should NOT be spawned
-      .mockReturnValue(blockingPromise.promise);
+    const mock = vi.mocked(mockEpochController.getMinEpochToProcessExcluding);
+    for (const p of epochPromises) mock.mockReturnValueOnce(p.promise);
+    mock.mockReturnValueOnce(overflowPromise.promise);
+    mock.mockReturnValue(blockingPromise.promise);
 
     const { actor, stateTransitions, subscription } = createAndStartActor(
       epochOrchestratorMachine,
@@ -219,41 +218,25 @@ describe('epochOrchestratorMachine', () => {
     // Machine starts in spawningEpochs, waiting for first promise
     expect(getNestedState(stateTransitions[0], 'orchestrating')).toBe('spawningEpochs');
 
-    // Resolve first epoch and advance timers to complete polling cycle
-    await resolvePromiseAndAdvance(epoch100Promise, createMockEpoch(100));
+    // Resolve each epoch up to capacity and verify it's processing
+    for (let i = 0; i < MAX_PARALLEL_EPOCHS; i++) {
+      await resolvePromiseAndAdvance(epochPromises[i], createMockEpoch(BASE_EPOCH + i));
+      const snapshot = actor.getSnapshot();
+      expect(snapshot.context.epochs[BASE_EPOCH + i]).toBe('processing');
+    }
 
-    // Should have spawned epoch 100
+    // Should have exactly MAX_PARALLEL_EPOCHS epochs processing
     let snapshot = actor.getSnapshot();
-    expect(snapshot.context.epochs[100]).toBe('processing');
+    expect(Object.keys(snapshot.context.epochs).length).toBe(MAX_PARALLEL_EPOCHS);
 
-    // Resolve second epoch
-    await resolvePromiseAndAdvance(epoch101Promise, createMockEpoch(101));
+    // Resolve overflow epoch - query returns an epoch but it should NOT be spawned (at capacity)
+    const overflowEpoch = BASE_EPOCH + MAX_PARALLEL_EPOCHS;
+    await resolvePromiseAndAdvance(overflowPromise, createMockEpoch(overflowEpoch));
 
-    // Should have spawned epoch 101
-    snapshot = actor.getSnapshot();
-    expect(snapshot.context.epochs[100]).toBe('processing');
-    expect(snapshot.context.epochs[101]).toBe('processing');
-
-    // Resolve third epoch - now at capacity (3 epochs)
-    await resolvePromiseAndAdvance(epoch102Promise, createMockEpoch(102));
-
-    // Should have MAX_PARALLEL_EPOCHS epochs processing
+    // Should still have only MAX_PARALLEL_EPOCHS - overflow was NOT spawned
     snapshot = actor.getSnapshot();
     expect(Object.keys(snapshot.context.epochs).length).toBe(MAX_PARALLEL_EPOCHS);
-    expect(snapshot.context.epochs[100]).toBe('processing');
-    expect(snapshot.context.epochs[101]).toBe('processing');
-    expect(snapshot.context.epochs[102]).toBe('processing');
-
-    // Resolve epoch 103 - query returns an epoch but it should NOT be spawned (at capacity)
-    await resolvePromiseAndAdvance(epoch103Promise, createMockEpoch(103));
-
-    // Should still have only MAX_PARALLEL_EPOCHS epochs (100, 101, 102) - epoch 103 was NOT spawned
-    snapshot = actor.getSnapshot();
-    expect(Object.keys(snapshot.context.epochs).length).toBe(MAX_PARALLEL_EPOCHS);
-    expect(snapshot.context.epochs[100]).toBe('processing');
-    expect(snapshot.context.epochs[101]).toBe('processing');
-    expect(snapshot.context.epochs[102]).toBe('processing');
-    expect(snapshot.context.epochs[103]).toBeUndefined();
+    expect(snapshot.context.epochs[overflowEpoch]).toBeUndefined();
 
     // Machine is blocked in spawningEpochs waiting for the blocking promise
     expect(getNestedState(snapshot.value, 'orchestrating')).toBe('spawningEpochs');
@@ -263,6 +246,9 @@ describe('epochOrchestratorMachine', () => {
   });
 
   test('should handle ordered release - only release consecutive completed epochs from lowest', async () => {
+    // This test requires at least 3 parallel epochs to verify out-of-order completion logic
+    if (MAX_PARALLEL_EPOCHS < 3) return;
+
     // Arrange
     type EpochType = ReturnType<typeof createMockEpoch> | null;
     const epoch100Promise = createControllablePromise<EpochType>();
@@ -290,9 +276,9 @@ describe('epochOrchestratorMachine', () => {
     await resolvePromiseAndAdvance(epoch101Promise, createMockEpoch(101));
     await resolvePromiseAndAdvance(epoch102Promise, createMockEpoch(102));
 
-    // Should have MAX_PARALLEL_EPOCHS epochs processing, machine blocked on blockingPromise1
+    // Should have 3 epochs processing, machine blocked on blockingPromise1
     let snapshot = actor.getSnapshot();
-    expect(Object.keys(snapshot.context.epochs).length).toBe(MAX_PARALLEL_EPOCHS);
+    expect(Object.keys(snapshot.context.epochs).length).toBe(3);
     expect(snapshot.context.epochs[100]).toBe('processing');
     expect(snapshot.context.epochs[101]).toBe('processing');
     expect(snapshot.context.epochs[102]).toBe('processing');
@@ -371,54 +357,57 @@ describe('epochOrchestratorMachine', () => {
   });
 
   test('should release multiple consecutive completed epochs in order', async () => {
-    // Arrange
+    // Arrange - spawn MAX_PARALLEL_EPOCHS, complete all, verify all released
     type EpochType = ReturnType<typeof createMockEpoch> | null;
-    const epoch100Promise = createControllablePromise<EpochType>();
-    const epoch101Promise = createControllablePromise<EpochType>();
-    const epoch102Promise = createControllablePromise<EpochType>();
+    const BASE_EPOCH = 100;
+    const epochPromises = Array.from({ length: MAX_PARALLEL_EPOCHS }, () =>
+      createControllablePromise<EpochType>(),
+    );
     const blockingPromise1 = createControllablePromise<EpochType>(); // Blocks at capacity
     const blockingPromise2 = createControllablePromise<EpochType>(); // Blocks after release
 
-    vi.mocked(mockEpochController.getMinEpochToProcessExcluding)
-      .mockReturnValueOnce(epoch100Promise.promise)
-      .mockReturnValueOnce(epoch101Promise.promise)
-      .mockReturnValueOnce(epoch102Promise.promise)
-      .mockReturnValueOnce(blockingPromise1.promise) // Blocks when at capacity
-      .mockReturnValue(blockingPromise2.promise); // Blocks after release
+    const mock = vi.mocked(mockEpochController.getMinEpochToProcessExcluding);
+    for (const p of epochPromises) mock.mockReturnValueOnce(p.promise);
+    mock.mockReturnValueOnce(blockingPromise1.promise); // Blocks when at capacity
+    mock.mockReturnValue(blockingPromise2.promise); // Blocks after release
 
     const { actor, subscription } = createAndStartActor(
       epochOrchestratorMachine,
       createOrchestratorInput(),
     );
 
-    // Spawn all 3 epochs
-    await resolvePromiseAndAdvance(epoch100Promise, createMockEpoch(100));
-    await resolvePromiseAndAdvance(epoch101Promise, createMockEpoch(101));
-    await resolvePromiseAndAdvance(epoch102Promise, createMockEpoch(102));
+    // Spawn all epochs up to capacity
+    for (let i = 0; i < MAX_PARALLEL_EPOCHS; i++) {
+      await resolvePromiseAndAdvance(epochPromises[i], createMockEpoch(BASE_EPOCH + i));
+    }
 
     // Machine is now blocked on blockingPromise1 (at capacity)
     let snapshot = actor.getSnapshot();
-    expect(Object.keys(snapshot.context.epochs).length).toBe(3);
+    expect(Object.keys(snapshot.context.epochs).length).toBe(MAX_PARALLEL_EPOCHS);
 
-    // Complete all three epochs - global handler updates context immediately
-    actor.send({ type: 'EPOCH_COMPLETED', epoch: 100, machineId: 'epochProcessor:100' });
-    actor.send({ type: 'EPOCH_COMPLETED', epoch: 101, machineId: 'epochProcessor:101' });
-    actor.send({ type: 'EPOCH_COMPLETED', epoch: 102, machineId: 'epochProcessor:102' });
+    // Complete all epochs - global handler updates context immediately
+    for (let i = 0; i < MAX_PARALLEL_EPOCHS; i++) {
+      actor.send({
+        type: 'EPOCH_COMPLETED',
+        epoch: BASE_EPOCH + i,
+        machineId: `epochProcessor:${BASE_EPOCH + i}`,
+      });
+    }
 
-    // All three should be marked as completed immediately
+    // All should be marked as completed immediately
     snapshot = actor.getSnapshot();
-    expect(snapshot.context.epochs[100]).toBe('completed');
-    expect(snapshot.context.epochs[101]).toBe('completed');
-    expect(snapshot.context.epochs[102]).toBe('completed');
+    for (let i = 0; i < MAX_PARALLEL_EPOCHS; i++) {
+      expect(snapshot.context.epochs[BASE_EPOCH + i]).toBe('completed');
+    }
 
     // Resolve blockingPromise1 to trigger polling -> releasingCompletedEpochs cycle
     await resolvePromiseAndAdvance(blockingPromise1, null);
 
-    // All three should be released since they completed consecutively from the lowest
+    // All should be released since they completed consecutively from the lowest
     snapshot = actor.getSnapshot();
-    expect(snapshot.context.epochs[100]).toBeUndefined();
-    expect(snapshot.context.epochs[101]).toBeUndefined();
-    expect(snapshot.context.epochs[102]).toBeUndefined();
+    for (let i = 0; i < MAX_PARALLEL_EPOCHS; i++) {
+      expect(snapshot.context.epochs[BASE_EPOCH + i]).toBeUndefined();
+    }
     expect(Object.keys(snapshot.context.epochs).length).toBe(0);
 
     actor.stop();
