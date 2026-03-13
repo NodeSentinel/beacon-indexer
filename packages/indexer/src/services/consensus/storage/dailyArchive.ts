@@ -110,7 +110,7 @@ export class DailyArchiveStorage {
 
         // 2. Get max validator index for batching (PK lookup, instant)
         const [{ max_idx }] = await tx.$queryRaw<[{ max_idx: number }]>`
-          SELECT COALESCE(MAX(id), 0)::int AS max_idx FROM "Validator"
+          SELECT COALESCE(MAX(id), 0)::int AS max_idx FROM "validator"
         `;
 
         // 3. Aggregate hourly data into daily archive in batches

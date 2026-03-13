@@ -137,7 +137,10 @@ vi.mock('@/src/xstate/epoch/epochWorker.machine.js', () => {
 });
 
 // Import the orchestrator after mocks are set up
-import { epochOrchestratorMachine } from '@/src/xstate/epoch/epochOrchestrator.machine.js';
+import {
+  epochOrchestratorMachine,
+  MAX_PARALLEL_EPOCHS,
+} from '@/src/xstate/epoch/epochOrchestrator.machine.js';
 
 // ============================================================================
 // Test Setup
@@ -192,7 +195,7 @@ describe('epochOrchestratorMachine', () => {
     subscription.unsubscribe();
   });
 
-  test('should spawn up to 3 epochs in parallel and not exceed capacity', async () => {
+  test(`should spawn up to ${MAX_PARALLEL_EPOCHS} epochs in parallel and not exceed capacity`, async () => {
     // Arrange
     type EpochType = ReturnType<typeof createMockEpoch> | null;
     const epoch100Promise = createControllablePromise<EpochType>();
@@ -234,9 +237,9 @@ describe('epochOrchestratorMachine', () => {
     // Resolve third epoch - now at capacity (3 epochs)
     await resolvePromiseAndAdvance(epoch102Promise, createMockEpoch(102));
 
-    // Should have 3 epochs processing
+    // Should have MAX_PARALLEL_EPOCHS epochs processing
     snapshot = actor.getSnapshot();
-    expect(Object.keys(snapshot.context.epochs).length).toBe(3);
+    expect(Object.keys(snapshot.context.epochs).length).toBe(MAX_PARALLEL_EPOCHS);
     expect(snapshot.context.epochs[100]).toBe('processing');
     expect(snapshot.context.epochs[101]).toBe('processing');
     expect(snapshot.context.epochs[102]).toBe('processing');
@@ -244,9 +247,9 @@ describe('epochOrchestratorMachine', () => {
     // Resolve epoch 103 - query returns an epoch but it should NOT be spawned (at capacity)
     await resolvePromiseAndAdvance(epoch103Promise, createMockEpoch(103));
 
-    // Should still have only 3 epochs (100, 101, 102) - epoch 103 was NOT spawned
+    // Should still have only MAX_PARALLEL_EPOCHS epochs (100, 101, 102) - epoch 103 was NOT spawned
     snapshot = actor.getSnapshot();
-    expect(Object.keys(snapshot.context.epochs).length).toBe(3);
+    expect(Object.keys(snapshot.context.epochs).length).toBe(MAX_PARALLEL_EPOCHS);
     expect(snapshot.context.epochs[100]).toBe('processing');
     expect(snapshot.context.epochs[101]).toBe('processing');
     expect(snapshot.context.epochs[102]).toBe('processing');
@@ -287,9 +290,9 @@ describe('epochOrchestratorMachine', () => {
     await resolvePromiseAndAdvance(epoch101Promise, createMockEpoch(101));
     await resolvePromiseAndAdvance(epoch102Promise, createMockEpoch(102));
 
-    // Should have 3 epochs processing, machine blocked on blockingPromise1
+    // Should have MAX_PARALLEL_EPOCHS epochs processing, machine blocked on blockingPromise1
     let snapshot = actor.getSnapshot();
-    expect(Object.keys(snapshot.context.epochs).length).toBe(3);
+    expect(Object.keys(snapshot.context.epochs).length).toBe(MAX_PARALLEL_EPOCHS);
     expect(snapshot.context.epochs[100]).toBe('processing');
     expect(snapshot.context.epochs[101]).toBe('processing');
     expect(snapshot.context.epochs[102]).toBe('processing');
