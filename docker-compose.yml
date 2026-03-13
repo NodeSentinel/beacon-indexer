@@ -105,10 +105,12 @@ services:
     restart: unless-stopped
     env_file:
       - packages/db/.env
-    environment:
-      - DATA_SOURCE_URI=postgres:5432/${POSTGRES_DB}?sslmode=disable
-      - DATA_SOURCE_USER=${POSTGRES_USER}
-      - DATA_SOURCE_PASS=${POSTGRES_PASSWORD}
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        export DATA_SOURCE_NAME="postgresql://$${POSTGRES_USER}:$${POSTGRES_PASSWORD}@postgres:5432/$${POSTGRES_DB}?sslmode=disable"
+        exec /postgres_exporter
     depends_on:
       postgres:
         condition: service_healthy
