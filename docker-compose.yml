@@ -103,10 +103,12 @@ services:
     image: prometheuscommunity/postgres-exporter:latest
     container_name: postgres_exporter
     restart: unless-stopped
-    environment:
-      - DATA_SOURCE_NAME=postgresql://$${POSTGRES_USER}:$${POSTGRES_PASSWORD}@postgres:5432/$${POSTGRES_DB}?sslmode=disable
     env_file:
       - packages/db/.env
+    environment:
+      - DATA_SOURCE_URI=postgres:5432/${POSTGRES_DB}?sslmode=disable
+      - DATA_SOURCE_USER=${POSTGRES_USER}
+      - DATA_SOURCE_PASS=${POSTGRES_PASSWORD}
     depends_on:
       postgres:
         condition: service_healthy
