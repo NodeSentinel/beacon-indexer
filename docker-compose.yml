@@ -110,7 +110,7 @@ services:
       - -c
       - |
         export DATA_SOURCE_NAME="postgresql://$${POSTGRES_USER}:$${POSTGRES_PASSWORD}@postgres:5432/$${POSTGRES_DB}?sslmode=disable"
-        exec postgres_exporter
+        exec postgres_exporter --collector.stat_statements
     depends_on:
       postgres:
         condition: service_healthy
