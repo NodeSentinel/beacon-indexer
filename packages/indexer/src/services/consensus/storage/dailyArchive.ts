@@ -194,7 +194,7 @@ export class DailyArchiveStorage {
         });
       },
       {
-        timeout: ms('10m'),
+        timeout: ms('15m'),
       },
     );
   }

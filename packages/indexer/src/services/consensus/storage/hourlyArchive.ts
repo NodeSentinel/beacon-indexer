@@ -326,7 +326,7 @@ export class HourlyArchiveStorage {
         });
       },
       {
-        timeout: ms('5m'),
+        timeout: ms('8m'),
       },
     );
   }
