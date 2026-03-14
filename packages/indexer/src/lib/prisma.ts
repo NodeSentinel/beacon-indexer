@@ -8,6 +8,10 @@ export const getPrisma = () => {
   if (prisma) return prisma;
   prisma = new PrismaClient({
     datasourceUrl: `${env.DATABASE_URL}&pool_timeout=0`,
+    transactionOptions: {
+      maxWait: 180000,
+      timeout: 180000,
+    },
     log: [
       {
         emit: 'event',

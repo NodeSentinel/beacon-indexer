@@ -24,7 +24,7 @@ services:
       - -c
       - temp_file_limit=4GB
       - -c
-      - max_connections=30
+      - max_connections=60
       - -c
       - shared_preload_libraries=pg_stat_statements
       - -c
