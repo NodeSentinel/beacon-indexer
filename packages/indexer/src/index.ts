@@ -1,9 +1,9 @@
 import { BeaconTime } from '@beacon-indexer/beacon-utils/beaconTime';
-import { PrismaClient } from '@beacon-indexer/db';
 import ms from 'ms';
 
 import { env, chainConfig } from '@/src/lib/env.js';
 import createLogger from '@/src/lib/pino.js';
+import { getPrisma } from '@/src/lib/prisma.js';
 import { BeaconClient } from '@/src/services/consensus/beacon.js';
 import { ChainStatsController } from '@/src/services/consensus/controllers/chainStats.js';
 import { DailyArchiveController } from '@/src/services/consensus/controllers/dailyArchive.js';
@@ -31,29 +31,7 @@ import { getMultiMachineLogger } from '@/src/xstate/multiMachineLogger.js';
 
 const logger = createLogger('index file');
 
-// Build database URL with proper query parameter handling
-const databaseUrl = env.DATABASE_URL.includes('?')
-  ? `${env.DATABASE_URL}&pool_timeout=0&connect_timeout=10`
-  : `${env.DATABASE_URL}?pool_timeout=0&connect_timeout=10`;
-
-const prisma = new PrismaClient({
-  datasources: {
-    db: {
-      url: databaseUrl,
-    },
-  },
-  log: [
-    {
-      emit: 'event',
-      level: 'error',
-    },
-  ],
-});
-
-// Log Prisma errors for debugging
-prisma.$on('error' as never, (e: { message: string; target?: string }) => {
-  logger.error('Prisma error:', e);
-});
+const prisma = getPrisma();
 
 // Cleanup function to ensure Prisma disconnects properly
 async function cleanup() {
@@ -136,14 +114,14 @@ async function main() {
     delaySlotsToHead: chainConfig.beacon.delaySlotsToHead,
   });
 
-  const validatorsStorage = new ValidatorsStorage(prisma, databaseUrl);
+  const validatorsStorage = new ValidatorsStorage(prisma, env.DATABASE_URL);
   const validatorsController = new ValidatorsController(
     beaconClient,
     validatorsStorage,
     beaconTime,
   );
 
-  const epochStorage = new EpochStorage(prisma, databaseUrl);
+  const epochStorage = new EpochStorage(prisma, env.DATABASE_URL);
   const slotStorage = new SlotStorage(prisma);
   const epochController = new EpochController(
     beaconClient,
