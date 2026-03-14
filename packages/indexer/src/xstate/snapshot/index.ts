@@ -1,3 +1,4 @@
+import type { Chain } from '@beacon-indexer/beacon-utils';
 import { createActor } from 'xstate';
 
 import { snapshotMachine } from './snapshot.machine.js';
@@ -11,6 +12,7 @@ export const getSnapshotActor = (
   snapshotController: SnapshotController,
   slotDuration: number,
   slotsPerEpoch: number,
+  chain: Chain,
   maxAttestationDelay: number,
   delaySlotsToHead: number,
   missedAttestationsForInactivity: number,
@@ -20,6 +22,7 @@ export const getSnapshotActor = (
       snapshotController,
       slotDuration,
       slotsPerEpoch,
+      chain,
       maxAttestationDelay,
       delaySlotsToHead,
       missedAttestationsForInactivity,

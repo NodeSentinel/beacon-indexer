@@ -3,6 +3,8 @@
 
 import ms from 'ms';
 
+export type Chain = 'ethereum' | 'gnosis';
+
 export type ChainConfig = {
   // Blockchain Configuration
   blockchain: {
@@ -59,7 +61,7 @@ export const gnosisConfig: ChainConfig = {
 };
 
 // Chain configuration selector
-export function getChainConfig(chain: 'ethereum' | 'gnosis'): ChainConfig {
+export function getChainConfig(chain: Chain): ChainConfig {
   switch (chain) {
     case 'ethereum':
       return ethereumConfig;

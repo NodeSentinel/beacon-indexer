@@ -1,3 +1,4 @@
+import type { Chain } from '@beacon-indexer/beacon-utils';
 import { BeaconTime } from '@beacon-indexer/beacon-utils/beaconTime';
 
 import {
@@ -31,6 +32,7 @@ export default function initXstateMachines(
   monthlyArchiveController: MonthlyArchiveController,
   chainStatsController: ChainStatsController,
   snapshotController: SnapshotController,
+  chain: Chain,
   maxAttestationDelay: number,
   delaySlotsToHead: number,
   missedAttestationsForInactivity: number,
@@ -73,6 +75,7 @@ export default function initXstateMachines(
     snapshotController,
     slotDuration,
     slotsPerEpoch,
+    chain,
     maxAttestationDelay,
     delaySlotsToHead,
     missedAttestationsForInactivity,

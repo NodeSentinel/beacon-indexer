@@ -200,6 +200,7 @@ async function main() {
     monthlyArchiveController,
     chainStatsController,
     snapshotController,
+    env.CHAIN,
     chainConfig.beacon.maxAttestationDelay,
     chainConfig.beacon.delaySlotsToHead,
     chainConfig.beacon.missedAttestationsForInactivity,
