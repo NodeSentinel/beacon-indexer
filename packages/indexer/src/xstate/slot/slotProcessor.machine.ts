@@ -115,86 +115,31 @@ export const slotProcessorMachine = setup({
         input.slotController.updateAttestationsProcessed(input.slot),
     ),
 
-    // Process execution payload withdrawals
-    processEpWithdrawals: fromPromise(
+    // Process all block body data sequentially (deposits, exits, withdrawals, consolidations)
+    // These run sequentially to avoid deadlocks on the slot row
+    processBlockBodyData: fromPromise(
       async ({
         input,
       }: {
         input: {
           slotController: SlotController;
           slot: number;
-          withdrawals: Block['data']['message']['body']['execution_payload']['withdrawals'];
+          block: Block;
         };
-      }) => input.slotController.processEpWithdrawals(input.slot, input.withdrawals),
-    ),
+      }) => {
+        const { slotController, slot, block } = input;
+        const body = block.data.message.body;
 
-    // Process deposits
-    processDeposits: fromPromise(
-      async ({
-        input,
-      }: {
-        input: {
-          slotController: SlotController;
-          slot: number;
-          deposits: Block['data']['message']['body']['deposits'];
-        };
-      }) => input.slotController.processDeposits(input.slot, input.deposits),
-    ),
-
-    // Process voluntary exits
-    processVoluntaryExits: fromPromise(
-      async ({
-        input,
-      }: {
-        input: {
-          slotController: SlotController;
-          slot: number;
-          voluntaryExits: Block['data']['message']['body']['voluntary_exits'];
-        };
-      }) => input.slotController.processVoluntaryExits(input.slot, input.voluntaryExits),
-    ),
-
-    // Process execution requests deposits
-    processErDeposits: fromPromise(
-      async ({
-        input,
-      }: {
-        input: {
-          slotController: SlotController;
-          slot: number;
-          deposits: NonNullable<Block['data']['message']['body']['execution_requests']>['deposits'];
-        };
-      }) => input.slotController.processErDeposits(input.slot, input.deposits),
-    ),
-
-    // Process execution requests withdrawals
-    processErWithdrawals: fromPromise(
-      async ({
-        input,
-      }: {
-        input: {
-          slotController: SlotController;
-          slot: number;
-          withdrawals: NonNullable<
-            Block['data']['message']['body']['execution_requests']
-          >['withdrawals'];
-        };
-      }) => input.slotController.processErWithdrawals(input.slot, input.withdrawals),
-    ),
-
-    // Process execution requests consolidations
-    processErConsolidations: fromPromise(
-      async ({
-        input,
-      }: {
-        input: {
-          slotController: SlotController;
-          slot: number;
-          consolidations: NonNullable<
-            Block['data']['message']['body']['execution_requests']
-          >['consolidations'];
-        };
-      }) => input.slotController.processErConsolidations(input.slot, input.consolidations),
+        await slotController.processEpWithdrawals(slot, body.execution_payload?.withdrawals || []);
+        await slotController.processDeposits(slot, body.deposits || []);
+        await slotController.processVoluntaryExits(slot, body.voluntary_exits || []);
+        await slotController.processErDeposits(slot, body.execution_requests?.deposits || []);
+        await slotController.processErWithdrawals(slot, body.execution_requests?.withdrawals || []);
+        await slotController.processErConsolidations(
+          slot,
+          body.execution_requests?.consolidations || [],
+        );
+      },
     ),
 
     // Update slot processed status
@@ -543,36 +488,33 @@ export const slotProcessorMachine = setup({
                     },
                   },
                 },
-                // data.message.body.execution_payload.withdrawals
-                epWithdrawals: {
+                // Process all block body data sequentially:
+                // ep withdrawals, deposits, voluntary exits, er deposits, er withdrawals, er consolidations
+                blockBodyData: {
                   description:
-                    'Processing execution payload withdrawals, from beacon chain to validator balances',
+                    'Processing block body data sequentially to avoid deadlocks on the slot row',
                   initial: 'processing',
                   states: {
                     processing: {
                       entry: pinoLog(
-                        ({ context }) => `processing ep withdrawals for slot ${context.slot}`,
-                        'SlotProcessor:epWithdrawals',
+                        ({ context }) => `processing block body data for slot ${context.slot}`,
+                        'SlotProcessor:blockBodyData',
                       ),
                       invoke: {
-                        src: 'processEpWithdrawals',
-                        input: ({ context }) => {
-                          return {
-                            slotController: context.slotController,
-                            slot: context.slot,
-                            withdrawals:
-                              (context.beaconBlockData?.rawData as Block)?.data?.message?.body
-                                ?.execution_payload?.withdrawals || [],
-                          };
-                        },
+                        src: 'processBlockBodyData',
+                        input: ({ context }) => ({
+                          slotController: context.slotController,
+                          slot: context.slot,
+                          block: context.beaconBlockData?.rawData as Block,
+                        }),
                         onDone: {
                           target: 'complete',
                         },
                         onError: {
                           actions: pinoLog(
                             ({ context, event }) =>
-                              `error processing ep withdrawals for slot ${context.slot}: ${event.error}`,
-                            'SlotProcessor:epWithdrawals',
+                              `error processing block body data for slot ${context.slot}: ${event.error}`,
+                            'SlotProcessor:blockBodyData',
                             'error',
                           ),
                         },
@@ -581,230 +523,8 @@ export const slotProcessorMachine = setup({
                     complete: {
                       type: 'final',
                       entry: pinoLog(
-                        ({ context }) => `complete ep withdrawals for slot ${context.slot}`,
-                        'SlotProcessor:epWithdrawals',
-                      ),
-                    },
-                  },
-                },
-                // data.message.body.deposits
-                deposits: {
-                  // block with deposits: https://rpc-gbc.gnosischain.com/eth/v2/beacon/blocks/21407372
-                  description: 'Processing deposits from beacon block',
-                  initial: 'processing',
-                  states: {
-                    processing: {
-                      entry: pinoLog(
-                        ({ context }) => `processing deposits for slot ${context.slot}`,
-                        'SlotProcessor:deposits',
-                      ),
-                      invoke: {
-                        src: 'processDeposits',
-                        input: ({ context }) => {
-                          const _beaconBlockData = context.beaconBlockData?.rawData as Block;
-                          return {
-                            slotController: context.slotController,
-                            slot: context.slot,
-                            deposits: _beaconBlockData?.data?.message?.body?.deposits || [],
-                          };
-                        },
-                        onDone: {
-                          target: 'complete',
-                        },
-                        onError: {
-                          actions: pinoLog(
-                            ({ context, event }) =>
-                              `error processing deposits for slot ${context.slot}: ${event.error}`,
-                            'SlotProcessor:deposits',
-                            'error',
-                          ),
-                        },
-                      },
-                    },
-                    complete: {
-                      type: 'final',
-                      entry: pinoLog(
-                        ({ context }) => `complete deposits for slot ${context.slot}`,
-                        'SlotProcessor:deposits',
-                      ),
-                    },
-                  },
-                },
-                // data.message.body.voluntary_exits
-                voluntaryExits: {
-                  // block with voluntary exits: https://rpc-gbc.gnosischain.com/eth/v2/beacon/blocks/21407464
-                  description: 'Processing voluntary exits from beacon block',
-                  initial: 'processing',
-                  states: {
-                    processing: {
-                      entry: pinoLog(
-                        ({ context }) => `processing voluntary exits for slot ${context.slot}`,
-                        'SlotProcessor:voluntaryExits',
-                      ),
-                      invoke: {
-                        src: 'processVoluntaryExits',
-                        input: ({ context }) => {
-                          const _beaconBlockData = context.beaconBlockData?.rawData as Block;
-                          return {
-                            slotController: context.slotController,
-                            slot: context.slot,
-                            voluntaryExits:
-                              _beaconBlockData?.data?.message?.body?.voluntary_exits || [],
-                          };
-                        },
-                        onDone: {
-                          target: 'complete',
-                        },
-                        onError: {
-                          actions: pinoLog(
-                            ({ context, event }) =>
-                              `error processing voluntary exits for slot ${context.slot}: ${event.error}`,
-                            'SlotProcessor:voluntaryExits',
-                            'error',
-                          ),
-                        },
-                      },
-                    },
-                    complete: {
-                      type: 'final',
-                      entry: pinoLog(
-                        ({ context }) => `complete voluntary exits for slot ${context.slot}`,
-                        'SlotProcessor:voluntaryExits',
-                      ),
-                    },
-                  },
-                },
-                // data.message.body.execution_requests.deposits
-                erDeposits: {
-                  // block with er deposits: https://rpc-gbc.gnosischain.com/eth/v2/beacon/blocks/24300383
-                  description: 'Processing execution requests deposits',
-                  initial: 'processing',
-                  states: {
-                    processing: {
-                      entry: pinoLog(
-                        ({ context }) => `processing er deposits for slot ${context.slot}`,
-                        'SlotProcessor:erDeposits',
-                      ),
-                      invoke: {
-                        src: 'processErDeposits',
-                        input: ({ context }) => {
-                          const _beaconBlockData = context.beaconBlockData?.rawData as Block;
-                          return {
-                            slotController: context.slotController,
-                            slot: context.slot,
-                            deposits:
-                              _beaconBlockData?.data?.message?.body?.execution_requests?.deposits ||
-                              [],
-                          };
-                        },
-                        onDone: {
-                          target: 'complete',
-                        },
-                        onError: {
-                          actions: pinoLog(
-                            ({ context, event }) =>
-                              `error processing er deposits for slot ${context.slot}: ${event.error}`,
-                            'SlotProcessor:erDeposits',
-                            'error',
-                          ),
-                        },
-                      },
-                    },
-                    complete: {
-                      type: 'final',
-                      entry: pinoLog(
-                        ({ context }) => `complete er deposits for slot ${context.slot}`,
-                        'SlotProcessor:erDeposits',
-                      ),
-                    },
-                  },
-                },
-                // data.message.body.execution_requests.withdrawals
-                erWithdrawals: {
-                  // block with er withdrawals: https://rpc-gbc.gnosischain.com/eth/v2/beacon/blocks/25125194
-                  description: 'Processing execution requests withdrawals',
-                  initial: 'processing',
-                  states: {
-                    processing: {
-                      entry: pinoLog(
-                        ({ context }) => `processing er withdrawals for slot ${context.slot}`,
-                        'SlotProcessor:erWithdrawals',
-                      ),
-                      invoke: {
-                        src: 'processErWithdrawals',
-                        input: ({ context }) => {
-                          const _beaconBlockData = context.beaconBlockData?.rawData as Block;
-                          return {
-                            slotController: context.slotController,
-                            slot: context.slot,
-                            withdrawals:
-                              _beaconBlockData?.data?.message?.body?.execution_requests
-                                ?.withdrawals || [],
-                          };
-                        },
-                        onDone: {
-                          target: 'complete',
-                        },
-                        onError: {
-                          actions: pinoLog(
-                            ({ context, event }) =>
-                              `error processing er withdrawals for slot ${context.slot}: ${event.error}`,
-                            'SlotProcessor:erWithdrawals',
-                            'error',
-                          ),
-                        },
-                      },
-                    },
-                    complete: {
-                      type: 'final',
-                      entry: pinoLog(
-                        ({ context }) => `complete er withdrawals for slot ${context.slot}`,
-                        'SlotProcessor:erWithdrawals',
-                      ),
-                    },
-                  },
-                },
-                // data.message.body.execution_requests.consolidations
-                erConsolidations: {
-                  // block with er consolidations: https://rpc-gbc.gnosischain.com/eth/v2/beacon/blocks/24877955
-                  description: 'Processing execution requests consolidations',
-                  initial: 'processing',
-                  states: {
-                    processing: {
-                      entry: pinoLog(
-                        ({ context }) => `processing er consolidations for slot ${context.slot}`,
-                        'SlotProcessor:erConsolidations',
-                      ),
-                      invoke: {
-                        src: 'processErConsolidations',
-                        input: ({ context }) => {
-                          const _beaconBlockData = context.beaconBlockData?.rawData as Block;
-                          return {
-                            slotController: context.slotController,
-                            slot: context.slot,
-                            consolidations:
-                              _beaconBlockData?.data?.message?.body?.execution_requests
-                                ?.consolidations || [],
-                          };
-                        },
-                        onDone: {
-                          target: 'complete',
-                        },
-                        onError: {
-                          actions: pinoLog(
-                            ({ context, event }) =>
-                              `error processing er consolidations for slot ${context.slot}: ${event.error}`,
-                            'SlotProcessor:erConsolidations',
-                            'error',
-                          ),
-                        },
-                      },
-                    },
-                    complete: {
-                      type: 'final',
-                      entry: pinoLog(
-                        ({ context }) => `complete er consolidations for slot ${context.slot}`,
-                        'SlotProcessor:erConsolidations',
+                        ({ context }) => `complete block body data for slot ${context.slot}`,
+                        'SlotProcessor:blockBodyData',
                       ),
                     },
                   },
