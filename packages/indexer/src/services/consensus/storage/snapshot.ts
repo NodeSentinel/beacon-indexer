@@ -359,7 +359,7 @@ export class SnapshotStorage {
             SUM(vha.cl_reward_total) + SUM(COALESCE(vha.sync_reward_total, 0)) + SUM(COALESCE(vha.block_reward_total, 0)) AS consensus_reward,
             SUM(vha.cl_missed_reward_total) AS missed_reward,
             SUM(COALESCE(vha.exec_reward_total, 0)) AS execution_reward,
-            SUM(vha.attestation_count)::bigint AS att_count,
+            SUM(vha.attestation_count + COALESCE(vha.missed_attestation_count, 0))::bigint AS att_count,
             SUM(COALESCE(vha.missed_attestation_count, 0))::bigint AS missed_att_count,
             (SUM(vha.avg_attestation_delay * vha.attestation_count) / NULLIF(SUM(CASE WHEN vha.avg_attestation_delay IS NOT NULL THEN vha.attestation_count ELSE 0 END), 0))::real AS avg_att_delay,
             (SUM(vha.attestation_efficiency * vha.attestation_count) / NULLIF(SUM(CASE WHEN vha.attestation_efficiency IS NOT NULL THEN vha.attestation_count ELSE 0 END), 0))::real AS att_efficiency
@@ -549,7 +549,7 @@ export class SnapshotStorage {
         archive_data AS (
           SELECT
             vda.validator_index,
-            SUM(vda.attestation_count) AS att_count,
+            SUM(vda.attestation_count + COALESCE(vda.missed_attestation_count, 0)) AS att_count,
             SUM(COALESCE(vda.missed_attestation_count, 0)) AS missed_att_count,
             SUM(vda.cl_reward_total) + SUM(COALESCE(vda.sync_reward_total, 0)) + SUM(COALESCE(vda.block_reward_total, 0)) AS consensus_reward,
             SUM(vda.cl_missed_reward_total) AS missed_reward,
@@ -625,7 +625,7 @@ export class SnapshotStorage {
         archive_data AS (
           SELECT
             vda.validator_index,
-            SUM(vda.attestation_count) AS att_count,
+            SUM(vda.attestation_count + COALESCE(vda.missed_attestation_count, 0)) AS att_count,
             SUM(COALESCE(vda.missed_attestation_count, 0)) AS missed_att_count,
             SUM(vda.cl_reward_total) + SUM(COALESCE(vda.sync_reward_total, 0)) + SUM(COALESCE(vda.block_reward_total, 0)) AS consensus_reward,
             SUM(vda.cl_missed_reward_total) AS missed_reward,
