@@ -58,6 +58,8 @@ prisma.$on('error' as never, (e: { message: string; target?: string }) => {
 // Cleanup function to ensure Prisma disconnects properly
 async function cleanup() {
   try {
+    await EpochStorage.closePgPool();
+    await ValidatorsStorage.closePgPool();
     await prisma.$disconnect();
     logger.info('Database disconnected successfully');
   } catch (error) {
