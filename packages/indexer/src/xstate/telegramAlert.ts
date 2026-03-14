@@ -29,8 +29,9 @@ export const sendTelegramError = <
   return (args: ActionArgs<TContext, TExpressionEvent, TEvent>, params: TParams) => {
     const message = typeof value === 'function' ? value(args, params) : value;
     const chain = env.CHAIN;
+    const escaped = message.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
-    const text = `<b>[${chain.toUpperCase()}] ${loggerContext}</b>\n\n${message}`;
+    const text = `<b>[${chain.toUpperCase()}] ${loggerContext}</b>\n\n${escaped}`;
 
     void sendTelegramAlert(text);
   };
