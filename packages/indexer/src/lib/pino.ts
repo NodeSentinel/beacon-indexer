@@ -14,21 +14,21 @@ import Pino, { pino } from 'pino';
 const LOG_OUTPUT = process.env.LOG_OUTPUT || 'console';
 const logsDir = process.env.LOG_DIR || path.join(process.cwd(), 'logs');
 
-// Function to get the current day's log file name
-const getCurrentLogFileName = () => {
-  const now = new Date();
-  const day = String(now.getDate()).padStart(2, '0');
-  const month = String(now.getMonth() + 1).padStart(2, '0');
-  const year = now.getFullYear();
+const LATEST_LOG = 'latest.log';
+const LATEST_ERROR_LOG = 'errors-latest.log';
+
+// Build a dated log file name from a Date
+const getDatedLogFileName = (date: Date) => {
+  const day = String(date.getDate()).padStart(2, '0');
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const year = date.getFullYear();
   return `${day}-${month}-${year}.log`;
 };
 
-// Function to get the current day's error log file name
-const getCurrentErrorLogFileName = () => {
-  const now = new Date();
-  const day = String(now.getDate()).padStart(2, '0');
-  const month = String(now.getMonth() + 1).padStart(2, '0');
-  const year = now.getFullYear();
+const getDatedErrorLogFileName = (date: Date) => {
+  const day = String(date.getDate()).padStart(2, '0');
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const year = date.getFullYear();
   return `errors-${day}-${month}-${year}.log`;
 };
 
@@ -79,7 +79,7 @@ const createPinoLogger = () => {
   const targets: Pino.TransportTargetOptions[] = [];
 
   if (LOG_OUTPUT === 'file') {
-    const logPath = path.join(logsDir, getCurrentLogFileName());
+    const logPath = path.join(logsDir, LATEST_LOG);
     targets.push({
       target: 'pino-pretty',
       level: process.env.LOG_LEVEL || 'info',
@@ -109,7 +109,7 @@ const createPinoLogger = () => {
   }
 
   // Always write errors to a separate file for post-mortem debugging
-  const errorLogPath = path.join(logsDir, getCurrentErrorLogFileName());
+  const errorLogPath = path.join(logsDir, LATEST_ERROR_LOG);
   targets.push({
     target: 'pino-pretty',
     level: 'error',
@@ -140,10 +140,25 @@ if (!fs.existsSync(logsDir)) {
 // Create the initial logger
 let logger = createPinoLogger();
 
-// Function to rotate logs daily
+// Archive latest logs with yesterday's date, then create fresh latest files
 const rotateLogsDaily = () => {
+  const yesterday = new Date();
+  yesterday.setDate(yesterday.getDate() - 1);
+
+  const latestLog = path.join(logsDir, LATEST_LOG);
+  const latestErrorLog = path.join(logsDir, LATEST_ERROR_LOG);
+  const datedLog = path.join(logsDir, getDatedLogFileName(yesterday));
+  const datedErrorLog = path.join(logsDir, getDatedErrorLogFileName(yesterday));
+
+  try {
+    if (fs.existsSync(latestLog)) fs.renameSync(latestLog, datedLog);
+    if (fs.existsSync(latestErrorLog)) fs.renameSync(latestErrorLog, datedErrorLog);
+  } catch (err) {
+    console.error('Failed to archive log files:', err);
+  }
+
   logger = createPinoLogger();
-  console.log('Log rotated to new file:', getCurrentLogFileName());
+  console.log('Log rotated:', getDatedLogFileName(yesterday));
 };
 
 // Calculate milliseconds until midnight

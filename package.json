@@ -47,6 +47,8 @@
     "build": "pnpm --filter @beacon-indexer/db build && pnpm --filter indexer build",
     "build:api": "pnpm --filter @beacon-indexer/api build",
     "build:app": "pnpm --filter @beacon-indexer/api build && pnpm --filter @beacon-indexer/webapp build",
+    "logs:errors": "tail -250 packages/indexer/logs/errors-latest.log",
+    "logs": "tail -250 packages/indexer/logs/latest.log",
     "dev:indexer": "pnpm --filter indexer run dev",
     "dev:api": "pnpm --filter api run dev",
     "dev:app": "pnpm --filter @beacon-indexer/webapp run dev",
