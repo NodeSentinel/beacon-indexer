@@ -9,6 +9,7 @@ import { SlotController } from '@/src/services/consensus/controllers/slot.js';
 import { ValidatorsController } from '@/src/services/consensus/controllers/validators.js';
 import { logActor } from '@/src/xstate/multiMachineLogger.js';
 import { pinoLog } from '@/src/xstate/pinoLog.js';
+import { sendTelegramError } from '@/src/xstate/telegramAlert.js';
 
 /**
  * @fileoverview The epoch worker is a state machine responsible for processing a single epoch.
@@ -94,12 +95,19 @@ export const epochWorkerMachine = setup({
         },
         onError: {
           target: 'failed',
-          actions: pinoLog(
-            ({ context, event }) =>
-              `Error ensuring partitions for epoch ${context.epoch}: ${event.error}`,
-            'EpochWorker',
-            'error',
-          ),
+          actions: [
+            pinoLog(
+              ({ context, event }) =>
+                `Error ensuring partitions for epoch ${context.epoch}: ${event.error}`,
+              'EpochWorker',
+              'error',
+            ),
+            sendTelegramError(
+              ({ context, event }) =>
+                `Error ensuring partitions for epoch ${context.epoch}: ${event.error}`,
+              'EpochWorker',
+            ),
+          ],
         },
       },
     },

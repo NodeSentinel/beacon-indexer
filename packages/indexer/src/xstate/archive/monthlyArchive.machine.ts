@@ -2,6 +2,7 @@ import { setup, fromPromise } from 'xstate';
 
 import { MonthlyArchiveController } from '@/src/services/consensus/controllers/monthlyArchive.js';
 import { pinoLog } from '@/src/xstate/pinoLog.js';
+import { sendTelegramError } from '@/src/xstate/telegramAlert.js';
 
 /**
  * @fileoverview The monthly archive machine aggregates daily archives into monthly archives.
@@ -91,6 +92,10 @@ export const monthlyArchiveMachine = setup({
               ({ event }) => `Monthly archive error: ${event.error}`,
               'MonthlyArchive',
               'error',
+            ),
+            sendTelegramError(
+              ({ event }) => `Monthly archive error: ${event.error}`,
+              'MonthlyArchive',
             ),
           ],
         },

@@ -2,6 +2,7 @@ import { setup, fromPromise, assertEvent } from 'xstate';
 
 import { HourlyArchiveController } from '@/src/services/consensus/controllers/hourlyArchive.js';
 import { pinoLog } from '@/src/xstate/pinoLog.js';
+import { sendTelegramError } from '@/src/xstate/telegramAlert.js';
 
 /**
  * @fileoverview The hourly archive machine is responsible for archiving hourly validator data.
@@ -94,6 +95,7 @@ export const hourlyArchiveMachine = setup({
           target: 'idle',
           actions: [
             pinoLog(({ event }) => `Archive error: ${event.error}`, 'HourlyArchive', 'error'),
+            sendTelegramError(({ event }) => `Archive error: ${event.error}`, 'HourlyArchive'),
           ],
         },
       },

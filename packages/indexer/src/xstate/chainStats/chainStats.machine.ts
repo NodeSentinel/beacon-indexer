@@ -2,6 +2,7 @@ import { setup, fromPromise } from 'xstate';
 
 import { ChainStatsController } from '@/src/services/consensus/controllers/chainStats.js';
 import { pinoLog } from '@/src/xstate/pinoLog.js';
+import { sendTelegramError } from '@/src/xstate/telegramAlert.js';
 
 export const chainStatsMachine = setup({
   types: {} as {
@@ -65,6 +66,7 @@ export const chainStatsMachine = setup({
           target: 'idle',
           actions: [
             pinoLog(({ event }) => `Chain stats error: ${event.error}`, 'ChainStats', 'error'),
+            sendTelegramError(({ event }) => `Chain stats error: ${event.error}`, 'ChainStats'),
           ],
         },
       },

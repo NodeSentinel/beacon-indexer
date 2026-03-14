@@ -8,6 +8,7 @@ import { SlotController } from '@/src/services/consensus/controllers/slot.js';
 import { ValidatorsController } from '@/src/services/consensus/controllers/validators.js';
 import { logActor } from '@/src/xstate/multiMachineLogger.js';
 import { pinoLog } from '@/src/xstate/pinoLog.js';
+import { sendTelegramError } from '@/src/xstate/telegramAlert.js';
 
 export const epochProcessorMachine = setup({
   types: {} as {
@@ -273,12 +274,19 @@ export const epochProcessorMachine = setup({
           target: 'epochProcessing',
         },
         onError: {
-          actions: pinoLog(
-            ({ context, event }) =>
-              `error waiting to process epoch ${context.epoch}: ${event.error}`,
-            'EpochProcessor',
-            'error',
-          ),
+          actions: [
+            pinoLog(
+              ({ context, event }) =>
+                `error waiting to process epoch ${context.epoch}: ${event.error}`,
+              'EpochProcessor',
+              'error',
+            ),
+            sendTelegramError(
+              ({ context, event }) =>
+                `error waiting to process epoch ${context.epoch}: ${event.error}`,
+              'EpochProcessor',
+            ),
+          ],
         },
       },
     },
@@ -323,12 +331,19 @@ export const epochProcessorMachine = setup({
                   target: 'epochStarted',
                 },
                 onError: {
-                  actions: pinoLog(
-                    ({ context, event }) =>
-                      `error waiting for epoch ${context.epoch} to start: ${event.error}`,
-                    'EpochProcessor:monitoringEpochStart',
-                    'error',
-                  ),
+                  actions: [
+                    pinoLog(
+                      ({ context, event }) =>
+                        `error waiting for epoch ${context.epoch} to start: ${event.error}`,
+                      'EpochProcessor:monitoringEpochStart',
+                      'error',
+                    ),
+                    sendTelegramError(
+                      ({ context, event }) =>
+                        `error waiting for epoch ${context.epoch} to start: ${event.error}`,
+                      'EpochProcessor:monitoringEpochStart',
+                    ),
+                  ],
                 },
               },
             },
@@ -368,12 +383,19 @@ export const epochProcessorMachine = setup({
                       target: 'committeesFetched',
                     },
                     onError: {
-                      actions: pinoLog(
-                        ({ context, event }) =>
-                          `error processing committees for epoch ${context.epoch}: ${event.error}`,
-                        'EpochProcessor:committees',
-                        'error',
-                      ),
+                      actions: [
+                        pinoLog(
+                          ({ context, event }) =>
+                            `error processing committees for epoch ${context.epoch}: ${event.error}`,
+                          'EpochProcessor:committees',
+                          'error',
+                        ),
+                        sendTelegramError(
+                          ({ context, event }) =>
+                            `error processing committees for epoch ${context.epoch}: ${event.error}`,
+                          'EpochProcessor:committees',
+                        ),
+                      ],
                     },
                   },
                 },
@@ -415,12 +437,19 @@ export const epochProcessorMachine = setup({
                       target: 'syncCommitteesFetched',
                     },
                     onError: {
-                      actions: pinoLog(
-                        ({ context, event }) =>
-                          `error processing sync committees for epoch ${context.epoch}: ${event.error}`,
-                        'EpochProcessor:syncingCommittees',
-                        'error',
-                      ),
+                      actions: [
+                        pinoLog(
+                          ({ context, event }) =>
+                            `error processing sync committees for epoch ${context.epoch}: ${event.error}`,
+                          'EpochProcessor:syncingCommittees',
+                          'error',
+                        ),
+                        sendTelegramError(
+                          ({ context, event }) =>
+                            `error processing sync committees for epoch ${context.epoch}: ${event.error}`,
+                          'EpochProcessor:syncingCommittees',
+                        ),
+                      ],
                     },
                   },
                 },
@@ -462,12 +491,19 @@ export const epochProcessorMachine = setup({
                     ],
                     onError: {
                       target: 'retryingPriorEpochDependencies',
-                      actions: pinoLog(
-                        ({ context, event }) =>
-                          `error checking prior epoch dependencies for epoch ${context.epoch}: ${event.error}`,
-                        'EpochProcessor:slotsProcessing',
-                        'error',
-                      ),
+                      actions: [
+                        pinoLog(
+                          ({ context, event }) =>
+                            `error checking prior epoch dependencies for epoch ${context.epoch}: ${event.error}`,
+                          'EpochProcessor:slotsProcessing',
+                          'error',
+                        ),
+                        sendTelegramError(
+                          ({ context, event }) =>
+                            `error checking prior epoch dependencies for epoch ${context.epoch}: ${event.error}`,
+                          'EpochProcessor:slotsProcessing',
+                        ),
+                      ],
                     },
                   },
                 },
@@ -552,12 +588,19 @@ export const epochProcessorMachine = setup({
                       target: 'slotsProcessed',
                     },
                     onError: {
-                      actions: pinoLog(
-                        ({ context, event }) =>
-                          `error updating slots fetched for epoch ${context.epoch}: ${event.error}`,
-                        'EpochProcessor:slotsProcessing',
-                        'error',
-                      ),
+                      actions: [
+                        pinoLog(
+                          ({ context, event }) =>
+                            `error updating slots fetched for epoch ${context.epoch}: ${event.error}`,
+                          'EpochProcessor:slotsProcessing',
+                          'error',
+                        ),
+                        sendTelegramError(
+                          ({ context, event }) =>
+                            `error updating slots fetched for epoch ${context.epoch}: ${event.error}`,
+                          'EpochProcessor:slotsProcessing',
+                        ),
+                      ],
                     },
                   },
                 },
@@ -607,12 +650,19 @@ export const epochProcessorMachine = setup({
                       target: 'activationTracked',
                     },
                     onError: {
-                      actions: pinoLog(
-                        ({ context, event }) =>
-                          `error processing validators activation for epoch ${context.epoch}: ${event.error}`,
-                        'EpochProcessor:trackingValidatorsActivation',
-                        'error',
-                      ),
+                      actions: [
+                        pinoLog(
+                          ({ context, event }) =>
+                            `error processing validators activation for epoch ${context.epoch}: ${event.error}`,
+                          'EpochProcessor:trackingValidatorsActivation',
+                          'error',
+                        ),
+                        sendTelegramError(
+                          ({ context, event }) =>
+                            `error processing validators activation for epoch ${context.epoch}: ${event.error}`,
+                          'EpochProcessor:trackingValidatorsActivation',
+                        ),
+                      ],
                     },
                   },
                 },
@@ -661,12 +711,19 @@ export const epochProcessorMachine = setup({
                       target: 'validatorsBalancesFetched',
                     },
                     onError: {
-                      actions: pinoLog(
-                        ({ context, event }) =>
-                          `error processing validators balances for epoch ${context.epoch}: ${event.error}`,
-                        'EpochProcessor:validatorsBalances',
-                        'error',
-                      ),
+                      actions: [
+                        pinoLog(
+                          ({ context, event }) =>
+                            `error processing validators balances for epoch ${context.epoch}: ${event.error}`,
+                          'EpochProcessor:validatorsBalances',
+                          'error',
+                        ),
+                        sendTelegramError(
+                          ({ context, event }) =>
+                            `error processing validators balances for epoch ${context.epoch}: ${event.error}`,
+                          'EpochProcessor:validatorsBalances',
+                        ),
+                      ],
                     },
                   },
                 },
@@ -727,12 +784,19 @@ export const epochProcessorMachine = setup({
                       target: 'fetchingRewards',
                     },
                     onError: {
-                      actions: pinoLog(
-                        ({ context, event }) =>
-                          `error waiting for epoch ${context.epoch} to end: ${event.error}`,
-                        'EpochProcessor:rewards',
-                        'error',
-                      ),
+                      actions: [
+                        pinoLog(
+                          ({ context, event }) =>
+                            `error waiting for epoch ${context.epoch} to end: ${event.error}`,
+                          'EpochProcessor:rewards',
+                          'error',
+                        ),
+                        sendTelegramError(
+                          ({ context, event }) =>
+                            `error waiting for epoch ${context.epoch} to end: ${event.error}`,
+                          'EpochProcessor:rewards',
+                        ),
+                      ],
                     },
                   },
                 },
@@ -751,12 +815,19 @@ export const epochProcessorMachine = setup({
                       target: 'rewardsFetched',
                     },
                     onError: {
-                      actions: pinoLog(
-                        ({ context, event }) =>
-                          `error processing rewards for epoch ${context.epoch}: ${event.error}`,
-                        'EpochProcessor:rewards',
-                        'error',
-                      ),
+                      actions: [
+                        pinoLog(
+                          ({ context, event }) =>
+                            `error processing rewards for epoch ${context.epoch}: ${event.error}`,
+                          'EpochProcessor:rewards',
+                          'error',
+                        ),
+                        sendTelegramError(
+                          ({ context, event }) =>
+                            `error processing rewards for epoch ${context.epoch}: ${event.error}`,
+                          'EpochProcessor:rewards',
+                        ),
+                      ],
                     },
                   },
                 },
@@ -799,12 +870,19 @@ export const epochProcessorMachine = setup({
           ],
         },
         onError: {
-          actions: pinoLog(
-            ({ context, event }) =>
-              `error marking epoch ${context.epoch} as processed: ${event.error}`,
-            'EpochProcessor',
-            'error',
-          ),
+          actions: [
+            pinoLog(
+              ({ context, event }) =>
+                `error marking epoch ${context.epoch} as processed: ${event.error}`,
+              'EpochProcessor',
+              'error',
+            ),
+            sendTelegramError(
+              ({ context, event }) =>
+                `error marking epoch ${context.epoch} as processed: ${event.error}`,
+              'EpochProcessor',
+            ),
+          ],
         },
       },
     },

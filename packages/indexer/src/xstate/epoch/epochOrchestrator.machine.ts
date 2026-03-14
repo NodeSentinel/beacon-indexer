@@ -22,6 +22,7 @@ import { PartitionController } from '@/src/services/consensus/controllers/partit
 import { SlotController } from '@/src/services/consensus/controllers/slot.js';
 import { ValidatorsController } from '@/src/services/consensus/controllers/validators.js';
 import { pinoLog } from '@/src/xstate/pinoLog.js';
+import { sendTelegramError } from '@/src/xstate/telegramAlert.js';
 
 /**
  * @fileoverview The epoch orchestrator manager is responsible for scheduling and managing parallel epoch processing.
@@ -333,11 +334,17 @@ export const epochOrchestratorMachine = setup({
             ],
             onError: {
               target: 'pollingDelay',
-              actions: pinoLog(
-                ({ event }) => `Error getting min epoch to process: ${event.error}`,
-                'EpochOrchestrator',
-                'error',
-              ),
+              actions: [
+                pinoLog(
+                  ({ event }) => `Error getting min epoch to process: ${event.error}`,
+                  'EpochOrchestrator',
+                  'error',
+                ),
+                sendTelegramError(
+                  ({ event }) => `Error getting min epoch to process: ${event.error}`,
+                  'EpochOrchestrator',
+                ),
+              ],
             },
           },
         },

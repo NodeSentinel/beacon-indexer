@@ -2,6 +2,7 @@ import { fromPromise, setup } from 'xstate';
 
 import { EpochController } from '@/src/services/consensus/controllers/epoch.js';
 import { pinoLog } from '@/src/xstate/pinoLog.js';
+import { sendTelegramError } from '@/src/xstate/telegramAlert.js';
 
 export const epochCreationMachine = setup({
   types: {} as {
@@ -40,11 +41,17 @@ export const epochCreationMachine = setup({
         onDone: 'sleep',
         onError: {
           target: 'sleep',
-          actions: pinoLog(
-            ({ event }) => `error creating epochs: ${event.error}`,
-            'EpochCreator:createEpochs',
-            'error',
-          ),
+          actions: [
+            pinoLog(
+              ({ event }) => `error creating epochs: ${event.error}`,
+              'EpochCreator:createEpochs',
+              'error',
+            ),
+            sendTelegramError(
+              ({ event }) => `error creating epochs: ${event.error}`,
+              'EpochCreator:createEpochs',
+            ),
+          ],
         },
       },
     },

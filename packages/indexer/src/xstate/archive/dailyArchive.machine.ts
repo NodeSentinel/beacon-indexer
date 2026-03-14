@@ -2,6 +2,7 @@ import { setup, fromPromise } from 'xstate';
 
 import { DailyArchiveController } from '@/src/services/consensus/controllers/dailyArchive.js';
 import { pinoLog } from '@/src/xstate/pinoLog.js';
+import { sendTelegramError } from '@/src/xstate/telegramAlert.js';
 
 /**
  * @fileoverview The daily archive machine aggregates hourly archives into daily archives.
@@ -86,6 +87,7 @@ export const dailyArchiveMachine = setup({
           target: 'idle',
           actions: [
             pinoLog(({ event }) => `Daily archive error: ${event.error}`, 'DailyArchive', 'error'),
+            sendTelegramError(({ event }) => `Daily archive error: ${event.error}`, 'DailyArchive'),
           ],
         },
       },

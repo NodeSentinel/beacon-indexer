@@ -3,6 +3,7 @@ import { setup, fromPromise, assign } from 'xstate';
 
 import { SnapshotController } from '@/src/services/consensus/controllers/snapshot.js';
 import { pinoLog } from '@/src/xstate/pinoLog.js';
+import { sendTelegramError } from '@/src/xstate/telegramAlert.js';
 
 type SnapshotContext = {
   snapshotController: SnapshotController;
@@ -183,6 +184,7 @@ export const snapshotMachine = setup({
           target: 'waiting',
           actions: [
             pinoLog(({ event }) => `Snapshot tick error: ${event.error}`, 'Snapshot', 'error'),
+            sendTelegramError(({ event }) => `Snapshot tick error: ${event.error}`, 'Snapshot'),
           ],
         },
       },

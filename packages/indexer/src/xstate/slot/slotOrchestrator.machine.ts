@@ -18,6 +18,7 @@ import { getEpochSlots } from '@/src/services/consensus/utils/misc.js';
 import { logActor, logRemoveMachine } from '@/src/xstate/multiMachineLogger.js';
 import { pinoLog } from '@/src/xstate/pinoLog.js';
 import { slotProcessorMachine } from '@/src/xstate/slot/slotProcessor.machine.js';
+import { sendTelegramError } from '@/src/xstate/telegramAlert.js';
 
 export interface SlotOrchestratorContext {
   epoch: number;
@@ -139,12 +140,19 @@ export const slotOrchestratorMachine = setup({
           },
         ],
         onError: {
-          actions: pinoLog(
-            ({ context, event }) =>
-              `error finding next slot to process for epoch ${context.epoch}: ${event.error}`,
-            'SlotOrchestrator',
-            'error',
-          ),
+          actions: [
+            pinoLog(
+              ({ context, event }) =>
+                `error finding next slot to process for epoch ${context.epoch}: ${event.error}`,
+              'SlotOrchestrator',
+              'error',
+            ),
+            sendTelegramError(
+              ({ context, event }) =>
+                `error finding next slot to process for epoch ${context.epoch}: ${event.error}`,
+              'SlotOrchestrator',
+            ),
+          ],
         },
       },
     },
