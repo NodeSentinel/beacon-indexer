@@ -87,7 +87,7 @@ export const dailyArchiveMachine = setup({
           target: 'idle',
           actions: [
             pinoLog(({ event }) => `Daily archive error: ${event.error}`, 'DailyArchive', 'error'),
-            sendTelegramError(({ event }) => `Daily archive error: ${event.error}`, 'DailyArchive'),
+            sendTelegramError('Daily archive error', 'DailyArchive'),
           ],
         },
       },

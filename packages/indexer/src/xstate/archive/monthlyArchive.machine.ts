@@ -93,10 +93,7 @@ export const monthlyArchiveMachine = setup({
               'MonthlyArchive',
               'error',
             ),
-            sendTelegramError(
-              ({ event }) => `Monthly archive error: ${event.error}`,
-              'MonthlyArchive',
-            ),
+            sendTelegramError('Monthly archive error', 'MonthlyArchive'),
           ],
         },
       },

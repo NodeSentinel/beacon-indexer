@@ -95,7 +95,7 @@ export const hourlyArchiveMachine = setup({
           target: 'idle',
           actions: [
             pinoLog(({ event }) => `Archive error: ${event.error}`, 'HourlyArchive', 'error'),
-            sendTelegramError(({ event }) => `Archive error: ${event.error}`, 'HourlyArchive'),
+            sendTelegramError('Hourly archive error', 'HourlyArchive'),
           ],
         },
       },

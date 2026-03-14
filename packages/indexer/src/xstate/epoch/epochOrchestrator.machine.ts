@@ -340,10 +340,7 @@ export const epochOrchestratorMachine = setup({
                   'EpochOrchestrator',
                   'error',
                 ),
-                sendTelegramError(
-                  ({ event }) => `Error getting min epoch to process: ${event.error}`,
-                  'EpochOrchestrator',
-                ),
+                sendTelegramError('Error getting min epoch to process', 'EpochOrchestrator'),
               ],
             },
           },

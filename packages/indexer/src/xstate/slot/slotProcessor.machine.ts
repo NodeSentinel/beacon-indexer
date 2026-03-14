@@ -195,7 +195,7 @@ export const slotProcessorMachine = setup({
               'error',
             ),
             sendTelegramError(
-              ({ context, event }) => `error getting slot ${context.slot}: ${event.error}`,
+              ({ context }) => `Error getting slot ${context.slot} (epoch ${context.epoch})`,
               'SlotProcessor:gettingSlot',
             ),
           ],
@@ -228,8 +228,8 @@ export const slotProcessorMachine = setup({
               'error',
             ),
             sendTelegramError(
-              ({ context, event }) =>
-                `error waiting for slot ${context.slot} to be ready: ${event.error}`,
+              ({ context }) =>
+                `Error waiting for slot ${context.slot} to be ready (epoch ${context.epoch})`,
               'SlotProcessor:waitingForSlotToStart',
             ),
           ],
@@ -268,8 +268,8 @@ export const slotProcessorMachine = setup({
               'error',
             ),
             sendTelegramError(
-              ({ context, event }) =>
-                `error fetching beacon block data for slot ${context.slot}: ${event.error}`,
+              ({ context }) =>
+                `Error fetching beacon block data for slot ${context.slot} (epoch ${context.epoch})`,
               'SlotProcessor:fetchingBeaconData',
             ),
           ],
@@ -350,8 +350,8 @@ export const slotProcessorMachine = setup({
                               'error',
                             ),
                             sendTelegramError(
-                              ({ context, event }) =>
-                                `error processing attestations for slot ${context.slot}: ${event.error}`,
+                              ({ context }) =>
+                                `Error processing attestations for slot ${context.slot} (epoch ${context.epoch})`,
                               'SlotProcessor:attestations',
                             ),
                           ],
@@ -382,8 +382,8 @@ export const slotProcessorMachine = setup({
                               'error',
                             ),
                             sendTelegramError(
-                              ({ context, event }) =>
-                                `error updating attestations processed flag for slot ${context.slot}: ${event.error}`,
+                              ({ context }) =>
+                                `Error updating attestations processed flag for slot ${context.slot} (epoch ${context.epoch})`,
                               'SlotProcessor:attestations',
                             ),
                           ],
@@ -435,8 +435,8 @@ export const slotProcessorMachine = setup({
                               'error',
                             ),
                             sendTelegramError(
-                              ({ context, event }) =>
-                                `error fetching execution rewards for slot ${context.slot}: ${event.error}`,
+                              ({ context }) =>
+                                `Error fetching execution rewards for slot ${context.slot} (epoch ${context.epoch})`,
                               'SlotProcessor:executionRewards',
                             ),
                           ],
@@ -481,8 +481,8 @@ export const slotProcessorMachine = setup({
                               'error',
                             ),
                             sendTelegramError(
-                              ({ context, event }) =>
-                                `error fetching block rewards for slot ${context.slot}: ${event.error}`,
+                              ({ context }) =>
+                                `Error fetching block rewards for slot ${context.slot} (epoch ${context.epoch})`,
                               'SlotProcessor:blockRewards',
                             ),
                           ],
@@ -527,8 +527,8 @@ export const slotProcessorMachine = setup({
                               'error',
                             ),
                             sendTelegramError(
-                              ({ context, event }) =>
-                                `error fetching sync committee rewards for slot ${context.slot}: ${event.error}`,
+                              ({ context }) =>
+                                `Error fetching sync committee rewards for slot ${context.slot} (epoch ${context.epoch})`,
                               'SlotProcessor:syncCommitteeRewards',
                             ),
                           ],
@@ -575,8 +575,8 @@ export const slotProcessorMachine = setup({
                               'error',
                             ),
                             sendTelegramError(
-                              ({ context, event }) =>
-                                `error processing block body data for slot ${context.slot}: ${event.error}`,
+                              ({ context }) =>
+                                `Error processing block body data for slot ${context.slot} (epoch ${context.epoch})`,
                               'SlotProcessor:blockBodyData',
                             ),
                           ],
@@ -630,8 +630,8 @@ export const slotProcessorMachine = setup({
               'error',
             ),
             sendTelegramError(
-              ({ context, event }) =>
-                `error marking slot completed ${context.slot}: ${event.error}`,
+              ({ context }) =>
+                `Error marking slot completed ${context.slot} (epoch ${context.epoch})`,
               'SlotProcessor:markingSlotCompleted',
             ),
           ],

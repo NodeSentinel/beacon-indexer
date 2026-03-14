@@ -103,8 +103,7 @@ export const epochWorkerMachine = setup({
               'error',
             ),
             sendTelegramError(
-              ({ context, event }) =>
-                `Error ensuring partitions for epoch ${context.epoch}: ${event.error}`,
+              ({ context }) => `Error ensuring partitions for epoch ${context.epoch}`,
               'EpochWorker',
             ),
           ],

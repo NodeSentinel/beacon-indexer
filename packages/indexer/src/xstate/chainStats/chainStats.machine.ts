@@ -66,7 +66,7 @@ export const chainStatsMachine = setup({
           target: 'idle',
           actions: [
             pinoLog(({ event }) => `Chain stats error: ${event.error}`, 'ChainStats', 'error'),
-            sendTelegramError(({ event }) => `Chain stats error: ${event.error}`, 'ChainStats'),
+            sendTelegramError('Chain stats error', 'ChainStats'),
           ],
         },
       },

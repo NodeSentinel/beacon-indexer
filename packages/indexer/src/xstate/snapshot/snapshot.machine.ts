@@ -184,7 +184,7 @@ export const snapshotMachine = setup({
           target: 'waiting',
           actions: [
             pinoLog(({ event }) => `Snapshot tick error: ${event.error}`, 'Snapshot', 'error'),
-            sendTelegramError(({ event }) => `Snapshot tick error: ${event.error}`, 'Snapshot'),
+            sendTelegramError('Snapshot tick error', 'Snapshot'),
           ],
         },
       },

@@ -148,8 +148,7 @@ export const slotOrchestratorMachine = setup({
               'error',
             ),
             sendTelegramError(
-              ({ context, event }) =>
-                `error finding next slot to process for epoch ${context.epoch}: ${event.error}`,
+              ({ context }) => `Error finding next slot to process for epoch ${context.epoch}`,
               'SlotOrchestrator',
             ),
           ],

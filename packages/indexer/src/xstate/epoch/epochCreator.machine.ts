@@ -47,10 +47,7 @@ export const epochCreationMachine = setup({
               'EpochCreator:createEpochs',
               'error',
             ),
-            sendTelegramError(
-              ({ event }) => `error creating epochs: ${event.error}`,
-              'EpochCreator:createEpochs',
-            ),
+            sendTelegramError('Error creating epochs', 'EpochCreator:createEpochs'),
           ],
         },
       },

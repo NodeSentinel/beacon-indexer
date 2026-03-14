@@ -282,8 +282,7 @@ export const epochProcessorMachine = setup({
               'error',
             ),
             sendTelegramError(
-              ({ context, event }) =>
-                `error waiting to process epoch ${context.epoch}: ${event.error}`,
+              ({ context }) => `Error waiting to process epoch ${context.epoch}`,
               'EpochProcessor',
             ),
           ],
@@ -339,8 +338,7 @@ export const epochProcessorMachine = setup({
                       'error',
                     ),
                     sendTelegramError(
-                      ({ context, event }) =>
-                        `error waiting for epoch ${context.epoch} to start: ${event.error}`,
+                      ({ context }) => `Error waiting for epoch ${context.epoch} to start`,
                       'EpochProcessor:monitoringEpochStart',
                     ),
                   ],
@@ -391,8 +389,7 @@ export const epochProcessorMachine = setup({
                           'error',
                         ),
                         sendTelegramError(
-                          ({ context, event }) =>
-                            `error processing committees for epoch ${context.epoch}: ${event.error}`,
+                          ({ context }) => `Error processing committees for epoch ${context.epoch}`,
                           'EpochProcessor:committees',
                         ),
                       ],
@@ -445,8 +442,8 @@ export const epochProcessorMachine = setup({
                           'error',
                         ),
                         sendTelegramError(
-                          ({ context, event }) =>
-                            `error processing sync committees for epoch ${context.epoch}: ${event.error}`,
+                          ({ context }) =>
+                            `Error processing sync committees for epoch ${context.epoch}`,
                           'EpochProcessor:syncingCommittees',
                         ),
                       ],
@@ -499,8 +496,8 @@ export const epochProcessorMachine = setup({
                           'error',
                         ),
                         sendTelegramError(
-                          ({ context, event }) =>
-                            `error checking prior epoch dependencies for epoch ${context.epoch}: ${event.error}`,
+                          ({ context }) =>
+                            `Error checking prior epoch dependencies for epoch ${context.epoch}`,
                           'EpochProcessor:slotsProcessing',
                         ),
                       ],
@@ -596,8 +593,8 @@ export const epochProcessorMachine = setup({
                           'error',
                         ),
                         sendTelegramError(
-                          ({ context, event }) =>
-                            `error updating slots fetched for epoch ${context.epoch}: ${event.error}`,
+                          ({ context }) =>
+                            `Error updating slots fetched for epoch ${context.epoch}`,
                           'EpochProcessor:slotsProcessing',
                         ),
                       ],
@@ -658,8 +655,8 @@ export const epochProcessorMachine = setup({
                           'error',
                         ),
                         sendTelegramError(
-                          ({ context, event }) =>
-                            `error processing validators activation for epoch ${context.epoch}: ${event.error}`,
+                          ({ context }) =>
+                            `Error processing validators activation for epoch ${context.epoch}`,
                           'EpochProcessor:trackingValidatorsActivation',
                         ),
                       ],
@@ -719,8 +716,8 @@ export const epochProcessorMachine = setup({
                           'error',
                         ),
                         sendTelegramError(
-                          ({ context, event }) =>
-                            `error processing validators balances for epoch ${context.epoch}: ${event.error}`,
+                          ({ context }) =>
+                            `Error processing validators balances for epoch ${context.epoch}`,
                           'EpochProcessor:validatorsBalances',
                         ),
                       ],
@@ -792,8 +789,7 @@ export const epochProcessorMachine = setup({
                           'error',
                         ),
                         sendTelegramError(
-                          ({ context, event }) =>
-                            `error waiting for epoch ${context.epoch} to end: ${event.error}`,
+                          ({ context }) => `Error waiting for epoch ${context.epoch} to end`,
                           'EpochProcessor:rewards',
                         ),
                       ],
@@ -823,8 +819,7 @@ export const epochProcessorMachine = setup({
                           'error',
                         ),
                         sendTelegramError(
-                          ({ context, event }) =>
-                            `error processing rewards for epoch ${context.epoch}: ${event.error}`,
+                          ({ context }) => `Error processing rewards for epoch ${context.epoch}`,
                           'EpochProcessor:rewards',
                         ),
                       ],
@@ -878,8 +873,7 @@ export const epochProcessorMachine = setup({
               'error',
             ),
             sendTelegramError(
-              ({ context, event }) =>
-                `error marking epoch ${context.epoch} as processed: ${event.error}`,
+              ({ context }) => `Error marking epoch ${context.epoch} as processed`,
               'EpochProcessor',
             ),
           ],
