@@ -210,7 +210,7 @@ export class DailyArchiveStorage {
         });
       },
       {
-        timeout: ms('15m'),
+        timeout: ms('30m'),
       },
     );
   }
