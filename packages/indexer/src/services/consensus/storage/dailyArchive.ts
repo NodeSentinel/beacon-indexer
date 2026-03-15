@@ -114,55 +114,16 @@ export class DailyArchiveStorage {
         `;
 
         // 3. Aggregate hourly data into daily archive in batches
-        // Process validators in chunks to avoid exceeding temp_file_limit
-        const BATCH_SIZE = 10000;
+        // Process validators in chunks to avoid exceeding temp_file_limit.
+        // Uses string concatenation to merge JSON arrays instead of
+        // jsonb_array_elements + jsonb_agg, avoiding costly element-level
+        // explosion. Safe because hourly data is already sorted by slot/epoch
+        // within each partition, and we concatenate in timestamp order.
+        const BATCH_SIZE = 50000;
         for (let batchStart = 0; batchStart <= max_idx; batchStart += BATCH_SIZE) {
           const batchEnd = batchStart + BATCH_SIZE;
 
           await tx.$executeRaw`
-            WITH hourly_agg AS (
-              SELECT
-                validator_index,
-                SUM(attestation_count)::smallint AS attestation_count,
-                NULLIF(SUM(COALESCE(missed_attestation_count, 0)), 0)::smallint AS missed_attestation_count,
-                SUM(sync_reward_total) AS sync_reward_total,
-                NULLIF(SUM(COALESCE(exec_reward_total, 0::numeric)), 0::numeric) AS exec_reward_total,
-                NULLIF(SUM(COALESCE(block_reward_total, 0::bigint)), 0::bigint) AS block_reward_total,
-                SUM(cl_reward_total) AS cl_reward_total,
-                SUM(cl_missed_reward_total) AS cl_missed_reward_total,
-                (SUM(avg_attestation_delay * attestation_count) / NULLIF(SUM(CASE WHEN avg_attestation_delay IS NOT NULL THEN attestation_count ELSE 0 END), 0))::real AS avg_attestation_delay,
-                (SUM(attestation_efficiency * attestation_count) / NULLIF(SUM(CASE WHEN attestation_efficiency IS NOT NULL THEN attestation_count ELSE 0 END), 0))::real AS attestation_efficiency
-              FROM validator_hourly_archive
-              WHERE "timestamp" >= ${dayStart}::timestamp
-                AND "timestamp" < ${nextDayStart}::timestamp
-                AND validator_index >= ${batchStart}
-                AND validator_index < ${batchEnd}
-              GROUP BY validator_index
-            ),
-            slot_json AS (
-              SELECT
-                h.validator_index,
-                jsonb_agg(elem ORDER BY (elem->0)::int) AS data_by_slot
-              FROM validator_hourly_archive h,
-              jsonb_array_elements(h.data_by_slot) AS elem
-              WHERE h."timestamp" >= ${dayStart}::timestamp
-                AND h."timestamp" < ${nextDayStart}::timestamp
-                AND h.validator_index >= ${batchStart}
-                AND h.validator_index < ${batchEnd}
-              GROUP BY h.validator_index
-            ),
-            epoch_json AS (
-              SELECT
-                h.validator_index,
-                jsonb_agg(elem ORDER BY (elem->0)::int) AS data_by_epoch
-              FROM validator_hourly_archive h,
-              jsonb_array_elements(h.data_by_epoch) AS elem
-              WHERE h."timestamp" >= ${dayStart}::timestamp
-                AND h."timestamp" < ${nextDayStart}::timestamp
-                AND h.validator_index >= ${batchStart}
-                AND h.validator_index < ${batchEnd}
-              GROUP BY h.validator_index
-            )
             INSERT INTO validator_daily_archive (
               timestamp,
               validator_index,
@@ -180,21 +141,40 @@ export class DailyArchiveStorage {
             )
             SELECT
               ${dayStart}::timestamp AS timestamp,
-              ha.validator_index,
-              COALESCE(sj.data_by_slot, '[]'::jsonb) AS data_by_slot,
-              COALESCE(ej.data_by_epoch, '[]'::jsonb) AS data_by_epoch,
-              COALESCE(ha.attestation_count, 0::smallint) AS attestation_count,
-              ha.missed_attestation_count,
-              COALESCE(ha.sync_reward_total, 0) AS sync_reward_total,
-              ha.exec_reward_total,
-              ha.block_reward_total,
-              COALESCE(ha.cl_reward_total, 0) AS cl_reward_total,
-              COALESCE(ha.cl_missed_reward_total, 0) AS cl_missed_reward_total,
-              ha.avg_attestation_delay,
-              ha.attestation_efficiency
-            FROM hourly_agg ha
-            LEFT JOIN slot_json sj ON ha.validator_index = sj.validator_index
-            LEFT JOIN epoch_json ej ON ha.validator_index = ej.validator_index
+              validator_index,
+              COALESCE(
+                ('[' || string_agg(
+                  CASE WHEN jsonb_array_length(data_by_slot) > 0
+                    THEN substring(data_by_slot::text FROM 2 FOR length(data_by_slot::text) - 2)
+                  END,
+                  ',' ORDER BY "timestamp"
+                ) || ']')::jsonb,
+                '[]'::jsonb
+              ) AS data_by_slot,
+              COALESCE(
+                ('[' || string_agg(
+                  CASE WHEN jsonb_array_length(data_by_epoch) > 0
+                    THEN substring(data_by_epoch::text FROM 2 FOR length(data_by_epoch::text) - 2)
+                  END,
+                  ',' ORDER BY "timestamp"
+                ) || ']')::jsonb,
+                '[]'::jsonb
+              ) AS data_by_epoch,
+              SUM(attestation_count)::smallint AS attestation_count,
+              NULLIF(SUM(COALESCE(missed_attestation_count, 0)), 0)::smallint AS missed_attestation_count,
+              SUM(sync_reward_total) AS sync_reward_total,
+              NULLIF(SUM(COALESCE(exec_reward_total, 0::numeric)), 0::numeric) AS exec_reward_total,
+              NULLIF(SUM(COALESCE(block_reward_total, 0::bigint)), 0::bigint) AS block_reward_total,
+              SUM(cl_reward_total) AS cl_reward_total,
+              SUM(cl_missed_reward_total) AS cl_missed_reward_total,
+              (SUM(avg_attestation_delay * attestation_count) / NULLIF(SUM(CASE WHEN avg_attestation_delay IS NOT NULL THEN attestation_count ELSE 0 END), 0))::real AS avg_attestation_delay,
+              (SUM(attestation_efficiency * attestation_count) / NULLIF(SUM(CASE WHEN attestation_efficiency IS NOT NULL THEN attestation_count ELSE 0 END), 0))::real AS attestation_efficiency
+            FROM validator_hourly_archive
+            WHERE "timestamp" >= ${dayStart}::timestamp
+              AND "timestamp" < ${nextDayStart}::timestamp
+              AND validator_index >= ${batchStart}
+              AND validator_index < ${batchEnd}
+            GROUP BY validator_index
           `;
         }
 
