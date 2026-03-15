@@ -40,6 +40,7 @@ const mockEpochController = {
   isValidatorsActivationFetched: vi.fn(),
   getEpochByNumber: vi.fn(),
   isPriorEpochCommitteesReady: vi.fn(),
+  isPriorEpochSlotsProcessed: vi.fn(),
 } as unknown as EpochController;
 
 const mockValidatorsController = {
@@ -116,6 +117,9 @@ function resetMocks() {
   (mockEpochController.isPriorEpochCommitteesReady as ReturnType<typeof vi.fn>).mockResolvedValue(
     true,
   );
+  (mockEpochController.isPriorEpochSlotsProcessed as ReturnType<typeof vi.fn>).mockResolvedValue(
+    true,
+  );
   (mockEpochController.fetchSyncCommittees as ReturnType<typeof vi.fn>).mockResolvedValue(
     undefined,
   );
@@ -163,6 +167,7 @@ function createProcessorMachineDefaultInput(
       slotDuration: SLOT_DURATION,
       slotsPerEpoch: SLOTS_PER_EPOCH,
       lookbackSlot: SLOT_START_INDEXING,
+      maxParallelEpochs: 2,
     },
     services: {
       beaconTime: overrides?.beaconTime || createMockBeaconTime(),
@@ -537,13 +542,15 @@ describe('epochProcessorMachine', () => {
 
         const priorEpochIndex = slotsStates.indexOf('waitingForPriorEpochDependencies');
         const waitingIndex = slotsStates.indexOf('waitingForCommittees');
+        const waitingForSlotsIndex = slotsStates.indexOf('waitingForPriorEpochSlots');
         const runningIndex = slotsStates.indexOf('runningSlotsOrchestrator');
         const updatingIndex = slotsStates.indexOf('updatingSlotsFetched');
         const processedIndex = slotsStates.indexOf('slotsProcessed');
 
         expect(priorEpochIndex).toBeGreaterThanOrEqual(0);
         expect(waitingIndex).toBeGreaterThan(priorEpochIndex);
-        expect(runningIndex).toBeGreaterThan(waitingIndex);
+        expect(waitingForSlotsIndex).toBeGreaterThan(waitingIndex);
+        expect(runningIndex).toBeGreaterThan(waitingForSlotsIndex);
         expect(updatingIndex).toBeGreaterThan(runningIndex);
         expect(processedIndex).toBeGreaterThan(updatingIndex);
 
