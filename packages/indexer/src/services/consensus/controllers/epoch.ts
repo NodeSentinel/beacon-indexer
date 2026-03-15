@@ -311,11 +311,8 @@ export class EpochController extends EpochControllerHelpers {
    *
    * @returns true if all prior unprocessed epochs have committees ready
    */
-  async isPriorEpochCommitteesReady(epoch: number, lookbackEpochs: number): Promise<boolean> {
-    const hasMissing = await this.epochStorage.hasPriorEpochsWithoutCommittees(
-      epoch,
-      lookbackEpochs,
-    );
+  async isPriorEpochCommitteesReady(epoch: number): Promise<boolean> {
+    const hasMissing = await this.epochStorage.hasPriorEpochsWithoutCommittees(epoch);
     return !hasMissing;
   }
 

@@ -203,7 +203,7 @@ export const epochProcessorMachine = setup({
           epoch: number;
         };
       }) => {
-        return input.epochController.isPriorEpochCommitteesReady(input.epoch, MAX_PARALLEL_EPOCHS);
+        return input.epochController.isPriorEpochCommitteesReady(input.epoch);
       },
     ),
     checkPriorEpochSlotsProcessed: fromPromise(
