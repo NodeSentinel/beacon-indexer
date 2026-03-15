@@ -304,6 +304,7 @@ export const epochOrchestratorMachine = setup({
                         slotDuration: context.config.slotDuration,
                         slotsPerEpoch: context.config.slotsPerEpoch,
                         lookbackSlot: context.config.lookbackSlot,
+                        maxParallelEpochs: MAX_PARALLEL_EPOCHS,
                         epochController: context.services.epochController,
                         partitionController: context.services.partitionController,
                         beaconTime: context.services.beaconTime,

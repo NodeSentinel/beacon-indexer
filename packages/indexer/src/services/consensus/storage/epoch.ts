@@ -183,6 +183,23 @@ export class EpochStorage {
   }
 
   /**
+   * Check if any recent epoch before the given epoch has allSlotsProcessed = false.
+   * Only looks back `lookbackEpochs` epochs to avoid scanning the full history.
+   */
+  async hasPriorEpochsWithoutSlotsProcessed(
+    epoch: number,
+    lookbackEpochs: number,
+  ): Promise<boolean> {
+    const count = await this.prisma.epoch.count({
+      where: {
+        epoch: { lt: epoch, gte: epoch - lookbackEpochs },
+        allSlotsProcessed: false,
+      },
+    });
+    return count > 0;
+  }
+
+  /**
    * Check if sync committee for a specific epoch is already fetched
    */
   async isSyncCommitteeForEpochInDB(epoch: number): Promise<{ isFetched: boolean }> {
