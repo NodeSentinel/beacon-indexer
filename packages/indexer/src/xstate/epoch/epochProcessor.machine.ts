@@ -200,9 +200,10 @@ export const epochProcessorMachine = setup({
         input: {
           epochController: EpochController;
           epoch: number;
+          lookbackEpoch: number;
         };
       }) => {
-        return input.epochController.isPriorEpochCommitteesReady(input.epoch);
+        return input.epochController.isPriorEpochCommitteesReady(input.epoch, input.lookbackEpoch);
       },
     ),
     checkPriorEpochSlotsProcessed: fromPromise(
@@ -212,12 +213,14 @@ export const epochProcessorMachine = setup({
         input: {
           epochController: EpochController;
           epoch: number;
-          maxParallelEpochs: number;
+          epochsToCheckAmount: number;
+          lookbackEpoch: number;
         };
       }) => {
         return input.epochController.isPriorEpochSlotsProcessed(
           input.epoch,
-          input.maxParallelEpochs,
+          input.epochsToCheckAmount,
+          input.lookbackEpoch,
         );
       },
     ),
@@ -471,6 +474,9 @@ export const epochProcessorMachine = setup({
                     input: ({ context }) => ({
                       epochController: context.services.epochController,
                       epoch: context.epoch,
+                      lookbackEpoch: context.services.beaconTime.getEpochFromSlot(
+                        context.config.lookbackSlot,
+                      ),
                     }),
                     onDone: [
                       {
@@ -526,7 +532,10 @@ export const epochProcessorMachine = setup({
                     input: ({ context }) => ({
                       epochController: context.services.epochController,
                       epoch: context.epoch,
-                      maxParallelEpochs: context.config.maxParallelEpochs,
+                      epochsToCheckAmount: context.config.maxParallelEpochs - 1,
+                      lookbackEpoch: context.services.beaconTime.getEpochFromSlot(
+                        context.config.lookbackSlot,
+                      ),
                     }),
                     onDone: [
                       {

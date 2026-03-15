@@ -485,8 +485,12 @@ describe('epochProcessorMachine', () => {
           | null;
         expect(slotsState).toBe('runningSlotsOrchestrator');
 
-        // Verify isPriorEpochCommitteesReady was called for epoch 100
-        expect(mockEpochController.isPriorEpochCommitteesReady).toHaveBeenCalledWith(100);
+        // Verify isPriorEpochCommitteesReady was called with the lookbackEpoch derived from lookbackSlot
+        const lookbackEpoch = Math.floor(SLOT_START_INDEXING / SLOTS_PER_EPOCH);
+        expect(mockEpochController.isPriorEpochCommitteesReady).toHaveBeenCalledWith(
+          100,
+          lookbackEpoch,
+        );
 
         actor.stop();
         subscription.unsubscribe();

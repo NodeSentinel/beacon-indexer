@@ -169,12 +169,13 @@ export class EpochStorage {
 
   /**
    * Check if any unprocessed epoch before the given epoch has committeesFetched = false.
+   * Only checks epochs >= lookbackEpoch to avoid blocking on epochs before the indexing start point.
    * Returns true if there are prior epochs missing committees data.
    */
-  async hasPriorEpochsWithoutCommittees(epoch: number): Promise<boolean> {
+  async hasPriorEpochsWithoutCommittees(epoch: number, lookbackEpoch: number): Promise<boolean> {
     const count = await this.prisma.epoch.count({
       where: {
-        epoch: { lt: epoch },
+        epoch: { lt: epoch, gte: lookbackEpoch },
         processed: false,
         committeesFetched: false,
       },
@@ -184,15 +185,17 @@ export class EpochStorage {
 
   /**
    * Check if any recent epoch before the given epoch has allSlotsProcessed = false.
-   * Only looks back `lookbackEpochs` epochs to avoid scanning the full history.
+   * Only looks back `epochsToCheckAmount` epochs, clamped to `lookbackEpoch` to avoid
+   * blocking on epochs before the indexing start point.
    */
   async hasPriorEpochsWithoutSlotsProcessed(
     epoch: number,
-    lookbackEpochs: number,
+    epochsToCheckAmount: number,
+    lookbackEpoch: number,
   ): Promise<boolean> {
     const count = await this.prisma.epoch.count({
       where: {
-        epoch: { lt: epoch, gte: epoch - lookbackEpochs },
+        epoch: { lt: epoch, gte: Math.max(epoch - epochsToCheckAmount, lookbackEpoch) },
         allSlotsProcessed: false,
       },
     });
