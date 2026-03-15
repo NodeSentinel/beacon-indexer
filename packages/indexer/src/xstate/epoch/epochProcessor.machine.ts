@@ -25,6 +25,7 @@ export const epochProcessorMachine = setup({
         slotDuration: number;
         slotsPerEpoch: number;
         lookbackSlot: number;
+        maxParallelEpochs: number;
       };
       // Services
       services: {
@@ -55,6 +56,7 @@ export const epochProcessorMachine = setup({
         slotDuration: number;
         slotsPerEpoch: number;
         lookbackSlot: number;
+        maxParallelEpochs: number;
       };
       services: {
         beaconTime: BeaconTime;
@@ -203,6 +205,22 @@ export const epochProcessorMachine = setup({
         return input.epochController.isPriorEpochCommitteesReady(input.epoch);
       },
     ),
+    checkPriorEpochSlotsProcessed: fromPromise(
+      async ({
+        input,
+      }: {
+        input: {
+          epochController: EpochController;
+          epoch: number;
+          maxParallelEpochs: number;
+        };
+      }) => {
+        return input.epochController.isPriorEpochSlotsProcessed(
+          input.epoch,
+          input.maxParallelEpochs,
+        );
+      },
+    ),
     slotOrchestratorMachine,
   },
   guards: {
@@ -223,6 +241,9 @@ export const epochProcessorMachine = setup({
       return context.services.beaconTime.hasEpochEnded(context.epoch);
     },
     isPriorEpochCommitteesReady: ({ event }): boolean => {
+      return 'output' in event && event.output === true;
+    },
+    isPriorEpochSlotsProcessed: ({ event }): boolean => {
       return 'output' in event && event.output === true;
     },
     canFetchRewards: ({ context }): boolean => {
@@ -485,13 +506,51 @@ export const epochProcessorMachine = setup({
                   after: {
                     0: {
                       guard: 'areCommitteesFetched',
-                      target: 'runningSlotsOrchestrator',
+                      target: 'waitingForPriorEpochSlots',
                     },
                   },
                   on: {
                     COMMITTEES_FETCHED: {
-                      target: 'runningSlotsOrchestrator',
+                      target: 'waitingForPriorEpochSlots',
                     },
+                  },
+                },
+                waitingForPriorEpochSlots: {
+                  entry: pinoLog(
+                    ({ context }) =>
+                      `Waiting for prior epoch slots to be processed before processing epoch ${context.epoch}`,
+                    'EpochProcessor:slotsProcessing',
+                  ),
+                  invoke: {
+                    src: 'checkPriorEpochSlotsProcessed',
+                    input: ({ context }) => ({
+                      epochController: context.services.epochController,
+                      epoch: context.epoch,
+                      maxParallelEpochs: context.config.maxParallelEpochs,
+                    }),
+                    onDone: [
+                      {
+                        guard: 'isPriorEpochSlotsProcessed',
+                        target: 'runningSlotsOrchestrator',
+                      },
+                      {
+                        target: 'retryingPriorEpochSlots',
+                      },
+                    ],
+                    onError: {
+                      target: 'retryingPriorEpochSlots',
+                      actions: pinoLog(
+                        ({ context, event }) =>
+                          `error checking prior epoch slots for epoch ${context.epoch}: ${event.error}`,
+                        'EpochProcessor:slotsProcessing',
+                        'error',
+                      ),
+                    },
+                  },
+                },
+                retryingPriorEpochSlots: {
+                  after: {
+                    slotDurationHalf: 'waitingForPriorEpochSlots',
                   },
                 },
                 runningSlotsOrchestrator: {

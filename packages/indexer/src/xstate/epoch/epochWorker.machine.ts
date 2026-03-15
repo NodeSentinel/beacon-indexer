@@ -29,6 +29,7 @@ export const epochWorkerMachine = setup({
       slotDuration: number;
       slotsPerEpoch: number;
       lookbackSlot: number;
+      maxParallelEpochs: number;
       epochController: EpochController;
       partitionController: PartitionController;
       beaconTime: BeaconTime;
@@ -41,6 +42,7 @@ export const epochWorkerMachine = setup({
       slotDuration: number;
       slotsPerEpoch: number;
       lookbackSlot: number;
+      maxParallelEpochs: number;
       epochController: EpochController;
       partitionController: PartitionController;
       beaconTime: BeaconTime;
@@ -66,6 +68,7 @@ export const epochWorkerMachine = setup({
     slotDuration: input.slotDuration,
     slotsPerEpoch: input.slotsPerEpoch,
     lookbackSlot: input.lookbackSlot,
+    maxParallelEpochs: input.maxParallelEpochs,
     epochController: input.epochController,
     partitionController: input.partitionController,
     beaconTime: input.beaconTime,
@@ -117,6 +120,7 @@ export const epochWorkerMachine = setup({
                   slotDuration: context.slotDuration,
                   slotsPerEpoch: context.slotsPerEpoch,
                   lookbackSlot: context.lookbackSlot,
+                  maxParallelEpochs: context.maxParallelEpochs,
                 },
                 services: {
                   beaconTime: context.beaconTime,

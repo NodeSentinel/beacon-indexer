@@ -315,4 +315,12 @@ export class EpochController extends EpochControllerHelpers {
     const hasMissing = await this.epochStorage.hasPriorEpochsWithoutCommittees(epoch);
     return !hasMissing;
   }
+
+  async isPriorEpochSlotsProcessed(epoch: number, lookbackEpochs: number): Promise<boolean> {
+    const hasMissing = await this.epochStorage.hasPriorEpochsWithoutSlotsProcessed(
+      epoch,
+      lookbackEpochs,
+    );
+    return !hasMissing;
+  }
 }
