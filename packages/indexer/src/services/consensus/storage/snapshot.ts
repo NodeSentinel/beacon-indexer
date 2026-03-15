@@ -235,7 +235,7 @@ export class SnapshotStorage {
           SELECT
             a.validator_index,
             CASE WHEN a.total > 0
-              THEN ((a.total - a.missed)::numeric / a.total)::numeric(5,4)
+              THEN ((a.total - a.missed)::numeric / a.total)::numeric
               ELSE NULL
             END AS performance_h,
             COALESCE(a.missed_slots, '{}') AS missed_attestation_slots_h,
@@ -244,7 +244,7 @@ export class SnapshotStorage {
             r.missed_reward,
             e.execution_reward,
             CASE WHEN v.balance > 0 AND (r.epoch_reward IS NOT NULL OR sr.sync_reward IS NOT NULL OR br.block_reward IS NOT NULL)
-              THEN ((COALESCE(r.epoch_reward, 0) + COALESCE(sr.sync_reward, 0) + COALESCE(br.block_reward, 0))::numeric / v.balance * 8766 * 100)::numeric(5,2)
+              THEN ((COALESCE(r.epoch_reward, 0) + COALESCE(sr.sync_reward, 0) + COALESCE(br.block_reward, 0))::numeric / v.balance * 8766 * 100)::numeric
               ELSE NULL
             END AS apy_h
           FROM att a
@@ -488,14 +488,14 @@ export class SnapshotStorage {
           SELECT
             c.validator_index,
             CASE WHEN c.att_count > 0
-              THEN ((c.att_count - c.missed_att_count)::numeric / c.att_count)::numeric(5,4)
+              THEN ((c.att_count - c.missed_att_count)::numeric / c.att_count)::numeric
               ELSE NULL
             END AS performance_d,
             c.consensus_reward,
             c.missed_reward,
             c.execution_reward,
             CASE WHEN v.balance > 0 AND c.consensus_reward IS NOT NULL AND th.n > 0
-              THEN (c.consensus_reward::numeric / v.balance * (8766.0 / th.n) * 100)::numeric(5,2)
+              THEN (c.consensus_reward::numeric / v.balance * (8766.0 / th.n) * 100)::numeric
               ELSE NULL
             END AS apy_d,
             c.avg_att_delay,
@@ -565,14 +565,14 @@ export class SnapshotStorage {
           SELECT
             ad.validator_index,
             CASE WHEN ad.att_count > 0
-              THEN ((ad.att_count - ad.missed_att_count)::numeric / ad.att_count)::numeric(5,4)
+              THEN ((ad.att_count - ad.missed_att_count)::numeric / ad.att_count)::numeric
               ELSE NULL
             END AS performance_w,
             ad.consensus_reward,
             ad.missed_reward,
             ad.execution_reward,
             CASE WHEN v.balance > 0 AND ad.consensus_reward IS NOT NULL AND dc.n > 0
-              THEN (ad.consensus_reward::numeric / v.balance * (365.25 / dc.n) * 100)::numeric(5,2)
+              THEN (ad.consensus_reward::numeric / v.balance * (365.25 / dc.n) * 100)::numeric
               ELSE NULL
             END AS apy_w,
             ad.avg_att_delay,
@@ -641,14 +641,14 @@ export class SnapshotStorage {
           SELECT
             ad.validator_index,
             CASE WHEN ad.att_count > 0
-              THEN ((ad.att_count - ad.missed_att_count)::numeric / ad.att_count)::numeric(5,4)
+              THEN ((ad.att_count - ad.missed_att_count)::numeric / ad.att_count)::numeric
               ELSE NULL
             END AS performance_m,
             ad.consensus_reward,
             ad.missed_reward,
             ad.execution_reward,
             CASE WHEN v.balance > 0 AND ad.consensus_reward IS NOT NULL AND dc.n > 0
-              THEN (ad.consensus_reward::numeric / v.balance * (365.25 / dc.n) * 100)::numeric(5,2)
+              THEN (ad.consensus_reward::numeric / v.balance * (365.25 / dc.n) * 100)::numeric
               ELSE NULL
             END AS apy_m,
             ad.avg_att_delay,

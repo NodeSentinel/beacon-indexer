@@ -395,16 +395,16 @@ model ValidatorsSnapshotStats {
   missedAttestationCountH Int   @default(0)  @map("missed_attestation_count_h")
 
   // Performance per timeframe (ratio 0.0000 - 1.0000)
-  performanceH Decimal? @map("performance_h") @db.Decimal(5, 4)
-  performanceD Decimal? @map("performance_d") @db.Decimal(5, 4)
-  performanceW Decimal? @map("performance_w") @db.Decimal(5, 4)
-  performanceM Decimal? @map("performance_m") @db.Decimal(5, 4)
+  performanceH Decimal? @map("performance_h")
+  performanceD Decimal? @map("performance_d")
+  performanceW Decimal? @map("performance_w")
+  performanceM Decimal? @map("performance_m")
 
   // APY per timeframe
-  apyH Decimal? @map("apy_h") @db.Decimal(5, 2)
-  apyD Decimal? @map("apy_d") @db.Decimal(5, 2)
-  apyW Decimal? @map("apy_w") @db.Decimal(5, 2)
-  apyM Decimal? @map("apy_m") @db.Decimal(5, 2)
+  apyH Decimal? @map("apy_h")
+  apyD Decimal? @map("apy_d")
+  apyW Decimal? @map("apy_w")
+  apyM Decimal? @map("apy_m")
 
   // Consensus rewards per timeframe
   consensusRewardH BigInt? @map("consensus_reward_h")
