@@ -11,6 +11,7 @@ import {
 import { EpochController } from '@/src/services/consensus/controllers/epoch.js';
 import { SlotController } from '@/src/services/consensus/controllers/slot.js';
 import { ValidatorsController } from '@/src/services/consensus/controllers/validators.js';
+import { MAX_PARALLEL_EPOCHS } from '@/src/xstate/epoch/epochOrchestrator.machine.js';
 import { epochProcessorMachine } from '@/src/xstate/epoch/epochProcessor.machine.js';
 
 // ============================================================================
@@ -167,7 +168,7 @@ function createProcessorMachineDefaultInput(
       slotDuration: SLOT_DURATION,
       slotsPerEpoch: SLOTS_PER_EPOCH,
       lookbackSlot: SLOT_START_INDEXING,
-      maxParallelEpochs: 2,
+      maxParallelEpochs: MAX_PARALLEL_EPOCHS,
     },
     services: {
       beaconTime: overrides?.beaconTime || createMockBeaconTime(),
