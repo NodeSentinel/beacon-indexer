@@ -74,10 +74,10 @@ export class ClusterStorage {
         cluster_fee_recipient_address: string | null;
         cluster_owner_id: bigint;
         cluster_created_at: Date;
-        validator_index: number;
+        validator_index: number | null;
         withdrawal_address: string | null;
         beacon_status: number | null;
-        balance: bigint;
+        balance: bigint | null;
         effective_balance: bigint | null;
         pubkey: string | null;
         is_inactive: boolean | null;
@@ -102,8 +102,8 @@ export class ClusterStorage {
         vss.performance_h::text AS performance_h,
         vss.attestations_missed
       FROM cluster c
-      JOIN cluster_validator cv ON cv.cluster_id = c.id
-      JOIN validator v ON v.id = cv.validator_index
+      LEFT JOIN cluster_validator cv ON cv.cluster_id = c.id
+      LEFT JOIN validator v ON v.id = cv.validator_index
       LEFT JOIN validators_snapshot_stats vss ON vss.validator_index = cv.validator_index
       WHERE c.id = ${id}
     `;
@@ -118,17 +118,19 @@ export class ClusterStorage {
       feeRecipientAddress: first.cluster_fee_recipient_address,
       ownerId: first.cluster_owner_id,
       createdAt: first.cluster_created_at,
-      validators: rows.map((r) => ({
-        validatorIndex: r.validator_index,
-        withdrawalAddress: r.withdrawal_address,
-        beaconStatus: r.beacon_status,
-        balance: r.balance,
-        effectiveBalance: r.effective_balance,
-        pubkey: r.pubkey,
-        isInactive: r.is_inactive ?? false,
-        performanceH: r.performance_h !== null ? Number(r.performance_h) : null,
-        attestationsMissed: r.attestations_missed !== null ? Number(r.attestations_missed) : null,
-      })),
+      validators: rows
+        .filter((r) => r.validator_index !== null)
+        .map((r) => ({
+          validatorIndex: r.validator_index!,
+          withdrawalAddress: r.withdrawal_address,
+          beaconStatus: r.beacon_status,
+          balance: r.balance!,
+          effectiveBalance: r.effective_balance,
+          pubkey: r.pubkey,
+          isInactive: r.is_inactive ?? false,
+          performanceH: r.performance_h !== null ? Number(r.performance_h) : null,
+          attestationsMissed: r.attestations_missed !== null ? Number(r.attestations_missed) : null,
+        })),
     };
   }
 
