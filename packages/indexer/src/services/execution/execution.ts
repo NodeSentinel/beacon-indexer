@@ -54,7 +54,7 @@ export class ExecutionClient {
     this.axiosInstance.interceptors.response.use(logResponse, logError);
   }
 
-  async getBlock(blockNumber: number): Promise<BlockResponse | null> {
+  async getBlock(blockNumber: number, slotTimestamp: Date): Promise<BlockResponse | null> {
     return this.limiter(async () => {
       // Define endpoints
       const endpoints = [
@@ -65,6 +65,16 @@ export class ExecutionClient {
           name: 'Etherscan',
           process: (response: AxiosResponse<Etherscan_BlockReward>) => {
             const blockInfo = response.data;
+
+            // No reward data available for this block
+            if (blockInfo.status === '0') {
+              return {
+                address: '',
+                timestamp: slotTimestamp,
+                amount: '0',
+                blockNumber,
+              };
+            }
 
             // Check if API call was successful
             if (blockInfo.status !== '1' || blockInfo.message !== 'OK') {
@@ -96,7 +106,17 @@ export class ExecutionClient {
             const blockInfo = response.data;
             const minerReward = blockInfo.rewards.find((r) => r.type === 'Miner Reward');
 
-            if (!blockInfo.miner || !blockInfo.miner.hash || !minerReward) {
+            // No reward data available for this block
+            if (!minerReward || blockInfo.rewards.length === 0) {
+              return {
+                address: blockInfo.miner?.hash ?? '',
+                timestamp: new Date(blockInfo.timestamp),
+                amount: '0',
+                blockNumber: blockInfo.height,
+              };
+            }
+
+            if (!blockInfo.miner || !blockInfo.miner.hash) {
               throw new Error(`Unexpected block response: ${JSON.stringify(blockInfo)}`);
             }
 
