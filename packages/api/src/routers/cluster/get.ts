@@ -26,6 +26,11 @@ export const getCluster = publicProcedure
         };
       }
 
+      // Fetch snapshot stats to get isInactive for each validator
+      const validatorIndices = cluster.validators.map((v) => v.validatorIndex);
+      const snapshotStats = await storage.getSnapshotStatsByValidators(validatorIndices);
+      const inactiveMap = new Map(snapshotStats.map((s) => [s.validatorIndex, s.isInactive]));
+
       // Extract unique withdrawal addresses from the included validator data
       const withdrawalAddresses = Array.from(
         new Set(
@@ -59,6 +64,7 @@ export const getCluster = publicProcedure
             validatorIndex: cv.validatorIndex,
             withdrawalAddress: cv.validator.withdrawalAddress,
             status: cv.validator.status,
+            isInactive: inactiveMap.get(cv.validatorIndex) ?? false,
             balance: formatBalance(cv.validator.balance),
             effectiveBalance: cv.validator.effectiveBalance
               ? formatBalance(cv.validator.effectiveBalance)

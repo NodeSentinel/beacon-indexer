@@ -63,6 +63,17 @@ export class ClusterStorage {
   }
 
   /**
+   * Get snapshot stats (isInactive) for a list of validator indices
+   */
+  async getSnapshotStatsByValidators(validatorIndices: number[]) {
+    if (validatorIndices.length === 0) return [];
+    return this.prisma.validatorsSnapshotStats.findMany({
+      where: { validatorIndex: { in: validatorIndices } },
+      select: { validatorIndex: true, isInactive: true },
+    });
+  }
+
+  /**
    * Get unique withdrawal addresses from validators in a cluster
    * Uses distinct query for optimal performance
    */

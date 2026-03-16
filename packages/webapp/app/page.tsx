@@ -94,18 +94,24 @@ export default function DashboardOverview() {
       withdrawalAddresses: clusterDetail.withdrawalAddresses,
       feeRecipientAddress: clusterDetail.feeRecipientAddress,
       validatorIndices: clusterDetail.validators.map((v) => v.validatorIndex),
-      validators: clusterDetail.validators.map((v) => ({
-        id: v.validatorIndex.toString(),
-        index: v.validatorIndex,
-        pubkey: v.pubkey || '',
-        status: v.status !== null ? BEACON_STATUS_MAP[v.status] || 'inactive' : 'inactive',
-        balance: parseFloat(v.balance),
-        effectiveBalance: v.effectiveBalance ? parseFloat(v.effectiveBalance) : 0,
-        performance: 0, // TODO: fetch from performance API
-        missedAttestations: 0,
-        groupId: clusterDetail.id,
-        clusterId: clusterDetail.id,
-      })),
+      validators: clusterDetail.validators.map((v) => {
+        const beaconStatus =
+          v.status !== null ? BEACON_STATUS_MAP[v.status] || 'inactive' : 'inactive';
+        // Override active beacon status with inactive when the monitor detects the validator is down
+        const status = v.isInactive && beaconStatus === 'active' ? 'inactive' : beaconStatus;
+        return {
+          id: v.validatorIndex.toString(),
+          index: v.validatorIndex,
+          pubkey: v.pubkey || '',
+          status,
+          balance: parseFloat(v.balance),
+          effectiveBalance: v.effectiveBalance ? parseFloat(v.effectiveBalance) : 0,
+          performance: 0, // TODO: fetch from performance API
+          missedAttestations: 0,
+          groupId: clusterDetail.id,
+          clusterId: clusterDetail.id,
+        };
+      }),
       validatorCount: clusterDetail.validators.length,
       totalBalance: parseFloat(clusterDetail.totalBalance),
       totalEffectiveBalance: parseFloat(clusterDetail.totalEffectiveBalance),
