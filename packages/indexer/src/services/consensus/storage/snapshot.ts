@@ -112,18 +112,19 @@ export class SnapshotStorage {
 
         snapshot_data AS (
           SELECT
-            h.validator_index,
+            uvs.validator_index,
             CASE WHEN COALESCE(i.is_inactive, false) THEN 'inactive' ELSE 'active' END AS status,
             COALESCE(i.is_inactive, false) AS is_inactive,
             COALESCE(i.consecutive_missed, 0)::int AS consecutive_missed_attestations,
-            h.attestations_total,
-            h.attestations_missed,
+            COALESCE(h.attestations_total, 0) AS attestations_total,
+            COALESCE(h.attestations_missed, 0) AS attestations_missed,
             v.status AS beacon_status,
             v.balance,
             COALESCE(v.effective_balance, 0) AS effective_balance
-          FROM hourly h
-          LEFT JOIN inactivity i USING (validator_index)
-          JOIN validator v ON v.id = h.validator_index
+          FROM user_validators uvs
+          LEFT JOIN hourly h ON uvs.validator_index = h.validator_index
+          LEFT JOIN inactivity i ON uvs.validator_index = i.validator_index
+          JOIN validator v ON v.id = uvs.validator_index
         )
 
       UPDATE validators_snapshot_stats vss
@@ -233,8 +234,8 @@ export class SnapshotStorage {
         ),
         perf AS (
           SELECT
-            a.validator_index,
-            CASE WHEN a.total > 0
+            uv.validator_index,
+            CASE WHEN COALESCE(a.total, 0) > 0
               THEN ((a.total - a.missed)::numeric / a.total)::numeric
               ELSE NULL
             END AS performance_h,
@@ -247,12 +248,13 @@ export class SnapshotStorage {
               THEN ((COALESCE(r.epoch_reward, 0) + COALESCE(sr.sync_reward, 0) + COALESCE(br.block_reward, 0))::numeric / v.balance * 8766 * 100)::numeric
               ELSE NULL
             END AS apy_h
-          FROM att a
-          LEFT JOIN rew r ON a.validator_index = r.validator_index
-          LEFT JOIN sync_rew sr ON a.validator_index = sr.validator_index
-          LEFT JOIN block_rew br ON a.validator_index = br.validator_index
-          LEFT JOIN exec_rew e ON a.validator_index = e.validator_index
-          JOIN validator v ON v.id = a.validator_index
+          FROM user_validators uv
+          LEFT JOIN att a ON uv.validator_index = a.validator_index
+          LEFT JOIN rew r ON uv.validator_index = r.validator_index
+          LEFT JOIN sync_rew sr ON uv.validator_index = sr.validator_index
+          LEFT JOIN block_rew br ON uv.validator_index = br.validator_index
+          LEFT JOIN exec_rew e ON uv.validator_index = e.validator_index
+          JOIN validator v ON v.id = uv.validator_index
         )
       UPDATE validators_snapshot_stats vss
       SET
@@ -486,8 +488,8 @@ export class SnapshotStorage {
 
         perf AS (
           SELECT
-            c.validator_index,
-            CASE WHEN c.att_count > 0
+            tv.validator_index,
+            CASE WHEN COALESCE(c.att_count, 0) > 0
               THEN ((c.att_count - c.missed_att_count)::numeric / c.att_count)::numeric
               ELSE NULL
             END AS performance_d,
@@ -500,8 +502,9 @@ export class SnapshotStorage {
             END AS apy_d,
             c.avg_att_delay,
             c.att_efficiency
-          FROM combined c
-          JOIN validator v ON v.id = c.validator_index
+          FROM target_validators tv
+          LEFT JOIN combined c ON tv.validator_index = c.validator_index
+          JOIN validator v ON v.id = tv.validator_index
           CROSS JOIN total_hours th
         )
 
@@ -563,8 +566,8 @@ export class SnapshotStorage {
         ),
         perf AS (
           SELECT
-            ad.validator_index,
-            CASE WHEN ad.att_count > 0
+            tv.validator_index,
+            CASE WHEN COALESCE(ad.att_count, 0) > 0
               THEN ((ad.att_count - ad.missed_att_count)::numeric / ad.att_count)::numeric
               ELSE NULL
             END AS performance_w,
@@ -577,8 +580,9 @@ export class SnapshotStorage {
             END AS apy_w,
             ad.avg_att_delay,
             ad.att_efficiency
-          FROM archive_data ad
-          JOIN validator v ON v.id = ad.validator_index
+          FROM target_validators tv
+          LEFT JOIN archive_data ad ON tv.validator_index = ad.validator_index
+          JOIN validator v ON v.id = tv.validator_index
           CROSS JOIN day_count dc
         )
       UPDATE validators_snapshot_stats vss
@@ -639,8 +643,8 @@ export class SnapshotStorage {
         ),
         perf AS (
           SELECT
-            ad.validator_index,
-            CASE WHEN ad.att_count > 0
+            tv.validator_index,
+            CASE WHEN COALESCE(ad.att_count, 0) > 0
               THEN ((ad.att_count - ad.missed_att_count)::numeric / ad.att_count)::numeric
               ELSE NULL
             END AS performance_m,
@@ -653,8 +657,9 @@ export class SnapshotStorage {
             END AS apy_m,
             ad.avg_att_delay,
             ad.att_efficiency
-          FROM archive_data ad
-          JOIN validator v ON v.id = ad.validator_index
+          FROM target_validators tv
+          LEFT JOIN archive_data ad ON tv.validator_index = ad.validator_index
+          JOIN validator v ON v.id = tv.validator_index
           CROSS JOIN day_count dc
         )
       UPDATE validators_snapshot_stats vss
