@@ -171,7 +171,8 @@ export class SlotController extends SlotControllerHelpers {
       return;
     }
 
-    const blockInfo = await this.executionClient.getBlock(blockNumber);
+    const slotTimestamp = new Date(this.beaconTime.getTimestampFromSlotNumber(slot));
+    const blockInfo = await this.executionClient.getBlock(blockNumber, slotTimestamp);
     if (!blockInfo) {
       throw new Error(`Block ${blockNumber} not found`);
     }
