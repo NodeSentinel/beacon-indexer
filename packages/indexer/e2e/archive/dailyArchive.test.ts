@@ -316,6 +316,500 @@ describe('Daily Archive Process', () => {
   });
 
   /**
+   * JSON CONCATENATION: Multiple elements per hourly array.
+   *
+   * Each hourly partition has multiple slot tuples and epoch tuples (not just one).
+   * The daily archive must concatenate all elements across hours into a single flat
+   * array, preserving chronological order.
+   *
+   * Setup (3 hours with multi-element arrays + 21 filler hours for the full day):
+   *   Hour 0: validator has 3 slot tuples and 2 epoch tuples
+   *   Hour 1: validator has 2 slot tuples and 1 epoch tuple
+   *   Hour 2: validator has 1 slot tuple and 3 epoch tuples
+   *   Hours 3–23: 1 slot tuple and 1 epoch tuple each (via createHourlyPartitionsForRange)
+   *
+   * After archiving:
+   *   - data_by_slot has 3+2+1+21 = 27 elements, all in slot-ascending order
+   *   - data_by_epoch has 2+1+3+21 = 27 elements, all in epoch-ascending order
+   */
+  it('should correctly concatenate multi-element JSON arrays across hours', async () => {
+    const VALIDATOR_MULTI = 300;
+
+    // Hours 0–2: custom multi-element data
+    const hour0 = new Date('2025-12-16T00:00:00.000Z');
+    const hour1 = new Date('2025-12-16T01:00:00.000Z');
+    const hour2 = new Date('2025-12-16T02:00:00.000Z');
+
+    // Hour 0: 3 slot tuples, 2 epoch tuples
+    await createHourlyPartition(hour0, [
+      {
+        validatorIndex: VALIDATOR_MULTI,
+        dataBySlot: [
+          [100, 0, '50'],
+          [101, 1, '60'],
+          [102, 0, '70'],
+        ],
+        dataByEpoch: [
+          [10, '1', '2', '3', '4', '0', '0', '0', '0'],
+          [11, '5', '6', '7', '8', '0', '0', '0', '0'],
+        ],
+        attestationCount: 3,
+        syncRewardTotal: BigInt(180),
+        clRewardTotal: BigInt(36), // (1+2+3+4)+(5+6+7+8)
+        clMissedRewardTotal: BigInt(0),
+      },
+    ]);
+
+    // Hour 1: 2 slot tuples, 1 epoch tuple
+    await createHourlyPartition(hour1, [
+      {
+        validatorIndex: VALIDATOR_MULTI,
+        dataBySlot: [
+          [200, 0, '80'],
+          [201, 2, '90'],
+        ],
+        dataByEpoch: [[12, '10', '20', '30', '40', '0', '0', '0', '0']],
+        attestationCount: 2,
+        syncRewardTotal: BigInt(170),
+        clRewardTotal: BigInt(100),
+        clMissedRewardTotal: BigInt(0),
+      },
+    ]);
+
+    // Hour 2: 1 slot tuple, 3 epoch tuples
+    await createHourlyPartition(hour2, [
+      {
+        validatorIndex: VALIDATOR_MULTI,
+        dataBySlot: [[300, 0, '100']],
+        dataByEpoch: [
+          [13, '1', '1', '1', '1', '0', '0', '0', '0'],
+          [14, '2', '2', '2', '2', '0', '0', '0', '0'],
+          [15, '3', '3', '3', '3', '0', '0', '0', '0'],
+        ],
+        attestationCount: 1,
+        syncRewardTotal: BigInt(100),
+        clRewardTotal: BigInt(24), // 3×(1+1+1+1) + (2+2+2+2) + ... = 4+8+12
+        clMissedRewardTotal: BigInt(0),
+      },
+    ]);
+
+    // Hours 3–23: filler hours with single-element arrays
+    for (let h = 3; h < 24; h++) {
+      const hour = new Date(TEST_DAY_START.getTime() + h * 3600 * 1000);
+      const slot = 400 + h * 10;
+      const epoch = 20 + h;
+      await createHourlyPartition(hour, [
+        {
+          validatorIndex: VALIDATOR_MULTI,
+          dataBySlot: [[slot, 0, '10']],
+          dataByEpoch: [[epoch, '1', '1', '1', '1', '0', '0', '0', '0']],
+          attestationCount: 1,
+          syncRewardTotal: BigInt(10),
+          clRewardTotal: BigInt(4),
+          clMissedRewardTotal: BigInt(0),
+        },
+      ]);
+    }
+
+    // Retention: 25 hours (Dec 17 00:00–Dec 18 00:00)
+    const retentionStart = new Date('2025-12-17T00:00:00.000Z');
+    for (let h = 0; h < 25; h++) {
+      const hour = new Date(retentionStart.getTime() + h * 3600 * 1000);
+      await createHourlyPartition(hour, [
+        {
+          validatorIndex: VALIDATOR_MULTI,
+          dataBySlot: [[9000 + h, 0, '1']],
+          dataByEpoch: [[900 + h, '1', '1', '1', '1', '0', '0', '0', '0']],
+          attestationCount: 1,
+          syncRewardTotal: BigInt(1),
+          clRewardTotal: BigInt(4),
+          clMissedRewardTotal: BigInt(0),
+        },
+      ]);
+    }
+
+    // Set lastHour to Dec 18 00:00 (satisfies retention rule)
+    await prisma.archive.update({
+      where: { id: 1 },
+      data: { lastHour: new Date('2025-12-18T00:00:00.000Z') },
+    });
+
+    // Execute daily archive
+    const archivedDay = await dailyArchiveController.archive();
+    expect(archivedDay).not.toBeNull();
+
+    const dailyData = await prisma.validatorDailyArchive.findMany({
+      where: { timestamp: TEST_DAY_START },
+    });
+    expect(dailyData).toHaveLength(1);
+
+    const v = dailyData[0];
+
+    // data_by_slot: 3 + 2 + 1 + 21×1 = 27 elements
+    const slots = v.dataBySlot as Array<(number | string)[]>;
+    expect(slots).toHaveLength(27);
+
+    // Verify all elements are in ascending slot order
+    for (let i = 1; i < slots.length; i++) {
+      expect(slots[i][0] as number).toBeGreaterThan(slots[i - 1][0] as number);
+    }
+
+    // Verify first elements come from hour 0 (slots 100, 101, 102)
+    expect(slots[0][0]).toBe(100);
+    expect(slots[1][0]).toBe(101);
+    expect(slots[2][0]).toBe(102);
+
+    // Verify hour 1 elements follow (slots 200, 201)
+    expect(slots[3][0]).toBe(200);
+    expect(slots[4][0]).toBe(201);
+
+    // data_by_epoch: 2 + 1 + 3 + 21×1 = 27 elements
+    const epochs = v.dataByEpoch as Array<(number | string)[]>;
+    expect(epochs).toHaveLength(27);
+
+    // Verify all elements are in ascending epoch order
+    for (let i = 1; i < epochs.length; i++) {
+      expect(epochs[i][0] as number).toBeGreaterThan(epochs[i - 1][0] as number);
+    }
+
+    // Verify scalar aggregation is correct
+    // attestation_count: 3 + 2 + 1 + 21×1 = 27
+    expect(v.attestationCount).toBe(27);
+    // sync_reward_total: 180 + 170 + 100 + 21×10 = 660
+    expect(v.syncRewardTotal).toBe(BigInt(660));
+  });
+
+  /**
+   * JSON CONCATENATION: Empty arrays mixed with non-empty arrays.
+   *
+   * Some hours have empty data_by_slot ([]) while having non-empty data_by_epoch,
+   * and vice versa. The string_agg concatenation must handle empty arrays by
+   * excluding them (the CASE WHEN jsonb_array_length > 0 guard).
+   *
+   * Setup (3 custom hours + 21 filler hours):
+   *   Hour 0: data_by_slot = [[100, 0]], data_by_epoch = []     (slots only)
+   *   Hour 1: data_by_slot = [],         data_by_epoch = [[10, ...]]  (epochs only)
+   *   Hour 2: data_by_slot = [],         data_by_epoch = []     (both empty)
+   *   Hours 3–23: both non-empty (single element each)
+   *
+   * After archiving:
+   *   - data_by_slot: 1 + 0 + 0 + 21 = 22 elements
+   *   - data_by_epoch: 0 + 1 + 0 + 21 = 22 elements
+   *   - Neither array should contain invalid JSON from empty-array concatenation
+   */
+  it('should handle empty JSON arrays mixed with non-empty arrays', async () => {
+    const VALIDATOR_EMPTY = 400;
+
+    // Hour 0: slots only, no epoch data
+    await createHourlyPartition(new Date('2025-12-16T00:00:00.000Z'), [
+      {
+        validatorIndex: VALIDATOR_EMPTY,
+        dataBySlot: [[100, 0, '50']],
+        dataByEpoch: [],
+        attestationCount: 1,
+        syncRewardTotal: BigInt(50),
+        clRewardTotal: BigInt(0),
+        clMissedRewardTotal: BigInt(0),
+      },
+    ]);
+
+    // Hour 1: epochs only, no slot data
+    await createHourlyPartition(new Date('2025-12-16T01:00:00.000Z'), [
+      {
+        validatorIndex: VALIDATOR_EMPTY,
+        dataBySlot: [],
+        dataByEpoch: [[10, '5', '5', '5', '5', '0', '0', '0', '0']],
+        attestationCount: 0,
+        syncRewardTotal: BigInt(0),
+        clRewardTotal: BigInt(20),
+        clMissedRewardTotal: BigInt(0),
+      },
+    ]);
+
+    // Hour 2: both empty
+    await createHourlyPartition(new Date('2025-12-16T02:00:00.000Z'), [
+      {
+        validatorIndex: VALIDATOR_EMPTY,
+        dataBySlot: [],
+        dataByEpoch: [],
+        attestationCount: 0,
+        syncRewardTotal: BigInt(0),
+        clRewardTotal: BigInt(0),
+        clMissedRewardTotal: BigInt(0),
+      },
+    ]);
+
+    // Hours 3–23: both non-empty
+    for (let h = 3; h < 24; h++) {
+      const hour = new Date(TEST_DAY_START.getTime() + h * 3600 * 1000);
+      await createHourlyPartition(hour, [
+        {
+          validatorIndex: VALIDATOR_EMPTY,
+          dataBySlot: [[200 + h, 0, '10']],
+          dataByEpoch: [[20 + h, '1', '1', '1', '1', '0', '0', '0', '0']],
+          attestationCount: 1,
+          syncRewardTotal: BigInt(10),
+          clRewardTotal: BigInt(4),
+          clMissedRewardTotal: BigInt(0),
+        },
+      ]);
+    }
+
+    // Retention hours
+    for (let h = 0; h < 25; h++) {
+      const hour = new Date(new Date('2025-12-17T00:00:00.000Z').getTime() + h * 3600 * 1000);
+      await createHourlyPartition(hour, [
+        {
+          validatorIndex: VALIDATOR_EMPTY,
+          dataBySlot: [[9000 + h, 0, '1']],
+          dataByEpoch: [[900 + h, '1', '1', '1', '1', '0', '0', '0', '0']],
+          attestationCount: 1,
+          syncRewardTotal: BigInt(1),
+          clRewardTotal: BigInt(4),
+          clMissedRewardTotal: BigInt(0),
+        },
+      ]);
+    }
+
+    await prisma.archive.update({
+      where: { id: 1 },
+      data: { lastHour: new Date('2025-12-18T00:00:00.000Z') },
+    });
+
+    const archivedDay = await dailyArchiveController.archive();
+    expect(archivedDay).not.toBeNull();
+
+    const dailyData = await prisma.validatorDailyArchive.findMany({
+      where: { timestamp: TEST_DAY_START },
+    });
+    expect(dailyData).toHaveLength(1);
+
+    const v = dailyData[0];
+
+    // data_by_slot: 1 (hour 0) + 0 + 0 + 21 = 22
+    const slots = v.dataBySlot as Array<(number | string)[]>;
+    expect(slots).toHaveLength(22);
+    // First slot from hour 0
+    expect(slots[0][0]).toBe(100);
+    // Remaining slots from hours 3–23 (slot numbers 203–223)
+    expect(slots[1][0]).toBe(203);
+
+    // data_by_epoch: 0 + 1 (hour 1) + 0 + 21 = 22
+    const epochs = v.dataByEpoch as Array<(number | string)[]>;
+    expect(epochs).toHaveLength(22);
+    // First epoch from hour 1
+    expect(epochs[0][0]).toBe(10);
+    // Remaining epochs from hours 3–23
+    expect(epochs[1][0]).toBe(23);
+
+    // Verify ordering is preserved
+    for (let i = 1; i < slots.length; i++) {
+      expect(slots[i][0] as number).toBeGreaterThan(slots[i - 1][0] as number);
+    }
+    for (let i = 1; i < epochs.length; i++) {
+      expect(epochs[i][0] as number).toBeGreaterThan(epochs[i - 1][0] as number);
+    }
+  });
+
+  /**
+   * JSON CONCATENATION: Slot tuples with extended fields (sync, exec, block rewards).
+   *
+   * Slot tuples can have varying lengths depending on the validator's activity:
+   *   - Base:   [slot, delay]                               (attestation only, no sync)
+   *   - Sync:   [slot, delay, "sync_reward"]                (has sync committee reward)
+   *   - Full:   [slot, delay, "sync", "exec", "block"]     (proposer with all rewards)
+   *
+   * The string concatenation must preserve the nested structure of these tuples,
+   * including the varying number of string-encoded bigint fields. This tests that
+   * the substring bracket-stripping doesn't corrupt nested arrays.
+   */
+  it('should preserve nested tuple structure with varying-length slot tuples', async () => {
+    const VALIDATOR_EXTENDED = 500;
+
+    // Hour 0: mixed tuple lengths — base, sync-only, and full proposer tuples
+    await createHourlyPartition(new Date('2025-12-16T00:00:00.000Z'), [
+      {
+        validatorIndex: VALIDATOR_EXTENDED,
+        dataBySlot: [
+          [100, 0],
+          [101, 1, '500'],
+          [102, 0, '600', '1000000000000000000', '50000'],
+        ],
+        dataByEpoch: [[10, '100', '200', '300', '400', '10', '20', '30', '40']],
+        attestationCount: 3,
+        syncRewardTotal: BigInt(1100),
+        execRewardTotal: '1000000000000000000',
+        blockRewardTotal: BigInt(50000),
+        clRewardTotal: BigInt(1000),
+        clMissedRewardTotal: BigInt(100),
+      },
+    ]);
+
+    // Hour 1: another set of mixed tuples
+    await createHourlyPartition(new Date('2025-12-16T01:00:00.000Z'), [
+      {
+        validatorIndex: VALIDATOR_EXTENDED,
+        dataBySlot: [
+          [200, 0, '0', '2000000000000000000', '60000'],
+          [201, 0],
+        ],
+        dataByEpoch: [[11, '50', '60', '70', '80', '5', '6', '7', '8']],
+        attestationCount: 2,
+        syncRewardTotal: BigInt(0),
+        execRewardTotal: '2000000000000000000',
+        blockRewardTotal: BigInt(60000),
+        clRewardTotal: BigInt(260),
+        clMissedRewardTotal: BigInt(26),
+      },
+    ]);
+
+    // Hours 2–23: simple single-element tuples
+    for (let h = 2; h < 24; h++) {
+      const hour = new Date(TEST_DAY_START.getTime() + h * 3600 * 1000);
+      await createHourlyPartition(hour, [
+        {
+          validatorIndex: VALIDATOR_EXTENDED,
+          dataBySlot: [[300 + h, 0, '10']],
+          dataByEpoch: [[20 + h, '1', '1', '1', '1', '0', '0', '0', '0']],
+          attestationCount: 1,
+          syncRewardTotal: BigInt(10),
+          clRewardTotal: BigInt(4),
+          clMissedRewardTotal: BigInt(0),
+        },
+      ]);
+    }
+
+    // Retention hours
+    for (let h = 0; h < 25; h++) {
+      const hour = new Date(new Date('2025-12-17T00:00:00.000Z').getTime() + h * 3600 * 1000);
+      await createHourlyPartition(hour, [
+        {
+          validatorIndex: VALIDATOR_EXTENDED,
+          dataBySlot: [[9000 + h, 0, '1']],
+          dataByEpoch: [[900 + h, '1', '1', '1', '1', '0', '0', '0', '0']],
+          attestationCount: 1,
+          syncRewardTotal: BigInt(1),
+          clRewardTotal: BigInt(4),
+          clMissedRewardTotal: BigInt(0),
+        },
+      ]);
+    }
+
+    await prisma.archive.update({
+      where: { id: 1 },
+      data: { lastHour: new Date('2025-12-18T00:00:00.000Z') },
+    });
+
+    const archivedDay = await dailyArchiveController.archive();
+    expect(archivedDay).not.toBeNull();
+
+    const dailyData = await prisma.validatorDailyArchive.findMany({
+      where: { timestamp: TEST_DAY_START },
+    });
+    expect(dailyData).toHaveLength(1);
+
+    const v = dailyData[0];
+
+    // data_by_slot: 3 (hour 0) + 2 (hour 1) + 22×1 = 27
+    const slots = v.dataBySlot as Array<(number | string)[]>;
+    expect(slots).toHaveLength(27);
+
+    // Verify tuple structures are preserved:
+    // Hour 0, slot 100: base tuple [slot, delay]
+    expect(slots[0]).toEqual([100, 0]);
+    // Hour 0, slot 101: sync tuple [slot, delay, "sync"]
+    expect(slots[1]).toEqual([101, 1, '500']);
+    // Hour 0, slot 102: full tuple [slot, delay, "sync", "exec", "block"]
+    expect(slots[2]).toEqual([102, 0, '600', '1000000000000000000', '50000']);
+    // Hour 1, slot 200: full tuple
+    expect(slots[3]).toEqual([200, 0, '0', '2000000000000000000', '60000']);
+    // Hour 1, slot 201: base tuple
+    expect(slots[4]).toEqual([201, 0]);
+
+    // Verify exec_reward_total aggregation (large numbers as Decimal/string)
+    // 1000000000000000000 + 2000000000000000000 = 3000000000000000000
+    expect(v.execRewardTotal?.toString()).toBe('3000000000000000000');
+
+    // Verify block_reward_total: 50000 + 60000 = 110000
+    expect(v.blockRewardTotal).toBe(BigInt(110000));
+
+    // Verify ordering across all slots
+    for (let i = 1; i < slots.length; i++) {
+      expect(slots[i][0] as number).toBeGreaterThan(slots[i - 1][0] as number);
+    }
+  });
+
+  /**
+   * JSON CONCATENATION: All hours have empty arrays for one column.
+   *
+   * When every hourly record has an empty data_by_epoch ([]), the daily archive
+   * should produce an empty array ([]) — not null, not malformed JSON.
+   * The COALESCE(..., '[]'::jsonb) fallback handles this when string_agg returns NULL
+   * (because all CASE expressions evaluate to NULL for empty arrays).
+   */
+  it('should produce empty array when all hours have empty JSON arrays', async () => {
+    const VALIDATOR_ALL_EMPTY = 600;
+
+    // All 24 hours: data_by_slot has content, data_by_epoch is always empty
+    for (let h = 0; h < 24; h++) {
+      const hour = new Date(TEST_DAY_START.getTime() + h * 3600 * 1000);
+      await createHourlyPartition(hour, [
+        {
+          validatorIndex: VALIDATOR_ALL_EMPTY,
+          dataBySlot: [[1000 + h, 0, '10']],
+          dataByEpoch: [],
+          attestationCount: 1,
+          syncRewardTotal: BigInt(10),
+          clRewardTotal: BigInt(0),
+          clMissedRewardTotal: BigInt(0),
+        },
+      ]);
+    }
+
+    // Retention hours
+    for (let h = 0; h < 25; h++) {
+      const hour = new Date(new Date('2025-12-17T00:00:00.000Z').getTime() + h * 3600 * 1000);
+      await createHourlyPartition(hour, [
+        {
+          validatorIndex: VALIDATOR_ALL_EMPTY,
+          dataBySlot: [[9000 + h, 0, '1']],
+          dataByEpoch: [],
+          attestationCount: 1,
+          syncRewardTotal: BigInt(1),
+          clRewardTotal: BigInt(0),
+          clMissedRewardTotal: BigInt(0),
+        },
+      ]);
+    }
+
+    await prisma.archive.update({
+      where: { id: 1 },
+      data: { lastHour: new Date('2025-12-18T00:00:00.000Z') },
+    });
+
+    const archivedDay = await dailyArchiveController.archive();
+    expect(archivedDay).not.toBeNull();
+
+    const dailyData = await prisma.validatorDailyArchive.findMany({
+      where: { timestamp: TEST_DAY_START },
+    });
+    expect(dailyData).toHaveLength(1);
+
+    const v = dailyData[0];
+
+    // data_by_slot: 24 elements (one per hour)
+    const slots = v.dataBySlot as Array<(number | string)[]>;
+    expect(slots).toHaveLength(24);
+
+    // data_by_epoch: all hours were empty → should be empty array, not null
+    const epochs = v.dataByEpoch as Array<(number | string)[]>;
+    expect(epochs).toEqual([]);
+
+    // cl_reward_total should be 0 (not null)
+    expect(v.clRewardTotal).toBe(BigInt(0));
+  });
+
+  /**
    * LOOKBACK_SLOT BASE CASE: The lookback_slot day can be partial.
    *
    * When the indexer starts with a lookback_slot that doesn't align to midnight,
