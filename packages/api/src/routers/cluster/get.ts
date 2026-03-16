@@ -56,6 +56,8 @@ export const getCluster = publicProcedure
             withdrawalAddress: v.withdrawalAddress,
             status: v.beaconStatus,
             isInactive: v.isInactive,
+            performanceH: v.performanceH,
+            attestationsMissed: v.attestationsMissed,
             balance: formatBalance(v.balance),
             effectiveBalance: v.effectiveBalance ? formatBalance(v.effectiveBalance) : null,
             pubkey: v.pubkey,

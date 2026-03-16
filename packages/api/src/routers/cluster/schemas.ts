@@ -125,6 +125,8 @@ export const ClusterValidatorDetailSchema = z.object({
   withdrawalAddress: z.string().nullable(),
   status: z.number().nullable(),
   isInactive: z.boolean(),
+  performanceH: z.number().nullable(),
+  attestationsMissed: z.number().nullable(),
   balance: z.string(),
   effectiveBalance: z.string().nullable(),
   pubkey: z.string().nullable(),

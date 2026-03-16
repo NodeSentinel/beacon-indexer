@@ -81,6 +81,8 @@ export class ClusterStorage {
         effective_balance: bigint | null;
         pubkey: string | null;
         is_inactive: boolean | null;
+        performance_h: string | null;
+        attestations_missed: bigint | null;
       }>
     >`
       SELECT
@@ -96,7 +98,9 @@ export class ClusterStorage {
         v.balance,
         v.effective_balance,
         v.pubkey,
-        vss.is_inactive
+        vss.is_inactive,
+        vss.performance_h::text AS performance_h,
+        vss.attestations_missed
       FROM cluster c
       JOIN cluster_validator cv ON cv.cluster_id = c.id
       JOIN validator v ON v.id = cv.validator_index
@@ -122,6 +126,8 @@ export class ClusterStorage {
         effectiveBalance: r.effective_balance,
         pubkey: r.pubkey,
         isInactive: r.is_inactive ?? false,
+        performanceH: r.performance_h !== null ? Number(r.performance_h) : null,
+        attestationsMissed: r.attestations_missed !== null ? Number(r.attestations_missed) : null,
       })),
     };
   }

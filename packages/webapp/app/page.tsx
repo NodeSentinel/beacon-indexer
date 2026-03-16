@@ -106,8 +106,8 @@ export default function DashboardOverview() {
           status,
           balance: parseFloat(v.balance),
           effectiveBalance: v.effectiveBalance ? parseFloat(v.effectiveBalance) : 0,
-          performance: 0, // TODO: fetch from performance API
-          missedAttestations: 0,
+          performance: v.performanceH !== null ? v.performanceH * 100 : 0,
+          missedAttestations: v.attestationsMissed ?? 0,
           groupId: clusterDetail.id,
           clusterId: clusterDetail.id,
         };
@@ -116,7 +116,8 @@ export default function DashboardOverview() {
       totalBalance: parseFloat(clusterDetail.totalBalance),
       totalEffectiveBalance: parseFloat(clusterDetail.totalEffectiveBalance),
       claimableRewards: 0, // TODO: calculate from withdrawal data
-      performance: 0, // TODO: fetch from performance API
+      performance:
+        clusterSnapshot?.performance1h !== null ? (clusterSnapshot?.performance1h ?? 0) * 100 : 0,
       createdAt: clusterDetail.createdAt,
     };
   }, [clusterDetail]);
