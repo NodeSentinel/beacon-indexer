@@ -16,7 +16,7 @@ export const getCluster = publicProcedure
   .handler(async ({ input }) => {
     try {
       const storage = new ClusterStorage();
-      const cluster = await storage.findByIdWithValidators(input.id);
+      const cluster = await storage.findByIdWithValidatorsAndSnapshot(input.id);
 
       if (!cluster) {
         return {
@@ -26,28 +26,19 @@ export const getCluster = publicProcedure
         };
       }
 
-      // Fetch snapshot stats to get isInactive for each validator
-      const validatorIndices = cluster.validators.map((v) => v.validatorIndex);
-      const snapshotStats = await storage.getSnapshotStatsByValidators(validatorIndices);
-      const inactiveMap = new Map(snapshotStats.map((s) => [s.validatorIndex, s.isInactive]));
-
-      // Extract unique withdrawal addresses from the included validator data
       const withdrawalAddresses = Array.from(
         new Set(
-          cluster.validators.flatMap((v) =>
-            v.validator.withdrawalAddress ? [v.validator.withdrawalAddress] : [],
-          ),
+          cluster.validators.flatMap((v) => (v.withdrawalAddress ? [v.withdrawalAddress] : [])),
         ),
       );
 
-      // Calculate aggregated balances
       let totalBalance = BigInt(0);
       let totalEffectiveBalance = BigInt(0);
 
-      for (const cv of cluster.validators) {
-        totalBalance += cv.validator.balance;
-        if (cv.validator.effectiveBalance) {
-          totalEffectiveBalance += cv.validator.effectiveBalance;
+      for (const v of cluster.validators) {
+        totalBalance += v.balance;
+        if (v.effectiveBalance) {
+          totalEffectiveBalance += v.effectiveBalance;
         }
       }
 
@@ -56,20 +47,18 @@ export const getCluster = publicProcedure
         data: {
           id: cluster.id,
           name: cluster.name,
-          visibility: cluster.visibility,
+          visibility: cluster.visibility as 'private' | 'shared',
           feeRecipientAddress: cluster.feeRecipientAddress,
           ownerId: cluster.ownerId.toString(),
           createdAt: cluster.createdAt.toISOString(),
-          validators: cluster.validators.map((cv) => ({
-            validatorIndex: cv.validatorIndex,
-            withdrawalAddress: cv.validator.withdrawalAddress,
-            status: cv.validator.status,
-            isInactive: inactiveMap.get(cv.validatorIndex) ?? false,
-            balance: formatBalance(cv.validator.balance),
-            effectiveBalance: cv.validator.effectiveBalance
-              ? formatBalance(cv.validator.effectiveBalance)
-              : null,
-            pubkey: cv.validator.pubkey,
+          validators: cluster.validators.map((v) => ({
+            validatorIndex: v.validatorIndex,
+            withdrawalAddress: v.withdrawalAddress,
+            status: v.beaconStatus,
+            isInactive: v.isInactive,
+            balance: formatBalance(v.balance),
+            effectiveBalance: v.effectiveBalance ? formatBalance(v.effectiveBalance) : null,
+            pubkey: v.pubkey,
           })),
           withdrawalAddresses,
           totalBalance: formatBalance(totalBalance),

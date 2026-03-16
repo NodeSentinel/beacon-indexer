@@ -38,7 +38,6 @@ export class ClusterStorage {
 
   /**
    * Find cluster by ID with validators and their details
-   * Optimized to fetch all data in a single query
    */
   async findByIdWithValidators(id: string) {
     return this.prisma.cluster.findUnique({
@@ -63,14 +62,68 @@ export class ClusterStorage {
   }
 
   /**
-   * Get snapshot stats (isInactive) for a list of validator indices
+   * Find cluster by ID with validators enriched with snapshot stats.
+   * Single raw query joining cluster, cluster_validator, validator, and validators_snapshot_stats.
    */
-  async getSnapshotStatsByValidators(validatorIndices: number[]) {
-    if (validatorIndices.length === 0) return [];
-    return this.prisma.validatorsSnapshotStats.findMany({
-      where: { validatorIndex: { in: validatorIndices } },
-      select: { validatorIndex: true, isInactive: true },
-    });
+  async findByIdWithValidatorsAndSnapshot(id: string) {
+    const rows = await this.prisma.$queryRaw<
+      Array<{
+        cluster_id: string;
+        cluster_name: string;
+        cluster_visibility: string;
+        cluster_fee_recipient_address: string | null;
+        cluster_owner_id: bigint;
+        cluster_created_at: Date;
+        validator_index: number;
+        withdrawal_address: string | null;
+        beacon_status: number | null;
+        balance: bigint;
+        effective_balance: bigint | null;
+        pubkey: string | null;
+        is_inactive: boolean | null;
+      }>
+    >`
+      SELECT
+        c.id            AS cluster_id,
+        c.name          AS cluster_name,
+        c.visibility    AS cluster_visibility,
+        c.fee_recipient_address AS cluster_fee_recipient_address,
+        c.owner_id      AS cluster_owner_id,
+        c.created_at    AS cluster_created_at,
+        cv.validator_index,
+        v.withdrawal_address,
+        v.status        AS beacon_status,
+        v.balance,
+        v.effective_balance,
+        v.pubkey,
+        vss.is_inactive
+      FROM cluster c
+      JOIN cluster_validator cv ON cv.cluster_id = c.id
+      JOIN validator v ON v.id = cv.validator_index
+      LEFT JOIN validators_snapshot_stats vss ON vss.validator_index = cv.validator_index
+      WHERE c.id = ${id}
+    `;
+
+    if (rows.length === 0) return null;
+
+    const first = rows[0];
+    return {
+      id: first.cluster_id,
+      name: first.cluster_name,
+      visibility: first.cluster_visibility,
+      feeRecipientAddress: first.cluster_fee_recipient_address,
+      ownerId: first.cluster_owner_id,
+      createdAt: first.cluster_created_at,
+      validators: rows.map((r) => ({
+        validatorIndex: r.validator_index,
+        withdrawalAddress: r.withdrawal_address,
+        beaconStatus: r.beacon_status,
+        balance: r.balance,
+        effectiveBalance: r.effective_balance,
+        pubkey: r.pubkey,
+        isInactive: r.is_inactive ?? false,
+      })),
+    };
   }
 
   /**
