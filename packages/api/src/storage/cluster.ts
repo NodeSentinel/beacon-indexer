@@ -329,18 +329,18 @@ export class ClusterStorage {
         COALESCE(SUM(vss.effective_balance), 0)::bigint AS total_effective_balance,
         COALESCE(SUM(vss.attestations_total), 0)::bigint AS attestations_total,
         COALESCE(SUM(vss.attestations_missed), 0)::bigint AS attestations_missed,
-        -- Weighted average performance (by attestation count)
-        CASE WHEN SUM(vss.attestations_total) > 0
-          THEN (SUM(COALESCE(vss.performance_h, 0) * vss.attestations_total)::numeric / SUM(vss.attestations_total))::numeric(5,4)::text
+        -- Cluster performance: (total attestations - total missed) / total attestations per timeframe
+        CASE WHEN SUM(vss.attestation_count_h) > 0
+          THEN ((SUM(vss.attestation_count_h) - SUM(vss.missed_attestation_count_h))::numeric / SUM(vss.attestation_count_h))::numeric(5,4)::text
           ELSE NULL END AS performance_h,
-        CASE WHEN SUM(vss.attestations_total) > 0
-          THEN (SUM(COALESCE(vss.performance_d, 0) * vss.attestations_total)::numeric / SUM(vss.attestations_total))::numeric(5,4)::text
+        CASE WHEN SUM(vss.attestation_count_d) > 0
+          THEN ((SUM(vss.attestation_count_d) - SUM(vss.missed_attestation_count_d))::numeric / SUM(vss.attestation_count_d))::numeric(5,4)::text
           ELSE NULL END AS performance_d,
-        CASE WHEN SUM(vss.attestations_total) > 0
-          THEN (SUM(COALESCE(vss.performance_w, 0) * vss.attestations_total)::numeric / SUM(vss.attestations_total))::numeric(5,4)::text
+        CASE WHEN SUM(vss.attestation_count_w) > 0
+          THEN ((SUM(vss.attestation_count_w) - SUM(vss.missed_attestation_count_w))::numeric / SUM(vss.attestation_count_w))::numeric(5,4)::text
           ELSE NULL END AS performance_w,
-        CASE WHEN SUM(vss.attestations_total) > 0
-          THEN (SUM(COALESCE(vss.performance_m, 0) * vss.attestations_total)::numeric / SUM(vss.attestations_total))::numeric(5,4)::text
+        CASE WHEN SUM(vss.attestation_count_m) > 0
+          THEN ((SUM(vss.attestation_count_m) - SUM(vss.missed_attestation_count_m))::numeric / SUM(vss.attestation_count_m))::numeric(5,4)::text
           ELSE NULL END AS performance_m,
         -- Weighted average APY (by balance)
         CASE WHEN SUM(vss.balance) > 0
@@ -368,19 +368,19 @@ export class ClusterStorage {
         SUM(vss.execution_reward_d)::text AS execution_reward_d,
         SUM(vss.execution_reward_w)::text AS execution_reward_w,
         SUM(vss.execution_reward_m)::text AS execution_reward_m,
-        -- Weighted average attestation efficiency (only validators that have data)
-        (SUM(vss.attestation_efficiency_d * vss.attestations_total) / NULLIF(SUM(CASE WHEN vss.attestation_efficiency_d IS NOT NULL THEN vss.attestations_total ELSE 0 END), 0))::real::text
+        -- Weighted attestation efficiency (by attestation count per timeframe)
+        (SUM(vss.attestation_efficiency_d * vss.attestation_count_d) / NULLIF(SUM(CASE WHEN vss.attestation_efficiency_d IS NOT NULL THEN vss.attestation_count_d ELSE 0 END), 0))::real::text
           AS attestation_efficiency_d,
-        (SUM(vss.attestation_efficiency_w * vss.attestations_total) / NULLIF(SUM(CASE WHEN vss.attestation_efficiency_w IS NOT NULL THEN vss.attestations_total ELSE 0 END), 0))::real::text
+        (SUM(vss.attestation_efficiency_w * vss.attestation_count_w) / NULLIF(SUM(CASE WHEN vss.attestation_efficiency_w IS NOT NULL THEN vss.attestation_count_w ELSE 0 END), 0))::real::text
           AS attestation_efficiency_w,
-        (SUM(vss.attestation_efficiency_m * vss.attestations_total) / NULLIF(SUM(CASE WHEN vss.attestation_efficiency_m IS NOT NULL THEN vss.attestations_total ELSE 0 END), 0))::real::text
+        (SUM(vss.attestation_efficiency_m * vss.attestation_count_m) / NULLIF(SUM(CASE WHEN vss.attestation_efficiency_m IS NOT NULL THEN vss.attestation_count_m ELSE 0 END), 0))::real::text
           AS attestation_efficiency_m,
-        -- Weighted average attestation delay (only validators that have data)
-        (SUM(vss.avg_attestation_delay_d * vss.attestations_total) / NULLIF(SUM(CASE WHEN vss.avg_attestation_delay_d IS NOT NULL THEN vss.attestations_total ELSE 0 END), 0))::real::text
+        -- Weighted attestation delay (by attestation count per timeframe)
+        (SUM(vss.avg_attestation_delay_d * vss.attestation_count_d) / NULLIF(SUM(CASE WHEN vss.avg_attestation_delay_d IS NOT NULL THEN vss.attestation_count_d ELSE 0 END), 0))::real::text
           AS avg_attestation_delay_d,
-        (SUM(vss.avg_attestation_delay_w * vss.attestations_total) / NULLIF(SUM(CASE WHEN vss.avg_attestation_delay_w IS NOT NULL THEN vss.attestations_total ELSE 0 END), 0))::real::text
+        (SUM(vss.avg_attestation_delay_w * vss.attestation_count_w) / NULLIF(SUM(CASE WHEN vss.avg_attestation_delay_w IS NOT NULL THEN vss.attestation_count_w ELSE 0 END), 0))::real::text
           AS avg_attestation_delay_w,
-        (SUM(vss.avg_attestation_delay_m * vss.attestations_total) / NULLIF(SUM(CASE WHEN vss.avg_attestation_delay_m IS NOT NULL THEN vss.attestations_total ELSE 0 END), 0))::real::text
+        (SUM(vss.avg_attestation_delay_m * vss.attestation_count_m) / NULLIF(SUM(CASE WHEN vss.avg_attestation_delay_m IS NOT NULL THEN vss.attestation_count_m ELSE 0 END), 0))::real::text
           AS avg_attestation_delay_m,
         -- Beacon status breakdown as JSON
         COALESCE(

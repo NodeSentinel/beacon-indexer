@@ -390,9 +390,18 @@ model ValidatorsSnapshotStats {
   attestationsTotal  Int @map("attestations_total")
   attestationsMissed Int @map("attestations_missed")
 
+  // Attestation counts per timeframe (for cluster-level aggregation)
+  attestationCountH       Int @default(0) @map("attestation_count_h") @db.SmallInt
+  missedAttestationCountH Int @default(0) @map("missed_attestation_count_h") @db.SmallInt
+  attestationCountD       Int @default(0) @map("attestation_count_d") @db.SmallInt
+  missedAttestationCountD Int @default(0) @map("missed_attestation_count_d") @db.SmallInt
+  attestationCountW       Int @default(0) @map("attestation_count_w") @db.SmallInt
+  missedAttestationCountW Int @default(0) @map("missed_attestation_count_w") @db.SmallInt
+  attestationCountM       Int @default(0) @map("attestation_count_m") @db.SmallInt
+  missedAttestationCountM Int @default(0) @map("missed_attestation_count_m") @db.SmallInt
+
   // Missed attestation slots for the last hour (populated by indexer)
   missedAttestationSlotsH Int[] @default([]) @map("missed_attestation_slots_h")
-  missedAttestationCountH Int   @default(0)  @map("missed_attestation_count_h")
 
   // Performance per timeframe (ratio 0.0000 - 1.0000)
   performanceH Decimal? @map("performance_h")

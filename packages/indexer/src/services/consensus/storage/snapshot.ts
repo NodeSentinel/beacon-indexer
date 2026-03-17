@@ -239,8 +239,9 @@ export class SnapshotStorage {
               THEN ((a.total - a.missed)::numeric / a.total)::numeric
               ELSE NULL
             END AS performance_h,
-            COALESCE(a.missed_slots, '{}') AS missed_attestation_slots_h,
+            COALESCE(a.total, 0)::int AS attestation_count_h,
             COALESCE(a.missed, 0)::int AS missed_attestation_count_h,
+            COALESCE(a.missed_slots, '{}') AS missed_attestation_slots_h,
             COALESCE(r.epoch_reward, 0) + COALESCE(sr.sync_reward, 0) + COALESCE(br.block_reward, 0) AS consensus_reward,
             r.missed_reward,
             e.execution_reward,
@@ -259,8 +260,9 @@ export class SnapshotStorage {
       UPDATE validators_snapshot_stats vss
       SET
         performance_h = p.performance_h,
-        missed_attestation_slots_h = p.missed_attestation_slots_h,
+        attestation_count_h = p.attestation_count_h,
         missed_attestation_count_h = p.missed_attestation_count_h,
+        missed_attestation_slots_h = p.missed_attestation_slots_h,
         apy_h = p.apy_h,
         consensus_reward_h = p.consensus_reward,
         missed_reward_h = p.missed_reward,
@@ -501,7 +503,9 @@ export class SnapshotStorage {
               ELSE NULL
             END AS apy_d,
             c.avg_att_delay,
-            c.att_efficiency
+            c.att_efficiency,
+            COALESCE(c.att_count, 0)::int AS att_count,
+            COALESCE(c.missed_att_count, 0)::int AS missed_att_count
           FROM target_validators tv
           LEFT JOIN combined c ON tv.validator_index = c.validator_index
           JOIN validator v ON v.id = tv.validator_index
@@ -517,6 +521,8 @@ export class SnapshotStorage {
         execution_reward_d = p.execution_reward,
         avg_attestation_delay_d = p.avg_att_delay,
         attestation_efficiency_d = p.att_efficiency,
+        attestation_count_d = p.att_count,
+        missed_attestation_count_d = p.missed_att_count,
         updated_at = NOW()
       FROM perf p
       WHERE vss.validator_index = p.validator_index
@@ -579,7 +585,9 @@ export class SnapshotStorage {
               ELSE NULL
             END AS apy_w,
             ad.avg_att_delay,
-            ad.att_efficiency
+            ad.att_efficiency,
+            COALESCE(ad.att_count, 0)::int AS att_count,
+            COALESCE(ad.missed_att_count, 0)::int AS missed_att_count
           FROM target_validators tv
           LEFT JOIN archive_data ad ON tv.validator_index = ad.validator_index
           JOIN validator v ON v.id = tv.validator_index
@@ -594,6 +602,8 @@ export class SnapshotStorage {
         execution_reward_w = p.execution_reward,
         avg_attestation_delay_w = p.avg_att_delay,
         attestation_efficiency_w = p.att_efficiency,
+        attestation_count_w = p.att_count,
+        missed_attestation_count_w = p.missed_att_count,
         updated_at = NOW()
       FROM perf p
       WHERE vss.validator_index = p.validator_index
@@ -656,7 +666,9 @@ export class SnapshotStorage {
               ELSE NULL
             END AS apy_m,
             ad.avg_att_delay,
-            ad.att_efficiency
+            ad.att_efficiency,
+            COALESCE(ad.att_count, 0)::int AS att_count,
+            COALESCE(ad.missed_att_count, 0)::int AS missed_att_count
           FROM target_validators tv
           LEFT JOIN archive_data ad ON tv.validator_index = ad.validator_index
           JOIN validator v ON v.id = tv.validator_index
@@ -671,6 +683,8 @@ export class SnapshotStorage {
         execution_reward_m = p.execution_reward,
         avg_attestation_delay_m = p.avg_att_delay,
         attestation_efficiency_m = p.att_efficiency,
+        attestation_count_m = p.att_count,
+        missed_attestation_count_m = p.missed_att_count,
         updated_at = NOW()
       FROM perf p
       WHERE vss.validator_index = p.validator_index
