@@ -54,7 +54,7 @@ export class ExecutionClient {
     this.axiosInstance.interceptors.response.use(logResponse, logError);
   }
 
-  async getBlock(blockNumber: number, slotTimestamp: Date): Promise<BlockResponse | null> {
+  async getBlock(blockNumber: number): Promise<BlockResponse | null> {
     return this.limiter(async () => {
       // Define endpoints
       const endpoints = [
@@ -65,16 +65,6 @@ export class ExecutionClient {
           name: 'Etherscan',
           process: (response: AxiosResponse<Etherscan_BlockReward>) => {
             const blockInfo = response.data;
-
-            // No reward data available for this block
-            if (blockInfo.status === '0') {
-              return {
-                address: '',
-                timestamp: slotTimestamp,
-                amount: '0',
-                blockNumber,
-              };
-            }
 
             // Check if API call was successful
             if (blockInfo.status !== '1' || blockInfo.message !== 'OK') {
