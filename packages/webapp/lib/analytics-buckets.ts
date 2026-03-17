@@ -7,7 +7,7 @@ interface BucketConfig {
 }
 
 export function getBucketConfig(timeRange: AnalyticsTimeRange): BucketConfig {
-  const bucketMs = timeRange === '1h' ? 10 * 60 * 1000 : 60 * 60 * 1000;
+  const bucketMs = timeRange === '1h' ? 5 * 60 * 1000 : 60 * 60 * 1000;
   const totalMs = timeRange === '1h' ? 60 * 60 * 1000 : 24 * 60 * 60 * 1000;
   return { bucketMs, totalMs, bucketCount: totalMs / bucketMs };
 }

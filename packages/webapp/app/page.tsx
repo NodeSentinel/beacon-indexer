@@ -57,9 +57,12 @@ export default function DashboardOverview() {
   const { data: clusterDetail, isLoading: clusterDetailLoading } = useCluster(selectedClusterId);
   const { data: clusterSnapshot, isLoading: snapshotLoading } =
     useClusterSnapshot(selectedClusterId);
-  const { data: missedAttestations, isFetching: missedAttestationsFetching } =
-    useMissedAttestations(selectedCluster, null, analyticsTimeRange);
-  const { data: rewards, isFetching: rewardsFetching } = useRewards(
+  const { data: missedAttestations, isLoading: missedAttestationsLoading } = useMissedAttestations(
+    selectedCluster,
+    null,
+    analyticsTimeRange,
+  );
+  const { data: rewards, isLoading: rewardsLoading } = useRewards(
     selectedCluster,
     null,
     analyticsTimeRange,
@@ -191,7 +194,7 @@ export default function DashboardOverview() {
                   timeRange={analyticsTimeRange}
                   onTimeRangeChange={setAnalyticsTimeRange}
                   tokenPrice={rewards?.tokenPrice ?? tokenPrice}
-                  isLoading={missedAttestationsFetching || rewardsFetching}
+                  isLoading={missedAttestationsLoading || rewardsLoading}
                 />
                 <EventsFeedContent
                   clusterId={selectedClusterId}
