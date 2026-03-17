@@ -69,6 +69,13 @@ export class SlotController extends SlotControllerHelpers {
   }
 
   /**
+   * Get the last processed slot number
+   */
+  async getLastProcessedSlot(): Promise<number | null> {
+    return this.slotStorage.getLastProcessedSlot();
+  }
+
+  /**
    * Get the slot processing status for an epoch.
    * Returns semantic information about whether there's a slot to process
    * and whether all slots in the epoch are fully processed.

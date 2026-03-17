@@ -85,6 +85,19 @@ export class SlotStorage {
   }
 
   /**
+   * Get the last processed slot number
+   */
+  async getLastProcessedSlot(): Promise<number | null> {
+    const result = await this.prisma.slot.findFirst({
+      where: { processed: true },
+      orderBy: { slot: 'desc' },
+      select: { slot: true },
+    });
+
+    return result?.slot ?? null;
+  }
+
+  /**
    * Find the first unprocessed slot in a range
    */
   async findMinUnprocessedSlotInEpoch(startSlot: number, endSlot: number) {
