@@ -50,6 +50,10 @@ export const env = createEnv({
       (val) => Number(val),
       z.number().int().positive(),
     ),
+
+    // Telegram alerts (optional)
+    TELEGRAM_ALERTS_BOT_TOKEN: z.string().optional(),
+    TELEGRAM_ALERTS_CHAT_ID: z.string().optional(),
   },
   runtimeEnv: {
     ...process.env,

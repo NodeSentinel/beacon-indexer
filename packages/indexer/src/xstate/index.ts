@@ -8,6 +8,7 @@ import {
 } from './archive/index.js';
 import { getChainStatsActor } from './chainStats/index.js';
 import { getCreateEpochActor, getEpochOrchestratorActor } from './epoch/index.js';
+import { getLagAlertingActor } from './lagAlerting/index.js';
 import { getSnapshotActor } from './snapshot/index.js';
 
 import { ChainStatsController } from '@/src/services/consensus/controllers/chainStats.js';
@@ -81,4 +82,8 @@ export default function initXstateMachines(
     missedAttestationsForInactivity,
   );
   snapshotActor.start();
+
+  // Create and start lag alerting actor (monitors indexer lag and sends Telegram alerts)
+  const lagAlertingActor = getLagAlertingActor(slotController, beaconTime, chain);
+  lagAlertingActor.start();
 }
