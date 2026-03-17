@@ -57,12 +57,13 @@ export default function DashboardOverview() {
   const { data: clusterDetail, isLoading: clusterDetailLoading } = useCluster(selectedClusterId);
   const { data: clusterSnapshot, isLoading: snapshotLoading } =
     useClusterSnapshot(selectedClusterId);
-  const { data: missedAttestations } = useMissedAttestations(
+  const { data: missedAttestations, isFetching: missedAttestationsFetching } =
+    useMissedAttestations(selectedCluster, null, analyticsTimeRange);
+  const { data: rewards, isFetching: rewardsFetching } = useRewards(
     selectedCluster,
     null,
     analyticsTimeRange,
   );
-  const { data: rewards } = useRewards(selectedCluster, null, analyticsTimeRange);
 
   // Transform API clusters to UI format (basic info for tabs)
   const clusters: Cluster[] = (apiClusters || []).map((c) => ({
@@ -190,6 +191,7 @@ export default function DashboardOverview() {
                   timeRange={analyticsTimeRange}
                   onTimeRangeChange={setAnalyticsTimeRange}
                   tokenPrice={rewards?.tokenPrice ?? tokenPrice}
+                  isLoading={missedAttestationsFetching || rewardsFetching}
                 />
                 <EventsFeedContent
                   clusterId={selectedClusterId}

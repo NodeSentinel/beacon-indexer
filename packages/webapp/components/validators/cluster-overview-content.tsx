@@ -281,7 +281,8 @@ export default function ClusterOverviewContent({
             <div className="animate-pulse h-10 bg-foreground/5 rounded" />
           ) : (
             <>
-              <div className="grid grid-cols-4 gap-3 md:gap-4 md:text-center">
+              <div className="grid grid-cols-5 gap-3 md:gap-4 md:text-center">
+                <div />
                 {PERIODS.map(({ label, key }) => (
                   <div key={key}>
                     <p className="text-[10px] md:text-xs text-muted-foreground mb-0.5">{label}</p>
@@ -291,9 +292,12 @@ export default function ClusterOverviewContent({
                   </div>
                 ))}
               </div>
-              <div className="grid grid-cols-4 gap-3 md:gap-4 md:text-center mt-1.5 pt-1.5 border-t border-border/20">
+              <div className="grid grid-cols-5 gap-3 md:gap-4 md:text-center mt-1.5">
+                <div className="flex items-center">
+                  <p className="text-[10px] md:text-xs text-muted-foreground/60">Avg Delay</p>
+                </div>
                 <div>
-                  <p className="text-[10px] md:text-xs text-muted-foreground/60">avg delay:</p>
+                  <p className="text-[10px] md:text-xs text-muted-foreground/60">-</p>
                 </div>
                 {PERIODS.filter(({ key }) => key !== '1h').map(({ key }) => {
                   const delay = getAvgDelay(key);
