@@ -4,6 +4,7 @@ import path from 'path';
 import type { BeaconTime } from '@beacon-indexer/beacon-utils/beaconTime';
 import { setup, fromPromise, assign } from 'xstate';
 
+import createLogger from '@/src/lib/pino.js';
 import { sendTelegramAlert } from '@/src/lib/telegram.js';
 import type { SlotController } from '@/src/services/consensus/controllers/slot.js';
 import { pinoLog } from '@/src/xstate/pinoLog.js';
@@ -37,7 +38,10 @@ async function checkLag(input: {
 }): Promise<LagCheckResult> {
   const headSlot = input.beaconTime.getChainCurrentSlot();
   const lastProcessedSlot = await input.slotController.getLastProcessedSlot();
-  const lagSlots = lastProcessedSlot !== null ? headSlot - lastProcessedSlot : headSlot;
+  const lagSlots =
+    lastProcessedSlot !== null
+      ? headSlot - lastProcessedSlot
+      : headSlot - input.beaconTime.getLookbackSlot();
 
   return { lastProcessedSlot, headSlot, lagSlots };
 }
@@ -51,7 +55,8 @@ async function readErrorLogTail(): Promise<string> {
     const lines = content.trim().split('\n');
     const tail = lines.slice(-ERROR_LOG_TAIL_LINES);
     return tail.join('\n');
-  } catch {
+  } catch (error) {
+    createLogger(LOGGER_CONTEXT).error('Failed to read error log', error);
     return '(could not read error log)';
   }
 }

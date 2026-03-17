@@ -25,7 +25,7 @@ export async function sendTelegramAlert(message: string): Promise<void> {
 
     if (!response.ok) {
       const body = await response.text();
-      logger.error(`Telegram API error (${response.status}): ${body}`, null);
+      logger.error(`Telegram API error (${response.status}): ${body}`, new Error(body));
     }
   } catch (error) {
     logger.error('Failed to send Telegram alert', error);
