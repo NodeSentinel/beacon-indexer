@@ -18,6 +18,6 @@ export function useSyncStatus() {
       ...data,
       isSynced: data ? data.processingSlot >= data.currentSlot : false,
     }),
-    refetchInterval: 30_000,
+    refetchInterval: 5_000,
   });
 }
