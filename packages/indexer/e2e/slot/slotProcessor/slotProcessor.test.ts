@@ -99,8 +99,8 @@ describe('Slot Processor E2E Tests', () => {
 
       // Create execution client mock
       const mockExecutionClient = new ExecutionClient({
-        executionApiUrl: 'http://mock-execution',
-        executionApiBkpUrl: 'http://mock-execution-backup',
+        executionBlockscoutUrl: 'http://mock-execution',
+        executionEtherscanUrl: 'http://mock-execution-backup',
         chainId: gnosisConfig.blockchain.chainId,
         slotDuration: gnosisConfig.beacon.slotDuration,
         requestsPerSecond: 3,
@@ -254,8 +254,8 @@ describe('Slot Processor E2E Tests', () => {
 
       // Create execution client mock
       const mockExecutionClient = new ExecutionClient({
-        executionApiUrl: 'http://mock-execution',
-        executionApiBkpUrl: 'http://mock-execution-backup',
+        executionBlockscoutUrl: 'http://mock-execution',
+        executionEtherscanUrl: 'http://mock-execution-backup',
         chainId: gnosisConfig.blockchain.chainId,
         slotDuration: gnosisConfig.beacon.slotDuration,
         requestsPerSecond: 3,
@@ -419,8 +419,8 @@ describe('Slot Processor E2E Tests', () => {
 
       // Create execution client mock
       const mockExecutionClient = new ExecutionClient({
-        executionApiUrl: 'http://mock-execution',
-        executionApiBkpUrl: 'http://mock-execution-backup',
+        executionBlockscoutUrl: 'http://mock-execution',
+        executionEtherscanUrl: 'http://mock-execution-backup',
         chainId: gnosisConfig.blockchain.chainId,
         slotDuration: gnosisConfig.beacon.slotDuration,
         requestsPerSecond: 3,

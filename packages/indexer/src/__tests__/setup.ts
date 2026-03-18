@@ -20,8 +20,8 @@ vi.hoisted(() => {
   process.env.CONSENSUS_API_REQUEST_PER_SECOND = '10';
 
   // Execution layer
-  process.env.EXECUTION_API_URL = 'https://execution.example.com';
-  process.env.EXECUTION_API_BKP_URL = 'https://execution-bkp.example.com';
+  process.env.EXECUTION_BLOCKSCOUT_URL = 'https://execution.example.com';
+  process.env.EXECUTION_ETHERSCAN_URL = 'https://execution-bkp.example.com';
   process.env.EXECUTION_API_REQUEST_PER_SECOND = '10';
 });
 

@@ -131,9 +131,12 @@ async function main() {
   );
 
   const executionClient = new ExecutionClient({
-    executionApiUrl: env.EXECUTION_API_URL,
-    executionApiBkpUrl: env.EXECUTION_API_BKP_URL,
-    executionApiBkpKey: env.EXECUTION_API_BKP_KEY,
+    executionBlockscoutUrl: env.EXECUTION_BLOCKSCOUT_URL,
+    executionBlockscoutKey: env.EXECUTION_BLOCKSCOUT_KEY,
+    executionEtherscanUrl: env.EXECUTION_ETHERSCAN_URL,
+    executionEtherscanKey: env.EXECUTION_ETHERSCAN_KEY,
+    executionQuicknodeUrl: env.EXECUTION_QUICKNODE_URL,
+    executionQuicknodeKey: env.EXECUTION_QUICKNODE_KEY,
     chainId: chainConfig.blockchain.chainId,
     slotDuration: chainConfig.beacon.slotDuration,
     requestsPerSecond: env.EXECUTION_API_REQUEST_PER_SECOND,
