@@ -57,69 +57,71 @@ export class ExecutionClient {
   async getBlock(blockNumber: number): Promise<BlockResponse | null> {
     return this.limiter(async () => {
       // Define endpoints
-      const endpoints = [
+      const etherscanEndpoint = {
         // Etherscan
         // https://api.etherscan.io/v2/api?chainid=1&module=block&action=getblockreward&blockno=2165403&apikey=YourApiKeyToken
-        {
-          url: `${this.config.executionApiBkpUrl}/api?chainid=${this.config.chainId}&module=block&action=getblockreward&blockno=${blockNumber}&apikey=${this.config.executionApiBkpKey || ''}`,
-          name: 'Etherscan',
-          process: (response: AxiosResponse<Etherscan_BlockReward>) => {
-            const blockInfo = response.data;
 
-            // Check if API call was successful
-            if (blockInfo.status !== '1' || blockInfo.message !== 'OK') {
-              throw new Error(
-                `Etherscan API error: ${blockInfo.message} (status: ${blockInfo.status})`,
-              );
-            }
+        url: `${this.config.executionApiBkpUrl}/api?chainid=${this.config.chainId}&module=block&action=getblockreward&blockno=${blockNumber}&apikey=${this.config.executionApiBkpKey || ''}`,
+        name: 'Etherscan',
+        process: (response: AxiosResponse<Etherscan_BlockReward>) => {
+          const blockInfo = response.data;
 
-            // Validate required fields
-            if (!blockInfo.result?.blockMiner || !blockInfo.result?.blockReward) {
-              throw new Error(`Unexpected Etherscan block response: ${JSON.stringify(blockInfo)}`);
-            }
+          // Check if API call was successful
+          if (blockInfo.status !== '1' || blockInfo.message !== 'OK') {
+            throw new Error(
+              `Etherscan API error: ${blockInfo.message} (status: ${blockInfo.status})`,
+            );
+          }
 
-            const result: BlockResponse = {
-              address: blockInfo.result.blockMiner,
-              timestamp: new Date(Number(blockInfo.result.timeStamp) * 1000),
-              amount: blockInfo.result.blockReward,
-              blockNumber: Number(blockInfo.result.blockNumber),
-            };
-            return result;
-          },
+          // Validate required fields
+          if (!blockInfo.result?.blockMiner || !blockInfo.result?.blockReward) {
+            throw new Error(`Unexpected Etherscan block response: ${JSON.stringify(blockInfo)}`);
+          }
+
+          const result: BlockResponse = {
+            address: blockInfo.result.blockMiner,
+            timestamp: new Date(Number(blockInfo.result.timeStamp) * 1000),
+            amount: blockInfo.result.blockReward,
+            blockNumber: Number(blockInfo.result.blockNumber),
+          };
+          return result;
         },
-        // Blockscout
-        // https://eth.blockscout.com/api/v2/blocks
-        {
-          url: `${this.config.executionApiUrl}/api/v2/blocks/${blockNumber}`,
-          name: 'Blockscout',
-          process: (response: AxiosResponse<Blockscout_Blocks>) => {
-            const blockInfo = response.data;
-            const minerReward = blockInfo.rewards.find((r) => r.type === 'Miner Reward');
+      };
 
-            // No reward data available for this block
-            if (!minerReward || blockInfo.rewards.length === 0) {
-              return {
-                address: blockInfo.miner?.hash ?? '',
-                timestamp: new Date(blockInfo.timestamp),
-                amount: '0',
-                blockNumber: blockInfo.height,
-              };
-            }
+      const blockscoutEndpoint = {
+        url: `${this.config.executionApiUrl}/api/v2/blocks/${blockNumber}`,
+        name: 'Blockscout',
+        process: (response: AxiosResponse<Blockscout_Blocks>) => {
+          const blockInfo = response.data;
+          const minerReward = blockInfo.rewards.find((r) => r.type === 'Miner Reward');
 
-            if (!blockInfo.miner || !blockInfo.miner.hash) {
-              throw new Error(`Unexpected block response: ${JSON.stringify(blockInfo)}`);
-            }
-
-            const result: BlockResponse = {
-              address: blockInfo.miner.hash,
+          // No reward data available for this block
+          if (!minerReward || blockInfo.rewards.length === 0) {
+            return {
+              address: blockInfo.miner?.hash ?? '',
               timestamp: new Date(blockInfo.timestamp),
-              amount: minerReward?.reward ?? '0',
+              amount: '0',
               blockNumber: blockInfo.height,
             };
-            return result;
-          },
+          }
+
+          if (!blockInfo.miner || !blockInfo.miner.hash) {
+            throw new Error(`Unexpected block response: ${JSON.stringify(blockInfo)}`);
+          }
+
+          const result: BlockResponse = {
+            address: blockInfo.miner.hash,
+            timestamp: new Date(blockInfo.timestamp),
+            amount: minerReward?.reward ?? '0',
+            blockNumber: blockInfo.height,
+          };
+          return result;
         },
-      ];
+      };
+
+      // Etherscan doesn't support getblockreward for Gnosis (chainId 100)
+      const isGnosis = this.config.chainId === 100;
+      const endpoints = isGnosis ? [blockscoutEndpoint] : [etherscanEndpoint, blockscoutEndpoint];
 
       // Try all endpoints in sequence, then backoff and retry the full cycle
       return await pRetry(
@@ -131,7 +133,17 @@ export class ExecutionClient {
               const response = await this.axiosInstance.get(endpoint.url);
               return endpoint.process(response);
             } catch (error) {
-              lastError = error;
+              const status = axios.isAxiosError(error) ? error.response?.status : undefined;
+              const responseData = axios.isAxiosError(error) ? error.response?.data : undefined;
+
+              const context =
+                `[${endpoint.name}] failed for block ${blockNumber}` +
+                (status ? ` (HTTP ${status})` : '') +
+                (responseData
+                  ? ` - response: ${JSON.stringify(responseData)}`
+                  : ` - ${error instanceof Error ? error.message : String(error)}`);
+
+              lastError = new Error(context, { cause: error });
             }
           }
 
