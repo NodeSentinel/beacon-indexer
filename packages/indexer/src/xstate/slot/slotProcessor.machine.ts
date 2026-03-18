@@ -392,9 +392,10 @@ export const slotProcessorMachine = setup({
                           target: 'complete',
                         },
                         onError: {
+                          target: 'processing',
                           actions: pinoLog(
                             ({ context, event }) =>
-                              `error fetching execution rewards for slot ${context.slot}: ${event.error}`,
+                              `error fetching execution rewards for slot ${context.slot}, retrying: ${event.error}`,
                             'SlotProcessor:executionRewards',
                             'error',
                           ),
