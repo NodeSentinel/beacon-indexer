@@ -361,6 +361,128 @@ describe('Slot Processor E2E Tests', () => {
     });
   });
 
+  /**
+   * fetchExecutionRewards tests verify that execution layer rewards
+   * (priority fees from the fee recipient) are correctly fetched and stored.
+   * Uses QuickNode-style data: reward is calculated as sum of (effectiveGasPrice - baseFeePerGas) * gasUsed.
+   */
+  describe('fetchExecutionRewards', () => {
+    let mockExecutionClient: ExecutionClient;
+    let slotControllerWithMock: SlotController;
+
+    // Real data from Gnosis block 45214731 fetched via QuickNode JSON-RPC batch
+    const BLOCK_NUMBER = 45214731;
+    const SLOT = 24519343; // reuse an existing test slot number
+    const EXPECTED_FEE_RECIPIENT = '0x86ead908fb5d6f900ff109c9e26f79300f99271a';
+    const EXPECTED_REWARD = '1173967697074274'; // wei, calculated from priority fees
+
+    beforeEach(async () => {
+      // Clean up database
+      await prisma.committee.deleteMany();
+      await prisma.slot.deleteMany();
+      await prisma.validator.deleteMany();
+      await prisma.validatorWithdrawals.deleteMany();
+      await prisma.validatorWithdrawalsRequests.deleteMany();
+      await prisma.validatorDeposits.deleteMany();
+      await prisma.validatorConsolidationsRequests.deleteMany();
+
+      // Create execution client with QuickNode configured (Gnosis)
+      mockExecutionClient = new ExecutionClient({
+        executionBlockscoutUrl: 'http://mock-blockscout',
+        executionEtherscanUrl: 'http://mock-etherscan',
+        executionQuicknodeUrl: 'http://mock-quicknode',
+        executionQuicknodeKey: 'test-key',
+        chainId: gnosisConfig.blockchain.chainId,
+        slotDuration: gnosisConfig.beacon.slotDuration,
+        requestsPerSecond: 3,
+        retries: 0, // no retries for tests
+      });
+
+      // Create slot controller with mocked execution client
+      slotControllerWithMock = new SlotController(
+        slotStorage,
+        {} as EpochStorage,
+        { slotStartIndexing: 32000 } as unknown as BeaconClient,
+        new BeaconTime({
+          genesisTimestamp: gnosisConfig.beacon.genesisTimestamp,
+          slotDurationMs: gnosisConfig.beacon.slotDuration,
+          slotsPerEpoch: gnosisConfig.beacon.slotsPerEpoch,
+          epochsPerSyncCommitteePeriod: gnosisConfig.beacon.epochsPerSyncCommitteePeriod,
+          lookbackSlot: 32000,
+        }),
+        mockExecutionClient,
+      );
+
+      // Save validators data to database
+      const validators = validatorsData.data.map((v) =>
+        ValidatorControllerHelpers.mapValidatorDataToDBEntity(
+          v as unknown as GetValidators['data'][number],
+        ),
+      );
+      await validatorsStorage.saveValidators(validators);
+
+      // Create slot
+      await slotStorage.createTestSlots([{ slot: SLOT, processed: false }]);
+    });
+
+    it('should skip processing if execution rewards already fetched', async () => {
+      // Pre-set executionRewardsFetched flag to true
+      await slotStorage.updateSlotFlags(SLOT, { executionRewardsFetched: true });
+
+      // Spy on getBlock to verify it's NOT called
+      const getBlockSpy = vi.spyOn(mockExecutionClient, 'getBlock');
+
+      // Should skip due to existing flag
+      await slotControllerWithMock.fetchExecutionRewards(SLOT, BLOCK_NUMBER);
+
+      // Verify execution client was not called
+      expect(getBlockSpy).not.toHaveBeenCalled();
+
+      getBlockSpy.mockRestore();
+    });
+
+    it('should fetch execution rewards via getBlock and store in DB', async () => {
+      // Mock getBlock to return QuickNode-computed reward data for block 45214731
+      const getBlockSpy = vi.spyOn(mockExecutionClient, 'getBlock').mockResolvedValueOnce({
+        address: EXPECTED_FEE_RECIPIENT,
+        timestamp: new Date('2026-03-18T15:25:10.000Z'),
+        amount: EXPECTED_REWARD,
+        blockNumber: BLOCK_NUMBER,
+      });
+
+      // Call fetchExecutionRewards
+      await slotControllerWithMock.fetchExecutionRewards(SLOT, BLOCK_NUMBER);
+
+      // Verify getBlock was called with the correct block number
+      expect(getBlockSpy).toHaveBeenCalledWith(BLOCK_NUMBER);
+
+      // Verify execution rewards are stored in the slot table
+      const slotData = await slotStorage.getBaseSlot(SLOT);
+      expect(slotData.executionRewardsFetched).toBe(true);
+      expect(slotData.executionReward?.toString()).toBe(EXPECTED_REWARD);
+      expect(slotData.feeRecipientAddress).toBe(EXPECTED_FEE_RECIPIENT);
+      expect(slotData.blockNumber).toBe(BLOCK_NUMBER);
+
+      getBlockSpy.mockRestore();
+    });
+
+    it('should throw error when getBlock returns null', async () => {
+      // Mock getBlock to return null (block not found)
+      const getBlockSpy = vi.spyOn(mockExecutionClient, 'getBlock').mockResolvedValueOnce(null);
+
+      // Should throw error for missing block
+      await expect(
+        slotControllerWithMock.fetchExecutionRewards(SLOT, BLOCK_NUMBER),
+      ).rejects.toThrow(`Block ${BLOCK_NUMBER} not found`);
+
+      // Verify slot was NOT updated
+      const slotData = await slotStorage.getBaseSlot(SLOT);
+      expect(slotData.executionRewardsFetched).toBe(false);
+
+      getBlockSpy.mockRestore();
+    });
+  });
+
   describe('fetchBlock', () => {
     let mockBeaconClient: Pick<BeaconClient, 'slotStartIndexing'> & {
       getBlock: ReturnType<typeof vi.fn>;
