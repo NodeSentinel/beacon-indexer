@@ -99,8 +99,8 @@ describe('Slot Processor E2E Tests', () => {
 
       // Create execution client mock
       const mockExecutionClient = new ExecutionClient({
-        executionApiUrl: 'http://mock-execution',
-        executionApiBkpUrl: 'http://mock-execution-backup',
+        executionBlockscoutUrl: 'http://mock-execution',
+        executionEtherscanUrl: 'http://mock-execution-backup',
         chainId: gnosisConfig.blockchain.chainId,
         slotDuration: gnosisConfig.beacon.slotDuration,
         requestsPerSecond: 3,
@@ -254,8 +254,8 @@ describe('Slot Processor E2E Tests', () => {
 
       // Create execution client mock
       const mockExecutionClient = new ExecutionClient({
-        executionApiUrl: 'http://mock-execution',
-        executionApiBkpUrl: 'http://mock-execution-backup',
+        executionBlockscoutUrl: 'http://mock-execution',
+        executionEtherscanUrl: 'http://mock-execution-backup',
         chainId: gnosisConfig.blockchain.chainId,
         slotDuration: gnosisConfig.beacon.slotDuration,
         requestsPerSecond: 3,
@@ -361,6 +361,181 @@ describe('Slot Processor E2E Tests', () => {
     });
   });
 
+  /**
+   * fetchExecutionRewards tests verify that execution layer rewards
+   * (priority fees from the fee recipient) are correctly fetched and stored.
+   *
+   * The QuickNode calculation test uses real JSON-RPC batch response data captured
+   * from Gnosis block 45214731. The mock data is injected at the axios level so
+   * the full getBlock() code path (hex parsing, baseFee subtraction, receipt iteration)
+   * is exercised end-to-end.
+   */
+  describe('fetchExecutionRewards', () => {
+    let executionClient: ExecutionClient;
+    let slotControllerWithMock: SlotController;
+
+    // Real data from Gnosis block 45214731 fetched via QuickNode JSON-RPC batch
+    const BLOCK_NUMBER = 45214731;
+    const SLOT = 24519343; // reuse an existing test slot number
+    const EXPECTED_FEE_RECIPIENT = '0x86ead908fb5d6f900ff109c9e26f79300f99271a';
+    // Verified against Blockscout Miner Reward for the same block
+    const EXPECTED_REWARD = '1173967697074274';
+
+    // Real QuickNode JSON-RPC batch response for block 45214731 (Gnosis)
+    // Captured via: POST https://holy-sly-needle.xdai.quiknode.pro/...
+    // with [eth_getBlockByNumber, eth_getBlockReceipts] batch
+    const quicknodeBatchResponse = [
+      {
+        jsonrpc: '2.0',
+        id: 1,
+        result: {
+          number: '0x2b1ec0b',
+          timestamp: '0x69bac3d6',
+          miner: '0x86ead908fb5d6f900ff109c9e26f79300f99271a',
+          baseFeePerGas: '0x11',
+        },
+      },
+      {
+        jsonrpc: '2.0',
+        id: 2,
+        result: [
+          { gasUsed: '0x1cfef', effectiveGasPrice: '0x59a8a094' },
+          { gasUsed: '0x3260a', effectiveGasPrice: '0x3b9aca38' },
+          { gasUsed: '0x1f256', effectiveGasPrice: '0x3b9aca11' },
+          { gasUsed: '0x3b8d8', effectiveGasPrice: '0x3b9aca11' },
+          { gasUsed: '0x58217', effectiveGasPrice: '0x3b9aca11' },
+          { gasUsed: '0x3764e', effectiveGasPrice: '0x5f5e111' },
+          { gasUsed: '0x3b10b', effectiveGasPrice: '0x5632205' },
+          { gasUsed: '0x2e857', effectiveGasPrice: '0x22680be' },
+          { gasUsed: '0x7b629', effectiveGasPrice: '0x989691' },
+          { gasUsed: '0x132d3b', effectiveGasPrice: '0x56' },
+          { gasUsed: '0x13aa7a', effectiveGasPrice: '0x56' },
+          { gasUsed: '0x5208', effectiveGasPrice: '0x41' },
+          { gasUsed: '0x2624bd', effectiveGasPrice: '0x38' },
+          { gasUsed: '0x2bd3a', effectiveGasPrice: '0x38' },
+          { gasUsed: '0xdcf2', effectiveGasPrice: '0x38' },
+        ],
+      },
+    ];
+
+    beforeEach(async () => {
+      // Clean up database
+      await prisma.committee.deleteMany();
+      await prisma.slot.deleteMany();
+      await prisma.validator.deleteMany();
+      await prisma.validatorWithdrawals.deleteMany();
+      await prisma.validatorWithdrawalsRequests.deleteMany();
+      await prisma.validatorDeposits.deleteMany();
+      await prisma.validatorConsolidationsRequests.deleteMany();
+
+      // Create execution client with only QuickNode configured (Gnosis chain).
+      // Blockscout URL is set to an unreachable address so the fallback chain
+      // reaches QuickNode, whose axios POST is intercepted below.
+      executionClient = new ExecutionClient({
+        executionBlockscoutUrl: 'http://0.0.0.0:1',
+        executionEtherscanUrl: 'http://0.0.0.0:1',
+        executionQuicknodeUrl: 'http://mock-quicknode',
+        executionQuicknodeKey: 'test-key',
+        chainId: gnosisConfig.blockchain.chainId,
+        slotDuration: gnosisConfig.beacon.slotDuration,
+        requestsPerSecond: 3,
+        retries: 0, // no retries — let QuickNode succeed on first try
+      });
+
+      // Create slot controller
+      slotControllerWithMock = new SlotController(
+        slotStorage,
+        {} as EpochStorage,
+        { slotStartIndexing: 32000 } as unknown as BeaconClient,
+        new BeaconTime({
+          genesisTimestamp: gnosisConfig.beacon.genesisTimestamp,
+          slotDurationMs: gnosisConfig.beacon.slotDuration,
+          slotsPerEpoch: gnosisConfig.beacon.slotsPerEpoch,
+          epochsPerSyncCommitteePeriod: gnosisConfig.beacon.epochsPerSyncCommitteePeriod,
+          lookbackSlot: 32000,
+        }),
+        executionClient,
+      );
+
+      // Save validators data to database
+      const validators = validatorsData.data.map((v) =>
+        ValidatorControllerHelpers.mapValidatorDataToDBEntity(
+          v as unknown as GetValidators['data'][number],
+        ),
+      );
+      await validatorsStorage.saveValidators(validators);
+
+      // Create slot
+      await slotStorage.createTestSlots([{ slot: SLOT, processed: false }]);
+    });
+
+    it('should skip processing if execution rewards already fetched', async () => {
+      // Pre-set executionRewardsFetched flag to true
+      await slotStorage.updateSlotFlags(SLOT, { executionRewardsFetched: true });
+
+      // Spy on getBlock to verify it's NOT called
+      const getBlockSpy = vi.spyOn(executionClient, 'getBlock');
+
+      // Should skip due to existing flag
+      await slotControllerWithMock.fetchExecutionRewards(SLOT, BLOCK_NUMBER);
+
+      // Verify execution client was not called
+      expect(getBlockSpy).not.toHaveBeenCalled();
+
+      getBlockSpy.mockRestore();
+    });
+
+    it('should calculate execution rewards from QuickNode JSON-RPC data and store in DB', async () => {
+      // Intercept the axios POST call that getBlock() makes to QuickNode.
+      // The real batch JSON-RPC response is returned so the full priority fee
+      // calculation (hex parsing, baseFee subtraction, gasUsed multiplication)
+      // runs through the production code path.
+      const axiosInstance = (executionClient as unknown as { axiosInstance: { post: unknown } })
+        .axiosInstance;
+      const postSpy = vi
+        .spyOn(axiosInstance, 'post' as never)
+        .mockResolvedValueOnce({ data: quicknodeBatchResponse } as never);
+
+      // Call fetchExecutionRewards — this triggers getBlock() which calls QuickNode
+      await slotControllerWithMock.fetchExecutionRewards(SLOT, BLOCK_NUMBER);
+
+      // Verify the QuickNode batch POST was called with the correct URL and params
+      expect(postSpy).toHaveBeenCalledOnce();
+      const [url, body] = postSpy.mock.calls[0] as [string, unknown[]];
+      // URL should be base + key
+      expect(url).toBe('http://mock-quicknode/test-key');
+      // Body should be a JSON-RPC batch array
+      expect(Array.isArray(body)).toBe(true);
+      expect(body).toHaveLength(2);
+
+      // Verify the calculated reward matches the expected value
+      // (same value Blockscout reports as "Miner Reward" for block 45214731)
+      const slotData = await slotStorage.getBaseSlot(SLOT);
+      expect(slotData.executionRewardsFetched).toBe(true);
+      expect(slotData.executionReward?.toString()).toBe(EXPECTED_REWARD);
+      expect(slotData.feeRecipientAddress).toBe(EXPECTED_FEE_RECIPIENT);
+      expect(slotData.blockNumber).toBe(BLOCK_NUMBER);
+
+      postSpy.mockRestore();
+    });
+
+    it('should throw error when getBlock returns null', async () => {
+      // Mock getBlock to return null (block not found)
+      const getBlockSpy = vi.spyOn(executionClient, 'getBlock').mockResolvedValueOnce(null);
+
+      // Should throw error for missing block
+      await expect(
+        slotControllerWithMock.fetchExecutionRewards(SLOT, BLOCK_NUMBER),
+      ).rejects.toThrow(`Block ${BLOCK_NUMBER} not found`);
+
+      // Verify slot was NOT updated
+      const slotData = await slotStorage.getBaseSlot(SLOT);
+      expect(slotData.executionRewardsFetched).toBe(false);
+
+      getBlockSpy.mockRestore();
+    });
+  });
+
   describe('fetchBlock', () => {
     let mockBeaconClient: Pick<BeaconClient, 'slotStartIndexing'> & {
       getBlock: ReturnType<typeof vi.fn>;
@@ -419,8 +594,8 @@ describe('Slot Processor E2E Tests', () => {
 
       // Create execution client mock
       const mockExecutionClient = new ExecutionClient({
-        executionApiUrl: 'http://mock-execution',
-        executionApiBkpUrl: 'http://mock-execution-backup',
+        executionBlockscoutUrl: 'http://mock-execution',
+        executionEtherscanUrl: 'http://mock-execution-backup',
         chainId: gnosisConfig.blockchain.chainId,
         slotDuration: gnosisConfig.beacon.slotDuration,
         requestsPerSecond: 3,

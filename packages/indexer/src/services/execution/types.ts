@@ -66,3 +66,23 @@ export type Etherscan_BlockReward = {
     uncleInclusionReward: string;
   };
 };
+
+// QuickNode JSON-RPC types
+export type QuickNode_Block = {
+  number: string; // hex
+  timestamp: string; // hex
+  miner: string; // fee recipient address
+  baseFeePerGas: string; // hex
+};
+
+export type QuickNode_TransactionReceipt = {
+  gasUsed: string; // hex
+  effectiveGasPrice: string; // hex
+};
+
+export type JsonRpcResponse<T> = {
+  jsonrpc: string;
+  id: number;
+  result: T;
+  error?: { code: number; message: string };
+};

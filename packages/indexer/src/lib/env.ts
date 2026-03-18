@@ -42,10 +42,12 @@ export const env = createEnv({
       z.number().int().positive(),
     ),
     // Blockchain - Execution layer
-    EXECUTION_API_URL: z.string().url(),
-    EXECUTION_API_KEY: z.string().optional(),
-    EXECUTION_API_BKP_URL: z.string().url(),
-    EXECUTION_API_BKP_KEY: z.string().optional(),
+    EXECUTION_BLOCKSCOUT_URL: z.string().url(),
+    EXECUTION_BLOCKSCOUT_KEY: z.string().optional(),
+    EXECUTION_ETHERSCAN_URL: z.string().url(),
+    EXECUTION_ETHERSCAN_KEY: z.string().optional(),
+    EXECUTION_QUICKNODE_URL: z.string().url().optional(),
+    EXECUTION_QUICKNODE_KEY: z.string().optional(),
     EXECUTION_API_REQUEST_PER_SECOND: z.preprocess(
       (val) => Number(val),
       z.number().int().positive(),
