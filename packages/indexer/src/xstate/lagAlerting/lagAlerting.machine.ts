@@ -26,6 +26,18 @@ function escapeHtml(text: string): string {
   return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
+// Telegram messages have a 4096 character limit.
+// We reserve space for the message template and truncate the error log if needed.
+const TELEGRAM_MAX_LENGTH = 4096;
+const MESSAGE_TEMPLATE_OVERHEAD = 300; // space for headers, slots, tags
+const MAX_ERROR_LOG_LENGTH = TELEGRAM_MAX_LENGTH - MESSAGE_TEMPLATE_OVERHEAD;
+
+function truncateForTelegram(text: string, maxLength: number): string {
+  if (text.length <= maxLength) return text;
+  const truncationNotice = '\n... (truncated)';
+  return text.slice(0, maxLength - truncationNotice.length) + truncationNotice;
+}
+
 type LagCheckResult = {
   lastProcessedSlot: number | null;
   headSlot: number;
@@ -69,15 +81,17 @@ async function sendLagAlert(input: {
 }): Promise<void> {
   const errorLogTail = await readErrorLogTail();
 
+  const escapedLog = truncateForTelegram(escapeHtml(errorLogTail), MAX_ERROR_LOG_LENGTH);
+
   const message = [
-    `<b>Indexer Lag Alert [${input.chain}]</b>`,
+    `<b>Indexer Lag Alert [${escapeHtml(input.chain)}]</b>`,
     '',
     `Head slot: <code>${input.headSlot}</code>`,
     `Last processed: <code>${input.lastProcessedSlot ?? 'none'}</code>`,
     `Lag: <b>${input.lagSlots} slots</b>`,
     '',
     `<b>Last ${ERROR_LOG_TAIL_LINES} error log lines:</b>`,
-    `<pre>${escapeHtml(errorLogTail)}</pre>`,
+    `<pre>${escapedLog}</pre>`,
   ].join('\n');
 
   await sendTelegramAlert(message);
@@ -90,7 +104,7 @@ async function sendRecoveryAlert(input: {
   chain: string;
 }): Promise<void> {
   const message = [
-    `<b>Indexer Recovered [${input.chain}]</b>`,
+    `<b>Indexer Recovered [${escapeHtml(input.chain)}]</b>`,
     '',
     `Head slot: <code>${input.headSlot}</code>`,
     `Last processed: <code>${input.lastProcessedSlot ?? 'none'}</code>`,
@@ -255,7 +269,6 @@ export const lagAlertingMachine = setup({
         onError: {
           target: 'sleeping',
           actions: [
-            assign({ isInAlertState: true }),
             pinoLog(
               ({ event }) => `Failed to send lag alert: ${event.error}`,
               LOGGER_CONTEXT,
