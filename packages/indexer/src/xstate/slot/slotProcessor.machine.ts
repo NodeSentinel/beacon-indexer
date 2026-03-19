@@ -16,6 +16,7 @@
  * is considered legacy and should be removed once all consumers have migrated.
  */
 
+import ms from 'ms';
 import { setup, assign, sendParent, fromPromise } from 'xstate';
 
 import { SlotController } from '@/src/services/consensus/controllers/slot.js';
@@ -30,6 +31,7 @@ export interface SlotProcessorContext {
     rawData: Block | 'SLOT MISSED' | null;
   };
   lookbackSlot: number;
+  slotDuration: number;
 }
 
 export interface SlotProcessorInput {
@@ -37,6 +39,7 @@ export interface SlotProcessorInput {
   slot: number;
   lookbackSlot: number;
   slotController: SlotController;
+  slotDuration: number;
 }
 
 export const slotProcessorMachine = setup({
@@ -153,7 +156,9 @@ export const slotProcessorMachine = setup({
     isLookbackSlot: ({ context }) => context.slot === context.lookbackSlot,
     hasBeaconBlockData: ({ context }) => context.beaconBlockData?.rawData !== null,
   },
-  delays: {},
+  delays: {
+    retryWait: ms('2s'),
+  },
 }).createMachine({
   id: 'SlotProcessor',
   initial: 'gettingSlot',
@@ -165,6 +170,7 @@ export const slotProcessorMachine = setup({
       rawData: null,
     },
     lookbackSlot: input.lookbackSlot,
+    slotDuration: input.slotDuration,
   }),
 
   states: {
@@ -373,8 +379,9 @@ export const slotProcessorMachine = setup({
                   states: {
                     processing: {
                       entry: pinoLog(
-                        ({ context }) => `fetching execution rewards for slot ${context.slot}`,
-                        'SlotProcessor:executionRewards',
+                        ({ context }) =>
+                          `fetching blockRewards(execution) for slot ${context.slot}`,
+                        'SlotProcessor:blockRewards(execution)',
                       ),
                       invoke: {
                         src: 'fetchELRewards',
@@ -392,21 +399,27 @@ export const slotProcessorMachine = setup({
                           target: 'complete',
                         },
                         onError: {
-                          target: 'processing',
+                          target: 'waitingRetry',
                           actions: pinoLog(
                             ({ context, event }) =>
-                              `error fetching execution rewards for slot ${context.slot}, retrying: ${event.error}`,
-                            'SlotProcessor:executionRewards',
+                              `error fetching blockRewards(execution) for slot ${context.slot}, waiting slotHalf before retrying: ${event.error}`,
+                            'SlotProcessor:blockRewards(execution)',
                             'error',
                           ),
                         },
                       },
                     },
+                    waitingRetry: {
+                      after: {
+                        retryWait: 'processing',
+                      },
+                    },
                     complete: {
                       type: 'final',
                       entry: pinoLog(
-                        ({ context }) => `complete execution rewards for slot ${context.slot}`,
-                        'SlotProcessor:executionRewards',
+                        ({ context }) =>
+                          `complete blockRewards(execution) for slot ${context.slot}`,
+                        'SlotProcessor:blockRewards(execution)',
                       ),
                     },
                   },
@@ -417,8 +430,9 @@ export const slotProcessorMachine = setup({
                   states: {
                     processing: {
                       entry: pinoLog(
-                        ({ context }) => `fetching block rewards for slot ${context.slot}`,
-                        'SlotProcessor:blockRewards',
+                        ({ context }) =>
+                          `fetching blockRewards(consensus) for slot ${context.slot}`,
+                        'SlotProcessor:blockRewards(consensus)',
                       ),
                       invoke: {
                         src: 'fetchBlockRewards',
@@ -432,20 +446,27 @@ export const slotProcessorMachine = setup({
                           target: 'complete',
                         },
                         onError: {
+                          target: 'waitingRetry',
                           actions: pinoLog(
                             ({ context, event }) =>
-                              `error fetching block rewards for slot ${context.slot}: ${event.error}`,
-                            'SlotProcessor:blockRewards',
+                              `error fetching blockRewards(consensus) for slot ${context.slot}, waiting slotHalf before retrying: ${event.error}`,
+                            'SlotProcessor:blockRewards(consensus)',
                             'error',
                           ),
                         },
                       },
                     },
+                    waitingRetry: {
+                      after: {
+                        retryWait: 'processing',
+                      },
+                    },
                     complete: {
                       type: 'final',
                       entry: pinoLog(
-                        ({ context }) => `complete block rewards for slot ${context.slot}`,
-                        'SlotProcessor:blockRewards',
+                        ({ context }) =>
+                          `complete blockRewards(consensus) for slot ${context.slot}`,
+                        'SlotProcessor:blockRewards(consensus)',
                       ),
                     },
                   },

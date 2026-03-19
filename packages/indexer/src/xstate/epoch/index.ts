@@ -15,17 +15,13 @@ import { logMachine } from '@/src/xstate/multiMachineLogger.js';
 
 export const getCreateEpochActor = (epochController: EpochController, slotDuration: number) => {
   const actor = createActor(epochCreationMachine, {
-    input: {
-      slotDuration,
-      epochController,
-    },
+    input: { slotDuration, epochController },
   });
 
   actor.subscribe((snapshot) => {
     const { context } = snapshot;
 
     logMachine('epochCreator', `State: ${JSON.stringify(snapshot.value)}`, {
-      // Current state info
       slotDuration: context.slotDuration,
     });
   });

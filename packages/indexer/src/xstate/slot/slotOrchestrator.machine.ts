@@ -25,6 +25,7 @@ export interface SlotOrchestratorContext {
   endSlot: number;
   currentSlot: number | null;
   lookbackSlot: number;
+  slotDuration: number;
 
   slotActor: ActorRefFrom<typeof slotProcessorMachine> | null;
 
@@ -35,6 +36,7 @@ export interface SlotOrchestratorInput {
   epoch: number;
   lookbackSlot: number;
   slotController: SlotController;
+  slotDuration: number;
 }
 
 // Extract the SLOTS_COMPLETED event type for reuse in other machines
@@ -84,6 +86,7 @@ export const slotOrchestratorMachine = setup({
       slotActor: null,
       lookbackSlot: input.lookbackSlot,
       slotController: input.slotController,
+      slotDuration: input.slotDuration,
     };
   },
   states: {
@@ -170,6 +173,7 @@ export const slotOrchestratorMachine = setup({
                 slot: context.currentSlot!,
                 lookbackSlot: context.lookbackSlot,
                 slotController: context.slotController,
+                slotDuration: context.slotDuration,
               },
             });
 

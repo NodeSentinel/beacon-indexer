@@ -578,6 +578,7 @@ export const epochProcessorMachine = setup({
                             epoch: context.epoch,
                             lookbackSlot: context.config.lookbackSlot,
                             slotController: context.services.slotController,
+                            slotDuration: context.config.slotDuration,
                           },
                         });
 
