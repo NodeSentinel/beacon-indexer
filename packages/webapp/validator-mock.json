@@ -1,5 +1,5 @@
 {
-  "groups": [
+  "clusters": [
     {
       "id": "group-1",
       "name": "Group Alpha",
@@ -18,7 +18,7 @@
           "effectiveBalance": 32,
           "performance": 99.8,
           "missedAttestations": 2,
-          "groupId": "group-1"
+          "clusterId": "group-1"
         },
         {
           "id": "val-2",
@@ -29,7 +29,7 @@
           "effectiveBalance": 32,
           "performance": 100,
           "missedAttestations": 0,
-          "groupId": "group-1"
+          "clusterId": "group-1"
         }
       ],
       "totalBalance": 64.57,
@@ -55,7 +55,7 @@
           "effectiveBalance": 32,
           "performance": 99.5,
           "missedAttestations": 5,
-          "groupId": "group-2"
+          "clusterId": "group-2"
         },
         {
           "id": "val-4",
@@ -66,7 +66,7 @@
           "effectiveBalance": 32,
           "performance": 99.7,
           "missedAttestations": 3,
-          "groupId": "group-2"
+          "clusterId": "group-2"
         },
         {
           "id": "val-5",
@@ -77,7 +77,7 @@
           "effectiveBalance": 32,
           "performance": 95.2,
           "missedAttestations": 48,
-          "groupId": "group-2"
+          "clusterId": "group-2"
         }
       ],
       "totalBalance": 97.36,

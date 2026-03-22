@@ -112,7 +112,6 @@ export default function DashboardOverview() {
           effectiveBalance: v.effectiveBalance ? parseFloat(v.effectiveBalance) : 0,
           performance: v.performanceH !== null ? v.performanceH * 100 : 0,
           missedAttestations: v.attestationsMissed ?? 0,
-          groupId: clusterDetail.id,
           clusterId: clusterDetail.id,
         };
       }),

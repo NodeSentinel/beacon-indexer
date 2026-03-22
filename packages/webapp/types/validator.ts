@@ -9,8 +9,7 @@ export interface Validator {
   effectiveBalance: number;
   performance: number; // percentage
   missedAttestations: number;
-  groupId: string;
-  clusterId?: string;
+  clusterId: string;
 }
 
 export interface AlertConfig {
@@ -96,7 +95,6 @@ export interface ValidatorEvent {
 }
 
 export interface ValidatorData {
-  groups: Cluster[];
   clusters: Cluster[];
   alertConfig: AlertConfig;
   stats: Stats;

@@ -7,8 +7,7 @@ export interface ClusterValidator {
   effectiveBalance: number;
   performance: number;
   missedAttestations: number;
-  groupId: string;
-  clusterId?: string;
+  clusterId: string;
 }
 
 export interface Cluster {
