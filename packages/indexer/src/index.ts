@@ -95,7 +95,7 @@ async function main() {
   const beaconClient = new BeaconClient({
     fullNodeUrl: env.CONSENSUS_FULL_API_URL,
     fullNodeConcurrency: env.CONSENSUS_API_REQUEST_PER_SECOND,
-    fullNodeRetries: 5,
+    fullNodeRetries: 2,
     archiveNodeUrl: env.CONSENSUS_ARCHIVE_API_URL,
     archiveNodeConcurrency: env.CONSENSUS_API_REQUEST_PER_SECOND,
     archiveNodeRetries: 30,
