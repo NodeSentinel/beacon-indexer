@@ -1,24 +1,31 @@
 'use client';
 
-import { Plus } from 'lucide-react';
-import { useState, useEffect, useRef, useMemo } from 'react';
+import { Plus, Server } from 'lucide-react';
+import { useState, useEffect, useMemo } from 'react';
 
-import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import { cn } from '@/lib/utils';
+import AnalyticsContent from './analytics-content';
+import ClusterOverviewContent from './cluster-overview-content';
+import EventsFeedContent from './events-feed-content';
+
+import { Button } from '@/components/ui/button';
+import {
+  UnderlineTabs,
+  UnderlineTabsList,
+  UnderlineTabsTrigger,
+  UnderlineTabsContent,
+} from '@/components/underline-tabs';
+import { useCluster } from '@/hooks/use-clusters';
+import { toDetailedCluster } from '@/lib/cluster-adapter';
 import { CLUSTER_FILTER_ALL, type Cluster, type ClusterFilter } from '@/types/cluster';
 
 interface UserDashboardProps {
   clusters: Cluster[];
   isLoading?: boolean;
   onAddCluster: () => void;
+  onManageCluster: (clusterId: string) => void;
   hideAllTab?: boolean;
   selectedCluster?: ClusterFilter;
   onClusterChange?: (clusterId: ClusterFilter) => void;
-  children: (props: {
-    selectedCluster: ClusterFilter;
-    displayCluster: Cluster | null;
-    isAllSelected: boolean;
-  }) => React.ReactNode;
 }
 
 function getAggregatedCluster(clusters: Cluster[]): Cluster {
@@ -55,23 +62,23 @@ export default function UserDashboard({
   clusters,
   isLoading,
   onAddCluster,
+  onManageCluster,
   hideAllTab = false,
   selectedCluster: controlledSelectedCluster,
   onClusterChange,
-  children,
 }: UserDashboardProps) {
   // Internal state for uncontrolled mode
   const [internalSelectedCluster, setInternalSelectedCluster] =
     useState<ClusterFilter>(CLUSTER_FILTER_ALL);
-  const [isSticky, setIsSticky] = useState(false);
-  const sentinelRef = useRef<HTMLDivElement>(null);
-
   // Use controlled or uncontrolled state
   const isControlled = controlledSelectedCluster !== undefined;
   const selectedCluster = isControlled ? controlledSelectedCluster : internalSelectedCluster;
   const setSelectedCluster = isControlled
     ? (value: ClusterFilter) => onClusterChange?.(value)
     : setInternalSelectedCluster;
+
+  const selectedClusterId = selectedCluster !== CLUSTER_FILTER_ALL ? selectedCluster : null;
+  const { data: clusterDetail, isLoading: clusterDetailLoading } = useCluster(selectedClusterId);
 
   // Auto-select first cluster when hideAllTab is true and clusters are loaded
   useEffect(() => {
@@ -80,100 +87,87 @@ export default function UserDashboard({
     }
   }, [hideAllTab, clusters, selectedCluster, setSelectedCluster]);
 
-  // Intersection Observer for sticky detection
-  useEffect(() => {
-    const sentinel = sentinelRef.current;
-    if (!sentinel) return;
-
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        setIsSticky(!entry.isIntersecting);
-      },
-      { threshold: 0, rootMargin: '-1px 0px 0px 0px' },
-    );
-
-    observer.observe(sentinel);
-    return () => observer.disconnect();
-  }, []);
-
   const isAllSelected = selectedCluster === CLUSTER_FILTER_ALL;
+  const detailedCluster = useMemo(
+    () => (clusterDetail ? toDetailedCluster(clusterDetail) : null),
+    [clusterDetail],
+  );
   const displayCluster = useMemo(() => {
+    if (detailedCluster) return detailedCluster;
     return isAllSelected
       ? getAggregatedCluster(clusters)
       : clusters.find((c) => c.id === selectedCluster) || null;
-  }, [isAllSelected, clusters, selectedCluster]);
+  }, [isAllSelected, clusters, selectedCluster, detailedCluster]);
 
   if (isLoading) {
     return <UserDashboardSkeleton />;
   }
 
+  if (clusters.length === 0) {
+    return (
+      <div className="border border-border/60 rounded-lg p-8 md:p-12 flex flex-col items-center text-center space-y-4">
+        <Server className="size-10 text-muted-foreground" />
+        <h2 className="text-xl md:text-2xl font-display">Create your first cluster</h2>
+        <p className="text-muted-foreground max-w-md text-sm md:text-base">
+          A cluster represents a physical machine running a group of validators. Create one per
+          machine you operate. If you are a solo staker, you probably only need one.
+        </p>
+        <Button onClick={onAddCluster} className="mt-2">
+          <Plus className="size-4 mr-2" />
+          Add Cluster
+        </Button>
+      </div>
+    );
+  }
+
+  const isLoadingCluster = clusterDetailLoading && !isAllSelected;
+
   return (
-    <div>
-      {/* Sentinel element for intersection observer */}
-      <div ref={sentinelRef} className="h-0" />
-
-      <Tabs
-        value={selectedCluster}
-        onValueChange={(value) => setSelectedCluster(value as ClusterFilter)}
-        className="flex flex-col gap-0"
-      >
-        <div
-          className={cn(
-            'sticky top-0 z-10 transition-shadow duration-200 overflow-x-auto scrollbar-none',
-            isSticky && 'shadow-md',
-          )}
+    <UnderlineTabs
+      value={selectedCluster}
+      onValueChange={(value) => setSelectedCluster(value as ClusterFilter)}
+      className="gap-0"
+    >
+      <UnderlineTabsList>
+        {!hideAllTab && <UnderlineTabsTrigger value={CLUSTER_FILTER_ALL}>All</UnderlineTabsTrigger>}
+        {clusters.map((cluster) => (
+          <UnderlineTabsTrigger key={cluster.id} value={cluster.id}>
+            {cluster.name}
+          </UnderlineTabsTrigger>
+        ))}
+        <UnderlineTabsTrigger
+          value="__add_cluster__"
+          onClick={(e) => {
+            e.preventDefault();
+            onAddCluster();
+          }}
+          aria-label="Add cluster"
         >
-          <div className="flex items-end">
-            <TabsList className="bg-transparent rounded-none p-0 gap-0 h-auto w-auto items-end">
-              {!hideAllTab && (
-                <TabsTrigger
-                  value={CLUSTER_FILTER_ALL}
-                  className={cn(
-                    'flex-initial rounded-none border border-b-0 border-border/40 bg-muted/40 px-4 md:px-5 py-2 md:py-2.5 text-sm text-muted-foreground hover:bg-muted/60 transition-colors',
-                    'data-[state=active]:bg-transparent data-[state=active]:text-primary data-[state=active]:border-border/60 data-[state=active]:font-semibold',
-                  )}
-                >
-                  All
-                </TabsTrigger>
-              )}
-              {clusters.map((cluster) => (
-                <TabsTrigger
-                  key={cluster.id}
-                  value={cluster.id}
-                  className={cn(
-                    'flex-initial rounded-none border border-b-0 border-border/40 bg-muted/40 px-4 md:px-5 py-2 md:py-2.5 text-sm text-muted-foreground hover:bg-muted/60 transition-colors',
-                    'data-[state=active]:bg-transparent data-[state=active]:text-primary data-[state=active]:border-border/60 data-[state=active]:font-semibold',
-                  )}
-                >
-                  {cluster.name}
-                </TabsTrigger>
-              ))}
-              <TabsTrigger
-                value="__add_cluster__"
-                onClick={(e) => {
-                  e.preventDefault();
-                  onAddCluster();
-                }}
-                aria-label="Add cluster"
-                className={cn(
-                  'flex-initial rounded-none border border-b-0 border-border/40 bg-muted/40 px-4 md:px-5 py-2 md:py-2.5 text-sm text-muted-foreground hover:bg-muted/60 transition-colors',
-                  'data-[state=active]:bg-muted/40 data-[state=active]:text-muted-foreground data-[state=active]:font-normal',
-                )}
-              >
-                <Plus className="size-4" /> New
-              </TabsTrigger>
-            </TabsList>
-          </div>
+          <Plus className="size-3" />
+          New
+        </UnderlineTabsTrigger>
+      </UnderlineTabsList>
+
+      <UnderlineTabsContent value={selectedCluster}>
+        <div className="py-4 md:p-6 space-y-4 md:space-y-5">
+          {isLoadingCluster ? (
+            <div className="animate-pulse space-y-4">
+              <div className="h-8 bg-foreground/5 rounded w-1/3" />
+              <div className="h-24 bg-foreground/5 rounded" />
+              <div className="h-48 bg-foreground/5 rounded" />
+            </div>
+          ) : displayCluster ? (
+            <ClusterOverviewContent
+              cluster={displayCluster}
+              showManageButton={!isAllSelected}
+              onManage={() => onManageCluster(displayCluster.id)}
+            />
+          ) : null}
+          <AnalyticsContent clusterFilter={selectedCluster} />
+          <EventsFeedContent clusterId={selectedClusterId} />
         </div>
-
-        <TabsContent
-          value={selectedCluster}
-          className="m-0 border-y md:border border-border/60 md:rounded-b-lg md:rounded-tr-lg"
-        >
-          {children({ selectedCluster, displayCluster, isAllSelected })}
-        </TabsContent>
-      </Tabs>
-    </div>
+      </UnderlineTabsContent>
+    </UnderlineTabs>
   );
 }
 

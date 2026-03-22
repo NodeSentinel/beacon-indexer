@@ -41,7 +41,7 @@ function UnderlineTabsTrigger({
     <TabsPrimitive.Trigger
       data-slot="underline-tabs-trigger"
       className={cn(
-        'h-9 flex-shrink-0 px-3 md:px-4 rounded-none border-b-2 border-transparent',
+        'h-9 flex-shrink-0 inline-flex items-center gap-1 whitespace-nowrap px-3 md:px-4 rounded-none border-b-2 border-transparent',
         'data-[state=active]:border-b-primary data-[state=active]:bg-transparent',
         'text-xs text-muted-foreground uppercase tracking-wider font-medium',
         'data-[state=active]:text-foreground',

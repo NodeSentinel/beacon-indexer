@@ -3,15 +3,13 @@
 import { Settings } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
-import type { ClusterSnapshot } from '@/hooks/use-cluster-snapshot';
+import { useChainStats } from '@/hooks/use-chain-stats';
+import { useClusterSnapshot, type ClusterSnapshot } from '@/hooks/use-cluster-snapshot';
 import { formatNumber } from '@/lib/utils';
 import type { Cluster } from '@/types/cluster';
 
 interface ClusterOverviewContentProps {
   cluster: Cluster;
-  snapshot: ClusterSnapshot | null;
-  snapshotLoading?: boolean;
-  gnoPrice: number;
   onManage?: () => void;
   showManageButton?: boolean;
 }
@@ -64,12 +62,12 @@ function formatTotalUsd(
 
 export default function ClusterOverviewContent({
   cluster,
-  snapshot,
-  snapshotLoading,
-  gnoPrice,
   onManage,
   showManageButton = false,
 }: ClusterOverviewContentProps) {
+  const { data: chainStats } = useChainStats();
+  const { data: snapshot, isLoading: snapshotLoading } = useClusterSnapshot(cluster.id);
+  const gnoPrice = chainStats?.tokenPrice ?? 0;
   const statusCounts = cluster.validators.reduce(
     (acc, v) => {
       acc[v.status] = (acc[v.status] || 0) + 1;
