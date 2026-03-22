@@ -439,7 +439,6 @@ describe('Slot Processor E2E Tests', () => {
         chainId: gnosisConfig.blockchain.chainId,
         slotDuration: gnosisConfig.beacon.slotDuration,
         requestsPerSecond: 3,
-        retries: 0, // no retries — let QuickNode succeed on first try
       });
 
       // Create slot controller

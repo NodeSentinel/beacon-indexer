@@ -29,8 +29,6 @@ export interface ExecutionClientConfig {
   chainId: number;
   slotDuration: number;
   requestsPerSecond: number;
-  retries?: number; // Number of retries per endpoint (default: 30, similar to archive node)
-  baseDelay?: number; // Base delay in milliseconds for exponential backoff (default: 1s)
 }
 
 /**
@@ -39,20 +37,13 @@ export interface ExecutionClientConfig {
  */
 export class ExecutionClient {
   private readonly axiosInstance: AxiosInstance;
-  private readonly config: ExecutionClientConfig & {
-    retries: number;
-    baseDelay: number;
-  };
+  private readonly config: ExecutionClientConfig;
   private readonly limiter: ReturnType<typeof pLimit>;
 
   constructor(config: ExecutionClientConfig) {
-    this.config = {
-      ...config,
-      retries: config.retries ?? 30, // Default to 30 retries like archive node
-      baseDelay: config.baseDelay ?? ms('1s'), // Default to 1s base delay
-    };
+    this.config = config;
     this.limiter = pLimit(config.requestsPerSecond);
-    this.axiosInstance = axios.create({ timeout: ms('3s') });
+    this.axiosInstance = axios.create({ timeout: ms('1s') });
 
     // Setup interceptors
     this.axiosInstance.interceptors.request.use(async (config: InternalAxiosRequestConfig) => {
@@ -222,7 +213,7 @@ export class ExecutionClient {
           throw lastError || new Error(`All endpoints failed for block ${blockNumber}`);
         },
         {
-          retries: this.config.retries,
+          retries: 30,
           minTimeout: ms('1s'),
         },
       );
