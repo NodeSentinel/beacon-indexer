@@ -73,6 +73,18 @@ export class SnapshotStorage {
           WHERE a.slot >= ${inactivityCheckStartSlot}::int
         ),
 
+        -- Count consecutive missed attestations from most recent (single pass)
+        consecutive AS (
+          SELECT
+            validator_index,
+            COALESCE(
+              MIN(rn) FILTER (WHERE is_missed = 0),
+              ${inactiveMissedCount}::int + 1
+            ) - 1 AS consecutive_missed
+          FROM status_attestations
+          GROUP BY validator_index
+        ),
+
         -- A validator is inactive if they missed ALL of the last N attestations
         inactivity AS (
           SELECT
@@ -84,21 +96,10 @@ export class SnapshotStorage {
               THEN true
               ELSE false
             END AS is_inactive,
-            -- Count consecutive missed from most recent
-            (
-              SELECT COUNT(*)
-              FROM status_attestations sa2
-              WHERE sa2.validator_index = sa.validator_index
-                AND sa2.is_missed = 1
-                AND sa2.rn <= (
-                  SELECT COALESCE(MIN(sa3.rn) - 1, ${inactiveMissedCount}::int)
-                  FROM status_attestations sa3
-                  WHERE sa3.validator_index = sa.validator_index
-                    AND sa3.is_missed = 0
-                )
-            ) AS consecutive_missed
+            COALESCE(cs.consecutive_missed, 0) AS consecutive_missed
           FROM status_attestations sa
-          GROUP BY sa.validator_index
+          LEFT JOIN consecutive cs ON sa.validator_index = cs.validator_index
+          GROUP BY sa.validator_index, cs.consecutive_missed
         ),
 
         hourly AS (
