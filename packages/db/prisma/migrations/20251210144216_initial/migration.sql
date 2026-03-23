@@ -275,7 +275,6 @@ CREATE TABLE "public"."validators_snapshot_stats" (
     "missed_attestation_count_m" SMALLINT NOT NULL DEFAULT 0,
     "missed_attestation_slots_h" INTEGER[] NOT NULL DEFAULT '{}',
     "is_inactive" BOOLEAN NOT NULL DEFAULT false,
-    "consecutive_missed_attestations" INTEGER NOT NULL DEFAULT 0,
     "effective_balance" BIGINT NOT NULL DEFAULT 0,
     "performance_h" DECIMAL,
     "performance_d" DECIMAL,
