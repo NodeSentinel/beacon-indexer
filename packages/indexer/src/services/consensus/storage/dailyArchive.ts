@@ -188,6 +188,15 @@ export class DailyArchiveStorage {
           where: { id: 1 },
           data: { lastDay: dayStart },
         });
+
+        // 5. Clean JSON detail from daily partitions older than 8 days
+        const cleanupCutoff = new Date(dayStart.getTime() - 8 * 24 * 60 * 60 * 1000);
+        await tx.$executeRaw`
+          UPDATE validator_daily_archive
+          SET data_by_slot = NULL, data_by_epoch = NULL
+          WHERE "timestamp" < ${cleanupCutoff}::timestamp
+            AND (data_by_slot IS NOT NULL OR data_by_epoch IS NOT NULL)
+        `;
       },
       {
         timeout: ms('30m'),
