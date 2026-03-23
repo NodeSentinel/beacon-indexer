@@ -309,7 +309,7 @@ model ValidatorDailyArchive {
   validatorIndex Int      @map("validator_index")
 
   // Compact JSON payloads (concatenated from hourly archives)
-  // Nullable: cleaned to NULL for partitions older than 8 days to reclaim disk space
+  // Nullable: cleaned to NULL for partitions older than the retention period to reclaim disk space
   dataBySlot  Json? @map("data_by_slot") // [[slot, attDelay, sync?, exec?, block?], ...] — variable-length, trailing zeros stripped
   dataByEpoch Json? @map("data_by_epoch") // [[epoch, head, target, source, inactivity, mH, mT, mS, mI], ...]
 
@@ -375,12 +375,12 @@ model Archive {
 }
 
 model ValidatorsSnapshotStats {
-  validatorIndex                Int      @id(map: "validators_snapshot_stats_pkey") @map("validator_index")
+  validatorIndex Int @id(map: "validators_snapshot_stats_pkey") @map("validator_index")
 
   // State
-  status                        String   @map("status") @db.VarChar(10)
-  isInactive                    Boolean  @default(false) @map("is_inactive")
-  consecutiveMissedAttestations Int      @default(0) @map("consecutive_missed_attestations")
+  status                        String  @map("status") @db.VarChar(10)
+  isInactive                    Boolean @default(false) @map("is_inactive")
+  consecutiveMissedAttestations Int     @default(0) @map("consecutive_missed_attestations")
 
   // Balances
   balance          BigInt @map("balance")
