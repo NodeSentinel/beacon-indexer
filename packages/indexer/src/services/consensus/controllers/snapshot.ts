@@ -25,8 +25,8 @@ export class SnapshotController {
    * Update attestation stats and inactivity status.
    *
    * Only evaluates attestations up to maxSlotToQuery, which accounts for
-   * delaySlotsToHead and missedAttestationsForInactivity to avoid false
-   * positives on slots that haven't been fully processed yet.
+   * delaySlotsToHead and maxAttestationDelay to avoid false positives on
+   * slots whose attestations might still arrive.
    */
   async updateAttestationsAndStatus(params: {
     slotsPerEpoch: number;
@@ -43,7 +43,7 @@ export class SnapshotController {
 
     const currentTimestamp = Date.now();
     const currentSlot = this.beaconTime.getSlotNumberFromTimestamp(currentTimestamp);
-    const maxQueryableSlot = currentSlot - delaySlotsToHead - missedAttestationsForInactivity;
+    const maxQueryableSlot = currentSlot - delaySlotsToHead - maxAttestationDelay;
     const slotFromOneHourAgo = this.beaconTime.getSlotNumberFromTimestamp(
       currentTimestamp - ms('1h'),
     );

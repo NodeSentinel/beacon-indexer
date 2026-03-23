@@ -20,7 +20,7 @@ export class SnapshotStorage {
    * within the queryable range were ALL missed.
    *
    * IMPORTANT: Only slots up to maxSlotToQuery can be evaluated.
-   * maxSlotToQuery = currentProcessedSlot - delaySlotsToHead - missedAttestationsForInactivity
+   * maxSlotToQuery = currentProcessedSlot - delaySlotsToHead - maxAttestationDelay
    * This ensures we don't mark validators as inactive for slots that haven't been
    * fully processed yet (accounting for attestation delay windows).
    */
@@ -83,20 +83,7 @@ export class SnapshotStorage {
               ) = ${inactiveMissedCount}::int
               THEN true
               ELSE false
-            END AS is_inactive,
-            -- Count consecutive missed from most recent
-            (
-              SELECT COUNT(*)
-              FROM status_attestations sa2
-              WHERE sa2.validator_index = sa.validator_index
-                AND sa2.is_missed = 1
-                AND sa2.rn <= (
-                  SELECT COALESCE(MIN(sa3.rn) - 1, ${inactiveMissedCount}::int)
-                  FROM status_attestations sa3
-                  WHERE sa3.validator_index = sa.validator_index
-                    AND sa3.is_missed = 0
-                )
-            ) AS consecutive_missed
+            END AS is_inactive
           FROM status_attestations sa
           GROUP BY sa.validator_index
         ),
@@ -115,7 +102,6 @@ export class SnapshotStorage {
             uvs.validator_index,
             CASE WHEN COALESCE(i.is_inactive, false) THEN 'inactive' ELSE 'active' END AS status,
             COALESCE(i.is_inactive, false) AS is_inactive,
-            COALESCE(i.consecutive_missed, 0)::int AS consecutive_missed_attestations,
             COALESCE(h.attestations_total, 0) AS attestations_total,
             COALESCE(h.attestations_missed, 0) AS attestations_missed,
             v.status AS beacon_status,
@@ -131,7 +117,6 @@ export class SnapshotStorage {
       SET
         status = sd.status,
         is_inactive = sd.is_inactive,
-        consecutive_missed_attestations = sd.consecutive_missed_attestations,
         attestations_total = sd.attestations_total,
         attestations_missed = sd.attestations_missed,
         beacon_status = sd.beacon_status,
@@ -717,7 +702,7 @@ export class SnapshotStorage {
 
     await this.prisma.$executeRaw`
       INSERT INTO validators_snapshot_stats (
-        validator_index, status, is_inactive, consecutive_missed_attestations,
+        validator_index, status, is_inactive,
         attestations_total, attestations_missed, beacon_status,
         balance, effective_balance, updated_at
       )
@@ -725,7 +710,6 @@ export class SnapshotStorage {
         v.id,
         'active',
         false,
-        0,
         0,
         0,
         v.status,

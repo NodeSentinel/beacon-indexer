@@ -113,9 +113,8 @@ model ValidatorsSnapshotStats {
   validatorIndex Int @id @map("validator_index")
 
   // Estado
-  status                        String  @map("status") // estado blockchain
-  isInactive                    Boolean @default(false) @map("is_inactive") // derivado de attestations perdidas
-  consecutiveMissedAttestations Int     @default(0) @map("consecutive_missed_attestations")
+  status     String  @map("status") // estado blockchain
+  isInactive Boolean @default(false) @map("is_inactive") // derivado de attestations perdidas
 
   // Balances
   balance          BigInt @map("balance")

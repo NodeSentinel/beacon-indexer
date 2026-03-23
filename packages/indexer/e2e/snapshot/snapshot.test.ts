@@ -30,10 +30,10 @@ import { SnapshotStorage } from '@/src/services/consensus/storage/snapshot.js';
  *   We can only judge an attestation as "missed" once its full delay window has
  *   passed. So we never evaluate slots too close to the chain head.
  *
- *     maxSlotToQuery = currentSlot - delaySlotsToHead - missedAttestationsForInactivity
+ *     maxSlotToQuery = currentSlot - delaySlotsToHead - maxAttestationDelay
  *
- *   Example: currentSlot=200 → maxSlotToQuery = 200 - 3 - 3 = 194
- *   Attestations at slots > 194 are ignored — they might still arrive.
+ *   Example: currentSlot=200 → maxSlotToQuery = 200 - 3 - 5 = 192
+ *   Attestations at slots > 192 are ignored — they might still arrive.
  *
  * Key concept — "missed attestation":
  *   An attestation is missed when:
@@ -177,7 +177,6 @@ describe('Snapshot - Inactivity Detection', () => {
         validator_index: number;
         status: string;
         is_inactive: boolean;
-        consecutive_missed_attestations: number;
         attestations_total: number;
         attestations_missed: number;
       }>
@@ -232,7 +231,6 @@ describe('Snapshot - Inactivity Detection', () => {
     expect(row).not.toBeNull();
     expect(row!.status).toBe('inactive');
     expect(row!.is_inactive).toBe(true);
-    expect(row!.consecutive_missed_attestations).toBeGreaterThanOrEqual(3);
   });
 
   it('should NOT count as missed when slot is beyond maxSlotToQuery', async () => {
@@ -355,6 +353,153 @@ describe('Snapshot - Inactivity Detection', () => {
     expect(row).not.toBeNull();
     expect(row!.attestations_total).toBe(2);
     expect(row!.attestations_missed).toBe(1);
+  });
+
+  it('should mark validator as inactive when all attestations have excessive delay', async () => {
+    // Doc case 3: attestations arrive but with delay > maxAttestationDelay → all missed
+    await setupValidatorsInCluster([1]);
+
+    // All 3 attestations have delay=6, which exceeds maxAttestationDelay=5
+    await insertAttestation(1, 100, MAX_ATTESTATION_DELAY + 1, 0, 0); // delay=6 → missed
+    await insertAttestation(1, 110, MAX_ATTESTATION_DELAY + 1, 1, 0); // delay=6 → missed
+    await insertAttestation(1, 120, MAX_ATTESTATION_DELAY + 1, 2, 0); // delay=6 → missed
+
+    await runSnapshotUpdate({
+      minSlotHour: 50,
+      maxSlotToQuery: 130,
+      inactivityCheckStartSlot: 90,
+    });
+
+    // Even though attestations were included, they arrived too late → inactive
+    const row = await getSnapshot(1);
+    expect(row).not.toBeNull();
+    expect(row!.status).toBe('inactive');
+    expect(row!.is_inactive).toBe(true);
+    expect(row!.attestations_missed).toBe(3);
+  });
+
+  it('should mark validator as active when misses are non-consecutive', async () => {
+    // Doc case 4: [on-time, missed, on-time] — misses are not consecutive
+    await setupValidatorsInCluster([1]);
+
+    // 3 attestations: on-time at 120, missed at 110, on-time at 100 (ordered by slot DESC)
+    await insertAttestation(1, 100, 1, 0, 0); // on-time
+    await insertAttestation(1, 110, null, 1, 0); // missed
+    await insertAttestation(1, 120, 1, 2, 0); // on-time
+
+    await runSnapshotUpdate({
+      minSlotHour: 50,
+      maxSlotToQuery: 130,
+      inactivityCheckStartSlot: 90,
+    });
+
+    // Last 3: [on-time, missed, on-time] → only 1 of 3 missed → active
+    const row = await getSnapshot(1);
+    expect(row).not.toBeNull();
+    expect(row!.status).toBe('active');
+    expect(row!.is_inactive).toBe(false);
+  });
+
+  it('should mark validator as active with 2 misses and 1 on-time', async () => {
+    // Doc case 5: [missed, missed, on-time] — just below the threshold of 3
+    await setupValidatorsInCluster([1]);
+
+    // Oldest attestation is on-time, two most recent are missed
+    await insertAttestation(1, 100, 1, 0, 0); // on-time
+    await insertAttestation(1, 110, null, 1, 0); // missed
+    await insertAttestation(1, 120, null, 2, 0); // missed
+
+    await runSnapshotUpdate({
+      minSlotHour: 50,
+      maxSlotToQuery: 130,
+      inactivityCheckStartSlot: 90,
+    });
+
+    // Last 3: [missed, missed, on-time] → 2 of 3 missed → below threshold → active
+    const row = await getSnapshot(1);
+    expect(row).not.toBeNull();
+    expect(row!.status).toBe('active');
+    expect(row!.is_inactive).toBe(false);
+    expect(row!.attestations_missed).toBe(2);
+  });
+
+  it('should evaluate multiple validators independently', async () => {
+    // Doc case 11: three validators in one cycle with different states
+    await setupValidatorsInCluster([1, 2, 3]);
+
+    // Validator 1: 3 on-time → active
+    await insertAttestation(1, 100, 1, 0, 0);
+    await insertAttestation(1, 110, 1, 1, 0);
+    await insertAttestation(1, 120, 1, 2, 0);
+
+    // Validator 2: 3 missed → inactive
+    await insertAttestation(2, 101, null, 0, 1);
+    await insertAttestation(2, 111, null, 1, 1);
+    await insertAttestation(2, 121, null, 2, 1);
+
+    // Validator 3: 2 missed + 1 on-time → active
+    await insertAttestation(3, 102, 1, 0, 2);
+    await insertAttestation(3, 112, null, 1, 2);
+    await insertAttestation(3, 122, null, 2, 2);
+
+    await runSnapshotUpdate({
+      minSlotHour: 50,
+      maxSlotToQuery: 130,
+      inactivityCheckStartSlot: 90,
+    });
+
+    // Each validator is evaluated independently
+    const row1 = await getSnapshot(1);
+    expect(row1!.status).toBe('active');
+    expect(row1!.is_inactive).toBe(false);
+
+    const row2 = await getSnapshot(2);
+    expect(row2!.status).toBe('inactive');
+    expect(row2!.is_inactive).toBe(true);
+
+    const row3 = await getSnapshot(3);
+    expect(row3!.status).toBe('active');
+    expect(row3!.is_inactive).toBe(false);
+  });
+
+  it('should include attestation at exact maxSlotToQuery boundary', async () => {
+    // Doc case 14: attestation at exactly maxSlotToQuery is evaluated
+    await setupValidatorsInCluster([1]);
+
+    // Attestation at the exact boundary slot
+    await insertAttestation(1, 125, 1, 0, 0); // on-time, at maxSlotToQuery
+
+    await runSnapshotUpdate({
+      minSlotHour: 50,
+      maxSlotToQuery: 125,
+      inactivityCheckStartSlot: 90,
+    });
+
+    // Slot 125 = maxSlotToQuery → included (BETWEEN is inclusive)
+    const row = await getSnapshot(1);
+    expect(row).not.toBeNull();
+    expect(row!.attestations_total).toBe(1);
+    expect(row!.attestations_missed).toBe(0);
+  });
+
+  it('should exclude attestation one slot after maxSlotToQuery', async () => {
+    // Doc case 15: attestation at maxSlotToQuery + 1 is not evaluated
+    await setupValidatorsInCluster([1]);
+
+    // Attestation one slot beyond the boundary
+    await insertAttestation(1, 126, null, 0, 0); // missed, but beyond maxSlotToQuery
+
+    await runSnapshotUpdate({
+      minSlotHour: 50,
+      maxSlotToQuery: 125,
+      inactivityCheckStartSlot: 90,
+    });
+
+    // Slot 126 > maxSlotToQuery=125 → excluded → 0 attestations evaluated
+    const row = await getSnapshot(1);
+    expect(row).not.toBeNull();
+    expect(row!.attestations_total).toBe(0);
+    expect(row!.attestations_missed).toBe(0);
   });
 
   it('should UPDATE without wiping performance columns', async () => {
