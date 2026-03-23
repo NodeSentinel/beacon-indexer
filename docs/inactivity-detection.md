@@ -67,6 +67,11 @@ Slot 193: the attestation could arrive until slot 198. But we only processed up 
 
 A validator attests once per epoch, not once per slot. To get at least `missedAttestationsForInactivity` attestations per validator, we need to look back enough epochs.
 
+The formula has two parts:
+
+- **`slotsPerEpoch × missedAttestationsForInactivity`**: the main lookback. Since a validator attests once per epoch, we need at least N epochs to guarantee N attestation opportunities. Each epoch is `slotsPerEpoch` slots long.
+- **`missedAttestationsForInactivity`** (the extra subtraction): a safety buffer. A validator's assigned slot can fall anywhere within an epoch. Without this buffer, a validator assigned to the first slot of the oldest epoch in the window might have its attestation fall just outside the range.
+
 ```
 inactivityCheckStartSlot = maxSlotToQuery - missedAttestationsForInactivity - (slotsPerEpoch × missedAttestationsForInactivity)
 ```
@@ -77,7 +82,7 @@ With Gnosis (slotsPerEpoch=16, missedAttestationsForInactivity=3):
 inactivityCheckStartSlot = 192 - 3 - (16 × 3) = 192 - 51 = 141
 ```
 
-This opens a window of ~51 slots (~3 epochs) back in time, enough for each validator to have had at least 3 opportunities to attest.
+This opens a window of ~51 slots (~3 epochs + buffer) back in time, enough for each validator to have had at least 3 opportunities to attest regardless of where their assigned slot falls within each epoch.
 
 ## How inactivity is decided
 
