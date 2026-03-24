@@ -106,3 +106,7 @@ temp/
 thoughts/*
 !thoughts/shared/
 !thoughts/global/
+
+# Generated plans/docs
+docs/plans/
+docs/superpowers/
