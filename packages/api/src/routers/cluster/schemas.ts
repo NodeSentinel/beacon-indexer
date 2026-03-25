@@ -22,20 +22,10 @@ export const CreateClusterInputSchema = z.object({
   name: z.string().min(1).max(100),
   visibility: ClusterVisibilitySchema.default('private'),
   feeRecipientAddress: ethereumAddressSchema.nullable().optional(),
-  ownerId: z.string(),
   validatorIndexes: z.array(z.number().int().nonnegative()).min(1),
 });
 
 export type CreateClusterInput = z.infer<typeof CreateClusterInputSchema>;
-
-/**
- * List clusters input schema - requires ownerId
- */
-export const ListClustersInputSchema = z.object({
-  ownerId: z.string(),
-});
-
-export type ListClustersInput = z.infer<typeof ListClustersInputSchema>;
 
 /**
  * Cluster ID path parameter schema

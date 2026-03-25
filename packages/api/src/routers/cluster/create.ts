@@ -12,12 +12,12 @@ export const createCluster = securedProcedure
   .route({ method: 'POST', path: '/clusters' })
   .input(CreateClusterInputSchema)
   .output(ApiResponseSchema(ClusterSchema))
-  .handler(async ({ input }) => {
+  .handler(async ({ input, context }) => {
     try {
       const storage = new ClusterStorage();
       const cluster = await storage.create({
         name: input.name,
-        ownerId: BigInt(input.ownerId),
+        ownerId: context.user!.id,
         visibility: input.visibility,
         feeRecipientAddress: input.feeRecipientAddress ?? null,
       });

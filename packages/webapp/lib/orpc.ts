@@ -7,6 +7,7 @@ import type { RouterClient } from '@orpc/server';
 import { createTanstackQueryUtils } from '@orpc/tanstack-query';
 
 import { env } from '@/env';
+import { getAnonymousSessionId } from '@/lib/anonymous-session';
 import { getTelegramInitData } from '@/lib/telegram-init-data';
 
 export type AppRouter = RouterClient<typeof router>;
@@ -19,6 +20,12 @@ const link = new RPCLink({
     if (initData) {
       return { 'x-telegram-init-data': initData };
     }
+
+    const sessionId = getAnonymousSessionId();
+    if (sessionId) {
+      return { 'ns-anonymous-id': sessionId };
+    }
+
     return {};
   },
 });

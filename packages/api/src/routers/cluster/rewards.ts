@@ -146,10 +146,8 @@ export const getAllClustersRewards = securedProcedure
   .route({ method: 'GET', path: '/clusters/all/analytics/rewards' })
   .input(AnalyticsAllClustersInputSchema)
   .output(ApiResponseSchema(RewardsResponseSchema))
-  .handler(async ({ input }) => {
-    const validatorIndexes = await clusterStorage.findAllValidatorIndexesByOwner(
-      BigInt(input.ownerId),
-    );
+  .handler(async ({ input, context }) => {
+    const validatorIndexes = await clusterStorage.findAllValidatorIndexesByOwner(context.user!.id);
     const items = await fetchRewards(validatorIndexes, input.range);
     let tokenPrice = 0;
     try {

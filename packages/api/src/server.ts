@@ -25,7 +25,7 @@ const corsPlugin = new CORSPlugin({
     }
     return isOriginAllowed(origin) ? origin : null;
   },
-  allowHeaders: ['Content-Type', 'Authorization', 'x-telegram-init-data'],
+  allowHeaders: ['Content-Type', 'Authorization', 'x-telegram-init-data', 'ns-anonymous-id'],
   credentials: true,
 });
 

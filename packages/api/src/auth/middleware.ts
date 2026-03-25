@@ -21,6 +21,22 @@ async function resolveTelegramUser(telegramInitData: string) {
 }
 
 /**
+ * Resolves an anonymous user from a session UUID into a DB user record.
+ */
+async function resolveAnonymousUser(sessionId: string) {
+  const storage = new UserStorage();
+  return storage.getOrCreateAnonymous(sessionId);
+}
+
+function getHeader(
+  headers: Record<string, string | string[] | undefined>,
+  name: string,
+): string | undefined {
+  const value = headers[name];
+  return Array.isArray(value) ? value[0] : value;
+}
+
+/**
  * Secured procedure — the default for all endpoints (except health check).
  *
  * Check order matters — Telegram is checked FIRST because its authentication
@@ -28,28 +44,20 @@ async function resolveTelegramUser(telegramInitData: string) {
  *
  *  1. Telegram initData header → validate HMAC, find-or-create DB user in context
  *  2. API key via Authorization header → no user in context
- *  3. Origin whitelist → no user in context (anonymous web flow)
+ *  3. Anonymous session header + valid origin → find-or-create anonymous DB user in context
  */
 export const securedProcedure = baseProcedure.use(async ({ context, next }) => {
   const { headers } = context;
 
-  const telegramInitData = Array.isArray(headers['x-telegram-init-data'])
-    ? headers['x-telegram-init-data'][0]
-    : headers['x-telegram-init-data'];
-  const authHeader = Array.isArray(headers.authorization)
-    ? headers.authorization[0]
-    : headers.authorization;
-  const origin = Array.isArray(headers.origin) ? headers.origin[0] : headers.origin;
+  const telegramInitData = getHeader(headers, 'x-telegram-init-data');
+  const authHeader = getHeader(headers, 'authorization');
+  const anonymousId = getHeader(headers, 'ns-anonymous-id');
+  const origin = getHeader(headers, 'origin');
 
   // 1. Telegram Mini App auth — highest priority
   if (telegramInitData) {
     const user = await resolveTelegramUser(telegramInitData);
-    return next({
-      context: {
-        ...context,
-        user,
-      },
-    });
+    return next({ context: { ...context, user } });
   }
 
   // 2. API key — non-browser clients
@@ -58,9 +66,10 @@ export const securedProcedure = baseProcedure.use(async ({ context, next }) => {
     return next({ context });
   }
 
-  // 3. Origin whitelist — browser requests from allowed domains
-  if (isOriginAllowed(origin)) {
-    return next({ context });
+  // 3. Anonymous web session — requires valid origin + session UUID
+  if (anonymousId && isOriginAllowed(origin)) {
+    const user = await resolveAnonymousUser(anonymousId);
+    return next({ context: { ...context, user } });
   }
 
   throw new ORPCError('UNAUTHORIZED', {
@@ -75,9 +84,7 @@ export const securedProcedure = baseProcedure.use(async ({ context, next }) => {
 export const telegramAuthProcedure = baseProcedure.use(async ({ context, next }) => {
   const { headers } = context;
 
-  const telegramInitData = Array.isArray(headers['x-telegram-init-data'])
-    ? headers['x-telegram-init-data'][0]
-    : headers['x-telegram-init-data'];
+  const telegramInitData = getHeader(headers, 'x-telegram-init-data');
 
   if (!telegramInitData) {
     throw new ORPCError('UNAUTHORIZED', {
@@ -87,10 +94,5 @@ export const telegramAuthProcedure = baseProcedure.use(async ({ context, next })
 
   const user = await resolveTelegramUser(telegramInitData);
 
-  return next({
-    context: {
-      ...context,
-      user,
-    },
-  });
+  return next({ context: { ...context, user } });
 });

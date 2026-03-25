@@ -85,10 +85,8 @@ export const getAllClustersMissedAttestations = securedProcedure
   .route({ method: 'GET', path: '/clusters/all/analytics/missed-attestations' })
   .input(MissedAttestationsAllInputSchema)
   .output(ApiResponseSchema(MissedAttestationsResponseSchema))
-  .handler(async ({ input }) => {
-    const validatorIndexes = await clusterStorage.findAllValidatorIndexesByOwner(
-      BigInt(input.ownerId),
-    );
+  .handler(async ({ input, context }) => {
+    const validatorIndexes = await clusterStorage.findAllValidatorIndexesByOwner(context.user!.id);
     const data = await fetchMissedAttestations(validatorIndexes, input.range);
     return { success: true, data, meta: { timestamp: new Date().toISOString() } };
   });
