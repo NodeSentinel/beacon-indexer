@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 
 import { orpcClient } from './orpc';
+import { getTelegramInitData } from './telegram-init-data';
 
 const SESSION_ID_KEY = 'beacon-monitor-session-id';
 const USER_ID_KEY = 'beacon-monitor-user-id';
@@ -51,10 +52,25 @@ async function registerAnonymousUser(sessionId: string): Promise<string> {
 }
 
 /**
- * Hook to get the user ID
- * - First checks localStorage for cached userId
- * - If not found, calls API to create anonymous user
- * - Returns the BigInt user ID as a string
+ * Fetch the current Telegram user from the API.
+ * The API middleware resolves the user from the initData header.
+ */
+async function fetchTelegramUser(): Promise<string> {
+  const response = await orpcClient.user.me();
+  if (!response.success || !response.data) {
+    throw new Error('Failed to fetch Telegram user');
+  }
+  return response.data.id;
+}
+
+/**
+ * Hook to get the user ID.
+ *
+ * Dual path:
+ * - Telegram mode (initData available): calls user.me to get the DB user resolved by middleware
+ * - Web anonymous mode: generates UUID, stores in localStorage, calls user.anonymous
+ *
+ * Returns the BigInt user ID as a string, or empty string while loading.
  */
 export function useUserId(): string {
   const [userId, setUserId] = useState('');
@@ -62,20 +78,26 @@ export function useUserId(): string {
   useEffect(() => {
     async function initUserId() {
       try {
-        // Check for cached user ID first
+        const isTelegram = getTelegramInitData() !== null;
+
+        if (isTelegram) {
+          const id = await fetchTelegramUser();
+          setUserId(id);
+          return;
+        }
+
+        // Anonymous web flow
         const cached = getCachedUserId();
         if (cached) {
           setUserId(cached);
           return;
         }
 
-        // Get or create session ID
         const sessionId = getSessionId();
         if (!sessionId) {
           return;
         }
 
-        // Register with API
         const newUserId = await registerAnonymousUser(sessionId);
         setUserId(newUserId);
       } catch (error) {

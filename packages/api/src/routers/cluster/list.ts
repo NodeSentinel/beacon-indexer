@@ -2,7 +2,7 @@ import { z } from 'zod';
 
 import { ClusterWithCountSchema, ListClustersInputSchema } from './schemas.js';
 
-import { publicProcedure } from '@/lib/orpc.js';
+import { securedProcedure } from '@/auth/middleware.js';
 import { ClusterStorage } from '@/storage/cluster.js';
 import { ApiResponseSchema } from '@/utils/response.js';
 
@@ -10,7 +10,7 @@ import { ApiResponseSchema } from '@/utils/response.js';
  * List clusters for a given owner
  * GET /clusters?ownerId=X
  */
-export const listClusters = publicProcedure
+export const listClusters = securedProcedure
   .route({ method: 'GET', path: '/clusters' })
   .input(ListClustersInputSchema)
   .output(ApiResponseSchema(z.array(ClusterWithCountSchema)))

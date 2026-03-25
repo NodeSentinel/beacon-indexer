@@ -1,6 +1,6 @@
 import { ClusterSchema, CreateClusterInputSchema } from './schemas.js';
 
-import { publicProcedure } from '@/lib/orpc.js';
+import { securedProcedure } from '@/auth/middleware.js';
 import { ClusterStorage } from '@/storage/cluster.js';
 import { ApiResponseSchema } from '@/utils/response.js';
 
@@ -8,7 +8,7 @@ import { ApiResponseSchema } from '@/utils/response.js';
  * Create a new cluster
  * POST /clusters
  */
-export const createCluster = publicProcedure
+export const createCluster = securedProcedure
   .route({ method: 'POST', path: '/clusters' })
   .input(CreateClusterInputSchema)
   .output(ApiResponseSchema(ClusterSchema))

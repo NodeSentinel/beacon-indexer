@@ -5,7 +5,7 @@ import {
   RewardsResponseSchema,
 } from './analytics-schemas.js';
 
-import { publicProcedure } from '@/lib/orpc.js';
+import { securedProcedure } from '@/auth/middleware.js';
 import { AnalyticsStorage } from '@/storage/analytics.js';
 import { ClusterStorage } from '@/storage/cluster.js';
 import { beaconTime, chainConfig } from '@/utils/beaconTime.js';
@@ -118,7 +118,7 @@ async function fetchRewards(
 /**
  * GET /clusters/{id}/analytics/rewards?range=1h|24h
  */
-export const getClusterRewards = publicProcedure
+export const getClusterRewards = securedProcedure
   .route({ method: 'GET', path: '/clusters/{id}/analytics/rewards' })
   .input(AnalyticsClusterInputSchema)
   .output(ApiResponseSchema(RewardsResponseSchema))
@@ -142,7 +142,7 @@ export const getClusterRewards = publicProcedure
 /**
  * GET /clusters/all/analytics/rewards?ownerId=X&range=1h|24h
  */
-export const getAllClustersRewards = publicProcedure
+export const getAllClustersRewards = securedProcedure
   .route({ method: 'GET', path: '/clusters/all/analytics/rewards' })
   .input(AnalyticsAllClustersInputSchema)
   .output(ApiResponseSchema(RewardsResponseSchema))
@@ -167,7 +167,7 @@ export const getAllClustersRewards = publicProcedure
 /**
  * GET /validators/{index}/analytics/rewards?range=1h|24h
  */
-export const getValidatorRewards = publicProcedure
+export const getValidatorRewards = securedProcedure
   .route({ method: 'GET', path: '/validators/{index}/analytics/rewards' })
   .input(AnalyticsValidatorInputSchema)
   .output(ApiResponseSchema(RewardsResponseSchema))

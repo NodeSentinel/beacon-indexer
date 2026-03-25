@@ -3,8 +3,8 @@ import { z } from 'zod';
 import { ValidatorDetailsSchema } from './schemas.js';
 import { searchValidators } from './search.js';
 
+import { securedProcedure } from '@/auth/middleware.js';
 import { ValidatorController } from '@/controllers/validator.js';
-import { publicProcedure } from '@/lib/orpc.js';
 import { getValidatorMissedAttestations } from '@/routers/cluster/missed-attestations.js';
 import { getValidatorRewards } from '@/routers/cluster/rewards.js';
 import { ApiResponseSchema } from '@/utils/response.js';
@@ -14,7 +14,7 @@ import { ApiResponseSchema } from '@/utils/response.js';
  * Accepts id as path parameter - can be validatorIndex (number) or pubkey (string, 98 chars)
  * Determines type by checking if id is a number or string length
  */
-export const getValidator = publicProcedure
+export const getValidator = securedProcedure
   .route({ method: 'GET', path: '/validator/{id}' })
   .input(
     z.object({

@@ -3,37 +3,47 @@ import { ORPCError } from '@orpc/server';
 import { isOriginAllowed } from './origin.js';
 import { authenticateTelegram } from './strategies/telegram.js';
 import { authenticateApiKey } from './strategies/token.js';
-import type { AuthContext } from './types.js';
 
 import { baseProcedure } from '@/lib/orpc.js';
+import { UserStorage } from '@/storage/user.js';
 
 /**
- * Access control middleware for oRPC.
- *
- * Allows a request through if ANY of these conditions is met:
- *  1. The Origin header matches ALLOWED_ORIGINS
- *  2. A valid API key is provided via Authorization header
- *  3. Valid Telegram initData is provided (for future Telegram Mini App auth)
+ * Resolves a Telegram user from initData into a DB user record.
+ * Validates the HMAC signature, then find-or-creates the user in the database.
  */
-export const accessMiddleware = baseProcedure.use(async ({ context, next }) => {
+async function resolveTelegramUser(telegramInitData: string) {
+  const tgUser = await authenticateTelegram(telegramInitData);
+  const storage = new UserStorage();
+  return storage.getOrCreateTelegram({
+    telegramId: tgUser.telegramId,
+    username: tgUser.username,
+  });
+}
+
+/**
+ * Secured procedure — the default for all endpoints (except health check).
+ *
+ * Check order matters — Telegram is checked FIRST to prevent misclassification
+ * when a Telegram Mini App request comes from an origin that matches ALLOWED_ORIGINS.
+ *
+ *  1. Telegram initData header → validate HMAC, find-or-create DB user in context
+ *  2. API key via Authorization header → no user in context
+ *  3. Origin whitelist → no user in context (anonymous web flow)
+ */
+export const securedProcedure = baseProcedure.use(async ({ context, next }) => {
   const { headers } = context;
 
-  const origin = Array.isArray(headers.origin) ? headers.origin[0] : headers.origin;
-  const authHeader = Array.isArray(headers.authorization)
-    ? headers.authorization[0]
-    : headers.authorization;
   const telegramInitData = Array.isArray(headers['x-telegram-init-data'])
     ? headers['x-telegram-init-data'][0]
     : headers['x-telegram-init-data'];
+  const authHeader = Array.isArray(headers.authorization)
+    ? headers.authorization[0]
+    : headers.authorization;
+  const origin = Array.isArray(headers.origin) ? headers.origin[0] : headers.origin;
 
-  // 1. Origin whitelist — browser requests from allowed domains
-  if (isOriginAllowed(origin)) {
-    return next({ context });
-  }
-
-  // 2. Telegram Mini App auth
+  // 1. Telegram Mini App auth — highest priority
   if (telegramInitData) {
-    const user = await authenticateTelegram(telegramInitData);
+    const user = await resolveTelegramUser(telegramInitData);
     return next({
       context: {
         ...context,
@@ -42,9 +52,14 @@ export const accessMiddleware = baseProcedure.use(async ({ context, next }) => {
     });
   }
 
-  // 3. API key — non-browser clients
+  // 2. API key — non-browser clients
   if (authHeader) {
     authenticateApiKey(authHeader);
+    return next({ context });
+  }
+
+  // 3. Origin whitelist — browser requests from allowed domains
+  if (isOriginAllowed(origin)) {
     return next({ context });
   }
 
@@ -55,7 +70,7 @@ export const accessMiddleware = baseProcedure.use(async ({ context, next }) => {
 
 /**
  * Telegram-authenticated procedure.
- * Requires valid Telegram initData — use for endpoints that need a user identity.
+ * Requires valid Telegram initData — use for endpoints that need a guaranteed user identity.
  */
 export const telegramAuthProcedure = baseProcedure.use(async ({ context, next }) => {
   const { headers } = context;
@@ -70,7 +85,7 @@ export const telegramAuthProcedure = baseProcedure.use(async ({ context, next })
     });
   }
 
-  const user: AuthContext['user'] = await authenticateTelegram(telegramInitData);
+  const user = await resolveTelegramUser(telegramInitData);
 
   return next({
     context: {

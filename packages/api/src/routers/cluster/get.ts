@@ -1,6 +1,6 @@
 import { ClusterDetailSchema, ClusterIdParamSchema } from './schemas.js';
 
-import { publicProcedure } from '@/lib/orpc.js';
+import { securedProcedure } from '@/auth/middleware.js';
 import { ClusterStorage } from '@/storage/cluster.js';
 import { ApiResponseSchema } from '@/utils/response.js';
 import { formatBalance } from '@/utils/tokenFormat.js';
@@ -9,7 +9,7 @@ import { formatBalance } from '@/utils/tokenFormat.js';
  * Get cluster details with validators
  * GET /clusters/:id
  */
-export const getCluster = publicProcedure
+export const getCluster = securedProcedure
   .route({ method: 'GET', path: '/clusters/{id}' })
   .input(ClusterIdParamSchema)
   .output(ApiResponseSchema(ClusterDetailSchema))

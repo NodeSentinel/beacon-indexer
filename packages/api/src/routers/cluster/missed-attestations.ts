@@ -5,7 +5,7 @@ import {
   MissedAttestationsResponseSchema,
 } from './analytics-schemas.js';
 
-import { publicProcedure } from '@/lib/orpc.js';
+import { securedProcedure } from '@/auth/middleware.js';
 import { AnalyticsStorage } from '@/storage/analytics.js';
 import { ClusterStorage } from '@/storage/cluster.js';
 import { beaconTime, chainConfig } from '@/utils/beaconTime.js';
@@ -67,7 +67,7 @@ async function fetchMissedAttestations(
  * GET /clusters/{id}/analytics/missed-attestations?range=1h|24h
  * Returns missed attestation data for a single cluster
  */
-export const getClusterMissedAttestations = publicProcedure
+export const getClusterMissedAttestations = securedProcedure
   .route({ method: 'GET', path: '/clusters/{id}/analytics/missed-attestations' })
   .input(MissedAttestationsInputSchema)
   .output(ApiResponseSchema(MissedAttestationsResponseSchema))
@@ -81,7 +81,7 @@ export const getClusterMissedAttestations = publicProcedure
  * GET /clusters/all/analytics/missed-attestations?ownerId=X&range=1h|24h
  * Returns missed attestation data aggregated across all clusters for an owner
  */
-export const getAllClustersMissedAttestations = publicProcedure
+export const getAllClustersMissedAttestations = securedProcedure
   .route({ method: 'GET', path: '/clusters/all/analytics/missed-attestations' })
   .input(MissedAttestationsAllInputSchema)
   .output(ApiResponseSchema(MissedAttestationsResponseSchema))
@@ -97,7 +97,7 @@ export const getAllClustersMissedAttestations = publicProcedure
  * GET /validators/{index}/analytics/missed-attestations?range=1h|24h
  * Returns missed attestation data for a single validator
  */
-export const getValidatorMissedAttestations = publicProcedure
+export const getValidatorMissedAttestations = securedProcedure
   .route({ method: 'GET', path: '/validators/{index}/analytics/missed-attestations' })
   .input(MissedAttestationsValidatorInputSchema)
   .output(ApiResponseSchema(MissedAttestationsResponseSchema))

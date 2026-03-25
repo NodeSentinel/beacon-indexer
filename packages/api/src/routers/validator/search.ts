@@ -1,6 +1,6 @@
 import { ValidatorSearchInputSchema, ValidatorSearchResponseSchema } from './schemas.js';
 
-import { publicProcedure } from '@/lib/orpc.js';
+import { securedProcedure } from '@/auth/middleware.js';
 import { ValidatorStorage } from '@/storage/validator.js';
 import { ApiResponseSchema } from '@/utils/response.js';
 
@@ -9,7 +9,7 @@ import { ApiResponseSchema } from '@/utils/response.js';
  * GET /validators/search?index=123 or ?indexes=1,2,3 or ?pubkey=0x... or ?pubkeys=0x...,0x...
  * or ?withdrawalAddress=0x... or ?withdrawalAddresses=0x...,0x...
  */
-export const searchValidators = publicProcedure
+export const searchValidators = securedProcedure
   .route({ method: 'GET', path: '/validators/search' })
   .input(ValidatorSearchInputSchema)
   .output(ApiResponseSchema(ValidatorSearchResponseSchema))

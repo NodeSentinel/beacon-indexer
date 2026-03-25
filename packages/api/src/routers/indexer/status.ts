@@ -2,8 +2,8 @@ import { format } from 'date-fns';
 
 import { IndexerStatusSchema } from './schemas.js';
 
+import { securedProcedure } from '@/auth/middleware.js';
 import { SystemConfigController } from '@/controllers/systemConfig.js';
-import { publicProcedure } from '@/lib/orpc.js';
 import { getPrisma } from '@/lib/prisma.js';
 import { beaconTime, chainConfig } from '@/utils/beaconTime.js';
 import { ApiResponseSchema } from '@/utils/response.js';
@@ -32,7 +32,7 @@ function formatTimestamp(timestamp: number): string {
  * Get indexer status
  * Returns information about the current state of the indexer
  */
-export const getStatus = publicProcedure
+export const getStatus = securedProcedure
   .route({ method: 'GET', path: '/indexer/status' })
   .output(ApiResponseSchema(IndexerStatusSchema))
   .handler(async () => {

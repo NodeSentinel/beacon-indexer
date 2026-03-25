@@ -1,6 +1,6 @@
 import { BlockProposalsInputSchema, BlockProposalsOutputSchema } from './schemas.js';
 
-import { publicProcedure } from '@/lib/orpc.js';
+import { securedProcedure } from '@/auth/middleware.js';
 import { BlockStorage } from '@/storage/block.js';
 import { beaconTime } from '@/utils/beaconTime.js';
 import { ApiResponseSchema } from '@/utils/response.js';
@@ -12,7 +12,7 @@ const PAGE_SIZE = 10;
  * Get paginated block proposals for a cluster or validator
  * GET /blocks
  */
-export const listBlockProposals = publicProcedure
+export const listBlockProposals = securedProcedure
   .route({ method: 'GET', path: '/blocks' })
   .input(BlockProposalsInputSchema)
   .output(ApiResponseSchema(BlockProposalsOutputSchema))

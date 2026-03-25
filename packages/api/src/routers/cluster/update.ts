@@ -3,7 +3,7 @@ import { z } from 'zod';
 
 import { ClusterIdParamSchema, ClusterSchema, UpdateClusterInputSchema } from './schemas.js';
 
-import { publicProcedure } from '@/lib/orpc.js';
+import { securedProcedure } from '@/auth/middleware.js';
 import { ClusterStorage } from '@/storage/cluster.js';
 import { ApiResponseSchema } from '@/utils/response.js';
 
@@ -11,7 +11,7 @@ import { ApiResponseSchema } from '@/utils/response.js';
  * Update cluster
  * PUT /clusters/:id
  */
-export const updateCluster = publicProcedure
+export const updateCluster = securedProcedure
   .route({ method: 'PUT', path: '/clusters/{id}' })
   .input(ClusterIdParamSchema.merge(UpdateClusterInputSchema))
   .output(ApiResponseSchema(ClusterSchema))

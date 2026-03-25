@@ -1,6 +1,6 @@
 import { AnonymousUserInputSchema, UserResponseSchema } from './schemas.js';
 
-import { publicProcedure } from '@/lib/orpc.js';
+import { securedProcedure } from '@/auth/middleware.js';
 import { UserStorage } from '@/storage/user.js';
 import { ApiResponseSchema } from '@/utils/response.js';
 
@@ -12,7 +12,7 @@ import { ApiResponseSchema } from '@/utils/response.js';
  * The sessionId (UUID from localStorage) is used to identify the user.
  * In the future, this anonymous user can be linked to a real account.
  */
-export const anonymousUser = publicProcedure
+export const anonymousUser = securedProcedure
   .route({ method: 'POST', path: '/users/anonymous' })
   .input(AnonymousUserInputSchema)
   .output(ApiResponseSchema(UserResponseSchema))

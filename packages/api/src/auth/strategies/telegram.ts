@@ -58,6 +58,17 @@ export async function authenticateTelegram(initData: string): Promise<TelegramUs
       });
     }
 
+    // Verify auth_date is not expired (1 hour max)
+    const authDate = Number(params.get('auth_date'));
+    const now = Math.floor(Date.now() / 1000);
+    const MAX_AGE_SECONDS = 3600;
+
+    if (!authDate || now - authDate > MAX_AGE_SECONDS) {
+      throw new ORPCError('UNAUTHORIZED', {
+        message: 'Telegram init data expired',
+      });
+    }
+
     // Parse user data
     const userJson = params.get('user');
     if (!userJson) {
