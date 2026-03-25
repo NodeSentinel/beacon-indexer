@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-import { securedProcedure } from '@/auth/middleware.js';
+import { securedProcedure } from '@/lib/procedures.js';
 import { beaconTime } from '@/utils/beaconTime.js';
 import { ApiResponseSchema, successResponse, errorResponse } from '@/utils/response.js';
 

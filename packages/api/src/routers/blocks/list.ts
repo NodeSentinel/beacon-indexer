@@ -1,6 +1,6 @@
 import { BlockProposalsInputSchema, BlockProposalsOutputSchema } from './schemas.js';
 
-import { securedProcedure } from '@/auth/middleware.js';
+import { securedProcedure } from '@/lib/procedures.js';
 import { BlockStorage } from '@/storage/block.js';
 import { beaconTime } from '@/utils/beaconTime.js';
 import { ApiResponseSchema } from '@/utils/response.js';

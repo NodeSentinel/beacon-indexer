@@ -4,7 +4,7 @@ import {
   RemoveValidatorsResponseSchema,
 } from './schemas.js';
 
-import { securedProcedure } from '@/auth/middleware.js';
+import { securedProcedure } from '@/lib/procedures.js';
 import { ClusterStorage } from '@/storage/cluster.js';
 import { ApiResponseSchema } from '@/utils/response.js';
 

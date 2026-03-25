@@ -5,7 +5,7 @@ import {
   MissedAttestationsResponseSchema,
 } from './analytics-schemas.js';
 
-import { securedProcedure } from '@/auth/middleware.js';
+import { securedProcedure } from '@/lib/procedures.js';
 import { AnalyticsStorage } from '@/storage/analytics.js';
 import { ClusterStorage } from '@/storage/cluster.js';
 import { beaconTime, chainConfig } from '@/utils/beaconTime.js';

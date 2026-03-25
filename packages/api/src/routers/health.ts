@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
-import { publicProcedure } from '@/lib/orpc.js';
 import { getPrisma } from '@/lib/prisma.js';
+import { publicProcedure } from '@/lib/procedures.js';
 import { ApiResponseSchema } from '@/utils/response.js';
 
 const HealthResponseSchema = ApiResponseSchema(

@@ -1,6 +1,6 @@
 import { ValidatorSearchInputSchema, ValidatorSearchResponseSchema } from './schemas.js';
 
-import { securedProcedure } from '@/auth/middleware.js';
+import { securedProcedure } from '@/lib/procedures.js';
 import { ValidatorStorage } from '@/storage/validator.js';
 import { ApiResponseSchema } from '@/utils/response.js';
 

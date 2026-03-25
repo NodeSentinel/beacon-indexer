@@ -3,8 +3,8 @@ import { z } from 'zod';
 import { ValidatorDetailsSchema } from './schemas.js';
 import { searchValidators } from './search.js';
 
-import { securedProcedure } from '@/auth/middleware.js';
 import { ValidatorController } from '@/controllers/validator.js';
+import { securedProcedure } from '@/lib/procedures.js';
 import { getValidatorMissedAttestations } from '@/routers/cluster/missed-attestations.js';
 import { getValidatorRewards } from '@/routers/cluster/rewards.js';
 import { ApiResponseSchema } from '@/utils/response.js';

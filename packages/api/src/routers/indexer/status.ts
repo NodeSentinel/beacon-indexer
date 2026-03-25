@@ -2,9 +2,9 @@ import { format } from 'date-fns';
 
 import { IndexerStatusSchema } from './schemas.js';
 
-import { securedProcedure } from '@/auth/middleware.js';
 import { SystemConfigController } from '@/controllers/systemConfig.js';
 import { getPrisma } from '@/lib/prisma.js';
+import { securedProcedure } from '@/lib/procedures.js';
 import { beaconTime, chainConfig } from '@/utils/beaconTime.js';
 import { ApiResponseSchema } from '@/utils/response.js';
 

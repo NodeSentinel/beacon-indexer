@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
-import { securedProcedure } from '@/auth/middleware.js';
 import { getPrisma } from '@/lib/prisma.js';
+import { securedProcedure } from '@/lib/procedures.js';
 import { beaconTime, chainConfig } from '@/utils/beaconTime.js';
 import { ApiResponseSchema } from '@/utils/response.js';
 import { formatBalance } from '@/utils/tokenFormat.js';
