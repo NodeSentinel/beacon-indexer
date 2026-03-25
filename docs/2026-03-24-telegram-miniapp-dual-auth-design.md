@@ -6,13 +6,13 @@ Enable the webapp to run as a Telegram Mini App while preserving the existing an
 
 ## Security Model
 
-All endpoints except `health.check` use a secured procedure (`securedProcedure`) built on the existing `accessMiddleware`. The middleware checks three signals **in this order** (changed from the current origin-first order to prevent Telegram requests from being misclassified as anonymous when the Mini App origin happens to match `ALLOWED_ORIGINS`):
+All endpoints except `health.check` use a secured procedure (`securedProcedure`). The middleware checks three signals **in this order** (Telegram first because its authentication is based on the HMAC signature of initData signed by the bot token, not by origin):
 
-| Priority | Signal                             | Auth mode     | CORS                               | `context.user`                            |
-| -------- | ---------------------------------- | ------------- | ---------------------------------- | ----------------------------------------- |
-| 1        | `x-telegram-init-data` header      | Telegram      | No                                 | `DbUser` found-or-created by `telegramId` |
-| 2        | `Authorization: Bearer ...` header | API key       | No                                 | `null`                                    |
-| 3        | Neither header → check `Origin`    | Web anonymous | Yes — must match `ALLOWED_ORIGINS` | `null` — `ownerId` from request body      |
+| Priority | Signal                                               | Auth mode     | CORS                               | `context.user`                            |
+| -------- | ---------------------------------------------------- | ------------- | ---------------------------------- | ----------------------------------------- |
+| 1        | `x-telegram-init-data` header                        | Telegram      | No                                 | `DbUser` found-or-created by `telegramId` |
+| 2        | `Authorization: Bearer ...` header                   | API key       | No                                 | `null`                                    |
+| 3        | `ns-anonymous-id` header + origin in ALLOWED_ORIGINS | Web anonymous | Yes — must match `ALLOWED_ORIGINS` | `DbUser` found-or-created by session UUID |
 
 If none of the three checks pass: `401 UNAUTHORIZED`.
 
@@ -127,11 +127,11 @@ The existing `telegramAuthProcedure` in `src/auth/middleware.ts` calls `authenti
 GET /users/me → { success: true, data: { id: string, username: string } }
 ```
 
-Uses `telegramAuthProcedure` (requires Telegram auth — it already exists and this is exactly its purpose). Returns the user from `context.user`. Returns `401` if called without Telegram `initData`.
+Uses `securedProcedure` — works for both Telegram and anonymous users since both auth paths populate `context.user`. Returns `401` if no user in context (API key auth has no user).
 
 **Important:** `context.user.id` is a `BigInt` which is not JSON-serializable. The handler must call `.toString()` when building the response: `{ id: context.user.id.toString(), username: context.user.username }`.
 
-Used by the webapp's `useUserId` hook in Telegram mode to get the DB user ID.
+Used by the webapp's `useUserId` hook in both modes to get the DB user ID.
 
 ### Remove dead code
 
