@@ -3,6 +3,8 @@ import { createServer } from 'node:http';
 import { PrismaClient } from '@beacon-indexer/db';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
+import { authHeaders } from './helpers.js';
+
 import { createHttpServer } from '@/server.js';
 
 interface ChainStatsResponse {
@@ -73,7 +75,7 @@ describe('Chain Stats Endpoint E2E Tests', () => {
     it('should return 200 with error payload when no stats exist', async () => {
       await prisma.$executeRaw`DELETE FROM chain_epoch_stats`;
 
-      const response = await fetch(`${baseUrl}/chain/stats`);
+      const response = await fetch(`${baseUrl}/chain/stats`, { headers: authHeaders() });
       const body = (await response.json()) as ChainStatsResponse;
 
       expect(body.success).toBe(false);
@@ -89,7 +91,7 @@ describe('Chain Stats Endpoint E2E Tests', () => {
         ON CONFLICT (epoch) DO NOTHING
       `;
 
-      const response = await fetch(`${baseUrl}/chain/stats`);
+      const response = await fetch(`${baseUrl}/chain/stats`, { headers: authHeaders() });
 
       expect(response.ok).toBe(true);
       expect(response.status).toBe(200);
@@ -116,7 +118,7 @@ describe('Chain Stats Endpoint E2E Tests', () => {
         ON CONFLICT (epoch) DO NOTHING
       `;
 
-      const response = await fetch(`${baseUrl}/chain/stats`);
+      const response = await fetch(`${baseUrl}/chain/stats`, { headers: authHeaders() });
       const body = (await response.json()) as ChainStatsResponse;
 
       expect(body.success).toBe(true);
@@ -131,7 +133,7 @@ describe('Chain Stats Endpoint E2E Tests', () => {
         ON CONFLICT (epoch) DO NOTHING
       `;
 
-      const response = await fetch(`${baseUrl}/chain/stats`);
+      const response = await fetch(`${baseUrl}/chain/stats`, { headers: authHeaders() });
       const body = (await response.json()) as ChainStatsResponse;
 
       expect(body.meta).toBeDefined();

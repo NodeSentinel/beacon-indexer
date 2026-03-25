@@ -3,6 +3,8 @@ import { createServer } from 'node:http';
 import { PrismaClient } from '@beacon-indexer/db';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 
+import { authHeaders } from './helpers.js';
+
 import type {
   Cluster,
   ClusterDetail,
@@ -94,7 +96,7 @@ describe('Cluster API E2E Tests', () => {
 
       const response = await fetch(`${baseUrl}/clusters`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: authHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify({
           name: 'Test Cluster',
           visibility: 'private',
@@ -127,7 +129,7 @@ describe('Cluster API E2E Tests', () => {
       const feeRecipient = '0x1234567890123456789012345678901234567890';
       const response = await fetch(`${baseUrl}/clusters`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: authHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify({
           name: 'Cluster with Fee',
           visibility: 'shared',
@@ -150,7 +152,7 @@ describe('Cluster API E2E Tests', () => {
     it('should fail with empty name', async () => {
       const response = await fetch(`${baseUrl}/clusters`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: authHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify({
           name: '',
           ownerId: testOwnerId,
@@ -172,7 +174,9 @@ describe('Cluster API E2E Tests', () => {
       });
       createdClusterIds.push(cluster1.id, cluster2.id);
 
-      const response = await fetch(`${baseUrl}/clusters?ownerId=${testOwnerId}`);
+      const response = await fetch(`${baseUrl}/clusters?ownerId=${testOwnerId}`, {
+        headers: authHeaders(),
+      });
 
       expect(response.ok).toBe(true);
       const body = (await response.json()) as ClusterListResponse;
@@ -187,7 +191,9 @@ describe('Cluster API E2E Tests', () => {
     });
 
     it('should return empty array for unknown owner', async () => {
-      const response = await fetch(`${baseUrl}/clusters?ownerId=999999999`);
+      const response = await fetch(`${baseUrl}/clusters?ownerId=999999999`, {
+        headers: authHeaders(),
+      });
 
       expect(response.ok).toBe(true);
       const body = (await response.json()) as ClusterListResponse;
@@ -204,7 +210,9 @@ describe('Cluster API E2E Tests', () => {
       });
       createdClusterIds.push(cluster.id);
 
-      const response = await fetch(`${baseUrl}/clusters/${cluster.id}`);
+      const response = await fetch(`${baseUrl}/clusters/${cluster.id}`, {
+        headers: authHeaders(),
+      });
 
       expect(response.ok).toBe(true);
       const body = (await response.json()) as ClusterDetailResponse;
@@ -217,7 +225,9 @@ describe('Cluster API E2E Tests', () => {
     });
 
     it('should return error for non-existent cluster', async () => {
-      const response = await fetch(`${baseUrl}/clusters/non-existent-id`);
+      const response = await fetch(`${baseUrl}/clusters/non-existent-id`, {
+        headers: authHeaders(),
+      });
 
       expect(response.ok).toBe(true); // API returns 200 with error in body
       const body = (await response.json()) as ClusterResponse;
@@ -236,7 +246,7 @@ describe('Cluster API E2E Tests', () => {
 
       const response = await fetch(`${baseUrl}/clusters/${cluster.id}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: authHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify({ name: 'Updated Name' }),
       });
 
@@ -255,7 +265,7 @@ describe('Cluster API E2E Tests', () => {
 
       const response = await fetch(`${baseUrl}/clusters/${cluster.id}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: authHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify({ visibility: 'shared' }),
       });
 
@@ -269,7 +279,7 @@ describe('Cluster API E2E Tests', () => {
     it('should return error for non-existent cluster', async () => {
       const response = await fetch(`${baseUrl}/clusters/non-existent-id`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: authHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify({ name: 'New Name' }),
       });
 
@@ -290,6 +300,7 @@ describe('Cluster API E2E Tests', () => {
 
       const response = await fetch(`${baseUrl}/clusters/${cluster.id}`, {
         method: 'DELETE',
+        headers: authHeaders(),
       });
 
       expect(response.ok).toBe(true);
@@ -306,6 +317,7 @@ describe('Cluster API E2E Tests', () => {
     it('should return error for non-existent cluster', async () => {
       const response = await fetch(`${baseUrl}/clusters/non-existent-id`, {
         method: 'DELETE',
+        headers: authHeaders(),
       });
 
       expect(response.ok).toBe(true);
@@ -337,7 +349,7 @@ describe('Cluster API E2E Tests', () => {
 
       const response = await fetch(`${baseUrl}/clusters/${cluster.id}/validators`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: authHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify({ validatorIndexes: [1, 2] }),
       });
 
@@ -364,14 +376,14 @@ describe('Cluster API E2E Tests', () => {
       // Add validator first time
       await fetch(`${baseUrl}/clusters/${cluster.id}/validators`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: authHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify({ validatorIndexes: [3] }),
       });
 
       // Add same validator again
       const response = await fetch(`${baseUrl}/clusters/${cluster.id}/validators`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: authHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify({ validatorIndexes: [3] }),
       });
 
@@ -385,7 +397,7 @@ describe('Cluster API E2E Tests', () => {
     it('should return error for non-existent cluster', async () => {
       const response = await fetch(`${baseUrl}/clusters/non-existent-id/validators`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: authHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify({ validatorIndexes: [1] }),
       });
 
@@ -428,7 +440,7 @@ describe('Cluster API E2E Tests', () => {
 
       const response = await fetch(`${baseUrl}/clusters/${cluster.id}/validators`, {
         method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
+        headers: authHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify({ validatorIndexes: [4, 5] }),
       });
 
@@ -453,7 +465,7 @@ describe('Cluster API E2E Tests', () => {
 
       const response = await fetch(`${baseUrl}/clusters/${cluster.id}/validators`, {
         method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
+        headers: authHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify({ validatorIndexes: [999] }),
       });
 
@@ -467,7 +479,7 @@ describe('Cluster API E2E Tests', () => {
     it('should return error for non-existent cluster', async () => {
       const response = await fetch(`${baseUrl}/clusters/non-existent-id/validators`, {
         method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
+        headers: authHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify({ validatorIndexes: [1] }),
       });
 
@@ -492,7 +504,7 @@ describe('Cluster API E2E Tests', () => {
 
       const response = await fetch(`${baseUrl}/clusters/${cluster.id}/validators`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: authHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify({ validatorIndexes: [999999] }),
       });
 
@@ -523,7 +535,7 @@ describe('Cluster API E2E Tests', () => {
 
       const response = await fetch(`${baseUrl}/clusters/${cluster.id}/validators`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: authHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify({ validatorIndexes: [10, 888888, 999999] }),
       });
 
@@ -579,7 +591,7 @@ describe('Cluster API E2E Tests', () => {
 
       const response = await fetch(`${baseUrl}/clusters/${cluster.id}/validators`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: authHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify({ withdrawalAddress: testWithdrawalAddress }),
       });
 
@@ -611,7 +623,7 @@ describe('Cluster API E2E Tests', () => {
 
       const response = await fetch(`${baseUrl}/clusters/${cluster.id}/validators`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: authHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify({ withdrawalAddress: upperCaseAddress }),
       });
 
@@ -634,7 +646,7 @@ describe('Cluster API E2E Tests', () => {
 
       const response = await fetch(`${baseUrl}/clusters/${cluster.id}/validators`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: authHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify({ withdrawalAddress: '0x0000000000000000000000000000000000000000' }),
       });
 
@@ -691,7 +703,7 @@ describe('Cluster API E2E Tests', () => {
 
       const response = await fetch(`${baseUrl}/clusters/${cluster.id}/validators`, {
         method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
+        headers: authHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify({ withdrawalAddress: testWithdrawalAddress }),
       });
 
@@ -731,7 +743,7 @@ describe('Cluster API E2E Tests', () => {
 
       const response = await fetch(`${baseUrl}/clusters/${cluster.id}/validators`, {
         method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
+        headers: authHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify({ withdrawalAddress: mixedCaseAddress }),
       });
 
@@ -750,7 +762,7 @@ describe('Cluster API E2E Tests', () => {
 
       const response = await fetch(`${baseUrl}/clusters/${cluster.id}/validators`, {
         method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
+        headers: authHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify({ withdrawalAddress: '0x0000000000000000000000000000000000000000' }),
       });
 
