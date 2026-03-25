@@ -44,7 +44,7 @@ Router files change from `publicProcedure.route(...)` to `securedProcedure.route
 Current order in `src/auth/middleware.ts`: (1) Origin, (2) Telegram, (3) API key.
 New order: **(1) Telegram, (2) API key, (3) Origin.**
 
-This is critical: if origin is checked first and a Telegram request happens to come from an allowed origin, it would be classified as anonymous and `context.user` would not be populated.
+Telegram authentication is based on the HMAC signature of `initData` (signed by the bot token), not by origin. Checking Telegram first ensures the `x-telegram-init-data` header is always evaluated before falling through to origin-based auth.
 
 ### CORS scoping
 

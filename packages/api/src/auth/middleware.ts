@@ -23,8 +23,8 @@ async function resolveTelegramUser(telegramInitData: string) {
 /**
  * Secured procedure — the default for all endpoints (except health check).
  *
- * Check order matters — Telegram is checked FIRST to prevent misclassification
- * when a Telegram Mini App request comes from an origin that matches ALLOWED_ORIGINS.
+ * Check order matters — Telegram is checked FIRST because its authentication
+ * is based on the HMAC signature of initData (signed by the bot token), not by origin.
  *
  *  1. Telegram initData header → validate HMAC, find-or-create DB user in context
  *  2. API key via Authorization header → no user in context
