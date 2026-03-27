@@ -323,8 +323,8 @@ CREATE TABLE "public"."chain_epoch_stats" (
 
 -- CreateTable
 CREATE TABLE "public"."user" (
-    "id" BIGINT NOT NULL,
-    "user_id" BIGINT NOT NULL,
+    "id" TEXT NOT NULL,
+    "telegram_id" BIGINT,
     "username" TEXT NOT NULL,
     "message_id" BIGINT,
     "last_claimed" TIMESTAMP(3),
@@ -337,7 +337,7 @@ CREATE TABLE "public"."user" (
 -- CreateTable
 CREATE TABLE "public"."fee_reward_address" (
     "address" TEXT NOT NULL,
-    "user_id" BIGINT,
+    "user_id" TEXT,
 
     CONSTRAINT "fee_reward_address_pkey" PRIMARY KEY ("address")
 );
@@ -346,7 +346,7 @@ CREATE TABLE "public"."fee_reward_address" (
 CREATE TABLE "public"."cluster" (
     "id" TEXT NOT NULL,
     "name" TEXT NOT NULL,
-    "owner_id" BIGINT NOT NULL,
+    "owner_id" TEXT NOT NULL,
     "visibility" "public"."ClusterVisibility" NOT NULL DEFAULT 'private',
     "fee_recipient_address" VARCHAR(42),
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -365,7 +365,7 @@ CREATE TABLE "public"."cluster_validator" (
 -- CreateTable
 CREATE TABLE "public"."_user_to_fee_reward_address" (
     "address" TEXT NOT NULL,
-    "user_id" BIGINT NOT NULL,
+    "user_id" TEXT NOT NULL,
 
     CONSTRAINT "_user_to_fee_reward_address_pkey" PRIMARY KEY ("address","user_id")
 );
@@ -400,7 +400,7 @@ CREATE INDEX "validator_monthly_archive_validator_timestamp_idx" ON "public"."va
 CREATE INDEX "validator_monthly_archive_timestamp_idx" ON "public"."validator_monthly_archive"("timestamp");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "user_user_id_key" ON "public"."user"("user_id");
+CREATE UNIQUE INDEX "user_telegram_id_key" ON "public"."user"("telegram_id");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "user_username_key" ON "public"."user"("username");
