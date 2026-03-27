@@ -18,18 +18,24 @@ async function setupViewportAndTheme() {
     // Mount and bind theme CSS vars (--tg-theme-bg-color, --tg-theme-text-color, etc.)
     if (miniApp.mount.isAvailable()) {
       miniApp.mount();
-      miniApp.bindCssVars();
+      if (miniApp.bindCssVars.isAvailable()) {
+        miniApp.bindCssVars();
+      }
     }
 
     if (themeParams.mount.isAvailable()) {
       themeParams.mount();
-      themeParams.bindCssVars();
+      if (themeParams.bindCssVars.isAvailable()) {
+        themeParams.bindCssVars();
+      }
     }
 
     // Mount viewport, expand, and bind CSS vars (--tg-viewport-height, --tg-viewport-stable-height)
     if (viewport.mount.isAvailable()) {
       await viewport.mount();
-      viewport.bindCssVars();
+      if (viewport.bindCssVars.isAvailable()) {
+        viewport.bindCssVars();
+      }
 
       if (viewport.expand.isAvailable()) {
         viewport.expand();
