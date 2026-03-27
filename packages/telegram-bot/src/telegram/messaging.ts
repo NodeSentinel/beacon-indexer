@@ -1,0 +1,101 @@
+import type { Api, RawApi } from 'grammy';
+
+import { orpcClient, setCurrentTelegramId } from '@/src/api/client.js';
+import type { Logger } from '@/src/logger.js';
+
+/** Telegram API error code for "bot was blocked by the user" */
+const BLOCKED_ERROR_CODE = 403;
+
+/** Telegram API error description for "message is not modified" (not a real error) */
+const SAME_MESSAGE_DESCRIPTION = 'Bad Request: message is not modified';
+
+/** In-memory set of blocked telegramIds (populated on 403, cleared on unblock) */
+export const blockedUserIds = new Set<string>();
+
+/**
+ * Send a message to a Telegram chat. Detects 403 (blocked) and marks the user via API.
+ * Returns the message_id of the sent message.
+ */
+export async function sendDashboardMessage(
+  api: Api<RawApi>,
+  chatId: number,
+  telegramId: string,
+  text: string,
+  logger: Logger,
+): Promise<number | null> {
+  try {
+    const result = await api.sendMessage(chatId, text, {
+      parse_mode: 'MarkdownV2',
+      link_preview_options: { is_disabled: true },
+      disable_notification: true,
+    });
+    return result.message_id;
+  } catch (error) {
+    if (isBlockedError(error)) {
+      await handleBlockedUser(telegramId, logger);
+    }
+    return null;
+  }
+}
+
+/**
+ * Edit an existing dashboard message. Detects 403 (blocked) and "same message" errors.
+ * Returns true if the edit succeeded, false otherwise.
+ */
+export async function editDashboardMessage(
+  api: Api<RawApi>,
+  chatId: number,
+  messageId: number,
+  telegramId: string,
+  text: string,
+  logger: Logger,
+): Promise<boolean> {
+  try {
+    await api.editMessageText(chatId, messageId, text, {
+      parse_mode: 'MarkdownV2',
+      link_preview_options: { is_disabled: true },
+    });
+    return true;
+  } catch (error) {
+    if (isBlockedError(error)) {
+      await handleBlockedUser(telegramId, logger);
+      return false;
+    }
+
+    if (isSameMessageError(error)) {
+      return true;
+    }
+
+    logger.warn({ err: error, chatId, messageId }, 'Failed to edit dashboard message');
+    return false;
+  }
+}
+
+function isBlockedError(error: unknown): boolean {
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    'error_code' in error &&
+    (error as { error_code: number }).error_code === BLOCKED_ERROR_CODE
+  );
+}
+
+function isSameMessageError(error: unknown): boolean {
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    'description' in error &&
+    (error as { description: string }).description === SAME_MESSAGE_DESCRIPTION
+  );
+}
+
+async function handleBlockedUser(telegramId: string, logger: Logger): Promise<void> {
+  logger.info({ telegramId }, 'User has blocked the bot, marking as blocked');
+  blockedUserIds.add(telegramId);
+  try {
+    setCurrentTelegramId(telegramId);
+    await orpcClient.bot.setBlocked({ telegramId });
+  } catch (err) {
+    logger.error({ err, telegramId }, 'Failed to mark user as blocked via API');
+  }
+}
