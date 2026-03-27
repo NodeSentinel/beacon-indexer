@@ -16,12 +16,6 @@ const INIT_DATA_MAX_AGE_SECONDS = 3600;
  * Reference: https://core.telegram.org/bots/webapps#validating-data-received-via-the-mini-app
  */
 export async function authenticateTelegram(initData: string): Promise<TelegramUser> {
-  if (!env.TELEGRAM_BOT_TOKEN) {
-    throw new ORPCError('INTERNAL_SERVER_ERROR', {
-      message: 'Telegram authentication not configured',
-    });
-  }
-
   try {
     // Parse init data
     const params = new URLSearchParams(initData);

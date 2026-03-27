@@ -12,19 +12,13 @@ import { logger } from './lib/logger.js';
 import { router } from './routers/index.js';
 
 /**
- * CORS plugin — only applies to origin-based (anonymous web) requests.
- * Telegram and API key requests are authenticated by their credentials,
- * not by origin, and must not have CORS headers injected.
+ * CORS plugin — allows cross-origin requests from approved origins.
+ * Auth strategy (Telegram, API key, anonymous) is handled separately
+ * by the procedure middleware — CORS headers must always be present
+ * for browser-based requests (including Telegram Mini App WebViews).
  */
 const corsPlugin = new CORSPlugin({
-  origin: (origin, options) => {
-    const reqHeaders = options.request.headers;
-    // Skip CORS for Telegram and API key authenticated requests
-    if (reqHeaders['x-telegram-init-data'] || reqHeaders.authorization) {
-      return null;
-    }
-    return isOriginAllowed(origin) ? origin : null;
-  },
+  origin: (origin) => (isOriginAllowed(origin) ? origin : null),
   allowHeaders: ['Content-Type', 'Authorization', 'x-telegram-init-data', 'ns-anonymous-id'],
   credentials: true,
 });

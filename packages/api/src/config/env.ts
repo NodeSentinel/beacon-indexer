@@ -14,7 +14,7 @@ const envSchema = z.object({
 
   // Auth
   API_TOKEN_SECRET: z.string().min(32),
-  TELEGRAM_BOT_TOKEN: z.string().optional(),
+  TELEGRAM_BOT_TOKEN: z.string().min(1),
   ALLOWED_ORIGINS: z.string(),
 
   // Logging
