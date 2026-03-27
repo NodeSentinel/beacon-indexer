@@ -9,6 +9,7 @@ import { createBot } from '@/src/bot/index.js';
 import type { PollingConfig, WebhookConfig } from '@/src/config.js';
 import { config } from '@/src/config.js';
 import { logger } from '@/src/logger.js';
+import { startScheduler } from '@/src/scheduler/index.js';
 import { createServer, createServerManager } from '@/src/server/index.js';
 
 async function startPolling(config: PollingConfig) {
@@ -25,6 +26,8 @@ async function startPolling(config: PollingConfig) {
       },
     },
   });
+
+  startScheduler(bot.api, logger);
 
   // graceful shutdown
   onShutdown(async () => {
@@ -78,6 +81,8 @@ async function startWebhook(config: WebhookConfig) {
     msg: 'Webhook was set',
     url: config.botWebhook,
   });
+
+  startScheduler(bot.api, logger);
 }
 
 async function main() {
