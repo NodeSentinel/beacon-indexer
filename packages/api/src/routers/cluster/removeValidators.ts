@@ -4,7 +4,7 @@ import {
   RemoveValidatorsResponseSchema,
 } from './schemas.js';
 
-import { publicProcedure } from '@/lib/orpc.js';
+import { securedProcedure } from '@/lib/procedures.js';
 import { ClusterStorage } from '@/storage/cluster.js';
 import { ApiResponseSchema } from '@/utils/response.js';
 
@@ -16,7 +16,7 @@ import { ApiResponseSchema } from '@/utils/response.js';
  * - validatorIndexes: array of validator indexes to remove
  * - withdrawalAddress: removes all validators with this withdrawal address (case-insensitive)
  */
-export const removeValidators = publicProcedure
+export const removeValidators = securedProcedure
   .route({ method: 'DELETE', path: '/clusters/{id}/validators' })
   .input(ClusterIdParamSchema.merge(RemoveValidatorsInputSchema))
   .output(ApiResponseSchema(RemoveValidatorsResponseSchema))

@@ -7,12 +7,27 @@ import type { RouterClient } from '@orpc/server';
 import { createTanstackQueryUtils } from '@orpc/tanstack-query';
 
 import { env } from '@/env';
+import { getAnonymousSessionId } from '@/lib/anonymous-session';
+import { getTelegramInitData } from '@/lib/telegram-init-data';
 
 export type AppRouter = RouterClient<typeof router>;
 
 // Create RPC link pointing to the API server
 const link = new RPCLink({
   url: `${env.NEXT_PUBLIC_API_URL}/rpc`,
+  headers: () => {
+    const initData = getTelegramInitData();
+    if (initData) {
+      return { 'x-telegram-init-data': initData };
+    }
+
+    const sessionId = getAnonymousSessionId();
+    if (sessionId) {
+      return { 'ns-anonymous-id': sessionId };
+    }
+
+    return {};
+  },
 });
 
 // Create oRPC client

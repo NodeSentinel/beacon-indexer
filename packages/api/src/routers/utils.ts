@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-import { publicProcedure } from '@/lib/orpc.js';
+import { securedProcedure } from '@/lib/procedures.js';
 import { beaconTime } from '@/utils/beaconTime.js';
 import { ApiResponseSchema, successResponse, errorResponse } from '@/utils/response.js';
 
@@ -42,7 +42,7 @@ type SlotDateResponse = z.infer<typeof SlotDateResponseSchema>;
  * @param date - Date string in format yyyy/mm/dd hh:mm:ss
  * @returns Slot number and original date
  */
-export const dateToSlot = publicProcedure
+export const dateToSlot = securedProcedure
   .route({ method: 'GET', path: '/utils/date-to-slot' })
   .input(
     z.object({
@@ -91,7 +91,7 @@ export const dateToSlot = publicProcedure
  * @param slot - Slot number
  * @returns UTC date string in format yyyy/mm/dd hh:mm:ss, timestamp, and slot
  */
-export const slotToDate = publicProcedure
+export const slotToDate = securedProcedure
   .route({ method: 'GET', path: '/utils/slot-to-date' })
   .input(
     z.object({

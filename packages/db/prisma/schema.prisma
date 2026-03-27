@@ -464,8 +464,8 @@ model ChainEpochStats {
 //-------------------------------------
 
 model User {
-  id                 BigInt                   @id @map("id")
-  userId             BigInt                   @unique @map("user_id")
+  id                 String                   @id @default(cuid()) @map("id")
+  telegramId         BigInt?                  @unique @map("telegram_id")
   username           String                   @unique @map("username")
   messageId          BigInt?                  @map("message_id")
   lastClaimed        DateTime?                @map("last_claimed")
@@ -480,7 +480,7 @@ model User {
 model FeeRewardAddress {
   address String                   @id @map("address")
   users   UserToFeeRewardAddress[] @relation("user_to_fee_reward_address")
-  userId  BigInt?                  @map("user_id")
+  userId  String?                  @map("user_id")
 
   @@map("fee_reward_address")
 }
@@ -488,7 +488,7 @@ model FeeRewardAddress {
 model Cluster {
   id                  String            @id @default(cuid())
   name                String
-  ownerId             BigInt            @map("owner_id")
+  ownerId             String            @map("owner_id")
   visibility          ClusterVisibility @default(private)
   feeRecipientAddress String?           @map("fee_recipient_address") @db.VarChar(42)
   createdAt           DateTime          @default(now()) @map("created_at")
@@ -514,7 +514,7 @@ model ClusterValidator {
 // Explicit intermediate table for User-FeeRewardAddress many-to-many relationship
 model UserToFeeRewardAddress {
   address String @map("address")
-  userId  BigInt @map("user_id")
+  userId  String @map("user_id")
 
   user             User             @relation("user_to_fee_reward_address", fields: [userId], references: [id], onDelete: Cascade)
   feeRewardAddress FeeRewardAddress @relation("user_to_fee_reward_address", fields: [address], references: [address], onDelete: Cascade)

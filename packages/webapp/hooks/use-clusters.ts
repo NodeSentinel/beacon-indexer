@@ -14,7 +14,7 @@ export function useClusters() {
   return useQuery({
     queryKey: ['clusters', userId],
     queryFn: async () => {
-      const response = await orpcClient.cluster.list({ ownerId: userId });
+      const response = await orpcClient.cluster.list({});
       if (!response.success) {
         throw new Error(response.error?.message || 'Failed to fetch clusters');
       }
@@ -47,7 +47,6 @@ export function useCluster(id: string | null) {
  */
 export function useCreateCluster() {
   const queryClient = useQueryClient();
-  const userId = useUserId();
 
   return useMutation({
     mutationFn: async (data: {
@@ -59,7 +58,6 @@ export function useCreateCluster() {
       const response = await orpcClient.cluster.create({
         ...data,
         visibility: data.visibility || 'private',
-        ownerId: userId,
       });
       if (!response.success) {
         throw new Error(response.error?.message || 'Failed to create cluster');

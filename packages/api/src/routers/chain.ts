@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
-import { publicProcedure } from '@/lib/orpc.js';
 import { getPrisma } from '@/lib/prisma.js';
+import { securedProcedure } from '@/lib/procedures.js';
 import { beaconTime, chainConfig } from '@/utils/beaconTime.js';
 import { ApiResponseSchema } from '@/utils/response.js';
 import { formatBalance } from '@/utils/tokenFormat.js';
@@ -19,7 +19,7 @@ const ChainStatsDataSchema = z.object({
 
 const ChainStatsResponseSchema = ApiResponseSchema(ChainStatsDataSchema);
 
-const getStats = publicProcedure
+const getStats = securedProcedure
   .route({ method: 'GET', path: '/chain/stats' })
   .output(ChainStatsResponseSchema)
   .handler(async () => {
@@ -74,7 +74,7 @@ const SyncStatusDataSchema = z.object({
 
 const SyncStatusResponseSchema = ApiResponseSchema(SyncStatusDataSchema);
 
-const getSyncStatus = publicProcedure
+const getSyncStatus = securedProcedure
   .route({ method: 'GET', path: '/chain/sync-status' })
   .output(SyncStatusResponseSchema)
   .handler(async () => {

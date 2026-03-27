@@ -21,7 +21,7 @@ export function useMissedAttestations(
       if (validatorIndex !== null) {
         response = await orpcClient.validator.missedAttestations({ index: validatorIndex, range });
       } else if (clusterId === 'all') {
-        response = await orpcClient.cluster.allMissedAttestations({ ownerId: userId, range });
+        response = await orpcClient.cluster.allMissedAttestations({ range });
       } else if (clusterId !== null) {
         response = await orpcClient.cluster.missedAttestations({ id: clusterId, range });
       } else {

@@ -3,7 +3,7 @@ import { z } from 'zod';
 
 import { ClusterIdParamSchema } from './schemas.js';
 
-import { publicProcedure } from '@/lib/orpc.js';
+import { securedProcedure } from '@/lib/procedures.js';
 import { ClusterStorage } from '@/storage/cluster.js';
 import { ApiResponseSchema } from '@/utils/response.js';
 
@@ -11,7 +11,7 @@ import { ApiResponseSchema } from '@/utils/response.js';
  * Delete cluster
  * DELETE /clusters/:id
  */
-export const deleteCluster = publicProcedure
+export const deleteCluster = securedProcedure
   .route({ method: 'DELETE', path: '/clusters/{id}' })
   .input(ClusterIdParamSchema)
   .output(ApiResponseSchema(z.object({ deleted: z.boolean() })))

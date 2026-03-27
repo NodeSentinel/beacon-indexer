@@ -6,7 +6,7 @@ import {
   ClusterIdParamSchema,
 } from './schemas.js';
 
-import { publicProcedure } from '@/lib/orpc.js';
+import { securedProcedure } from '@/lib/procedures.js';
 import { ClusterStorage } from '@/storage/cluster.js';
 import { ApiResponseSchema } from '@/utils/response.js';
 
@@ -18,7 +18,7 @@ import { ApiResponseSchema } from '@/utils/response.js';
  * - validatorIndexes: array of validator indexes to add
  * - withdrawalAddress: adds all validators with this withdrawal address (case-insensitive)
  */
-export const addValidators = publicProcedure
+export const addValidators = securedProcedure
   .route({ method: 'POST', path: '/clusters/{id}/validators' })
   .input(ClusterIdParamSchema.merge(AddValidatorsInputSchema))
   .output(ApiResponseSchema(AddValidatorsResponseSchema))

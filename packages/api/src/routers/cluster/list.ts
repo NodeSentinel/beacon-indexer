@@ -1,23 +1,22 @@
 import { z } from 'zod';
 
-import { ClusterWithCountSchema, ListClustersInputSchema } from './schemas.js';
+import { ClusterWithCountSchema } from './schemas.js';
 
-import { publicProcedure } from '@/lib/orpc.js';
+import { securedProcedure } from '@/lib/procedures.js';
 import { ClusterStorage } from '@/storage/cluster.js';
 import { ApiResponseSchema } from '@/utils/response.js';
 
 /**
- * List clusters for a given owner
- * GET /clusters?ownerId=X
+ * List clusters for the current authenticated user
+ * GET /clusters
  */
-export const listClusters = publicProcedure
+export const listClusters = securedProcedure
   .route({ method: 'GET', path: '/clusters' })
-  .input(ListClustersInputSchema)
   .output(ApiResponseSchema(z.array(ClusterWithCountSchema)))
-  .handler(async ({ input }) => {
+  .handler(async ({ context }) => {
     try {
       const storage = new ClusterStorage();
-      const clusters = await storage.listByOwner(BigInt(input.ownerId));
+      const clusters = await storage.listByOwner(context.user!.id);
 
       return {
         success: true,
@@ -26,7 +25,7 @@ export const listClusters = publicProcedure
           name: cluster.name,
           visibility: cluster.visibility,
           feeRecipientAddress: cluster.feeRecipientAddress,
-          ownerId: cluster.ownerId.toString(),
+          ownerId: cluster.ownerId,
           createdAt: cluster.createdAt.toISOString(),
           validatorCount: cluster._count.validators,
         })),

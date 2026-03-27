@@ -1,20 +1,26 @@
 import { os } from '@orpc/server';
 
-/**
- * Base oRPC instance with logger and headers in context
- * Logger and headers will be provided via context when calling handler.handle()
- * Use this for public procedures that don't require authentication
- */
-export const publicProcedure = os.$context<{
-  logger: typeof import('./logger.js').logger;
-  headers: Record<string, string | string[] | undefined>;
-}>();
+export interface DbUser {
+  id: string;
+  username: string;
+}
 
 /**
- * Base instance with logger and headers in context
- * Logger and headers will be provided via context when calling handler.handle()
+ * Base context shape for all procedures.
+ * `user` is populated by auth middleware when Telegram auth succeeds.
  */
-export const baseProcedure = os.$context<{
+export interface BaseContext {
   logger: typeof import('./logger.js').logger;
   headers: Record<string, string | string[] | undefined>;
-}>();
+  user?: DbUser;
+}
+
+/**
+ * Base instance for building procedure chains (public and authenticated).
+ */
+export const baseProcedure = os.$context<BaseContext>();
+
+/**
+ * Public procedure alias — used directly for endpoints with no auth (e.g. health check).
+ */
+export const publicProcedure = baseProcedure;

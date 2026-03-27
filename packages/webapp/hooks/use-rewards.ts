@@ -21,7 +21,7 @@ export function useRewards(
       if (validatorIndex !== null) {
         response = await orpcClient.validator.rewards({ index: validatorIndex, range });
       } else if (clusterId === 'all') {
-        response = await orpcClient.cluster.allRewards({ ownerId: userId, range });
+        response = await orpcClient.cluster.allRewards({ range });
       } else if (clusterId !== null) {
         response = await orpcClient.cluster.rewards({ id: clusterId, range });
       } else {

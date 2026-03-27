@@ -1,6 +1,6 @@
 import { ClusterSchema, CreateClusterInputSchema } from './schemas.js';
 
-import { publicProcedure } from '@/lib/orpc.js';
+import { securedProcedure } from '@/lib/procedures.js';
 import { ClusterStorage } from '@/storage/cluster.js';
 import { ApiResponseSchema } from '@/utils/response.js';
 
@@ -8,16 +8,16 @@ import { ApiResponseSchema } from '@/utils/response.js';
  * Create a new cluster
  * POST /clusters
  */
-export const createCluster = publicProcedure
+export const createCluster = securedProcedure
   .route({ method: 'POST', path: '/clusters' })
   .input(CreateClusterInputSchema)
   .output(ApiResponseSchema(ClusterSchema))
-  .handler(async ({ input }) => {
+  .handler(async ({ input, context }) => {
     try {
       const storage = new ClusterStorage();
       const cluster = await storage.create({
         name: input.name,
-        ownerId: BigInt(input.ownerId),
+        ownerId: context.user!.id,
         visibility: input.visibility,
         feeRecipientAddress: input.feeRecipientAddress ?? null,
       });
@@ -31,7 +31,7 @@ export const createCluster = publicProcedure
           name: cluster.name,
           visibility: cluster.visibility,
           feeRecipientAddress: cluster.feeRecipientAddress,
-          ownerId: cluster.ownerId.toString(),
+          ownerId: cluster.ownerId,
           createdAt: cluster.createdAt.toISOString(),
         },
         meta: { timestamp: new Date().toISOString() },

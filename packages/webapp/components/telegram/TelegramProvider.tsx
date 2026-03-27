@@ -1,23 +1,32 @@
 'use client';
 
 import { init } from '@tma.js/sdk';
-import { useLaunchParams } from '@tma.js/sdk-react';
+import { useLaunchParams, useRawInitData } from '@tma.js/sdk-react';
 import { type PropsWithChildren, useEffect, useState } from 'react';
 
 import { BackButtonBinder } from './BackButtonBinder';
 
 import { shouldMockTelegram, setupTelegramMock } from '@/lib/mockTelegramEnv';
+import { setTelegramInitData } from '@/lib/telegram-init-data';
 
 /**
  * Inner component that handles post-SDK initialization
  */
 function TelegramAppInitializer({ children }: PropsWithChildren) {
   const lp = useLaunchParams();
+  const rawInitData = useRawInitData();
+
+  useEffect(() => {
+    // Store raw initData for API auth header injection
+    if (rawInitData) {
+      setTelegramInitData(rawInitData);
+    }
+  }, [rawInitData]);
 
   useEffect(() => {
     // Log launch params in development
     if (process.env.NODE_ENV === 'development') {
-      console.log('🚀 Telegram Mini App initialized', {
+      console.log('Telegram Mini App initialized', {
         platform: lp.platform,
         version: lp.version,
         initData: lp.initData,

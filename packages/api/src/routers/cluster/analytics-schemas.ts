@@ -6,7 +6,6 @@ export const MissedAttestationsInputSchema = z.object({
 });
 
 export const MissedAttestationsAllInputSchema = z.object({
-  ownerId: z.string(),
   range: z.enum(['1h', '24h']).default('1h'),
 });
 
@@ -33,7 +32,6 @@ export const AnalyticsClusterInputSchema = z.object({
 });
 
 export const AnalyticsAllClustersInputSchema = z.object({
-  ownerId: z.string(),
   range: AnalyticsRangeSchema,
 });
 

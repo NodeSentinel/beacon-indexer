@@ -1,6 +1,6 @@
 import { ClusterIdParamSchema, ClusterSnapshotSchema } from './schemas.js';
 
-import { publicProcedure } from '@/lib/orpc.js';
+import { securedProcedure } from '@/lib/procedures.js';
 import { ClusterStorage } from '@/storage/cluster.js';
 import { ApiResponseSchema } from '@/utils/response.js';
 import { formatBalance, formatWeiToToken } from '@/utils/tokenFormat.js';
@@ -10,7 +10,7 @@ import { getTokenPrice } from '@/utils/tokenPrice.js';
  * Get cluster snapshot with aggregated performance metrics
  * GET /clusters/:id/snapshot
  */
-export const getClusterSnapshot = publicProcedure
+export const getClusterSnapshot = securedProcedure
   .route({ method: 'GET', path: '/clusters/{id}/snapshot' })
   .input(ClusterIdParamSchema)
   .output(ApiResponseSchema(ClusterSnapshotSchema))
