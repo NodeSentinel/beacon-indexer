@@ -1,13 +1,58 @@
 'use client';
 
-import { init } from '@tma.js/sdk';
-import { useLaunchParams, useRawInitData } from '@tma.js/sdk-react';
+import { init, miniApp, swipeBehavior, themeParams, viewport } from '@telegram-apps/sdk';
+import { useLaunchParams, useRawInitData } from '@telegram-apps/sdk-react';
 import { type PropsWithChildren, useEffect, useState } from 'react';
 
 import { BackButtonBinder } from './BackButtonBinder';
 
 import { shouldMockTelegram, setupTelegramMock } from '@/lib/mockTelegramEnv';
 import { setTelegramInitData } from '@/lib/telegram-init-data';
+
+/**
+ * Mount viewport, expand to full height, and bind CSS variables
+ * for --tg-viewport-height, --tg-viewport-stable-height, theme colors, etc.
+ */
+async function setupViewportAndTheme() {
+  try {
+    // Mount and bind theme CSS vars (--tg-theme-bg-color, --tg-theme-text-color, etc.)
+    if (miniApp.mount.isAvailable()) {
+      miniApp.mount();
+      if (miniApp.bindCssVars.isAvailable()) {
+        miniApp.bindCssVars();
+      }
+    }
+
+    if (themeParams.mount.isAvailable()) {
+      themeParams.mount();
+      if (themeParams.bindCssVars.isAvailable()) {
+        themeParams.bindCssVars();
+      }
+    }
+
+    // Mount viewport, expand, and bind CSS vars (--tg-viewport-height, --tg-viewport-stable-height)
+    if (viewport.mount.isAvailable()) {
+      await viewport.mount();
+      if (viewport.bindCssVars.isAvailable()) {
+        viewport.bindCssVars();
+      }
+
+      if (viewport.expand.isAvailable()) {
+        viewport.expand();
+      }
+    }
+
+    // Disable vertical swipe-to-close to prevent accidental dismissal while scrolling
+    if (swipeBehavior.mount.isAvailable()) {
+      swipeBehavior.mount();
+      if (swipeBehavior.disableVertical.isAvailable()) {
+        swipeBehavior.disableVertical();
+      }
+    }
+  } catch (err) {
+    console.warn('Telegram viewport/theme setup failed:', err);
+  }
+}
 
 /**
  * Inner component that handles post-SDK initialization
@@ -22,6 +67,11 @@ function TelegramAppInitializer({ children }: PropsWithChildren) {
       setTelegramInitData(rawInitData);
     }
   }, [rawInitData]);
+
+  useEffect(() => {
+    // Setup viewport, theme CSS vars, and swipe behavior
+    setupViewportAndTheme();
+  }, []);
 
   useEffect(() => {
     // Log launch params in development
@@ -50,6 +100,8 @@ function TelegramAppInitializer({ children }: PropsWithChildren) {
  * - Auto-detects Telegram environment
  * - Mocks environment in development (if NEXT_PUBLIC_TG_MOCK=true)
  * - Provides launch params access
+ * - Expands viewport to full height and binds CSS variables
+ * - Disables vertical swipe-to-close gesture
  */
 export function TelegramProvider({ children }: PropsWithChildren) {
   const [isMounted, setIsMounted] = useState(false);
