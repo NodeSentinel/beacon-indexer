@@ -4,7 +4,7 @@ import { getPrisma } from '@/lib/prisma.js';
 
 interface CreateClusterData {
   name: string;
-  ownerId: bigint;
+  ownerId: string;
   visibility: ClusterVisibility;
   feeRecipientAddress?: string | null;
 }
@@ -72,7 +72,7 @@ export class ClusterStorage {
         cluster_name: string;
         cluster_visibility: string;
         cluster_fee_recipient_address: string | null;
-        cluster_owner_id: bigint;
+        cluster_owner_id: string;
         cluster_created_at: Date;
         validator_index: number | null;
         withdrawal_address: string | null;
@@ -156,7 +156,7 @@ export class ClusterStorage {
   /**
    * List clusters by owner with validator count
    */
-  async listByOwner(ownerId: bigint) {
+  async listByOwner(ownerId: string) {
     return this.prisma.cluster.findMany({
       where: { ownerId },
       include: { _count: { select: { validators: true } } },
@@ -405,7 +405,7 @@ export class ClusterStorage {
   /**
    * Get all unique validator indexes across all clusters for an owner
    */
-  async findAllValidatorIndexesByOwner(ownerId: bigint): Promise<number[]> {
+  async findAllValidatorIndexesByOwner(ownerId: string): Promise<number[]> {
     const results = await this.prisma.clusterValidator.findMany({
       where: {
         cluster: {
@@ -423,7 +423,7 @@ export class ClusterStorage {
   /**
    * Check if cluster exists and belongs to owner
    */
-  async existsForOwner(id: string, ownerId: bigint): Promise<boolean> {
+  async existsForOwner(id: string, ownerId: string): Promise<boolean> {
     const cluster = await this.prisma.cluster.findFirst({
       where: { id, ownerId },
       select: { id: true },

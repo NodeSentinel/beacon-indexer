@@ -25,7 +25,7 @@ export const listClusters = securedProcedure
           name: cluster.name,
           visibility: cluster.visibility,
           feeRecipientAddress: cluster.feeRecipientAddress,
-          ownerId: cluster.ownerId.toString(),
+          ownerId: cluster.ownerId,
           createdAt: cluster.createdAt.toISOString(),
           validatorCount: cluster._count.validators,
         })),

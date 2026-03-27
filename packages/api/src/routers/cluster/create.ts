@@ -31,7 +31,7 @@ export const createCluster = securedProcedure
           name: cluster.name,
           visibility: cluster.visibility,
           feeRecipientAddress: cluster.feeRecipientAddress,
-          ownerId: cluster.ownerId.toString(),
+          ownerId: cluster.ownerId,
           createdAt: cluster.createdAt.toISOString(),
         },
         meta: { timestamp: new Date().toISOString() },

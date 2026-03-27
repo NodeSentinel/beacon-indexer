@@ -108,10 +108,10 @@ describe('Snapshot - Inactivity Detection', () => {
   async function setupValidatorsInCluster(validatorIds: number[]) {
     // One user owns one cluster
     await prisma.user.create({
-      data: { id: BigInt(1), userId: BigInt(1), username: 'test-user' },
+      data: { id: 'test-user-1', username: 'test-user' },
     });
     const cluster = await prisma.cluster.create({
-      data: { name: 'test', ownerId: BigInt(1), visibility: 'private' },
+      data: { name: 'test', ownerId: 'test-user-1', visibility: 'private' },
     });
 
     // Register each validator and link it to the cluster
@@ -576,10 +576,10 @@ describe('Snapshot - New Validator Detection', () => {
    */
   async function createValidatorInCluster(validatorIds: number[]) {
     await prisma.user.create({
-      data: { id: BigInt(1), userId: BigInt(1), username: 'test-user' },
+      data: { id: 'test-user-1', username: 'test-user' },
     });
     const cluster = await prisma.cluster.create({
-      data: { name: 'test', ownerId: BigInt(1), visibility: 'private' },
+      data: { name: 'test', ownerId: 'test-user-1', visibility: 'private' },
     });
     for (const id of validatorIds) {
       await prisma.validator.upsert({

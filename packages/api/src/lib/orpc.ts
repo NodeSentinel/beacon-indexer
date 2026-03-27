@@ -1,7 +1,7 @@
 import { os } from '@orpc/server';
 
 export interface DbUser {
-  id: bigint;
+  id: string;
   username: string;
 }
 
@@ -16,12 +16,11 @@ export interface BaseContext {
 }
 
 /**
- * Public procedure — no auth required.
- * Used only for health check and infrastructure endpoints.
- */
-export const publicProcedure = os.$context<BaseContext>();
-
-/**
- * Base instance for building authenticated procedure chains.
+ * Base instance for building procedure chains (public and authenticated).
  */
 export const baseProcedure = os.$context<BaseContext>();
+
+/**
+ * Public procedure alias — used directly for endpoints with no auth (e.g. health check).
+ */
+export const publicProcedure = baseProcedure;

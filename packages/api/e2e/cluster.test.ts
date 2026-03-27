@@ -26,8 +26,8 @@ describe('Cluster API E2E Tests', () => {
   let prisma: PrismaClient;
   let server: ReturnType<typeof createServer>;
   let baseUrl: string;
-  // User ID derived from E2E_SESSION_ID by getOrCreateAnonymous
-  const testOwnerIdBigInt = BigInt(`0x${E2E_SESSION_ID.replace(/-/g, '').slice(0, 15)}`);
+  // Fixed test user ID (string, matching the new User.id type)
+  const testOwnerId = 'e2e-test-owner-id';
   const createdClusterIds: string[] = [];
 
   beforeAll(async () => {
@@ -48,11 +48,10 @@ describe('Cluster API E2E Tests', () => {
     // Ensure a test user exists for the foreign key constraint.
     // Uses the same ID that getOrCreateAnonymous derives from E2E_SESSION_ID.
     await prisma.user.upsert({
-      where: { id: testOwnerIdBigInt },
+      where: { id: testOwnerId },
       update: {},
       create: {
-        id: testOwnerIdBigInt,
-        userId: testOwnerIdBigInt,
+        id: testOwnerId,
         username: `anon:${E2E_SESSION_ID}`,
       },
     });
@@ -113,7 +112,7 @@ describe('Cluster API E2E Tests', () => {
       expect(body.data).toBeDefined();
       expect(body.data!.name).toBe('Test Cluster');
       expect(body.data!.visibility).toBe('private');
-      expect(body.data!.ownerId).toBe(testOwnerIdBigInt.toString());
+      expect(body.data!.ownerId).toBe(testOwnerId);
       expect(body.data!.id).toBeDefined();
 
       createdClusterIds.push(body.data!.id);
@@ -167,10 +166,10 @@ describe('Cluster API E2E Tests', () => {
     it('should list clusters for the authenticated user', async () => {
       // Create two clusters first
       const cluster1 = await prisma.cluster.create({
-        data: { name: 'List Test 1', ownerId: testOwnerIdBigInt, visibility: 'private' },
+        data: { name: 'List Test 1', ownerId: testOwnerId, visibility: 'private' },
       });
       const cluster2 = await prisma.cluster.create({
-        data: { name: 'List Test 2', ownerId: testOwnerIdBigInt, visibility: 'shared' },
+        data: { name: 'List Test 2', ownerId: testOwnerId, visibility: 'shared' },
       });
       createdClusterIds.push(cluster1.id, cluster2.id);
 
@@ -210,7 +209,7 @@ describe('Cluster API E2E Tests', () => {
   describe('GET /clusters/:id', () => {
     it('should get cluster details with validators', async () => {
       const cluster = await prisma.cluster.create({
-        data: { name: 'Get Test', ownerId: testOwnerIdBigInt, visibility: 'private' },
+        data: { name: 'Get Test', ownerId: testOwnerId, visibility: 'private' },
       });
       createdClusterIds.push(cluster.id);
 
@@ -244,7 +243,7 @@ describe('Cluster API E2E Tests', () => {
   describe('PUT /clusters/:id', () => {
     it('should update cluster name', async () => {
       const cluster = await prisma.cluster.create({
-        data: { name: 'Original Name', ownerId: testOwnerIdBigInt, visibility: 'private' },
+        data: { name: 'Original Name', ownerId: testOwnerId, visibility: 'private' },
       });
       createdClusterIds.push(cluster.id);
 
@@ -263,7 +262,7 @@ describe('Cluster API E2E Tests', () => {
 
     it('should update cluster visibility', async () => {
       const cluster = await prisma.cluster.create({
-        data: { name: 'Visibility Test', ownerId: testOwnerIdBigInt, visibility: 'private' },
+        data: { name: 'Visibility Test', ownerId: testOwnerId, visibility: 'private' },
       });
       createdClusterIds.push(cluster.id);
 
@@ -298,7 +297,7 @@ describe('Cluster API E2E Tests', () => {
   describe('DELETE /clusters/:id', () => {
     it('should delete cluster successfully', async () => {
       const cluster = await prisma.cluster.create({
-        data: { name: 'Delete Test', ownerId: testOwnerIdBigInt, visibility: 'private' },
+        data: { name: 'Delete Test', ownerId: testOwnerId, visibility: 'private' },
       });
       // Don't add to createdClusterIds since we're deleting it
 
@@ -335,7 +334,7 @@ describe('Cluster API E2E Tests', () => {
   describe('POST /clusters/:id/validators', () => {
     it('should add validators to cluster', async () => {
       const cluster = await prisma.cluster.create({
-        data: { name: 'Add Validators Test', ownerId: testOwnerIdBigInt, visibility: 'private' },
+        data: { name: 'Add Validators Test', ownerId: testOwnerId, visibility: 'private' },
       });
       createdClusterIds.push(cluster.id);
 
@@ -366,7 +365,7 @@ describe('Cluster API E2E Tests', () => {
 
     it('should handle duplicate validators (skipDuplicates)', async () => {
       const cluster = await prisma.cluster.create({
-        data: { name: 'Duplicate Test', ownerId: testOwnerIdBigInt, visibility: 'private' },
+        data: { name: 'Duplicate Test', ownerId: testOwnerId, visibility: 'private' },
       });
       createdClusterIds.push(cluster.id);
 
@@ -418,7 +417,7 @@ describe('Cluster API E2E Tests', () => {
       const cluster = await prisma.cluster.create({
         data: {
           name: 'Remove Validators Test',
-          ownerId: testOwnerIdBigInt,
+          ownerId: testOwnerId,
           visibility: 'private',
         },
       });
@@ -463,7 +462,7 @@ describe('Cluster API E2E Tests', () => {
 
     it('should return 0 when validators are not in cluster', async () => {
       const cluster = await prisma.cluster.create({
-        data: { name: 'Not In Cluster Test', ownerId: testOwnerIdBigInt, visibility: 'private' },
+        data: { name: 'Not In Cluster Test', ownerId: testOwnerId, visibility: 'private' },
       });
       createdClusterIds.push(cluster.id);
 
@@ -500,7 +499,7 @@ describe('Cluster API E2E Tests', () => {
       const cluster = await prisma.cluster.create({
         data: {
           name: 'Validator Not Exists Test',
-          ownerId: testOwnerIdBigInt,
+          ownerId: testOwnerId,
           visibility: 'private',
         },
       });
@@ -524,7 +523,7 @@ describe('Cluster API E2E Tests', () => {
       const cluster = await prisma.cluster.create({
         data: {
           name: 'Partial Validators Test',
-          ownerId: testOwnerIdBigInt,
+          ownerId: testOwnerId,
           visibility: 'private',
         },
       });
@@ -589,7 +588,7 @@ describe('Cluster API E2E Tests', () => {
 
     it('should add all validators with withdrawal address', async () => {
       const cluster = await prisma.cluster.create({
-        data: { name: 'Add By Address Test', ownerId: testOwnerIdBigInt, visibility: 'private' },
+        data: { name: 'Add By Address Test', ownerId: testOwnerId, visibility: 'private' },
       });
       createdClusterIds.push(cluster.id);
 
@@ -616,7 +615,7 @@ describe('Cluster API E2E Tests', () => {
       const cluster = await prisma.cluster.create({
         data: {
           name: 'Case Insensitive Test',
-          ownerId: testOwnerIdBigInt,
+          ownerId: testOwnerId,
           visibility: 'private',
         },
       });
@@ -642,7 +641,7 @@ describe('Cluster API E2E Tests', () => {
       const cluster = await prisma.cluster.create({
         data: {
           name: 'No Validators Address Test',
-          ownerId: testOwnerIdBigInt,
+          ownerId: testOwnerId,
           visibility: 'private',
         },
       });
@@ -691,7 +690,7 @@ describe('Cluster API E2E Tests', () => {
       const cluster = await prisma.cluster.create({
         data: {
           name: 'Remove By Withdrawal Address Test',
-          ownerId: testOwnerIdBigInt,
+          ownerId: testOwnerId,
           visibility: 'private',
         },
       });
@@ -728,7 +727,7 @@ describe('Cluster API E2E Tests', () => {
       const cluster = await prisma.cluster.create({
         data: {
           name: 'Case Insensitive Remove Test',
-          ownerId: testOwnerIdBigInt,
+          ownerId: testOwnerId,
           visibility: 'private',
         },
       });
@@ -760,7 +759,7 @@ describe('Cluster API E2E Tests', () => {
 
     it('should return 0 removed when no validators match', async () => {
       const cluster = await prisma.cluster.create({
-        data: { name: 'No Match Remove Test', ownerId: testOwnerIdBigInt, visibility: 'private' },
+        data: { name: 'No Match Remove Test', ownerId: testOwnerId, visibility: 'private' },
       });
       createdClusterIds.push(cluster.id);
 

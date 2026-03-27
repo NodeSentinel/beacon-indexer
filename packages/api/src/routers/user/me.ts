@@ -25,7 +25,7 @@ export const me = securedProcedure
     return {
       success: true,
       data: {
-        id: context.user.id.toString(),
+        id: context.user.id,
         username: context.user.username,
       },
       meta: { timestamp: new Date().toISOString() },

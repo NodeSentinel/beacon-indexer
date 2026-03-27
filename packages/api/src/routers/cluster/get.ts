@@ -49,7 +49,7 @@ export const getCluster = securedProcedure
           name: cluster.name,
           visibility: cluster.visibility as 'private' | 'shared',
           feeRecipientAddress: cluster.feeRecipientAddress,
-          ownerId: cluster.ownerId.toString(),
+          ownerId: cluster.ownerId,
           createdAt: cluster.createdAt.toISOString(),
           validators: cluster.validators.map((v) => ({
             validatorIndex: v.validatorIndex,

@@ -24,7 +24,7 @@ export const anonymousUser = securedProcedure
       return {
         success: true,
         data: {
-          id: user.id.toString(),
+          id: user.id,
           username: user.username,
         },
         meta: { timestamp: new Date().toISOString() },
