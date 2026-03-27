@@ -63,15 +63,15 @@ export const securedProcedure = baseProcedure.use(async ({ context, next }) => {
   }
 
   // 2. Bot-signature auth — bot acting on behalf of a user
+  //    The HMAC signature proves the caller is the legitimate bot.
+  //    User lookup is best-effort: some bot endpoints (e.g. bot.users)
+  //    don't operate on behalf of a specific user.
   if (botSignature && botUserId && botTimestamp) {
     authenticateBotSignature(botSignature, botUserId, botTimestamp);
     const user = await resolveBotUser(botUserId);
-    if (!user) {
-      throw new ORPCError('UNAUTHORIZED', {
-        message: 'User not found for bot-signature',
-      });
-    }
-    return next({ context: { ...context, user, authStrategy: AuthStrategy.BOT_SIGNATURE } });
+    return next({
+      context: { ...context, user: user ?? undefined, authStrategy: AuthStrategy.BOT_SIGNATURE },
+    });
   }
 
   // 3. API key — non-browser clients

@@ -62,7 +62,7 @@ export const updateBotUserMessageId = botProcedure
         id: user.id,
         telegramId: input.telegramId,
         username: user.username,
-        messageId: input.messageId.toString(),
+        messageId: input.messageId ? input.messageId.toString() : null,
       }) as BotUserResponse;
     } catch (error) {
       return errorResponse(

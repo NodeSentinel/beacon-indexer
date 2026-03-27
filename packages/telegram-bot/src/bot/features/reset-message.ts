@@ -1,0 +1,24 @@
+import { Composer } from 'grammy';
+
+import { orpcClient, setCurrentTelegramId } from '@/src/api/client.js';
+import type { Context } from '@/src/bot/context.js';
+import { logHandle } from '@/src/bot/helpers/logging.js';
+
+const composer = new Composer<Context>();
+
+const feature = composer.chatType('private');
+
+feature.command('reset_message', logHandle('command-reset-message'), async (ctx) => {
+  const telegramId = ctx.from.id.toString();
+
+  try {
+    setCurrentTelegramId(telegramId);
+    await orpcClient.bot.updateMessageId({ telegramId, messageId: 0 });
+    return ctx.reply('Dashboard message reset. A new one will be sent shortly.');
+  } catch (error) {
+    ctx.logger.error({ err: error }, 'Failed to reset message');
+    return ctx.reply('Failed to reset dashboard message. Try again later.');
+  }
+});
+
+export { composer as resetMessageFeature };

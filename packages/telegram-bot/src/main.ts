@@ -27,11 +27,12 @@ async function startPolling(config: PollingConfig) {
     },
   });
 
-  startScheduler(bot.api, logger);
+  const stopScheduler = startScheduler(bot.api, logger);
 
   // graceful shutdown
   onShutdown(async () => {
     logger.info('Shutdown');
+    stopScheduler();
     await runner.stop();
   });
 
@@ -56,12 +57,6 @@ async function startWebhook(config: WebhookConfig) {
     port: config.serverPort,
   });
 
-  // graceful shutdown
-  onShutdown(async () => {
-    logger.info('Shutdown');
-    await serverManager.stop();
-  });
-
   // to prevent receiving updates before the bot is ready
   await bot.init();
 
@@ -82,7 +77,14 @@ async function startWebhook(config: WebhookConfig) {
     url: config.botWebhook,
   });
 
-  startScheduler(bot.api, logger);
+  const stopScheduler = startScheduler(bot.api, logger);
+
+  // graceful shutdown
+  onShutdown(async () => {
+    logger.info('Shutdown');
+    stopScheduler();
+    await serverManager.stop();
+  });
 }
 
 async function main() {

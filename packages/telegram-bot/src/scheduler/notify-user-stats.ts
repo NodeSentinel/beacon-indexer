@@ -32,11 +32,14 @@ export async function notifyUserStats(
   setCurrentTelegramId(user.telegramId);
 
   // Fetch user's clusters
+  userLogger.debug('Fetching clusters');
   const clustersResponse = await orpcClient.cluster.list({});
   if (!clustersResponse.success || !clustersResponse.data?.length) {
     userLogger.debug('No clusters found, skipping');
     return;
   }
+
+  userLogger.debug({ clusterCount: clustersResponse.data.length }, 'Fetching snapshots');
 
   // Fetch snapshot for each cluster and aggregate
   const snapshots = await Promise.all(
@@ -60,7 +63,7 @@ export async function notifyUserStats(
   const chatId = Number(user.telegramId);
   const existingMessageId = user.messageId ? Number(user.messageId) : null;
 
-  let newMessageId: number | null = null;
+  userLogger.debug({ existingMessageId, message }, 'Sending dashboard message');
 
   // Try to edit existing message first
   if (existingMessageId) {
@@ -73,13 +76,22 @@ export async function notifyUserStats(
       userLogger,
     );
     if (edited) {
+      userLogger.debug('Message edited successfully');
       return; // Message updated in place, messageId unchanged
     }
     // Edit failed (message deleted?), fall through to send new
+    userLogger.debug('Edit failed, sending new message');
   }
 
   // Send new message
-  newMessageId = await sendDashboardMessage(api, chatId, user.telegramId, message, userLogger);
+  const newMessageId = await sendDashboardMessage(
+    api,
+    chatId,
+    user.telegramId,
+    message,
+    userLogger,
+  );
+  userLogger.debug({ newMessageId }, 'New message sent');
 
   // Update messageId if we got a new one
   if (newMessageId !== null && newMessageId !== existingMessageId) {
@@ -88,6 +100,7 @@ export async function notifyUserStats(
         telegramId: user.telegramId,
         messageId: newMessageId,
       });
+      userLogger.debug({ newMessageId }, 'messageId updated via API');
     } catch (err) {
       userLogger.error({ err, newMessageId }, 'Failed to update messageId via API');
     }
@@ -97,6 +110,7 @@ export async function notifyUserStats(
 interface SnapshotData {
   activeCount: number;
   inactiveCount: number;
+  statusBreakdown: Record<string, number>;
   totalBalance: string;
   performanceH: number | null;
   performanceD: number | null;
@@ -123,6 +137,7 @@ function aggregateSnapshots(snapshots: SnapshotData[]): SnapshotData {
 
   let activeCount = 0;
   let inactiveCount = 0;
+  const statusBreakdown: Record<string, number> = {};
   let totalBalance = 0;
   let tokenPrice = 0;
 
@@ -153,6 +168,9 @@ function aggregateSnapshots(snapshots: SnapshotData[]): SnapshotData {
     const validatorCount = s.activeCount + s.inactiveCount;
     activeCount += s.activeCount;
     inactiveCount += s.inactiveCount;
+    for (const [status, count] of Object.entries(s.statusBreakdown)) {
+      statusBreakdown[status] = (statusBreakdown[status] ?? 0) + count;
+    }
     totalBalance += parseFloat(s.totalBalance);
     tokenPrice = s.tokenPrice; // same for all clusters
 
@@ -196,6 +214,7 @@ function aggregateSnapshots(snapshots: SnapshotData[]): SnapshotData {
   return {
     activeCount,
     inactiveCount,
+    statusBreakdown,
     totalBalance: totalBalance.toString(),
     performanceH: perfHCount > 0 ? perfHWeighted / perfHCount : null,
     performanceD: perfDCount > 0 ? perfDWeighted / perfDCount : null,

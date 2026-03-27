@@ -27,10 +27,10 @@ export class BotUsersStorage {
     });
   }
 
-  async updateMessageId(telegramId: bigint, messageId: number) {
+  async updateMessageId(telegramId: bigint, messageId: number | null) {
     return this.prisma.user.update({
       where: { telegramId },
-      data: { messageId: BigInt(messageId) },
+      data: { messageId: messageId ? BigInt(messageId) : null },
     });
   }
 

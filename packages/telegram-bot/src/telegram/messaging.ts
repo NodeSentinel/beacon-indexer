@@ -63,6 +63,7 @@ export async function editDashboardMessage(
     }
 
     if (isSameMessageError(error)) {
+      logger.debug({ chatId, messageId }, 'Message content unchanged, skipping');
       return true;
     }
 
@@ -85,7 +86,7 @@ function isSameMessageError(error: unknown): boolean {
     typeof error === 'object' &&
     error !== null &&
     'description' in error &&
-    (error as { description: string }).description === SAME_MESSAGE_DESCRIPTION
+    (error as { description: string }).description.startsWith(SAME_MESSAGE_DESCRIPTION)
   );
 }
 
