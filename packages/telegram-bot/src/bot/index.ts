@@ -14,6 +14,7 @@ import { errorHandler } from '@/src/bot/handlers/error.js';
 import { i18n, isMultipleLocales } from '@/src/bot/i18n.js';
 import { session } from '@/src/bot/middlewares/session.js';
 import { updateLogger } from '@/src/bot/middlewares/update-logger.js';
+import { userMiddleware } from '@/src/bot/middlewares/user.js';
 import type { Config } from '@/src/config.js';
 import type { Logger } from '@/src/logger.js';
 
@@ -58,6 +59,7 @@ export function createBot(
   protectedBot.use(hydrate());
   protectedBot.use(session({ getSessionKey }));
   protectedBot.use(i18n);
+  protectedBot.use(userMiddleware);
 
   // Handlers
   protectedBot.use(welcomeFeature);
