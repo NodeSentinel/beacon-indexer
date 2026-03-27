@@ -19,7 +19,15 @@ import { router } from './routers/index.js';
  */
 const corsPlugin = new CORSPlugin({
   origin: (origin) => (isOriginAllowed(origin) ? origin : null),
-  allowHeaders: ['Content-Type', 'Authorization', 'x-telegram-init-data', 'ns-anonymous-id'],
+  allowHeaders: [
+    'Content-Type',
+    'Authorization',
+    'x-telegram-init-data',
+    'ns-anonymous-id',
+    'bot-signature',
+    'bot-user-id',
+    'bot-timestamp',
+  ],
   credentials: true,
 });
 

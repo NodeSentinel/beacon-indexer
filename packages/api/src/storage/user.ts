@@ -41,6 +41,13 @@ export class UserStorage {
    * Get or create anonymous user using upsert to avoid race conditions.
    * User.id is auto-generated cuid, no telegramId.
    */
+  async findByTelegramId(telegramId: string) {
+    return this.prisma.user.findUnique({
+      where: { telegramId: BigInt(telegramId) },
+      select: { id: true, username: true },
+    });
+  }
+
   async getOrCreateAnonymous(sessionId: string) {
     const username = `anon:${sessionId}`;
 
