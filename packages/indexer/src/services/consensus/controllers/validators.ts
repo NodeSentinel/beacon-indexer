@@ -177,7 +177,7 @@ export class ValidatorsController {
     const finalStateValidatorIndexes = await this.validatorsStorage.getFinalValidatorIndexes();
     const finalStateValidatorsSet = new Set(finalStateValidatorIndexes);
 
-    const allValidatorIndexes = Array.from({ length: totalValidators }, (_, i) => i).filter(
+    const allValidatorIndexes = Array.from({ length: totalValidators + 1 }, (_, i) => i).filter(
       (id) => !finalStateValidatorsSet.has(id),
     );
 
@@ -199,6 +199,48 @@ export class ValidatorsController {
     }
 
     await this.validatorsStorage.saveValidatorBalances(allValidatorBalances, epoch);
+  }
+
+  /**
+   * Discover new validators that appeared on the beacon chain since the last known index.
+   * Fetches validators in batches starting from maxIndex+1 until no more are found.
+   */
+  async discoverNewValidators(slotId: number) {
+    const batchSize = 1000;
+    const maxIndex = await this.validatorsStorage.getMaxValidatorIndex();
+    let currentIndex = maxIndex + 1;
+    let totalDiscovered = 0;
+    let hasMore = true;
+
+    while (hasMore) {
+      const batchIndexes = Array.from({ length: batchSize }, (_, i) => String(currentIndex + i));
+
+      const batchResult = await this.beaconClient.getValidators(slotId, batchIndexes, null);
+
+      if (batchResult.length === 0) {
+        hasMore = false;
+        continue;
+      }
+
+      await this.validatorsStorage.saveValidators(
+        batchResult.map((data) => ValidatorControllerHelpers.mapValidatorDataToDBEntity(data)),
+      );
+
+      totalDiscovered += batchResult.length;
+
+      this.logger.info(
+        `Discovered ${batchResult.length} new validators (indices ${currentIndex}-${currentIndex + batchResult.length - 1})`,
+      );
+
+      hasMore = batchResult.length === batchSize;
+      currentIndex += batchSize;
+    }
+
+    if (totalDiscovered > 0) {
+      this.logger.info(`Total new validators discovered: ${totalDiscovered}`);
+    }
+
+    return { success: true, discoveredCount: totalDiscovered };
   }
 
   /**

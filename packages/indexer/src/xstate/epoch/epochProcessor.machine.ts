@@ -98,6 +98,20 @@ export const epochProcessorMachine = setup({
         await input.validatorsController.fetchValidatorsBalances(input.startSlot, input.epoch);
       },
     ),
+    discoverNewValidators: fromPromise(
+      async ({
+        input,
+      }: {
+        input: {
+          validatorsController: ValidatorsController;
+          beaconTime: BeaconTime;
+          epoch: number;
+        };
+      }) => {
+        const { startSlot } = input.beaconTime.getEpochSlots(input.epoch);
+        await input.validatorsController.discoverNewValidators(startSlot);
+      },
+    ),
     trackingTransitioningValidators: fromPromise(
       async ({
         input,
@@ -642,7 +656,7 @@ export const epochProcessorMachine = setup({
               },
             },
             trackingValidatorsActivation: {
-              description: 'Track validators transitioning between states',
+              description: 'Discover new validators and track those transitioning between states',
               initial: 'waitingForEpochStart',
               states: {
                 waitingForEpochStart: {
@@ -653,7 +667,33 @@ export const epochProcessorMachine = setup({
                   ),
                   on: {
                     EPOCH_STARTED: {
+                      target: 'discoveringNewValidators',
+                    },
+                  },
+                },
+                discoveringNewValidators: {
+                  entry: pinoLog(
+                    ({ context }) => `Discovering new validators for epoch ${context.epoch}`,
+                    'EpochProcessor:trackingValidatorsActivation',
+                  ),
+                  invoke: {
+                    src: 'discoverNewValidators',
+                    input: ({ context }) => ({
+                      validatorsController: context.services.validatorsController!,
+                      beaconTime: context.services.beaconTime,
+                      epoch: context.epoch,
+                    }),
+                    onDone: {
                       target: 'trackingActivation',
+                    },
+                    onError: {
+                      target: 'trackingActivation',
+                      actions: pinoLog(
+                        ({ context, event }) =>
+                          `error discovering new validators for epoch ${context.epoch}: ${event.error}`,
+                        'EpochProcessor:trackingValidatorsActivation',
+                        'error',
+                      ),
                     },
                   },
                 },

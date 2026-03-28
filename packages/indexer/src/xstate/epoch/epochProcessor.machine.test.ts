@@ -47,6 +47,7 @@ const mockEpochController = {
 const mockValidatorsController = {
   fetchValidatorsBalances: vi.fn(),
   trackTransitioningValidators: vi.fn(),
+  discoverNewValidators: vi.fn(),
 } as unknown as ValidatorsController;
 
 const mockSlotController = {} as unknown as SlotController;
@@ -572,6 +573,7 @@ describe('epochProcessorMachine', () => {
 
     describe('trackingValidatorsActivation', () => {
       test('should wait for epoch start', async () => {
+        // Scenario: epoch has not started yet, machine should wait before discovering/tracking validators
         vi.setSystemTime(new Date(EPOCH_100_START_TIME - 100));
 
         const { actor, stateTransitions, subscription } = createAndStartActor(
@@ -594,8 +596,17 @@ describe('epochProcessorMachine', () => {
         actor.stop();
         subscription.unsubscribe();
       });
-      test('epoch started, should process and complete', async () => {
+
+      test('epoch started, should discover new validators then track transitions', async () => {
+        // Scenario: epoch already started, machine should first discover new validators,
+        // then track state transitions for pending validators
         vi.setSystemTime(new Date(EPOCH_101_START_TIME + 50));
+
+        // Mock discoverNewValidators to resolve immediately
+        const discoveryPromise = createControllablePromise<void>();
+        (
+          mockValidatorsController.discoverNewValidators as ReturnType<typeof vi.fn>
+        ).mockReturnValue(discoveryPromise.promise);
 
         const trackingPromise = createControllablePromise<void>();
         (
@@ -609,7 +620,66 @@ describe('epochProcessorMachine', () => {
 
         await vi.runAllTimersAsync();
 
-        // Should be processing
+        // Should be discovering new validators first
+        let lastState = getLastState(stateTransitions);
+        let activationState = getNestedState(
+          lastState,
+          'epochProcessing.fetching.trackingValidatorsActivation',
+        ) as string | null;
+        expect(activationState).toBe('discoveringNewValidators');
+        expect(mockValidatorsController.discoverNewValidators).toHaveBeenCalled();
+
+        // Complete discovery, should move to tracking activation
+        discoveryPromise.resolve();
+        await vi.runAllTimersAsync();
+
+        lastState = getLastState(stateTransitions);
+        activationState = getNestedState(
+          lastState,
+          'epochProcessing.fetching.trackingValidatorsActivation',
+        ) as string | null;
+        expect(activationState).toBe('trackingActivation');
+
+        // Complete tracking
+        trackingPromise.resolve();
+        await vi.runAllTimersAsync();
+
+        // Should be complete
+        lastState = getLastState(stateTransitions);
+        activationState = getNestedState(
+          lastState,
+          'epochProcessing.fetching.trackingValidatorsActivation',
+        ) as string | null;
+        expect(activationState).toBe('activationTracked');
+        expect(mockValidatorsController.trackTransitioningValidators).toHaveBeenCalled();
+
+        actor.stop();
+        subscription.unsubscribe();
+      });
+
+      test('discovery failure should not block tracking activation', async () => {
+        // Scenario: discovering new validators fails, but the machine should still
+        // proceed to track transitioning validators (graceful degradation)
+        vi.setSystemTime(new Date(EPOCH_101_START_TIME + 50));
+
+        // Mock discoverNewValidators to reject
+        (
+          mockValidatorsController.discoverNewValidators as ReturnType<typeof vi.fn>
+        ).mockRejectedValue(new Error('beacon node timeout'));
+
+        const trackingPromise = createControllablePromise<void>();
+        (
+          mockValidatorsController.trackTransitioningValidators as ReturnType<typeof vi.fn>
+        ).mockReturnValue(trackingPromise.promise);
+
+        const { actor, stateTransitions, subscription } = createAndStartActor(
+          epochProcessorMachine,
+          createProcessorMachineDefaultInput(100),
+        );
+
+        await vi.runAllTimersAsync();
+
+        // Despite discovery failure, should proceed to tracking activation
         let lastState = getLastState(stateTransitions);
         let activationState = getNestedState(
           lastState,
@@ -628,7 +698,6 @@ describe('epochProcessorMachine', () => {
           'epochProcessing.fetching.trackingValidatorsActivation',
         ) as string | null;
         expect(activationState).toBe('activationTracked');
-        expect(mockValidatorsController.trackTransitioningValidators).toHaveBeenCalled();
 
         actor.stop();
         subscription.unsubscribe();
