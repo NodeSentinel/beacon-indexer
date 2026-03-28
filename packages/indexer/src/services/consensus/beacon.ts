@@ -291,15 +291,12 @@ export class BeaconClient extends ReliableRequestClient {
     slot: number,
     validatorIndexes: string[],
   ): Promise<SyncCommitteeRewards> => {
-    return this.makeReliableRequest<SyncCommitteeRewards>(
-      async (url) => {
-        const res = await this.axiosInstance.post<SyncCommitteeRewards>(
-          `${url}/eth/v1/beacon/rewards/sync_committee/${slot}`,
-          validatorIndexes,
-        );
-        return res.data;
-      },
-      this.isIndexerDelayed({ value: slot, type: 'slot' }) ? 'archive' : 'full',
-    );
+    return this.makeReliableRequest<SyncCommitteeRewards>(async (url) => {
+      const res = await this.axiosInstance.post<SyncCommitteeRewards>(
+        `${url}/eth/v1/beacon/rewards/sync_committee/${slot}`,
+        validatorIndexes,
+      );
+      return res.data;
+    }, 'archive');
   };
 }
