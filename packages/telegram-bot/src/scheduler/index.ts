@@ -1,66 +1,34 @@
 import type { Api, RawApi } from 'grammy';
+import { AsyncTask, SimpleIntervalJob, ToadScheduler } from 'toad-scheduler';
 
-import { orpcClient, setCurrentTelegramId } from '@/src/api/client.js';
 import type { Logger } from '@/src/logger.js';
-import { notifyUserStats } from '@/src/scheduler/notify-user-stats.js';
+import { processUsers } from '@/src/scheduler/process-users.js';
 
-/** Interval between scheduler ticks */
-const TICK_INTERVAL_MS = 1_000;
-
-/** Delay before retrying when the user list fetch fails */
-const ERROR_BACKOFF_MS = 10_000;
-
-/**
- * Start the scheduler that periodically notifies users.
- * Returns a cleanup function that stops the scheduler.
- */
 export function startScheduler(api: Api<RawApi>, logger: Logger): () => void {
-  const schedulerLogger = logger.child({ module: 'scheduler' });
-  schedulerLogger.info('Scheduler started');
+  const log = logger.child({ module: 'scheduler' });
+  const scheduler = new ToadScheduler();
+  let abortController: AbortController | null = null;
 
-  let running = false;
-  const backoffTimer: ReturnType<typeof setTimeout> | null = null;
-
-  async function tick() {
-    if (running) return; // skip if previous tick is still running
-    running = true;
-
+  const task = new AsyncTask('notify-users', async () => {
+    abortController = new AbortController();
     try {
-      setCurrentTelegramId('0');
-      const response = await orpcClient.bot.users({});
-
-      if (!response.success || !response.data?.length) {
-        schedulerLogger.debug('No notifiable users found');
-        return;
-      }
-
-      schedulerLogger.info({ userCount: response.data.length }, 'Processing users');
-
-      for (const user of response.data) {
-        try {
-          await notifyUserStats(api, user, schedulerLogger);
-        } catch (error) {
-          schedulerLogger.error(
-            { err: error, telegramId: user.telegramId, username: user.username },
-            'Error notifying user',
-          );
-        }
-      }
-    } catch (error) {
-      schedulerLogger.error({ err: error }, 'Error fetching user list, backing off');
+      await processUsers(api, abortController.signal, log);
     } finally {
-      running = false;
+      abortController = null;
     }
-  }
+  });
 
-  // Run immediately, then on interval
-  void tick();
-  const interval = setInterval(tick, TICK_INTERVAL_MS);
+  const job = new SimpleIntervalJob({ seconds: 1, runImmediately: true }, task, {
+    preventOverrun: true,
+  });
 
-  // Return cleanup function
+  scheduler.addSimpleIntervalJob(job);
+  log.info('Scheduler started');
+
   return () => {
-    schedulerLogger.info('Scheduler stopped');
-    clearInterval(interval);
-    if (backoffTimer) clearTimeout(backoffTimer);
+    log.info('Scheduler stopping');
+    abortController?.abort();
+    scheduler.stop();
+    log.info('Scheduler stopped');
   };
 }

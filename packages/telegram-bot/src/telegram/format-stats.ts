@@ -5,6 +5,8 @@
  * build the message with normal markdown, then escapeMarkdown at the end
  * (escapes everything, then unescapes formatting marks).
  */
+import { env } from '@/src/env.js';
+
 interface ClusterSnapshotData {
   activeCount: number;
   inactiveCount: number;
@@ -25,6 +27,22 @@ interface ClusterSnapshotData {
   executionRewardM: { wei: string; token: string } | null;
   tokenPrice: number;
 }
+
+// Chain-specific display configuration derived from CHAIN env
+const chainDisplay =
+  env.CHAIN === 'gnosis'
+    ? {
+        tokenSymbol: 'GNO',
+        clRewardsSymbol: 'GNO',
+        elRewardsSymbol: 'xDAI',
+        feeRewardsInStable: true,
+      }
+    : {
+        tokenSymbol: 'ETH',
+        clRewardsSymbol: 'CL',
+        elRewardsSymbol: 'EL',
+        feeRewardsInStable: false,
+      };
 
 // --- Escape strategy copied from v1 bot ---
 
@@ -79,6 +97,18 @@ function formatTableColumn(
   return ' '.repeat(leftPad) + strValue + ' '.repeat(rightPad);
 }
 
+/**
+ * Calculate USD value for a reward period.
+ * CL rewards are in the staking token (GNO/ETH) → multiply by tokenPrice.
+ * EL rewards on Gnosis are in xDAI (stable, ~$1) → use as-is.
+ * EL rewards on Ethereum are in ETH → multiply by tokenPrice.
+ */
+function calculateRewardUsd(cl: number, el: number, tokenPrice: number): number {
+  const clUsd = cl * tokenPrice;
+  const elUsd = chainDisplay.feeRewardsInStable ? el : el * tokenPrice;
+  return clUsd + elUsd;
+}
+
 export function formatStatsMessage(snapshot: ClusterSnapshotData): string {
   const { activeCount, inactiveCount, statusBreakdown, tokenPrice } = snapshot;
   const balance = parseFloat(snapshot.totalBalance);
@@ -99,7 +129,7 @@ export function formatStatsMessage(snapshot: ClusterSnapshotData): string {
   // Main stats
   const mainStats = [
     `*Last 1h performance:* ${perfStr}`,
-    `*Bal:* ${formatNumber(balance)} ETH $${formatNumber(balance * tokenPrice)}`,
+    `*Bal:* ${formatNumber(balance)} ${chainDisplay.tokenSymbol} $${formatNumber(balance * tokenPrice)}`,
   ].join('\n');
 
   // Rewards table
@@ -110,11 +140,11 @@ export function formatStatsMessage(snapshot: ClusterSnapshotData): string {
   const mCl = snapshot.consensusRewardM ? parseFloat(snapshot.consensusRewardM) : 0;
   const mEl = snapshot.executionRewardM ? parseFloat(snapshot.executionRewardM.token) : 0;
 
-  const dUsd = (dCl + dEl) * tokenPrice;
-  const wUsd = (wCl + wEl) * tokenPrice;
-  const mUsd = (mCl + mEl) * tokenPrice;
+  const dUsd = calculateRewardUsd(dCl, dEl, tokenPrice);
+  const wUsd = calculateRewardUsd(wCl, wEl, tokenPrice);
+  const mUsd = calculateRewardUsd(mCl, mEl, tokenPrice);
 
-  const hdr = `${formatTableColumn('', 3)}${formatTableColumn('APY%', 7)}${formatTableColumn('CL', 8)}${formatTableColumn('EL', 8)}${formatTableColumn('Total', 9)}`;
+  const hdr = `${formatTableColumn('', 3)}${formatTableColumn('APY%', 7)}${formatTableColumn(chainDisplay.clRewardsSymbol, 8)}${formatTableColumn(chainDisplay.elRewardsSymbol, 8)}${formatTableColumn('Total', 9)}`;
   const rowD = `${formatTableColumn('d:', 3, 'left')}${formatTableColumn(formatNumber(snapshot.apyD ?? 0, 4), 7)}${formatTableColumn(formatNumber(dCl, 3), 8)}${formatTableColumn(formatNumber(dEl, 3), 8)}${formatTableColumn(formatNumber(dUsd, 4, '$'), 9)}`;
   const rowW = `${formatTableColumn('w:', 3, 'left')}${formatTableColumn(formatNumber(snapshot.apyW ?? 0, 4), 7)}${formatTableColumn(formatNumber(wCl, 3), 8)}${formatTableColumn(formatNumber(wEl, 3), 8)}${formatTableColumn(formatNumber(wUsd, 4, '$'), 9)}`;
   const rowM = `${formatTableColumn('m:', 3, 'left')}${formatTableColumn(formatNumber(snapshot.apyM ?? 0, 4), 7)}${formatTableColumn(formatNumber(mCl, 3), 8)}${formatTableColumn(formatNumber(mEl, 3), 8)}${formatTableColumn(formatNumber(mUsd, 4, '$'), 9)}`;
@@ -123,7 +153,7 @@ export function formatStatsMessage(snapshot: ClusterSnapshotData): string {
 
   // Footer
   const footer = [
-    `*ETH:* $${tokenPrice.toFixed(2)}`,
+    `*${chainDisplay.tokenSymbol}:* $${tokenPrice.toFixed(2)}`,
     `*Updated:* ${new Date().toLocaleString('en-US', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: true, timeZone: 'UTC' }).toLowerCase()} UTC`,
   ].join('\n');
 
