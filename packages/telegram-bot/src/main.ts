@@ -9,6 +9,7 @@ import { createBot } from '@/src/bot/index.js';
 import type { PollingConfig, WebhookConfig } from '@/src/config.js';
 import { config } from '@/src/config.js';
 import { logger } from '@/src/logger.js';
+import { startScheduler } from '@/src/scheduler/index.js';
 import { createServer, createServerManager } from '@/src/server/index.js';
 
 async function startPolling(config: PollingConfig) {
@@ -26,9 +27,12 @@ async function startPolling(config: PollingConfig) {
     },
   });
 
+  const stopScheduler = startScheduler(bot.api, logger);
+
   // graceful shutdown
   onShutdown(async () => {
     logger.info('Shutdown');
+    stopScheduler();
     await runner.stop();
   });
 
@@ -53,12 +57,6 @@ async function startWebhook(config: WebhookConfig) {
     port: config.serverPort,
   });
 
-  // graceful shutdown
-  onShutdown(async () => {
-    logger.info('Shutdown');
-    await serverManager.stop();
-  });
-
   // to prevent receiving updates before the bot is ready
   await bot.init();
 
@@ -77,6 +75,15 @@ async function startWebhook(config: WebhookConfig) {
   logger.info({
     msg: 'Webhook was set',
     url: config.botWebhook,
+  });
+
+  const stopScheduler = startScheduler(bot.api, logger);
+
+  // graceful shutdown
+  onShutdown(async () => {
+    logger.info('Shutdown');
+    stopScheduler();
+    await serverManager.stop();
   });
 }
 
@@ -99,6 +106,7 @@ function onShutdown(cleanUp: () => Promise<void>) {
     if (isShuttingDown) return;
     isShuttingDown = true;
     await cleanUp();
+    process.exit(0);
   };
 
   process.on('SIGINT', handleShutdown);

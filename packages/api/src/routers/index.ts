@@ -1,4 +1,5 @@
 import { blocksRouter } from './blocks/index.js';
+import { botRouter } from './bot/index.js';
 import { chainRouter } from './chain.js';
 import { clusterRouter } from './cluster/index.js';
 import { healthRouter } from './health.js';
@@ -9,6 +10,7 @@ import { validatorRouter } from './validator/index.js';
 
 export const router = {
   blocks: blocksRouter,
+  bot: botRouter,
   chain: chainRouter,
   cluster: clusterRouter,
   health: healthRouter,

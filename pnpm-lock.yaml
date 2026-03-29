@@ -350,6 +350,12 @@ importers:
       '@hono/node-server':
         specifier: 1.14.2
         version: 1.14.2(hono@4.10.3)
+      '@orpc/client':
+        specifier: 1.13.4
+        version: 1.13.4
+      '@orpc/server':
+        specifier: 1.13.4
+        version: 1.13.4(ws@8.18.3)
       '@t3-oss/env-core':
         specifier: ^0.10.1
         version: 0.10.1(typescript@5.9.2)(zod@3.25.76)
@@ -374,6 +380,9 @@ importers:
       pino-pretty:
         specifier: 13.0.0
         version: 13.0.0
+      toad-scheduler:
+        specifier: ^3.0.1
+        version: 3.1.0
       tsx:
         specifier: 4.20.4
         version: 4.20.4
@@ -384,6 +393,9 @@ importers:
         specifier: ^3.23.8
         version: 3.25.76
     devDependencies:
+      '@beacon-indexer/api':
+        specifier: workspace:^
+        version: link:../api
       '@types/node':
         specifier: ^22.17.2
         version: 22.18.6

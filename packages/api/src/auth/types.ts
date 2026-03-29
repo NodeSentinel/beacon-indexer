@@ -3,6 +3,7 @@
  */
 export enum AuthStrategy {
   TELEGRAM = 'telegram',
+  BOT_SIGNATURE = 'bot_signature',
 }
 
 /**

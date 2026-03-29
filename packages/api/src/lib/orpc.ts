@@ -1,5 +1,7 @@
 import { os } from '@orpc/server';
 
+import { AuthStrategy } from '@/auth/types.js';
+
 export interface DbUser {
   id: string;
   username: string;
@@ -13,6 +15,7 @@ export interface BaseContext {
   logger: typeof import('./logger.js').logger;
   headers: Record<string, string | string[] | undefined>;
   user?: DbUser;
+  authStrategy?: AuthStrategy;
 }
 
 /**
