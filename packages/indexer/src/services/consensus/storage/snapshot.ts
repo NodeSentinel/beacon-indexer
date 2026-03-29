@@ -684,7 +684,7 @@ export class SnapshotStorage {
       SELECT DISTINCT cv.validator_index
       FROM cluster_validator cv
       JOIN validator v ON v.id = cv.validator_index
-      WHERE v.status IN (2, 3)
+      WHERE v.status IS NOT NULL
         AND NOT EXISTS (
           SELECT 1 FROM validators_snapshot_stats vss
           WHERE vss.validator_index = cv.validator_index

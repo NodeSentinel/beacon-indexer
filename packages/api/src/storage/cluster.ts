@@ -323,8 +323,8 @@ export class ClusterStorage {
       }>
     >`
       SELECT
-        COUNT(*) FILTER (WHERE vss.is_inactive = false)::bigint AS active_count,
-        COUNT(*) FILTER (WHERE vss.is_inactive = true)::bigint AS inactive_count,
+        COUNT(*) FILTER (WHERE vss.is_inactive = false AND COALESCE(vss.beacon_status, 0) IN (0, 1, 2, 3, 4))::bigint AS active_count,
+        COUNT(*) FILTER (WHERE vss.is_inactive = true AND COALESCE(vss.beacon_status, 0) IN (0, 1, 2, 3, 4))::bigint AS inactive_count,
         COALESCE(SUM(vss.balance), 0)::bigint AS total_balance,
         COALESCE(SUM(vss.effective_balance), 0)::bigint AS total_effective_balance,
         COALESCE(SUM(vss.attestations_total), 0)::bigint AS attestations_total,

@@ -114,10 +114,10 @@ export function formatStatsMessage(snapshot: ClusterSnapshotData): string {
   const balance = parseFloat(snapshot.totalBalance);
 
   // Count slashed and exited from statusBreakdown
-  const slashedCount =
-    (statusBreakdown['active_slashed'] ?? 0) + (statusBreakdown['exited_slashed'] ?? 0);
-  const exitedCount =
-    (statusBreakdown['exited_unslashed'] ?? 0) + (statusBreakdown['exited_slashed'] ?? 0);
+  // Keys are numeric strings matching VALIDATOR_STATUS codes:
+  // 4 = active_slashed, 5 = exited_unslashed, 6 = exited_slashed
+  const slashedCount = (statusBreakdown['4'] ?? 0) + (statusBreakdown['6'] ?? 0);
+  const exitedCount = (statusBreakdown['5'] ?? 0) + (statusBreakdown['6'] ?? 0);
 
   // Validator status
   const validatorStatus = `🟢 ${activeCount}  🟡 ${inactiveCount}  🚫 ${slashedCount}  🔚 ${exitedCount}`;
