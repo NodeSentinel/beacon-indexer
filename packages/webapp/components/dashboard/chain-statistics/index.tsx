@@ -63,13 +63,13 @@ export default function ChainStatistics() {
   const joiningValidators = chainStats?.validatorsEntering ?? 0;
   const leavingValidators = chainStats?.validatorsExiting ?? 0;
 
+  const enteringStaked = chainStats ? parseFloat(chainStats.enteringStaked) : 0;
   const activeStaked = activeValidators * 32;
-  const joiningStaked = joiningValidators * 32;
   const leavingStaked = leavingValidators * 32;
 
   const totalStakedUsd = formatNumber(totalStaked * tokenPrice, 0);
   const activeStakedUsd = formatNumber(activeStaked * tokenPrice, 0);
-  const joiningStakedUsd = formatNumber(joiningStaked * tokenPrice, 0);
+  const enteringStakedUsd = formatNumber(enteringStaked * tokenPrice, 0);
   const leavingStakedUsd = formatNumber(leavingStaked * tokenPrice, 0);
 
   if (isLoading) {
@@ -136,7 +136,8 @@ export default function ChainStatistics() {
           iconBg="bg-chart-2/10"
           label="Joining"
           value={formatNumber(joiningValidators)}
-          subValue={`$${joiningStakedUsd}`}
+          suffix={enteringStaked > 0 ? `${formatNumber(enteringStaked)} ${tokenSymbol}` : undefined}
+          subValue={`$${enteringStakedUsd}`}
         />
         <StatCard
           icon={ArrowDownCircle}

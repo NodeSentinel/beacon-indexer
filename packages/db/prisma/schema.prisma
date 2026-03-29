@@ -453,6 +453,7 @@ model ChainEpochStats {
   totalActiveValidators   Int    @map("total_active_validators")
   totalStaked             BigInt @map("total_staked") // sum of effective balances
   validatorsEntering      Int    @map("validators_entering") // pending activation
+  enteringStaked          BigInt @default(0) @map("entering_staked") // sum of entering validators' staked amount
   validatorsExiting       Int    @map("validators_exiting") // pending exit
   validatorsConsolidating Int    @map("validators_consolidating")
 

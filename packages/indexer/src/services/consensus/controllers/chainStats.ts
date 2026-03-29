@@ -26,7 +26,7 @@ export class ChainStatsController {
         VALIDATOR_STATUS.active_slashed,
       ],
       //entering
-      [VALIDATOR_STATUS.pending_queued],
+      [VALIDATOR_STATUS.pending_initialized, VALIDATOR_STATUS.pending_queued],
       // exiting
       VALIDATOR_STATUS.active_exiting,
       startSlot,

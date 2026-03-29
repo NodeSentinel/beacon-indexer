@@ -315,6 +315,7 @@ CREATE TABLE "public"."chain_epoch_stats" (
     "total_active_validators" INTEGER NOT NULL,
     "total_staked" BIGINT NOT NULL,
     "validators_entering" INTEGER NOT NULL,
+    "entering_staked" BIGINT NOT NULL DEFAULT 0,
     "validators_exiting" INTEGER NOT NULL,
     "validators_consolidating" INTEGER NOT NULL,
 
