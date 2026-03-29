@@ -39,6 +39,9 @@ export const env = createEnv({
   clientPrefix: 'IF_NOT_PROVIDED_IT_FAILS',
   client: {},
   server: {
+    // Chain Configuration
+    CHAIN: z.enum(['ethereum', 'gnosis']).default('gnosis'),
+
     // API Configuration
     API_URL: z.string().url(),
 
