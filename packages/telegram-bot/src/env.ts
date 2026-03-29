@@ -45,9 +45,6 @@ export const env = createEnv({
     // API Configuration
     API_URL: z.string().url(),
 
-    // Chain Configuration
-    CHAIN: z.enum(['ethereum', 'gnosis']),
-
     // Bot Configuration
     BOT_TOKEN: z.string().regex(/^\d+:[\w-]+$/, 'Invalid bot token format'),
     BOT_MODE: z.enum(['polling', 'webhook']).default('polling'),

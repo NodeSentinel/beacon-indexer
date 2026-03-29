@@ -4,6 +4,8 @@ start =
     .description = Start the bot
 language =
     .description = Change language
+dashboard =
+    .description = Reset dashboard message
 setcommands =
     .description = Set bot commands
 

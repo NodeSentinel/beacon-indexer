@@ -8,7 +8,7 @@ const composer = new Composer<Context>();
 
 const feature = composer.chatType('private');
 
-feature.command('reset_message', logHandle('command-reset-message'), async (ctx) => {
+feature.command('dashboard', logHandle('command-dashboard'), async (ctx) => {
   const telegramId = ctx.from.id.toString();
 
   try {
@@ -21,4 +21,4 @@ feature.command('reset_message', logHandle('command-reset-message'), async (ctx)
   }
 });
 
-export { composer as resetMessageFeature };
+export { composer as dashboardFeature };

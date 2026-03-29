@@ -8,6 +8,10 @@ const composer = new Composer<Context>();
 
 const feature = composer.chatType('private');
 
+// Dedupe /start: Telegram sometimes sends duplicate updates when using the command menu
+const recentStarts = new Map<string, number>();
+const DEDUPE_WINDOW_MS = 3_000;
+
 const chainDisplayName = env.CHAIN === 'ethereum' ? 'Ethereum' : 'Gnosis';
 
 const welcomeMessage = [
@@ -28,6 +32,15 @@ const welcomeMessage = [
 ].join('\n');
 
 feature.command('start', logHandle('command-start'), (ctx) => {
+  const chatId = ctx.chat.id.toString();
+  const now = Date.now();
+  const lastStart = recentStarts.get(chatId);
+
+  if (lastStart && now - lastStart < DEDUPE_WINDOW_MS) {
+    return; // Skip duplicate /start
+  }
+  recentStarts.set(chatId, now);
+
   return ctx.reply(welcomeMessage, {
     parse_mode: 'HTML',
     link_preview_options: { is_disabled: true },

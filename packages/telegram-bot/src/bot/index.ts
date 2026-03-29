@@ -8,7 +8,7 @@ import { Bot as TelegramBot } from 'grammy';
 import type { Context } from '@/src/bot/context.js';
 import { adminFeature } from '@/src/bot/features/admin.js';
 import { languageFeature } from '@/src/bot/features/language.js';
-import { resetMessageFeature } from '@/src/bot/features/reset-message.js';
+import { dashboardFeature } from '@/src/bot/features/reset-message.js';
 import { unhandledFeature } from '@/src/bot/features/unhandled.js';
 import { welcomeFeature } from '@/src/bot/features/welcome.js';
 import { errorHandler } from '@/src/bot/handlers/error.js';
@@ -64,7 +64,7 @@ export function createBot(
 
   // Handlers
   protectedBot.use(welcomeFeature);
-  protectedBot.use(resetMessageFeature);
+  protectedBot.use(dashboardFeature);
   protectedBot.use(adminFeature);
   if (isMultipleLocales) protectedBot.use(languageFeature);
 
