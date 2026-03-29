@@ -21,6 +21,7 @@ export function useClusters() {
       return response.data;
     },
     enabled: !!userId,
+    refetchInterval: 30_000,
   });
 }
 
@@ -39,6 +40,7 @@ export function useCluster(id: string | null) {
       return response.data;
     },
     enabled: !!id,
+    refetchInterval: 30_000,
   });
 }
 

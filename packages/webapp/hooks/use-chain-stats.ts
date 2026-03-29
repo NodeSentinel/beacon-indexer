@@ -14,5 +14,6 @@ export function useChainStats() {
       }
       return response.data;
     },
+    refetchInterval: 30_000,
   });
 }
