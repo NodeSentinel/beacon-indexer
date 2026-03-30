@@ -72,6 +72,7 @@ run_api_e2e() {
     DATABASE_URL="postgresql://postgres:password@localhost:5499/beacon_test?schema=public" \
     API_TOKEN_SECRET="test-secret-must-be-at-least-32-characters-long" \
     CHAIN="gnosis" \
+    TELEGRAM_BOT_TOKEN="fake-token-for-e2e" \
     pnpm test:e2e
 }
 

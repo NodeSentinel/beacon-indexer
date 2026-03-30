@@ -88,6 +88,7 @@ jobs:
           COINGECKO_TOKEN_PRICE_API_URL="https://api.coingecko.com/api/v3/simple/price" \
           COINGECKO_TOKEN_NAME="gnosis" \
           ALLOWED_ORIGINS="http://localhost:3000" \
+          TELEGRAM_BOT_TOKEN="fake-token-for-e2e" \
           pnpm vitest run --config vitest.e2e.config.ts --no-coverage
 
       - name: Cleanup

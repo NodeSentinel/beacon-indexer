@@ -40,9 +40,9 @@ describe('Chain Stats', () => {
     chainStatsController = new ChainStatsController(chainStatsStorage, beaconTime);
 
     // Clean test tables
-    await prisma.$executeRawUnsafe(`DELETE FROM "chain_epoch_stats"`);
-    await prisma.$executeRawUnsafe(`DELETE FROM "validator"`);
-    await prisma.$executeRawUnsafe(`DELETE FROM "validator_request_consolidations"`);
+    await prisma.$executeRawUnsafe(
+      'TRUNCATE TABLE "chain_epoch_stats", "validator", "validator_deposits", "validator_request_consolidations" RESTART IDENTITY CASCADE',
+    );
   });
 
   afterAll(async () => {
