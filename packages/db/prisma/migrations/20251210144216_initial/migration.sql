@@ -10,6 +10,7 @@ CREATE TABLE "public"."validator" (
     "status" INTEGER,
     "balance" BIGINT NOT NULL,
     "effective_balance" BIGINT,
+    "activation_epoch" INTEGER,
     "pubkey" VARCHAR(98),
     "withdrawal_address" VARCHAR(42),
 

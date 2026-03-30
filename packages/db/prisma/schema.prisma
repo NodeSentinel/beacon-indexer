@@ -13,6 +13,7 @@ model Validator {
   status            Int?    @map("status")
   balance           BigInt  @map("balance")
   effectiveBalance  BigInt? @map("effective_balance")
+  activationEpoch   Int?    @map("activation_epoch")
   pubkey            String? @map("pubkey") @db.VarChar(98)
   withdrawalAddress String? @map("withdrawal_address") @db.VarChar(42)
 

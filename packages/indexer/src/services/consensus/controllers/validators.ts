@@ -158,6 +158,7 @@ export class ValidatorsController {
       validator: {
         withdrawal_credentials: string;
         effective_balance: string;
+        activation_epoch: string;
       };
     }>,
   ): Promise<void> {
