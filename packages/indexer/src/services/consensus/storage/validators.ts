@@ -8,6 +8,8 @@ import { Pool } from 'pg';
 // @ts-expect-error - pg-copy-streams doesn't have type definitions
 import { from as copyFrom } from 'pg-copy-streams';
 
+import { ValidatorControllerHelpers } from '../controllers/helpers/validatorControllerHelpers.js';
+
 export class ValidatorsStorage {
   private static pgPool: Pool | null = null;
   private readonly databaseUrl: string;
@@ -57,6 +59,7 @@ export class ValidatorsStorage {
         async (tx) => {
           await tx.validator.createMany({
             data: batch,
+            skipDuplicates: true,
           });
         },
         {
@@ -231,6 +234,7 @@ export class ValidatorsStorage {
       validator: {
         withdrawal_credentials: string;
         effective_balance: string;
+        activation_epoch: string;
       };
     }>,
   ): Promise<void> {
@@ -247,6 +251,7 @@ export class ValidatorsStorage {
             status: VALIDATOR_STATUS[data.status as keyof typeof VALIDATOR_STATUS],
             balance: BigInt(data.balance),
             effectiveBalance: BigInt(data.validator.effective_balance),
+            activationEpoch: ValidatorControllerHelpers.parseEpoch(data.validator.activation_epoch),
           },
         });
       }
