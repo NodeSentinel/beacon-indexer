@@ -42,7 +42,6 @@ describe('Chain Stats', () => {
     // Clean test tables
     await prisma.$executeRawUnsafe(`DELETE FROM "chain_epoch_stats"`);
     await prisma.$executeRawUnsafe(`DELETE FROM "validator"`);
-    await prisma.$executeRawUnsafe(`DELETE FROM "validator_deposits"`);
     await prisma.$executeRawUnsafe(`DELETE FROM "validator_request_consolidations"`);
   });
 
