@@ -175,6 +175,11 @@ enum ClusterVisibility {
   shared
 }
 
+enum ClusterIncidentStatus {
+  open
+  closed
+}
+
 model validatorExits {
   index Int                @id @map("index")
   epoch Int                @map("epoch")
@@ -502,6 +507,40 @@ model NotificationQueue {
   @@map("notification_queue")
 }
 
+model ClusterIncident {
+  id     String                @id @default(cuid()) @map("id")
+  status ClusterIncidentStatus @default(open) @map("status")
+
+  clusterId String @map("cluster_id")
+
+  openedAt   DateTime @default(now()) @map("opened_at") @db.Timestamp
+  openedSlot Int      @map("opened_slot")
+
+  openedValidatorIndexes   Int[] @default([]) @map("opened_validator_indexes")
+  currentValidatorIndexes  Int[] @default([]) @map("current_validator_indexes")
+  affectedValidatorIndexes Int[] @default([]) @map("affected_validator_indexes")
+
+  closedAt        DateTime? @map("closed_at") @db.Timestamp
+  closedSlot      Int?      @map("closed_slot")
+  durationSlots   Int?      @map("duration_slots")
+  durationSeconds Int?      @map("duration_seconds")
+
+  missedAttestations     Int?    @map("missed_attestations")
+  missedConsensusRewards BigInt? @map("missed_consensus_rewards")
+
+  openedNotificationQueuedAt DateTime? @map("opened_notification_queued_at") @db.Timestamp
+  closedNotificationQueuedAt DateTime? @map("closed_notification_queued_at") @db.Timestamp
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamp
+  updatedAt DateTime @default(now()) @map("updated_at") @db.Timestamp
+
+  cluster Cluster @relation(fields: [clusterId], references: [id], onDelete: Cascade)
+
+  @@index([clusterId, status])
+  @@index([status, openedAt(sort: Desc)])
+  @@map("cluster_incident")
+}
+
 model FeeRewardAddress {
   address String                   @id @map("address")
   users   UserToFeeRewardAddress[] @relation("user_to_fee_reward_address")
@@ -519,6 +558,7 @@ model Cluster {
   createdAt           DateTime          @default(now()) @map("created_at")
 
   owner      User               @relation(fields: [ownerId], references: [id], onDelete: Restrict)
+  incidents  ClusterIncident[]
   validators ClusterValidator[]
 
   @@map("cluster")
