@@ -24,27 +24,6 @@ export class IncidentStorage {
     // close-time aggregation strategy across raw, hourly, and daily sources.
     await this.prisma.$executeRaw`
       WITH
-        -- Current incident state per cluster derived from snapshot inactivity.
-        -- Because validators can belong to multiple clusters, we aggregate by cluster_id.
-        cluster_states AS (
-          SELECT
-            c.id AS cluster_id,
-            c.name AS cluster_name,
-            c.owner_id,
-            COALESCE(
-              ARRAY_AGG(vss.validator_index ORDER BY vss.validator_index)
-                FILTER (
-                  WHERE vss.is_inactive = true
-                    AND COALESCE(vss.beacon_status, 0) = ANY(${INCIDENT_TRACKED_BEACON_STATUSES}::int[])
-                ),
-              ARRAY[]::int[]
-            ) AS inactive_validator_indexes
-          FROM cluster c
-          LEFT JOIN cluster_validator cv ON cv.cluster_id = c.id
-          LEFT JOIN validators_snapshot_stats vss ON vss.validator_index = cv.validator_index
-          GROUP BY c.id, c.name, c.owner_id
-        ),
-
         -- Open incidents already persisted for each cluster.
         open_incidents AS (
           SELECT
@@ -55,6 +34,42 @@ export class IncidentStorage {
             ci.validator_indexes
           FROM cluster_incident ci
           WHERE ci.status = 'open'::"public"."ClusterIncidentStatus"
+        ),
+
+        -- Only validators currently marked inactive in snapshot and still in a tracked beacon status.
+        -- A validator may belong to multiple clusters, so we keep the cluster relation here.
+        inactive_cluster_validators AS (
+          SELECT
+            cv.cluster_id,
+            vss.validator_index
+          FROM validators_snapshot_stats vss
+          JOIN cluster_validator cv ON cv.validator_index = vss.validator_index
+          WHERE vss.is_inactive = true
+            AND COALESCE(vss.beacon_status, 0) = ANY(${INCIDENT_TRACKED_BEACON_STATUSES}::int[])
+        ),
+
+        -- We only need to evaluate clusters that are currently affected by inactive validators
+        -- or clusters that already have an open incident and may need to be updated/closed.
+        target_clusters AS (
+          SELECT cluster_id FROM open_incidents
+          UNION
+          SELECT DISTINCT cluster_id FROM inactive_cluster_validators
+        ),
+
+        -- Current incident state per relevant cluster derived from snapshot inactivity.
+        cluster_states AS (
+          SELECT
+            c.id AS cluster_id,
+            c.name AS cluster_name,
+            c.owner_id,
+            COALESCE(
+              ARRAY_AGG(icv.validator_index ORDER BY icv.validator_index),
+              ARRAY[]::int[]
+            ) AS inactive_validator_indexes
+          FROM target_clusters tc
+          JOIN cluster c ON c.id = tc.cluster_id
+          LEFT JOIN inactive_cluster_validators icv ON icv.cluster_id = c.id
+          GROUP BY c.id, c.name, c.owner_id
         ),
 
         -- Open a new incident for clusters that currently have inactive validators
