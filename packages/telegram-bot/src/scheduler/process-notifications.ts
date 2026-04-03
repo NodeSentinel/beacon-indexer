@@ -22,7 +22,7 @@ export async function processNotifications(
   if (signal.aborted) return;
 
   setCurrentTelegramId('0');
-  const response = await orpcClient.bot.notifications({ limit: 20 });
+  const response = await orpcClient.bot.notifications({ limit: 100 });
   const notifications = response.success ? ((response.data ?? []) as BotNotification[]) : [];
 
   if (notifications.length === 0) return;
@@ -44,7 +44,6 @@ export async function processNotifications(
 
     if (!delivered) continue;
 
-    setCurrentTelegramId('0');
     await orpcClient.bot.setNotificationDelivered({ id: notification.id });
   }
 }
