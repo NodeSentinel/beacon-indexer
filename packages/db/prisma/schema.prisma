@@ -475,8 +475,53 @@ model User {
   createdAt          DateTime                 @default(now()) @map("created_at")
   clusters           Cluster[]
   feeRewardAddresses UserToFeeRewardAddress[] @relation("user_to_fee_reward_address")
+  notifications      NotificationQueue[]
 
   @@map("user")
+}
+
+/**
+ * NotificationQueue - one pending or delivered notification per user.
+ *
+ * The queue stores a generic type + payload and keeps delivery state minimal.
+ * Message rendering stays outside the indexer so copy can evolve without
+ * rewriting historical producer logic.
+ */
+model NotificationQueue {
+  id          String    @id @default(cuid()) @map("id")
+  userId      String    @map("user_id")
+  type        String    @map("type") @db.VarChar(100)
+  payload     Json      @map("payload")
+  delivered   Boolean   @default(false) @map("delivered")
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamp
+  deliveredAt DateTime? @map("delivered_at") @db.Timestamp
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([delivered, createdAt])
+  @@index([userId, delivered, createdAt])
+  @@map("notification_queue")
+}
+
+/**
+ * NotificationState - last derived state per entity/event family.
+ *
+ * Dedup strategy:
+ * - recurring detectors compare the newly-derived state with lastState
+ * - queue notifications only when the state changed
+ * - update lastState in the same transaction as queue insertion
+ *
+ * This allows flows such as active -> inactive -> active -> inactive to notify
+ * on each transition into inactive without spamming every snapshot tick.
+ */
+model NotificationState {
+  type      String   @map("type") @db.VarChar(100)
+  entityKey String   @map("entity_key") @db.VarChar(120)
+  lastState String   @map("last_state") @db.VarChar(50)
+  updatedAt DateTime @default(now()) @map("updated_at") @db.Timestamp
+
+  @@id([type, entityKey])
+  @@map("notification_state")
 }
 
 model FeeRewardAddress {

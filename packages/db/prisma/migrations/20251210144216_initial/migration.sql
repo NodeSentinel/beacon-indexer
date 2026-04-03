@@ -337,6 +337,29 @@ CREATE TABLE "public"."user" (
 );
 
 -- CreateTable
+CREATE TABLE "public"."notification_queue" (
+    "id" TEXT NOT NULL,
+    "user_id" TEXT NOT NULL,
+    "type" VARCHAR(100) NOT NULL,
+    "payload" JSONB NOT NULL,
+    "delivered" BOOLEAN NOT NULL DEFAULT false,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "delivered_at" TIMESTAMP(3),
+
+    CONSTRAINT "notification_queue_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "public"."notification_state" (
+    "type" VARCHAR(100) NOT NULL,
+    "entity_key" VARCHAR(120) NOT NULL,
+    "last_state" VARCHAR(50) NOT NULL,
+    "updated_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "notification_state_pkey" PRIMARY KEY ("type","entity_key")
+);
+
+-- CreateTable
 CREATE TABLE "public"."fee_reward_address" (
     "address" TEXT NOT NULL,
     "user_id" TEXT,
@@ -411,6 +434,12 @@ CREATE UNIQUE INDEX "user_username_key" ON "public"."user"("username");
 CREATE INDEX "cluster_validator_validator_index_idx" ON "public"."cluster_validator"("validator_index");
 
 -- CreateIndex
+CREATE INDEX "notification_queue_delivered_created_at_idx" ON "public"."notification_queue"("delivered", "created_at");
+
+-- CreateIndex
+CREATE INDEX "notification_queue_user_id_delivered_created_at_idx" ON "public"."notification_queue"("user_id", "delivered", "created_at");
+
+-- CreateIndex
 CREATE INDEX "_user_to_fee_reward_address_user_id_idx" ON "public"."_user_to_fee_reward_address"("user_id");
 
 -- AddForeignKey
@@ -421,6 +450,9 @@ ALTER TABLE "public"."cluster_validator" ADD CONSTRAINT "cluster_validator_clust
 
 -- AddForeignKey
 ALTER TABLE "public"."cluster_validator" ADD CONSTRAINT "cluster_validator_validator_index_fkey" FOREIGN KEY ("validator_index") REFERENCES "public"."validator"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "public"."notification_queue" ADD CONSTRAINT "notification_queue_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "public"."user"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "public"."_user_to_fee_reward_address" ADD CONSTRAINT "_user_to_fee_reward_address_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "public"."user"("id") ON DELETE CASCADE ON UPDATE CASCADE;
