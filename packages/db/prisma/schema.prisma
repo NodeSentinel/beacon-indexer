@@ -510,17 +510,15 @@ model ClusterIncident {
   openedAt   DateTime @default(now()) @map("opened_at") @db.Timestamp
   openedSlot Int      @map("opened_slot")
 
-  openedValidatorIndexes   Int[] @default([]) @map("opened_validator_indexes")
-  currentValidatorIndexes  Int[] @default([]) @map("current_validator_indexes")
-  affectedValidatorIndexes Int[] @default([]) @map("affected_validator_indexes")
+  validatorIndexes Int[] @default([]) @map("validator_indexes")
 
   closedAt        DateTime? @map("closed_at") @db.Timestamp
   closedSlot      Int?      @map("closed_slot")
   durationSlots   Int?      @map("duration_slots")
   durationSeconds Int?      @map("duration_seconds")
 
-  missedAttestations     Int?    @map("missed_attestations")
-  missedConsensusRewards BigInt? @map("missed_consensus_rewards")
+  missedConsensusRewards BigInt?   @map("missed_consensus_rewards")
+  missedExecutionRewards Decimal?  @map("missed_execution_rewards") @db.Decimal(78, 0)
 
   openedNotificationQueuedAt DateTime? @map("opened_notification_queued_at") @db.Timestamp
   closedNotificationQueuedAt DateTime? @map("closed_notification_queued_at") @db.Timestamp
@@ -530,7 +528,7 @@ model ClusterIncident {
 
   cluster Cluster @relation(fields: [clusterId], references: [id], onDelete: Cascade)
 
-  @@index([clusterId, status])
+  @@index([clusterId])
   @@index([status, openedAt(sort: Desc)])
   @@map("cluster_incident")
 }

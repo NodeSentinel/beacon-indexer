@@ -353,15 +353,13 @@ CREATE TABLE "public"."cluster_incident" (
     "cluster_id" TEXT NOT NULL,
     "opened_at" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "opened_slot" INTEGER NOT NULL,
-    "opened_validator_indexes" INTEGER[] NOT NULL DEFAULT '{}',
-    "current_validator_indexes" INTEGER[] NOT NULL DEFAULT '{}',
-    "affected_validator_indexes" INTEGER[] NOT NULL DEFAULT '{}',
+    "validator_indexes" INTEGER[] NOT NULL DEFAULT '{}',
     "closed_at" TIMESTAMP,
     "closed_slot" INTEGER,
     "duration_slots" INTEGER,
     "duration_seconds" INTEGER,
-    "missed_attestations" INTEGER,
     "missed_consensus_rewards" BIGINT,
+    "missed_execution_rewards" NUMERIC(78, 0),
     "opened_notification_queued_at" TIMESTAMP,
     "closed_notification_queued_at" TIMESTAMP,
     "created_at" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -448,10 +446,15 @@ CREATE INDEX "cluster_validator_validator_index_idx" ON "public"."cluster_valida
 CREATE INDEX "notification_queue_user_id_delivered_idx" ON "public"."notification_queue"("user_id", "delivered");
 
 -- CreateIndex
-CREATE INDEX "cluster_incident_cluster_id_status_idx" ON "public"."cluster_incident"("cluster_id", "status");
+CREATE INDEX "cluster_incident_cluster_id_idx" ON "public"."cluster_incident"("cluster_id");
 
 -- CreateIndex
 CREATE INDEX "cluster_incident_status_opened_at_idx" ON "public"."cluster_incident"("status", "opened_at" DESC);
+
+-- CreateIndex
+CREATE UNIQUE INDEX "cluster_incident_cluster_id_open_unique_idx"
+ON "public"."cluster_incident"("cluster_id")
+WHERE "status" = 'open';
 
 -- CreateIndex
 CREATE INDEX "_user_to_fee_reward_address_user_id_idx" ON "public"."_user_to_fee_reward_address"("user_id");

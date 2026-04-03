@@ -1,319 +1,243 @@
+import { VALIDATOR_STATUS } from '@beacon-indexer/beacon-utils';
 import { PrismaClient } from '@beacon-indexer/db';
 
-type ClusterIncidentStateRow = {
-  cluster_id: string;
-  cluster_name: string;
-  owner_id: string;
-  inactive_validator_indexes: number[];
-};
+const INCIDENT_TRACKED_BEACON_STATUSES = [
+  VALIDATOR_STATUS.pending_initialized,
+  VALIDATOR_STATUS.pending_queued,
+  VALIDATOR_STATUS.active_ongoing,
+  VALIDATOR_STATUS.active_exiting,
+  VALIDATOR_STATUS.active_slashed,
+] as const;
+// Cluster incidents only apply while validators are still expected to participate.
+// Exited/withdrawn statuses are intentionally excluded.
 
-type OpenIncidentRow = {
-  id: string;
-  cluster_id: string;
-  opened_at: Date;
-  opened_slot: number;
-  opened_validator_indexes: number[];
-  current_validator_indexes: number[];
-  affected_validator_indexes: number[];
-};
-
-type IncidentSummaryRow = {
-  missed_attestations: bigint | null;
-  missed_consensus_rewards: bigint | null;
+type SyncCountsRow = {
+  opened_count: bigint;
+  updated_count: bigint;
+  closed_count: bigint;
 };
 
 export class IncidentStorage {
   constructor(private readonly prisma: PrismaClient) {}
 
-  async listCurrentClusterStates(): Promise<ClusterIncidentStateRow[]> {
-    return this.prisma.$queryRaw<ClusterIncidentStateRow[]>`
-      SELECT
-        c.id AS cluster_id,
-        c.name AS cluster_name,
-        c.owner_id,
-        COALESCE(
-          ARRAY_AGG(vss.validator_index ORDER BY vss.validator_index)
-            FILTER (
-              WHERE vss.is_inactive = true
-                AND COALESCE(vss.beacon_status, 0) IN (0, 1, 2, 3, 4)
-            ),
-          ARRAY[]::int[]
-        ) AS inactive_validator_indexes
-      FROM cluster c
-      LEFT JOIN cluster_validator cv ON cv.cluster_id = c.id
-      LEFT JOIN validators_snapshot_stats vss ON vss.validator_index = cv.validator_index
-      GROUP BY c.id, c.name, c.owner_id
-    `;
-  }
+  async syncIncidents(params: {
+    observedAt: Date;
+    observedAtIso: string;
+    observedSlot: number;
+  }): Promise<{
+    opened: number;
+    updated: number;
+    closed: number;
+  }> {
+    const { observedAt, observedAtIso, observedSlot } = params;
 
-  async listOpenIncidents(): Promise<OpenIncidentRow[]> {
-    return this.prisma.$queryRaw<OpenIncidentRow[]>`
-      SELECT
-        ci.id,
-        ci.cluster_id,
-        ci.opened_at,
-        ci.opened_slot,
-        ci.opened_validator_indexes,
-        ci.current_validator_indexes,
-        ci.affected_validator_indexes
-      FROM cluster_incident ci
-      WHERE ci.status = 'open'::"public"."ClusterIncidentStatus"
-    `;
-  }
-
-  async createIncident(params: {
-    clusterId: string;
-    ownerId: string;
-    clusterName: string;
-    openedAt: Date;
-    openedSlot: number;
-    validatorIndexes: number[];
-  }) {
-    const { clusterId, ownerId, clusterName, openedAt, openedSlot, validatorIndexes } = params;
-
-    return this.prisma.$transaction(async (tx) => {
-      const incident = await tx.clusterIncident.create({
-        data: {
-          clusterId,
-          openedAt,
-          openedSlot,
-          openedValidatorIndexes: validatorIndexes,
-          currentValidatorIndexes: validatorIndexes,
-          affectedValidatorIndexes: validatorIndexes,
-        },
-      });
-
-      const owner = await tx.user.findUnique({
-        where: { id: ownerId },
-        select: { hasBlockedBot: true, telegramId: true },
-      });
-
-      if (owner?.telegramId && !owner.hasBlockedBot) {
-        await tx.notificationQueue.create({
-          data: {
-            userId: ownerId,
-            type: 'incident_opened',
-            payload: {
-              clusterId,
-              clusterName,
-              incidentId: incident.id,
-              openedAt: openedAt.toISOString(),
-              openedSlot,
-              validatorIndexes,
-            },
-          },
-        });
-
-        await tx.clusterIncident.update({
-          where: { id: incident.id },
-          data: { openedNotificationQueuedAt: new Date(), updatedAt: new Date() },
-        });
-      }
-
-      return incident;
-    });
-  }
-
-  async updateIncidentValidators(params: {
-    incidentId: string;
-    currentValidatorIndexes: number[];
-    affectedValidatorIndexes: number[];
-  }): Promise<void> {
-    await this.prisma.clusterIncident.update({
-      where: { id: params.incidentId },
-      data: {
-        currentValidatorIndexes: params.currentValidatorIndexes,
-        affectedValidatorIndexes: params.affectedValidatorIndexes,
-        updatedAt: new Date(),
-      },
-    });
-  }
-
-  async closeIncident(params: {
-    incidentId: string;
-    ownerId: string;
-    clusterId: string;
-    clusterName: string;
-    closedAt: Date;
-    closedSlot: number;
-    durationSlots: number;
-    durationSeconds: number;
-    missedAttestations: number;
-    missedConsensusRewards: bigint;
-    affectedValidatorIndexes: number[];
-  }): Promise<void> {
-    const {
-      incidentId,
-      ownerId,
-      clusterId,
-      clusterName,
-      closedAt,
-      closedSlot,
-      durationSlots,
-      durationSeconds,
-      missedAttestations,
-      missedConsensusRewards,
-      affectedValidatorIndexes,
-    } = params;
-
-    await this.prisma.$transaction(async (tx) => {
-      await tx.clusterIncident.update({
-        where: { id: incidentId },
-        data: {
-          status: 'closed',
-          closedAt,
-          closedSlot,
-          currentValidatorIndexes: [],
-          durationSlots,
-          durationSeconds,
-          missedAttestations,
-          missedConsensusRewards,
-          updatedAt: new Date(),
-        },
-      });
-
-      const owner = await tx.user.findUnique({
-        where: { id: ownerId },
-        select: { hasBlockedBot: true, telegramId: true },
-      });
-
-      if (owner?.telegramId && !owner.hasBlockedBot) {
-        await tx.notificationQueue.create({
-          data: {
-            userId: ownerId,
-            type: 'incident_closed',
-            payload: {
-              clusterId,
-              clusterName,
-              incidentId,
-              closedAt: closedAt.toISOString(),
-              closedSlot,
-              durationSeconds,
-              durationSlots,
-              missedAttestations,
-              missedConsensusRewards: missedConsensusRewards.toString(),
-              validatorIndexes: affectedValidatorIndexes,
-            },
-          },
-        });
-
-        await tx.clusterIncident.update({
-          where: { id: incidentId },
-          data: { closedNotificationQueuedAt: new Date(), updatedAt: new Date() },
-        });
-      }
-    });
-  }
-
-  async computeIncidentSummary(params: {
-    fromSlot: number;
-    toSlot: number;
-    fromEpoch: number;
-    toEpoch: number;
-    validatorIndexes: number[];
-    maxAttestationDelay: number;
-  }): Promise<{ missedAttestations: number; missedConsensusRewards: bigint }> {
-    const { fromSlot, toSlot, fromEpoch, toEpoch, validatorIndexes, maxAttestationDelay } = params;
-
-    const rows = await this.prisma.$queryRaw<IncidentSummaryRow[]>`
+    // Missed reward columns remain NULL until we implement a non-overlapping
+    // close-time aggregation strategy across raw, hourly, and daily sources.
+    const rows = await this.prisma.$queryRaw<SyncCountsRow[]>`
       WITH
-        daily_slot_misses AS (
-          SELECT COUNT(*)::bigint AS missed_attestations
-          FROM validator_daily_archive vda,
-          LATERAL jsonb_array_elements(COALESCE(vda.data_by_slot, '[]'::jsonb)) AS slot_row
-          WHERE vda.validator_index = ANY(${validatorIndexes}::int[])
-            AND (slot_row->>0)::int BETWEEN ${fromSlot}::int AND ${toSlot}::int
-            AND (
-              (slot_row->>1)::int = -1
-              OR (slot_row->>1)::int > ${maxAttestationDelay}::int
-            )
-        ),
-        hourly_slot_misses AS (
-          SELECT COUNT(*)::bigint AS missed_attestations
-          FROM validator_hourly_archive vha,
-          LATERAL jsonb_array_elements(vha.data_by_slot) AS slot_row
-          WHERE vha.validator_index = ANY(${validatorIndexes}::int[])
-            AND (slot_row->>0)::int BETWEEN ${fromSlot}::int AND ${toSlot}::int
-            AND (
-              (slot_row->>1)::int = -1
-              OR (slot_row->>1)::int > ${maxAttestationDelay}::int
-            )
-        ),
-        raw_slot_misses AS (
-          SELECT COUNT(*)::bigint AS missed_attestations
-          FROM committee c
-          WHERE c.validator_index = ANY(${validatorIndexes}::int[])
-            AND c.slot BETWEEN ${fromSlot}::int AND ${toSlot}::int
-            AND (
-              c.attestation_delay IS NULL
-              OR c.attestation_delay > ${maxAttestationDelay}::int
-            )
-        ),
-        daily_epoch_misses AS (
+        cluster_states AS (
           SELECT
+            c.id AS cluster_id,
+            c.name AS cluster_name,
+            c.owner_id,
             COALESCE(
-              SUM(
-                COALESCE((epoch_row->>5)::bigint, 0)
-                + COALESCE((epoch_row->>6)::bigint, 0)
-                + COALESCE((epoch_row->>7)::bigint, 0)
-                + COALESCE((epoch_row->>8)::bigint, 0)
-              ),
-              0
-            ) AS missed_consensus_rewards
-          FROM validator_daily_archive vda,
-          LATERAL jsonb_array_elements(COALESCE(vda.data_by_epoch, '[]'::jsonb)) AS epoch_row
-          WHERE vda.validator_index = ANY(${validatorIndexes}::int[])
-            AND (epoch_row->>0)::int BETWEEN ${fromEpoch}::int AND ${toEpoch}::int
+              ARRAY_AGG(vss.validator_index ORDER BY vss.validator_index)
+                FILTER (
+                  WHERE vss.is_inactive = true
+                    AND COALESCE(vss.beacon_status, 0) = ANY(${INCIDENT_TRACKED_BEACON_STATUSES}::int[])
+                ),
+              ARRAY[]::int[]
+            ) AS inactive_validator_indexes
+          FROM cluster c
+          LEFT JOIN cluster_validator cv ON cv.cluster_id = c.id
+          LEFT JOIN validators_snapshot_stats vss ON vss.validator_index = cv.validator_index
+          GROUP BY c.id, c.name, c.owner_id
         ),
-        hourly_epoch_misses AS (
+
+        open_incidents AS (
           SELECT
-            COALESCE(
-              SUM(
-                COALESCE((epoch_row->>5)::bigint, 0)
-                + COALESCE((epoch_row->>6)::bigint, 0)
-                + COALESCE((epoch_row->>7)::bigint, 0)
-                + COALESCE((epoch_row->>8)::bigint, 0)
-              ),
-              0
-            ) AS missed_consensus_rewards
-          FROM validator_hourly_archive vha,
-          LATERAL jsonb_array_elements(vha.data_by_epoch) AS epoch_row
-          WHERE vha.validator_index = ANY(${validatorIndexes}::int[])
-            AND (epoch_row->>0)::int BETWEEN ${fromEpoch}::int AND ${toEpoch}::int
+            ci.id,
+            ci.cluster_id,
+            ci.opened_at,
+            ci.opened_slot,
+            ci.validator_indexes
+          FROM cluster_incident ci
+          WHERE ci.status = 'open'::"public"."ClusterIncidentStatus"
         ),
-        raw_epoch_misses AS (
+
+        inserted_open_incidents AS (
+          INSERT INTO cluster_incident (
+            cluster_id,
+            status,
+            opened_at,
+            opened_slot,
+            validator_indexes,
+            opened_notification_queued_at,
+            created_at,
+            updated_at
+          )
           SELECT
-            COALESCE(
-              SUM(
-                er.missed_head
-                + er.missed_target
-                + er.missed_source
-                + er.missed_inactivity
-              ),
+            cs.cluster_id,
+            'open'::"public"."ClusterIncidentStatus",
+            ${observedAt}::timestamp,
+            ${observedSlot}::int,
+            cs.inactive_validator_indexes,
+            CASE
+              WHEN u.telegram_id IS NOT NULL AND u.has_blocked_bot = false
+              THEN ${observedAt}::timestamp
+              ELSE NULL
+            END,
+            ${observedAt}::timestamp,
+            ${observedAt}::timestamp
+          FROM cluster_states cs
+          LEFT JOIN open_incidents oi ON oi.cluster_id = cs.cluster_id
+          JOIN "user" u ON u.id = cs.owner_id
+          WHERE array_length(cs.inactive_validator_indexes, 1) > 0
+            AND oi.id IS NULL
+          ON CONFLICT DO NOTHING
+          RETURNING id, cluster_id, validator_indexes, opened_notification_queued_at
+        ),
+
+        open_notifications AS (
+          INSERT INTO notification_queue (
+            id,
+            user_id,
+            type,
+            payload,
+            delivered,
+            created_at
+          )
+          SELECT
+            'ci_open_' || md5(ioi.id || random()::text || clock_timestamp()::text),
+            c.owner_id,
+            'incident_opened',
+            jsonb_build_object(
+              'clusterId', c.id,
+              'clusterName', c.name,
+              'incidentId', ioi.id,
+              'openedAt', ${observedAtIso},
+              'openedSlot', ${observedSlot}::int,
+              'validatorIndexes', to_jsonb(ioi.validator_indexes)
+            ),
+            false,
+            ${observedAt}::timestamp
+          FROM inserted_open_incidents ioi
+          JOIN cluster c ON c.id = ioi.cluster_id
+          WHERE ioi.opened_notification_queued_at IS NOT NULL
+          RETURNING id
+        ),
+
+        updated_open_incidents AS (
+          UPDATE cluster_incident ci
+          SET
+            validator_indexes = merged.validator_indexes,
+            updated_at = ${observedAt}::timestamp
+          FROM (
+            SELECT
+              oi.id,
+              ARRAY(
+                SELECT DISTINCT validator_index
+                FROM unnest(oi.validator_indexes || cs.inactive_validator_indexes) AS validator_index
+                ORDER BY validator_index
+              ) AS validator_indexes
+            FROM open_incidents oi
+            JOIN cluster_states cs ON cs.cluster_id = oi.cluster_id
+            WHERE array_length(cs.inactive_validator_indexes, 1) > 0
+          ) merged
+          WHERE ci.id = merged.id
+            AND ci.validator_indexes IS DISTINCT FROM merged.validator_indexes
+          RETURNING ci.id
+        ),
+
+        closed_incidents AS (
+          UPDATE cluster_incident ci
+          SET
+            status = 'closed'::"public"."ClusterIncidentStatus",
+            closed_at = ${observedAt}::timestamp,
+            closed_slot = ${observedSlot}::int,
+            duration_slots = GREATEST(${observedSlot}::int - ci.opened_slot, 0),
+            duration_seconds = GREATEST(
+              EXTRACT(EPOCH FROM (${observedAt}::timestamp - ci.opened_at))::int,
               0
-            ) AS missed_consensus_rewards
-          FROM epoch_rewards er
-          WHERE er.validator_index = ANY(${validatorIndexes}::int[])
-            AND er.epoch BETWEEN ${fromEpoch}::int AND ${toEpoch}::int
+            ),
+            missed_consensus_rewards = NULL,
+            missed_execution_rewards = NULL,
+            closed_notification_queued_at = CASE
+              WHEN u.telegram_id IS NOT NULL AND u.has_blocked_bot = false
+              THEN ${observedAt}::timestamp
+              ELSE NULL
+            END,
+            updated_at = ${observedAt}::timestamp
+          FROM cluster_states cs
+          JOIN cluster c ON c.id = cs.cluster_id
+          JOIN "user" u ON u.id = c.owner_id
+          WHERE ci.cluster_id = cs.cluster_id
+            AND ci.status = 'open'::"public"."ClusterIncidentStatus"
+            AND array_length(cs.inactive_validator_indexes, 1) IS NULL
+          RETURNING
+            ci.id,
+            ci.cluster_id,
+            ci.validator_indexes,
+            ci.closed_at,
+            ci.closed_slot,
+            ci.duration_slots,
+            ci.duration_seconds,
+            ci.missed_consensus_rewards,
+            ci.missed_execution_rewards,
+            ci.closed_notification_queued_at
+        ),
+
+        closed_notifications AS (
+          INSERT INTO notification_queue (
+            id,
+            user_id,
+            type,
+            payload,
+            delivered,
+            created_at
+          )
+          SELECT
+            'ci_close_' || md5(ci.id || random()::text || clock_timestamp()::text),
+            c.owner_id,
+            'incident_closed',
+            jsonb_build_object(
+              'clusterId', c.id,
+              'clusterName', c.name,
+              'incidentId', ci.id,
+              'closedAt', ${observedAtIso},
+              'closedSlot', ci.closed_slot,
+              'durationSeconds', ci.duration_seconds,
+              'durationSlots', ci.duration_slots,
+              'missedConsensusRewards', CASE
+                WHEN ci.missed_consensus_rewards IS NULL THEN NULL
+                ELSE ci.missed_consensus_rewards::text
+              END,
+              'missedExecutionRewards', CASE
+                WHEN ci.missed_execution_rewards IS NULL THEN NULL
+                ELSE ci.missed_execution_rewards::text
+              END,
+              'validatorIndexes', to_jsonb(ci.validator_indexes)
+            ),
+            false,
+            ${observedAt}::timestamp
+          FROM closed_incidents ci
+          JOIN cluster c ON c.id = ci.cluster_id
+          WHERE ci.closed_notification_queued_at IS NOT NULL
+          RETURNING id
         )
+
       SELECT
-        (
-          COALESCE((SELECT missed_attestations FROM daily_slot_misses), 0)
-          + COALESCE((SELECT missed_attestations FROM hourly_slot_misses), 0)
-          + COALESCE((SELECT missed_attestations FROM raw_slot_misses), 0)
-        )::bigint AS missed_attestations,
-        (
-          COALESCE((SELECT missed_consensus_rewards FROM daily_epoch_misses), 0)
-          + COALESCE((SELECT missed_consensus_rewards FROM hourly_epoch_misses), 0)
-          + COALESCE((SELECT missed_consensus_rewards FROM raw_epoch_misses), 0)
-        )::bigint AS missed_consensus_rewards
+        (SELECT COUNT(*)::bigint FROM inserted_open_incidents) AS opened_count,
+        (SELECT COUNT(*)::bigint FROM updated_open_incidents) AS updated_count,
+        (SELECT COUNT(*)::bigint FROM closed_incidents) AS closed_count
     `;
 
     const row = rows[0];
 
     return {
-      missedAttestations: Number(row?.missed_attestations ?? BigInt(0)),
-      missedConsensusRewards: row?.missed_consensus_rewards ?? BigInt(0),
+      opened: Number(row?.opened_count ?? BigInt(0)),
+      updated: Number(row?.updated_count ?? BigInt(0)),
+      closed: Number(row?.closed_count ?? BigInt(0)),
     };
   }
 }
