@@ -424,9 +424,6 @@ CREATE UNIQUE INDEX "user_username_key" ON "public"."user"("username");
 CREATE INDEX "cluster_validator_validator_index_idx" ON "public"."cluster_validator"("validator_index");
 
 -- CreateIndex
-CREATE INDEX "notification_queue_delivered_created_at_idx" ON "public"."notification_queue"("delivered", "created_at");
-
--- CreateIndex
 CREATE INDEX "notification_queue_user_id_delivered_idx" ON "public"."notification_queue"("user_id", "delivered");
 
 -- CreateIndex
