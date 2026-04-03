@@ -499,7 +499,7 @@ model NotificationQueue {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([delivered, createdAt])
-  @@index([userId, delivered, createdAt])
+  @@index([userId, delivered])
   @@map("notification_queue")
 }
 

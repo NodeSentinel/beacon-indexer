@@ -427,7 +427,7 @@ CREATE INDEX "cluster_validator_validator_index_idx" ON "public"."cluster_valida
 CREATE INDEX "notification_queue_delivered_created_at_idx" ON "public"."notification_queue"("delivered", "created_at");
 
 -- CreateIndex
-CREATE INDEX "notification_queue_user_id_delivered_created_at_idx" ON "public"."notification_queue"("user_id", "delivered", "created_at");
+CREATE INDEX "notification_queue_user_id_delivered_idx" ON "public"."notification_queue"("user_id", "delivered");
 
 -- CreateIndex
 CREATE INDEX "_user_to_fee_reward_address_user_id_idx" ON "public"."_user_to_fee_reward_address"("user_id");
