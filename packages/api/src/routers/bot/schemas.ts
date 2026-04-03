@@ -33,6 +33,16 @@ export const NotificationIdParamSchema = z.object({
   id: z.string(),
 });
 
+export const BotNotificationDeliveredSchema = z.object({
+  id: z.string(),
+  delivered: z.literal(true),
+});
+
+export const BotNotificationDeletedSchema = z.object({
+  id: z.string(),
+  deleted: z.literal(true),
+});
+
 export const BotNotificationListInputSchema = z.object({
   limit: z.number().int().min(1).max(100).default(20),
 });

@@ -2,9 +2,10 @@ import { z } from 'zod';
 
 import { botProcedure } from './procedures.js';
 import {
+  BotNotificationDeletedSchema,
+  BotNotificationDeliveredSchema,
   BotNotificationListInputSchema,
   BotNotificationListSchema,
-  BotNotificationSchema,
   NotificationIdParamSchema,
 } from './schemas.js';
 
@@ -14,8 +15,11 @@ import { ApiResponseSchema, errorResponse, successResponse } from '@/utils/respo
 const BotNotificationListResponseSchema = ApiResponseSchema(BotNotificationListSchema);
 type BotNotificationListResponse = z.infer<typeof BotNotificationListResponseSchema>;
 
-const BotNotificationResponseSchema = ApiResponseSchema(BotNotificationSchema);
-type BotNotificationResponse = z.infer<typeof BotNotificationResponseSchema>;
+const BotNotificationDeliveredResponseSchema = ApiResponseSchema(BotNotificationDeliveredSchema);
+type BotNotificationDeliveredResponse = z.infer<typeof BotNotificationDeliveredResponseSchema>;
+
+const BotNotificationDeletedResponseSchema = ApiResponseSchema(BotNotificationDeletedSchema);
+type BotNotificationDeletedResponse = z.infer<typeof BotNotificationDeletedResponseSchema>;
 
 /**
  * List pending bot notifications.
@@ -55,25 +59,21 @@ export const listBotNotifications = botProcedure
 export const markBotNotificationDelivered = botProcedure
   .route({ method: 'PUT', path: '/bot/notifications/{id}/delivered' })
   .input(NotificationIdParamSchema)
-  .output(BotNotificationResponseSchema)
+  .output(BotNotificationDeliveredResponseSchema)
   .handler(async ({ input }) => {
     try {
       const storage = new BotNotificationsStorage();
-      const notification = await storage.markDelivered(input.id);
+      await storage.markDelivered(input.id);
 
       return successResponse({
-        id: notification.id,
-        userId: notification.userId,
-        telegramId: null,
-        type: notification.type,
-        payload: notification.payload,
-        createdAt: notification.createdAt.toISOString(),
-      }) as BotNotificationResponse;
+        id: input.id,
+        delivered: true,
+      }) as BotNotificationDeliveredResponse;
     } catch (error) {
       return errorResponse(
         'MARK_NOTIFICATION_DELIVERED_ERROR',
         error instanceof Error ? error.message : 'Failed to mark notification as delivered',
-      ) as BotNotificationResponse;
+      ) as BotNotificationDeliveredResponse;
     }
   });
 
@@ -84,24 +84,20 @@ export const markBotNotificationDelivered = botProcedure
 export const deleteBotNotification = botProcedure
   .route({ method: 'DELETE', path: '/bot/notifications/{id}' })
   .input(NotificationIdParamSchema)
-  .output(BotNotificationResponseSchema)
+  .output(BotNotificationDeletedResponseSchema)
   .handler(async ({ input }) => {
     try {
       const storage = new BotNotificationsStorage();
-      const notification = await storage.delete(input.id);
+      await storage.delete(input.id);
 
       return successResponse({
-        id: notification.id,
-        userId: notification.userId,
-        telegramId: null,
-        type: notification.type,
-        payload: notification.payload,
-        createdAt: notification.createdAt.toISOString(),
-      }) as BotNotificationResponse;
+        id: input.id,
+        deleted: true,
+      }) as BotNotificationDeletedResponse;
     } catch (error) {
       return errorResponse(
         'DELETE_NOTIFICATION_ERROR',
         error instanceof Error ? error.message : 'Failed to delete bot notification',
-      ) as BotNotificationResponse;
+      ) as BotNotificationDeletedResponse;
     }
   });
