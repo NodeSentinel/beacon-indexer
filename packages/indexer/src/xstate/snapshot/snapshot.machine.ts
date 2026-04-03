@@ -102,6 +102,13 @@ const runTick = fromPromise(async ({ input }: { input: { context: SnapshotContex
     updatedLevels.push('m');
   }
 
+  const notificationResult = await controller.syncValidatorActivityNotifications();
+  if (notificationResult.stateTransitions > 0) {
+    updatedLevels.push(
+      `validator-activity(inactive:${notificationResult.inactiveQueued},recovered:${notificationResult.recoveredQueued})`,
+    );
+  }
+
   return {
     updatedLevels,
     lastProcessedSlot: ctx.lastProcessedSlot,

@@ -189,4 +189,29 @@ export class SnapshotController {
     this.logger.info(`Backfilled ${newIndexes.length} new validators`);
     return newIndexes.length;
   }
+
+  /**
+   * Detect validator active/inactive transitions from snapshot state and queue
+   * one notification per affected user when the state changes.
+   */
+  async syncValidatorActivityNotifications(): Promise<{
+    inactiveQueued: number;
+    recoveredQueued: number;
+    stateTransitions: number;
+  }> {
+    try {
+      const result = await this.snapshotStorage.syncValidatorActivityNotifications();
+
+      if (result.stateTransitions > 0) {
+        this.logger.info(
+          `Queued validator activity notifications: inactive=${result.inactiveQueued}, recovered=${result.recoveredQueued}`,
+        );
+      }
+
+      return result;
+    } catch (error) {
+      this.logger.error('Error syncing validator activity notifications', error);
+      throw error;
+    }
+  }
 }
