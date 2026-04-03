@@ -39,6 +39,33 @@ export async function sendDashboardMessage(
 }
 
 /**
+ * Send a notification message to a Telegram chat.
+ * Returns true when delivery succeeded.
+ */
+export async function sendNotificationMessage(
+  api: Api<RawApi>,
+  chatId: number,
+  telegramId: string,
+  text: string,
+  logger: Logger,
+): Promise<boolean> {
+  try {
+    await api.sendMessage(chatId, text, {
+      link_preview_options: { is_disabled: true },
+    });
+    return true;
+  } catch (error) {
+    if (isBlockedError(error)) {
+      await handleBlockedUser(telegramId, logger);
+      return false;
+    }
+
+    logger.warn({ err: error, chatId }, 'Failed to send notification message');
+    return false;
+  }
+}
+
+/**
  * Edit an existing dashboard message. Detects 403 (blocked) and "same message" errors.
  * Returns true if the edit succeeded, false otherwise.
  */
