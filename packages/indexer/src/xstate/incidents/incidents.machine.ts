@@ -9,7 +9,7 @@ const runSync = fromPromise(
   }: {
     input: { incidentController: IncidentController; maxAttestationDelay: number };
   }) => {
-    return input.incidentController.syncOpenIncidents(input.maxAttestationDelay);
+    await input.incidentController.syncOpenIncidents(input.maxAttestationDelay);
   },
 );
 
@@ -52,13 +52,7 @@ export const incidentsMachine = setup({
         }),
         onDone: {
           target: 'idle',
-          actions: [
-            pinoLog(
-              ({ event }) =>
-                `Incidents sync: opened=${event.output.opened}, updated=${event.output.updated}, closed=${event.output.closed}`,
-              'Incidents',
-            ),
-          ],
+          actions: [pinoLog(() => 'Incidents sync completed', 'Incidents')],
         },
         onError: {
           target: 'idle',

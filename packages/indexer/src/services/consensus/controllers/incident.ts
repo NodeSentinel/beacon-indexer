@@ -12,24 +12,15 @@ export class IncidentController {
     private readonly beaconTime: BeaconTime,
   ) {}
 
-  async syncOpenIncidents(maxAttestationDelay: number): Promise<{
-    opened: number;
-    updated: number;
-    closed: number;
-  }> {
+  async syncOpenIncidents(maxAttestationDelay: number): Promise<void> {
     const observedSlot = Math.max(0, this.beaconTime.getChainCurrentSlot() - maxAttestationDelay);
     const observedAt = new Date(this.beaconTime.getTimestampFromSlotNumber(observedSlot));
 
-    const result = await this.incidentStorage.syncIncidents({
+    await this.incidentStorage.syncIncidents({
       observedAt,
       observedAtIso: observedAt.toISOString(),
       observedSlot,
     });
-
-    if (result.opened || result.updated || result.closed) {
-      this.logger.info('Synchronized cluster incidents', result);
-    }
-
-    return result;
+    this.logger.info('Synchronized cluster incidents');
   }
 }

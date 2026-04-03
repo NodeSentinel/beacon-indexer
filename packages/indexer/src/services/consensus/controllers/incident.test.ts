@@ -21,11 +21,7 @@ describe('IncidentController', () => {
   });
 
   it('delegates incident synchronization to storage with snapshot-safe slot boundaries', async () => {
-    const syncIncidents = vi.fn().mockResolvedValue({
-      opened: 1,
-      updated: 2,
-      closed: 3,
-    });
+    const syncIncidents = vi.fn().mockResolvedValue(undefined);
 
     const storage = {
       syncIncidents,
@@ -38,9 +34,7 @@ describe('IncidentController', () => {
 
     vi.spyOn(Date, 'now').mockReturnValue(beaconTime.getTimestampFromSlotNumber(nowSlot));
 
-    const result = await controller.syncOpenIncidents(gnosisConfig.beacon.maxAttestationDelay);
-
-    expect(result).toEqual({ opened: 1, updated: 2, closed: 3 });
+    await controller.syncOpenIncidents(gnosisConfig.beacon.maxAttestationDelay);
     expect(syncIncidents).toHaveBeenCalledWith({
       observedAt: new Date(beaconTime.getTimestampFromSlotNumber(observedSlot)),
       observedAtIso: new Date(beaconTime.getTimestampFromSlotNumber(observedSlot)).toISOString(),
