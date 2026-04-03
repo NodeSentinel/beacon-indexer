@@ -12,6 +12,30 @@ const SAME_MESSAGE_DESCRIPTION = 'Bad Request: message is not modified';
 /** In-memory set of blocked telegramIds (populated on 403, cleared on unblock) */
 export const blockedUserIds = new Set<string>();
 
+type SendMessageOptions = Parameters<Api<RawApi>['sendMessage']>[2];
+
+async function sendTelegramMessage(
+  api: Api<RawApi>,
+  chatId: number,
+  telegramId: string,
+  text: string,
+  logger: Logger,
+  options?: SendMessageOptions,
+): Promise<number | null> {
+  try {
+    const result = await api.sendMessage(chatId, text, options);
+    return result.message_id;
+  } catch (error) {
+    if (isBlockedError(error)) {
+      await handleBlockedUser(telegramId, logger);
+      return null;
+    }
+
+    logger.warn({ err: error, chatId }, 'Failed to send Telegram message');
+    return null;
+  }
+}
+
 /**
  * Send a message to a Telegram chat. Detects 403 (blocked) and marks the user via API.
  * Returns the message_id of the sent message.
@@ -23,19 +47,29 @@ export async function sendDashboardMessage(
   text: string,
   logger: Logger,
 ): Promise<number | null> {
-  try {
-    const result = await api.sendMessage(chatId, text, {
-      parse_mode: 'MarkdownV2',
-      link_preview_options: { is_disabled: true },
-      disable_notification: true,
-    });
-    return result.message_id;
-  } catch (error) {
-    if (isBlockedError(error)) {
-      await handleBlockedUser(telegramId, logger);
-    }
-    return null;
-  }
+  return sendTelegramMessage(api, chatId, telegramId, text, logger, {
+    parse_mode: 'MarkdownV2',
+    link_preview_options: { is_disabled: true },
+    disable_notification: true,
+  });
+}
+
+/**
+ * Send a notification message to a Telegram chat.
+ * Returns true when delivery succeeded.
+ */
+export async function sendNotificationMessage(
+  api: Api<RawApi>,
+  chatId: number,
+  telegramId: string,
+  text: string,
+  logger: Logger,
+): Promise<boolean> {
+  const messageId = await sendTelegramMessage(api, chatId, telegramId, text, logger, {
+    link_preview_options: { is_disabled: true },
+  });
+
+  return messageId !== null;
 }
 
 /**

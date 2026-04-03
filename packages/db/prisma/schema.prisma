@@ -475,8 +475,31 @@ model User {
   createdAt          DateTime                 @default(now()) @map("created_at")
   clusters           Cluster[]
   feeRewardAddresses UserToFeeRewardAddress[] @relation("user_to_fee_reward_address")
+  notifications      NotificationQueue[]
 
   @@map("user")
+}
+
+/**
+ * NotificationQueue - one pending or delivered notification per user.
+ *
+ * The queue stores a generic type + payload and keeps delivery state minimal.
+ * Message rendering stays outside the indexer so copy can evolve without
+ * rewriting historical producer logic.
+ */
+model NotificationQueue {
+  id          String    @id @default(cuid()) @map("id")
+  userId      String    @map("user_id")
+  type        String    @map("type") @db.VarChar(100)
+  payload     Json      @map("payload")
+  delivered   Boolean   @default(false) @map("delivered")
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamp
+  deliveredAt DateTime? @map("delivered_at") @db.Timestamp
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, delivered])
+  @@map("notification_queue")
 }
 
 model FeeRewardAddress {
