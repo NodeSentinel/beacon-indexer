@@ -5,7 +5,7 @@ import { countBatchDeliveryResults, splitRecipientsIntoBatches } from './send-ba
 
 import { COMMON_REQUESTS_TELEGRAM_ID, getRpcClientForUser } from '@/src/api/client.js';
 import type { Context } from '@/src/bot/context.js';
-import { sendNotificationMessage } from '@/src/telegram/messaging.js';
+import { sendMessage } from '@/src/telegram/messaging.js';
 
 /**
  * Parses the communication id from the /send_communication command text.
@@ -59,18 +59,21 @@ export async function sendCommunicationHandler(ctx: CommandContext<Context>) {
   // Send each batch concurrently while keeping the overall broadcast flow easy to follow.
   for (const recipientBatch of splitRecipientsIntoBatches(communication.recipients, 10)) {
     const deliveryResults = await Promise.allSettled(
-      recipientBatch.map((telegramId) =>
-        sendNotificationMessage(
-          ctx.api,
-          Number(telegramId),
+      recipientBatch.map(async (telegramId) => {
+        const messageId = await sendMessage({
+          api: ctx.api,
+          chatId: Number(telegramId),
           telegramId,
-          communication.message,
-          ctx.logger,
-          {
+          text: communication.message,
+          logger: ctx.logger,
+          options: {
+            link_preview_options: { is_disabled: true },
             reply_markup: dismissKeyboard,
           },
-        ),
-      ),
+        });
+
+        return messageId !== null;
+      }),
     );
 
     // Count each settled result so rejected sends still produce a partial batch outcome.

@@ -3,7 +3,7 @@ import type { Api, RawApi } from 'grammy';
 import { COMMON_REQUESTS_TELEGRAM_ID, getRpcClientForUser } from '@/src/api/client.js';
 import type { Logger } from '@/src/logger.js';
 import { formatNotificationMessage } from '@/src/telegram/format-notification.js';
-import { sendNotificationMessage } from '@/src/telegram/messaging.js';
+import { sendMessage } from '@/src/telegram/messaging.js';
 
 interface BotNotification {
   id: string;
@@ -34,15 +34,18 @@ export async function processNotifications(
     if (!notification.telegramId) continue;
 
     const message = formatNotificationMessage(notification.type, notification.payload);
-    const delivered = await sendNotificationMessage(
+    const messageId = await sendMessage({
       api,
-      Number(notification.telegramId),
-      notification.telegramId,
-      message,
-      log.child({ notificationId: notification.id, type: notification.type }),
-    );
+      chatId: Number(notification.telegramId),
+      telegramId: notification.telegramId,
+      text: message,
+      logger: log.child({ notificationId: notification.id, type: notification.type }),
+      options: {
+        link_preview_options: { is_disabled: true },
+      },
+    });
 
-    if (!delivered) continue;
+    if (messageId === null) continue;
 
     await rpcClient.bot.setNotificationDelivered({ id: notification.id });
   }
