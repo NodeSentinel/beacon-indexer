@@ -36,6 +36,33 @@ export const ClusterIdParamSchema = z.object({
 
 export type ClusterIdParam = z.infer<typeof ClusterIdParamSchema>;
 
+export const ClusterIncidentsInputSchema = ClusterIdParamSchema.extend({
+  page: z.number().int().positive().default(1),
+});
+
+export const ClusterIncidentSchema = z.object({
+  id: z.string(),
+  status: z.enum(['open', 'closed']),
+  openedAt: z.string(),
+  openedSlot: z.number(),
+  openedValidatorIndexes: z.array(z.number()),
+  currentValidatorIndexes: z.array(z.number()),
+  affectedValidatorIndexes: z.array(z.number()),
+  closedAt: z.string().nullable(),
+  closedSlot: z.number().nullable(),
+  durationSlots: z.number().nullable(),
+  durationSeconds: z.number().nullable(),
+  missedAttestations: z.number().nullable(),
+  missedConsensusRewards: z.string().nullable(),
+});
+
+export const ClusterIncidentsResponseSchema = z.object({
+  incidents: z.array(ClusterIncidentSchema),
+  totalCount: z.number(),
+  page: z.number(),
+  pageSize: z.number(),
+});
+
 /**
  * Update cluster input schema
  */
