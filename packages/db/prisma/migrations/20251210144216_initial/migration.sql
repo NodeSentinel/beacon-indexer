@@ -350,16 +350,6 @@ CREATE TABLE "public"."notification_queue" (
 );
 
 -- CreateTable
-CREATE TABLE "public"."notification_state" (
-    "type" VARCHAR(100) NOT NULL,
-    "entity_key" VARCHAR(120) NOT NULL,
-    "last_state" VARCHAR(50) NOT NULL,
-    "updated_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-
-    CONSTRAINT "notification_state_pkey" PRIMARY KEY ("type","entity_key")
-);
-
--- CreateTable
 CREATE TABLE "public"."fee_reward_address" (
     "address" TEXT NOT NULL,
     "user_id" TEXT,
