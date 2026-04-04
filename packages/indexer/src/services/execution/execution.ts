@@ -24,7 +24,7 @@ export interface ExecutionClientConfig {
   executionBlockscoutKey?: string;
   executionEtherscanUrl: string;
   executionEtherscanKey?: string;
-  executionQuicknodeUrl?: string;
+  executionQuicknodeUrl: string;
   executionQuicknodeKey?: string;
   chainId: number;
   slotDuration: number;
@@ -114,78 +114,72 @@ export class ExecutionClient {
         },
       };
 
-      const quicknodeEndpoint = this.config.executionQuicknodeUrl
-        ? {
-            name: 'QuickNode',
-            fetch: async (): Promise<BlockResponse> => {
-              const baseUrl = this.config.executionQuicknodeUrl!.replace(/\/$/, '');
-              const quicknodeUrl = this.config.executionQuicknodeKey
-                ? `${baseUrl}/${this.config.executionQuicknodeKey}`
-                : baseUrl;
-              const hexBlock = `0x${blockNumber.toString(16)}`;
+      const quicknodeEndpoint = {
+        name: 'QuickNode',
+        fetch: async (): Promise<BlockResponse> => {
+          const baseUrl = this.config.executionQuicknodeUrl.replace(/\/$/, '');
+          const quicknodeUrl = this.config.executionQuicknodeKey
+            ? `${baseUrl}/${this.config.executionQuicknodeKey}`
+            : baseUrl;
+          const hexBlock = `0x${blockNumber.toString(16)}`;
 
-              // Single batch JSON-RPC request for block header + receipts
-              const batchRes = await this.axiosInstance.post<
-                [JsonRpcResponse<QuickNode_Block>, JsonRpcResponse<QuickNode_TransactionReceipt[]>]
-              >(quicknodeUrl, [
-                {
-                  jsonrpc: '2.0',
-                  id: 1,
-                  method: 'eth_getBlockByNumber',
-                  params: [hexBlock, false],
-                },
-                { jsonrpc: '2.0', id: 2, method: 'eth_getBlockReceipts', params: [hexBlock] },
-              ]);
-
-              const [blockRpc, receiptsRpc] = batchRes.data;
-
-              if (blockRpc.error) {
-                throw new Error(`QuickNode eth_getBlockByNumber error: ${blockRpc.error.message}`);
-              }
-              if (receiptsRpc.error) {
-                throw new Error(
-                  `QuickNode eth_getBlockReceipts error: ${receiptsRpc.error.message}`,
-                );
-              }
-
-              const block = blockRpc.result;
-              const receipts = receiptsRpc.result;
-
-              if (!block || !receipts) {
-                throw new Error(`QuickNode returned null for block ${blockNumber}`);
-              }
-
-              const baseFee = BigInt(block.baseFeePerGas);
-
-              // Total priority fees = sum of (effectiveGasPrice - baseFeePerGas) * gasUsed
-              let totalPriorityFees = 0n;
-              for (const receipt of receipts) {
-                const effectiveGasPrice = BigInt(receipt.effectiveGasPrice);
-                const gasUsed = BigInt(receipt.gasUsed);
-                const tip = effectiveGasPrice - baseFee;
-                if (tip > 0n) {
-                  totalPriorityFees += tip * gasUsed;
-                }
-              }
-
-              return {
-                address: block.miner,
-                timestamp: new Date(Number(BigInt(block.timestamp)) * 1000),
-                amount: totalPriorityFees.toString(),
-                blockNumber: Number(BigInt(block.number)),
-              };
+          // Single batch JSON-RPC request for block header + receipts
+          const batchRes = await this.axiosInstance.post<
+            [JsonRpcResponse<QuickNode_Block>, JsonRpcResponse<QuickNode_TransactionReceipt[]>]
+          >(quicknodeUrl, [
+            {
+              jsonrpc: '2.0',
+              id: 1,
+              method: 'eth_getBlockByNumber',
+              params: [hexBlock, false],
             },
+            { jsonrpc: '2.0', id: 2, method: 'eth_getBlockReceipts', params: [hexBlock] },
+          ]);
+
+          const [blockRpc, receiptsRpc] = batchRes.data;
+
+          if (blockRpc.error) {
+            throw new Error(`QuickNode eth_getBlockByNumber error: ${blockRpc.error.message}`);
           }
-        : null;
+          if (receiptsRpc.error) {
+            throw new Error(`QuickNode eth_getBlockReceipts error: ${receiptsRpc.error.message}`);
+          }
+
+          const block = blockRpc.result;
+          const receipts = receiptsRpc.result;
+
+          if (!block || !receipts) {
+            throw new Error(`QuickNode returned null for block ${blockNumber}`);
+          }
+
+          const baseFee = BigInt(block.baseFeePerGas);
+
+          // Total priority fees = sum of (effectiveGasPrice - baseFeePerGas) * gasUsed
+          let totalPriorityFees = 0n;
+          for (const receipt of receipts) {
+            const effectiveGasPrice = BigInt(receipt.effectiveGasPrice);
+            const gasUsed = BigInt(receipt.gasUsed);
+            const tip = effectiveGasPrice - baseFee;
+            if (tip > 0n) {
+              totalPriorityFees += tip * gasUsed;
+            }
+          }
+
+          return {
+            address: block.miner,
+            timestamp: new Date(Number(BigInt(block.timestamp)) * 1000),
+            amount: totalPriorityFees.toString(),
+            blockNumber: Number(BigInt(block.number)),
+          };
+        },
+      };
 
       // Gnosis: Blockscout > QuickNode (Etherscan doesn't support getblockreward for Gnosis)
       // Ethereum: Etherscan > Blockscout > QuickNode
       const isGnosis = this.config.chainId === 100;
-      const endpoints = [
-        ...(isGnosis ? [] : [etherscanEndpoint]),
-        blockscoutEndpoint,
-        ...(quicknodeEndpoint ? [quicknodeEndpoint] : []),
-      ];
+      const endpoints = isGnosis
+        ? [quicknodeEndpoint, blockscoutEndpoint]
+        : [etherscanEndpoint, quicknodeEndpoint, blockscoutEndpoint];
 
       // Try all endpoints in sequence, then backoff and retry the full cycle
       return await pRetry(

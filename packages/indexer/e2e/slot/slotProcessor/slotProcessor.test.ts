@@ -101,6 +101,7 @@ describe('Slot Processor E2E Tests', () => {
       const mockExecutionClient = new ExecutionClient({
         executionBlockscoutUrl: 'http://mock-execution',
         executionEtherscanUrl: 'http://mock-execution-backup',
+        executionQuicknodeUrl: 'http://mock-quicknode',
         chainId: gnosisConfig.blockchain.chainId,
         slotDuration: gnosisConfig.beacon.slotDuration,
         requestsPerSecond: 3,
@@ -256,6 +257,7 @@ describe('Slot Processor E2E Tests', () => {
       const mockExecutionClient = new ExecutionClient({
         executionBlockscoutUrl: 'http://mock-execution',
         executionEtherscanUrl: 'http://mock-execution-backup',
+        executionQuicknodeUrl: 'http://mock-quicknode',
         chainId: gnosisConfig.blockchain.chainId,
         slotDuration: gnosisConfig.beacon.slotDuration,
         requestsPerSecond: 3,
@@ -595,6 +597,7 @@ describe('Slot Processor E2E Tests', () => {
       const mockExecutionClient = new ExecutionClient({
         executionBlockscoutUrl: 'http://mock-execution',
         executionEtherscanUrl: 'http://mock-execution-backup',
+        executionQuicknodeUrl: 'http://mock-quicknode',
         chainId: gnosisConfig.blockchain.chainId,
         slotDuration: gnosisConfig.beacon.slotDuration,
         requestsPerSecond: 3,
