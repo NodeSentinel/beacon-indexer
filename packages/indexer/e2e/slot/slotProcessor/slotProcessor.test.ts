@@ -84,7 +84,7 @@ describe('Slot Processor E2E Tests', () => {
       await prisma.validator.deleteMany();
       await prisma.slot.deleteMany();
       await prisma.committee.deleteMany();
-      await prisma.syncCommitteeRewards.deleteMany();
+      await prisma.validatorSyncRewards.deleteMany();
       await prisma.validatorDeposits.deleteMany();
       await prisma.validatorWithdrawals.deleteMany();
       await prisma.validatorWithdrawalsRequests.deleteMany();

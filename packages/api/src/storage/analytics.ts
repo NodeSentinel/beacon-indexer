@@ -96,12 +96,12 @@ export class AnalyticsStorage {
 
     return this.prisma.$queryRawUnsafe<Array<{ epoch: number; sync_reward: bigint }>>(
       `SELECT
-        (scr.slot / ${slotsPerEpoch})::int AS epoch,
-        SUM(scr.sync_committee_reward)::bigint AS sync_reward
-      FROM sync_committee_rewards scr
-      WHERE scr.validator_index = ANY($1::int[])
-        AND scr.slot >= $2
-      GROUP BY (scr.slot / ${slotsPerEpoch})
+        (vsr.slot / ${slotsPerEpoch})::int AS epoch,
+        SUM(vsr.sync_committee)::bigint AS sync_reward
+      FROM validator_sync_rewards vsr
+      WHERE vsr.validator_index = ANY($1::int[])
+        AND vsr.slot >= $2
+      GROUP BY (vsr.slot / ${slotsPerEpoch})
       ORDER BY epoch ASC`,
       validatorIndexes,
       fromSlot,

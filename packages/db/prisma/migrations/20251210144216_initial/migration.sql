@@ -147,15 +147,6 @@ CREATE TABLE "public"."sync_committee" (
     CONSTRAINT "sync_committee_pkey" PRIMARY KEY ("from_epoch","to_epoch")
 );
 
--- CreateTable
-CREATE TABLE "public"."sync_committee_rewards" (
-    "slot" INTEGER NOT NULL,
-    "validator_index" INTEGER NOT NULL,
-    "sync_committee_reward" BIGINT NOT NULL,
-
-    CONSTRAINT "sync_committee_rewards_pkey" PRIMARY KEY ("slot","validator_index")
-);
-
 -- CreateTable (Partitioned by epoch range)
 -- Epoch rewards table is partitioned by epoch number to improve query performance
 -- Partitions are created dynamically per hour when processing epochs

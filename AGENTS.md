@@ -31,3 +31,7 @@ Every end-to-end test must include clear comments explaining what the test does.
 - Inside the test, every significant line or block should have a short comment explaining its purpose.
 
 A developer should be able to fully understand the intent and flow of the test by reading the comments, without having to infer or guess behavior from the code itself.
+
+## GitHub workflow
+
+- When creating pull requests, do **not** prefix the title with `[codex]`.
