@@ -119,6 +119,7 @@ describe('Hourly Archive Process', () => {
 
     // Clean up test data - e2e tests always start with clean instances
     await prisma.$executeRawUnsafe(`DELETE FROM committee`);
+    await prisma.$executeRawUnsafe(`DELETE FROM validator_sync_rewards`);
     await prisma.$executeRawUnsafe(`DELETE FROM slot`);
     await prisma.$executeRawUnsafe(`DELETE FROM epoch_rewards`);
     await prisma.$executeRawUnsafe(`DELETE FROM epoch`);
@@ -239,6 +240,17 @@ describe('Hourly Archive Process', () => {
           validatorIndex: VALIDATOR_2,
           attestationDelay: 0,
         },
+      ],
+    });
+
+    // Sync committee rewards
+    // Validator 100: slot 0 (+1000), slot 1 (-2000)
+    // Validator 200: slot 2 (+3000)
+    await prisma.validatorSyncRewards.createMany({
+      data: [
+        { slot: testSlots[0], validatorIndex: VALIDATOR_1, syncCommittee: BigInt(1000) },
+        { slot: testSlots[1], validatorIndex: VALIDATOR_1, syncCommittee: BigInt(-2000) },
+        { slot: testSlots[2], validatorIndex: VALIDATOR_2, syncCommittee: BigInt(3000) },
       ],
     });
 
@@ -377,8 +389,9 @@ describe('Hourly Archive Process', () => {
     // Missed count should be 2 (slots with delay 6 and NULL)
     expect(validator100.missedAttestationCount).toBe(2);
 
-    // Rewards: sync is temporarily disabled, exec=7000 (from slot 0), block=5000 (from slot 1)
-    expect(validator100.syncRewardTotal).toBe(BigInt(0));
+    // Rewards: sync earned=1000 (slot 0), sync missed=2000 (slot 1), exec=7000, block=5000
+    expect(validator100.syncRewardTotal).toBe(BigInt(1000));
+    expect(validator100.syncMissedRewardTotal).toBe(BigInt(2000));
     expect(validator100.execRewardTotal?.toString()).toBe('7000');
     expect(validator100.blockRewardTotal).toBe(BigInt(5000));
 
@@ -394,8 +407,9 @@ describe('Hourly Archive Process', () => {
     expect(validator200.attestationCount).toBe(4);
     expect(validator200.missedAttestationCount).toBeNull(); // NULL when 0 for storage optimization
 
-    // Rewards: sync is temporarily disabled, exec=8000 (from slot 2), block=6000 (from slot 3)
-    expect(validator200.syncRewardTotal).toBe(BigInt(0));
+    // Rewards: sync earned=3000 (slot 2), exec=8000 (slot 2), block=6000 (slot 3)
+    expect(validator200.syncRewardTotal).toBe(BigInt(3000));
+    expect(validator200.syncMissedRewardTotal).toBe(BigInt(0));
     expect(validator200.execRewardTotal?.toString()).toBe('8000');
     expect(validator200.blockRewardTotal).toBe(BigInt(6000));
 
@@ -410,11 +424,11 @@ describe('Hourly Archive Process', () => {
     const validator100Slots = validator100.dataBySlot as Array<(number | string)[]>;
     expect(validator100Slots.length).toBe(4);
 
-    // slot 0: proposer (exec_reward=7000), sync disabled → 5 elements with sync=0
-    expect(validator100Slots[0]).toEqual([testSlots[0], 0, '0', '7000', '0']);
+    // slot 0: proposer (exec_reward=7000), positive sync → 5 elements
+    expect(validator100Slots[0]).toEqual([testSlots[0], 0, '1000', '7000', '0']);
 
-    // slot 1: proposer (block_reward=5000), sync disabled → 5 elements with sync=0
-    expect(validator100Slots[1]).toEqual([testSlots[1], 3, '0', '0', '5000']);
+    // slot 1: proposer (block_reward=5000), negative sync → 5 elements
+    expect(validator100Slots[1]).toEqual([testSlots[1], 3, '-2000', '0', '5000']);
 
     // slot 2: no sync, no proposer → 2 elements
     expect(validator100Slots[2]).toEqual([testSlots[2], 6]);
@@ -432,6 +446,21 @@ describe('Hourly Archive Process', () => {
     expect(validator100Epochs[0][2]).toBe('200'); // target
     expect(validator100Epochs[0][3]).toBe('300'); // source
     expect(validator100Epochs[0][4]).toBe('50'); // inactivity
+
+    const validator200Slots = validator200.dataBySlot as Array<(number | string)[]>;
+    expect(validator200Slots[2]).toEqual([testSlots[2], 1, '3000', '8000', '0']);
+    expect(validator200Slots[3]).toEqual([testSlots[3], 0, '0', '0', '6000']);
+
+    // Step 4b: Verify archived raw sync rewards were deleted for the summarized slots
+    const remainingSyncRewards = await prisma.validatorSyncRewards.findMany({
+      where: {
+        slot: {
+          gte: testSlots[0],
+          lte: testSlots[3],
+        },
+      },
+    });
+    expect(remainingSyncRewards).toHaveLength(0);
 
     // Step 5: Verify partitions were dropped and archive partition was created
     const committeePartitionsAfter = await partitionStorage.discoverPartitions(
@@ -576,6 +605,7 @@ describe('Hourly Archive Process', () => {
 
     // But rewards should still be aggregated correctly
     expect(validator300!.syncRewardTotal).toBe(BigInt(0));
+    expect(validator300!.syncMissedRewardTotal).toBe(BigInt(0));
     expect(validator300!.blockRewardTotal).toBe(BigInt(10000));
     expect(validator300!.execRewardTotal?.toString()).toBe('15000');
     expect(validator300!.clRewardTotal).toBe(BigInt(6500)); // 1000+2000+3000+500

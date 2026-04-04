@@ -189,7 +189,8 @@ export class SnapshotStorage {
         sync_rew AS (
           SELECT
             vsr.validator_index,
-            SUM(vsr.sync_committee)::bigint AS sync_reward
+            SUM(CASE WHEN vsr.sync_committee > 0 THEN vsr.sync_committee ELSE 0 END)::bigint AS sync_reward,
+            SUM(CASE WHEN vsr.sync_committee < 0 THEN -vsr.sync_committee ELSE 0 END)::bigint AS sync_missed_reward
           FROM validator_sync_rewards vsr
           JOIN user_validators uv ON vsr.validator_index = uv.validator_index
           WHERE vsr.slot BETWEEN ${minSlot}::int AND ${maxSlot}::int
@@ -228,7 +229,7 @@ export class SnapshotStorage {
             COALESCE(a.missed, 0)::int AS missed_attestation_count_h,
             COALESCE(a.missed_slots, '{}') AS missed_attestation_slots_h,
             COALESCE(r.epoch_reward, 0) + COALESCE(sr.sync_reward, 0) + COALESCE(br.block_reward, 0) AS consensus_reward,
-            r.missed_reward,
+            COALESCE(r.missed_reward, 0) + COALESCE(sr.sync_missed_reward, 0) AS missed_reward,
             e.execution_reward,
             CASE WHEN v.balance > 0 AND (r.epoch_reward IS NOT NULL OR sr.sync_reward IS NOT NULL OR br.block_reward IS NOT NULL)
               THEN ((COALESCE(r.epoch_reward, 0) + COALESCE(sr.sync_reward, 0) + COALESCE(br.block_reward, 0))::numeric / v.balance * 8766 * 100)::numeric
@@ -346,7 +347,7 @@ export class SnapshotStorage {
           SELECT
             vha.validator_index,
             SUM(vha.cl_reward_total) + SUM(COALESCE(vha.sync_reward_total, 0)) + SUM(COALESCE(vha.block_reward_total, 0)) AS consensus_reward,
-            SUM(vha.cl_missed_reward_total) AS missed_reward,
+            SUM(vha.cl_missed_reward_total) + SUM(COALESCE(vha.sync_missed_reward_total, 0)) AS missed_reward,
             SUM(COALESCE(vha.exec_reward_total, 0)) AS execution_reward,
             SUM(vha.attestation_count + COALESCE(vha.missed_attestation_count, 0))::bigint AS att_count,
             SUM(COALESCE(vha.missed_attestation_count, 0))::bigint AS missed_att_count,
@@ -397,7 +398,8 @@ export class SnapshotStorage {
         live_sync AS (
           SELECT
             vsr.validator_index,
-            SUM(vsr.sync_committee)::bigint AS sync_reward
+            SUM(CASE WHEN vsr.sync_committee > 0 THEN vsr.sync_committee ELSE 0 END)::bigint AS sync_reward,
+            SUM(CASE WHEN vsr.sync_committee < 0 THEN -vsr.sync_committee ELSE 0 END)::bigint AS sync_missed_reward
           FROM validator_sync_rewards vsr
           JOIN target_validators tv ON vsr.validator_index = tv.validator_index
           CROSS JOIN slot_bounds sb
@@ -437,7 +439,7 @@ export class SnapshotStorage {
           SELECT
             COALESCE(la.validator_index, lr.validator_index) AS validator_index,
             COALESCE(lr.epoch_reward, 0) + COALESCE(ls.sync_reward, 0) + COALESCE(lb.block_reward, 0) AS consensus_reward,
-            COALESCE(lr.missed_reward, 0) AS missed_reward,
+            COALESCE(lr.missed_reward, 0) + COALESCE(ls.sync_missed_reward, 0) AS missed_reward,
             COALESCE(le.execution_reward, 0) AS execution_reward,
             COALESCE(la.att_count, 0)::bigint AS att_count,
             COALESCE(la.missed_att_count, 0)::bigint AS missed_att_count,
@@ -546,7 +548,7 @@ export class SnapshotStorage {
             SUM(vda.attestation_count + COALESCE(vda.missed_attestation_count, 0)) AS att_count,
             SUM(COALESCE(vda.missed_attestation_count, 0)) AS missed_att_count,
             SUM(vda.cl_reward_total) + SUM(COALESCE(vda.sync_reward_total, 0)) + SUM(COALESCE(vda.block_reward_total, 0)) AS consensus_reward,
-            SUM(vda.cl_missed_reward_total) AS missed_reward,
+            SUM(vda.cl_missed_reward_total) + SUM(COALESCE(vda.sync_missed_reward_total, 0)) AS missed_reward,
             SUM(COALESCE(vda.exec_reward_total, 0)) AS execution_reward,
             (SUM(vda.avg_attestation_delay * vda.attestation_count) / NULLIF(SUM(CASE WHEN vda.avg_attestation_delay IS NOT NULL THEN vda.attestation_count ELSE 0 END), 0))::real AS avg_att_delay,
             (SUM(vda.attestation_efficiency * vda.attestation_count) / NULLIF(SUM(CASE WHEN vda.attestation_efficiency IS NOT NULL THEN vda.attestation_count ELSE 0 END), 0))::real AS att_efficiency
@@ -627,7 +629,7 @@ export class SnapshotStorage {
             SUM(vda.attestation_count + COALESCE(vda.missed_attestation_count, 0)) AS att_count,
             SUM(COALESCE(vda.missed_attestation_count, 0)) AS missed_att_count,
             SUM(vda.cl_reward_total) + SUM(COALESCE(vda.sync_reward_total, 0)) + SUM(COALESCE(vda.block_reward_total, 0)) AS consensus_reward,
-            SUM(vda.cl_missed_reward_total) AS missed_reward,
+            SUM(vda.cl_missed_reward_total) + SUM(COALESCE(vda.sync_missed_reward_total, 0)) AS missed_reward,
             SUM(COALESCE(vda.exec_reward_total, 0)) AS execution_reward,
             (SUM(vda.avg_attestation_delay * vda.attestation_count) / NULLIF(SUM(CASE WHEN vda.avg_attestation_delay IS NOT NULL THEN vda.attestation_count ELSE 0 END), 0))::real AS avg_att_delay,
             (SUM(vda.attestation_efficiency * vda.attestation_count) / NULLIF(SUM(CASE WHEN vda.attestation_efficiency IS NOT NULL THEN vda.attestation_count ELSE 0 END), 0))::real AS att_efficiency

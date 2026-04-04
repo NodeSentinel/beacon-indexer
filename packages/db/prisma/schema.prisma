@@ -231,7 +231,7 @@ model ValidatorHourlyArchive {
   //   Positions: [slot, attDelay, syncReward?, execReward?, blockReward?]
   //     idx 0 - slot: number (absolute slot number)
   //     idx 1 - attDelay: number (-1 if no attestation info, otherwise delay in slots)
-  //     idx 2 - syncReward: string (decimal) — omitted (with trailing fields) if "0"
+  //     idx 2 - syncReward: string (decimal, signed) — omitted (with trailing fields) if "0"
   //     idx 3 - execReward: string (decimal) — only present when validator proposed a block
   //     idx 4 - blockReward: string (decimal) — only present when validator proposed a block
   //   Trailing zeros are stripped; missing elements are implicitly "0".
@@ -278,7 +278,8 @@ model ValidatorHourlyArchive {
   // Aggregate columns for fast queries without JSON parsing
   attestationCount       Int      @default(0) @map("attestation_count") @db.SmallInt // Total attestations in this hour
   missedAttestationCount Int?     @map("missed_attestation_count") @db.SmallInt // Attestations with delay > threshold or null (NULL if 0)
-  syncRewardTotal        BigInt   @default(0) @map("sync_reward_total") // Sum of sync committee rewards
+  syncRewardTotal        BigInt   @default(0) @map("sync_reward_total") // Sum of positive sync committee rewards
+  syncMissedRewardTotal  BigInt   @default(0) @map("sync_missed_reward_total") // Sum of missed sync committee rewards (stored as positive magnitude)
   execRewardTotal        Decimal? @map("exec_reward_total") @db.Decimal(78, 0) // wei (integer, no decimals) - NULL if 0
   blockRewardTotal       BigInt?  @map("block_reward_total") // Sum of block proposal rewards - NULL if 0
   clRewardTotal          BigInt   @default(0) @map("cl_reward_total") // Sum of consensus layer rewards (head+target+source+inactivity)
@@ -309,6 +310,7 @@ model ValidatorDailyArchive {
   attestationCount       Int      @default(0) @map("attestation_count") @db.SmallInt
   missedAttestationCount Int?     @map("missed_attestation_count") @db.SmallInt
   syncRewardTotal        BigInt   @default(0) @map("sync_reward_total")
+  syncMissedRewardTotal  BigInt   @default(0) @map("sync_missed_reward_total")
   execRewardTotal        Decimal? @map("exec_reward_total") @db.Decimal(78, 0)
   blockRewardTotal       BigInt?  @map("block_reward_total")
   clRewardTotal          BigInt   @default(0) @map("cl_reward_total")
@@ -339,6 +341,7 @@ model ValidatorMonthlyArchive {
   attestationCount       Int      @default(0) @map("attestation_count") @db.SmallInt
   missedAttestationCount Int?     @map("missed_attestation_count") @db.SmallInt
   syncRewardTotal        BigInt   @default(0) @map("sync_reward_total")
+  syncMissedRewardTotal  BigInt   @default(0) @map("sync_missed_reward_total")
   execRewardTotal        Decimal? @map("exec_reward_total") @db.Decimal(78, 0)
   blockRewardTotal       BigInt?  @map("block_reward_total")
   clRewardTotal          BigInt   @default(0) @map("cl_reward_total")
