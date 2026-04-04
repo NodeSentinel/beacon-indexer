@@ -692,36 +692,6 @@ export class SlotStorage {
   }
 
   /**
-   * Get sync committee rewards for a validator in a specific datetime (hour)
-   * Returns all rewards for the validator in that hour
-   */
-  async getSyncCommitteeRewardsForValidator(validatorIndex: number, datetime: Date) {
-    // Get all slots in that hour by checking slot timestamps
-    // We need to find slots that fall within the hour window
-    const startOfHour = new Date(datetime);
-    startOfHour.setUTCMinutes(0);
-    startOfHour.setUTCSeconds(0);
-    startOfHour.setUTCMilliseconds(0);
-    const endOfHour = new Date(startOfHour);
-    endOfHour.setUTCHours(endOfHour.getUTCHours() + 1);
-
-    // Get all sync committee rewards for this validator in slots within the hour
-    // Note: This requires calculating which slots fall in the hour based on genesis timestamp
-    // For now, we'll query by getting all rewards for the validator and filtering by slot
-    // This is a simplified approach - in production you'd calculate slot ranges from datetime
-    return this.prisma.syncCommitteeRewards.findMany({
-      where: {
-        validatorIndex,
-        // Note: We would need slot timestamps to filter properly by hour
-        // This is a placeholder - actual implementation would need slot time calculation
-      },
-      orderBy: {
-        slot: 'asc',
-      },
-    });
-  }
-
-  /**
    * Get sync committee rewards for a validator in slots within a datetime range
    * This is a helper method that takes slot numbers directly
    */

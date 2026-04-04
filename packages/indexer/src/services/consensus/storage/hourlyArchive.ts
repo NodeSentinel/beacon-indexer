@@ -139,12 +139,12 @@ export class HourlyArchiveStorage {
             ),
 
             sync_rewards AS (
+              -- Sync rewards are temporarily disabled here until historical backfill completes.
               SELECT
-                validator_index,
-                slot,
-                sync_committee_reward
-              FROM sync_committee_rewards
-              WHERE slot >= ${startSlot}::int AND slot <= ${endSlot}::int
+                NULL::int AS validator_index,
+                NULL::int AS slot,
+                NULL::bigint AS sync_committee_reward
+              WHERE FALSE
             ),
 
             block_rewards AS (

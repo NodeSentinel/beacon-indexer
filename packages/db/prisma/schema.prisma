@@ -114,15 +114,6 @@ model SyncCommittee {
   @@map("sync_committee")
 }
 
-model syncCommitteeRewards {
-  slot                Int    @map("slot")
-  validatorIndex      Int    @map("validator_index")
-  syncCommitteeReward BigInt @map("sync_committee_reward")
-
-  @@id([slot, validatorIndex])
-  @@map("sync_committee_rewards")
-}
-
 model epochRewards {
   // ─────────────────────────────────────────────────────────────────────────────
   // PARTITIONING

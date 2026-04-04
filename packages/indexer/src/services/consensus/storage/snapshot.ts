@@ -188,12 +188,12 @@ export class SnapshotStorage {
         ),
         sync_rew AS (
           SELECT
-            scr.validator_index,
-            SUM(scr.sync_committee_reward) AS sync_reward
-          FROM sync_committee_rewards scr
-          JOIN user_validators uv ON scr.validator_index = uv.validator_index
-          WHERE scr.slot BETWEEN ${minSlot}::int AND ${maxSlot}::int
-          GROUP BY scr.validator_index
+            vsr.validator_index,
+            SUM(vsr.sync_committee) AS sync_reward
+          FROM validator_sync_rewards vsr
+          JOIN user_validators uv ON vsr.validator_index = uv.validator_index
+          WHERE vsr.slot BETWEEN ${minSlot}::int AND ${maxSlot}::int
+          GROUP BY vsr.validator_index
         ),
         block_rew AS (
           SELECT
@@ -264,7 +264,7 @@ export class SnapshotStorage {
    * Reads archive.lastHour to determine the boundary between archived and live data,
    * then combines both sources in a single atomic query:
    * - Archived hours from validator_hourly_archive (up to lastHour)
-   * - Live hours from committee/epoch_rewards/sync_committee_rewards/slot (complete hours only)
+   * - Live hours from committee/epoch_rewards/validator_sync_rewards/slot (complete hours only)
    *
    * Chain params are needed to convert timestamps to slot/epoch ranges in SQL.
    */
@@ -396,14 +396,14 @@ export class SnapshotStorage {
 
         live_sync AS (
           SELECT
-            scr.validator_index,
-            SUM(scr.sync_committee_reward) AS sync_reward
-          FROM sync_committee_rewards scr
-          JOIN target_validators tv ON scr.validator_index = tv.validator_index
+            vsr.validator_index,
+            SUM(vsr.sync_committee) AS sync_reward
+          FROM validator_sync_rewards vsr
+          JOIN target_validators tv ON vsr.validator_index = tv.validator_index
           CROSS JOIN slot_bounds sb
           WHERE sb.live_hours > 0
-            AND scr.slot BETWEEN sb.live_start_slot AND sb.live_end_slot
-          GROUP BY scr.validator_index
+            AND vsr.slot BETWEEN sb.live_start_slot AND sb.live_end_slot
+          GROUP BY vsr.validator_index
         ),
 
         live_block AS (
