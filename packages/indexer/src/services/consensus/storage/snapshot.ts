@@ -189,7 +189,7 @@ export class SnapshotStorage {
         sync_rew AS (
           SELECT
             vsr.validator_index,
-            SUM(vsr.sync_committee) AS sync_reward
+            SUM(vsr.sync_committee)::bigint AS sync_reward
           FROM validator_sync_rewards vsr
           JOIN user_validators uv ON vsr.validator_index = uv.validator_index
           WHERE vsr.slot BETWEEN ${minSlot}::int AND ${maxSlot}::int
@@ -397,7 +397,7 @@ export class SnapshotStorage {
         live_sync AS (
           SELECT
             vsr.validator_index,
-            SUM(vsr.sync_committee) AS sync_reward
+            SUM(vsr.sync_committee)::bigint AS sync_reward
           FROM validator_sync_rewards vsr
           JOIN target_validators tv ON vsr.validator_index = tv.validator_index
           CROSS JOIN slot_bounds sb
