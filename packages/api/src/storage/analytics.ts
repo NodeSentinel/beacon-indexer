@@ -91,13 +91,16 @@ export class AnalyticsStorage {
     validatorIndexes: number[],
     fromSlot: number,
     slotsPerEpoch: number,
-  ): Promise<Array<{ epoch: number; sync_reward: bigint }>> {
+  ): Promise<Array<{ epoch: number; sync_reward: bigint; sync_missed: bigint }>> {
     if (validatorIndexes.length === 0) return [];
 
-    return this.prisma.$queryRawUnsafe<Array<{ epoch: number; sync_reward: bigint }>>(
+    return this.prisma.$queryRawUnsafe<
+      Array<{ epoch: number; sync_reward: bigint; sync_missed: bigint }>
+    >(
       `SELECT
         (vsr.slot / ${slotsPerEpoch})::int AS epoch,
-        SUM(vsr.sync_committee)::bigint AS sync_reward
+        SUM(CASE WHEN vsr.sync_committee > 0 THEN vsr.sync_committee ELSE 0 END)::bigint AS sync_reward,
+        SUM(CASE WHEN vsr.sync_committee < 0 THEN -vsr.sync_committee ELSE 0 END)::bigint AS sync_missed
       FROM validator_sync_rewards vsr
       WHERE vsr.validator_index = ANY($1::int[])
         AND vsr.slot >= $2
@@ -150,6 +153,7 @@ export class AnalyticsStorage {
       cl_reward: bigint;
       cl_missed: bigint;
       sync_reward: bigint;
+      sync_missed: bigint;
       block_reward: bigint;
       exec_reward: bigint;
     }>
@@ -162,6 +166,7 @@ export class AnalyticsStorage {
         cl_reward: bigint;
         cl_missed: bigint;
         sync_reward: bigint;
+        sync_missed: bigint;
         block_reward: bigint;
         exec_reward: bigint;
       }>
@@ -171,6 +176,7 @@ export class AnalyticsStorage {
         SUM(vha.cl_reward_total)::bigint AS cl_reward,
         SUM(vha.cl_missed_reward_total)::bigint AS cl_missed,
         SUM(vha.sync_reward_total)::bigint AS sync_reward,
+        SUM(vha.sync_missed_reward_total)::bigint AS sync_missed,
         COALESCE(SUM(vha.block_reward_total), 0)::bigint AS block_reward,
         COALESCE(SUM(vha.exec_reward_total), 0)::bigint AS exec_reward
       FROM validator_hourly_archive vha

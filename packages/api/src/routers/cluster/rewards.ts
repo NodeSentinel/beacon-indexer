@@ -24,8 +24,10 @@ type RewardItem = {
   target: string;
   source: string;
   inactivity: string;
-  syncCommittee: string;
+  sync: string;
   missed: string;
+  clMissed: string;
+  syncMissed: string;
   blockConsensus: string;
   blockExecution: string;
 };
@@ -55,8 +57,10 @@ async function fetchRewards(
     ]);
 
     const syncByEpoch = new Map<number, bigint>();
+    const syncMissedByEpoch = new Map<number, bigint>();
     for (const row of syncRows) {
       syncByEpoch.set(row.epoch, row.sync_reward);
+      syncMissedByEpoch.set(row.epoch, row.sync_missed);
     }
     const blockByEpoch = new Map<number, { consensus: bigint; execution: bigint }>();
     for (const row of blockRows) {
@@ -79,6 +83,7 @@ async function fetchRewards(
       .map((epoch) => {
         const er = epochByEpoch.get(epoch);
         const syncReward = syncByEpoch.get(epoch) ?? BigInt(0);
+        const syncMissed = syncMissedByEpoch.get(epoch) ?? BigInt(0);
         const block = blockByEpoch.get(epoch);
         const timestamp = new Date(beaconTime.getTimestampFromEpochNumber(epoch)).toISOString();
 
@@ -88,8 +93,10 @@ async function fetchRewards(
           target: formatBalance(er?.target),
           source: formatBalance(er?.source),
           inactivity: formatBalance(er?.inactivity),
-          syncCommittee: formatBalance(syncReward),
-          missed: formatBalance(er?.missed),
+          sync: formatBalance(syncReward),
+          missed: formatBalance((er?.missed ?? BigInt(0)) + syncMissed),
+          clMissed: formatBalance(er?.missed),
+          syncMissed: formatBalance(syncMissed),
           blockConsensus: formatBalance(block?.consensus),
           // execution_reward is in wei of native EL token (xDAI/ETH)
           blockExecution: formatWeiToToken(block?.execution ?? BigInt(0)),
@@ -108,8 +115,10 @@ async function fetchRewards(
     target: '0',
     source: formatBalance(row.cl_reward),
     inactivity: '0',
-    syncCommittee: formatBalance(row.sync_reward),
-    missed: formatBalance(row.cl_missed),
+    sync: formatBalance(row.sync_reward),
+    missed: formatBalance(row.cl_missed + row.sync_missed),
+    clMissed: formatBalance(row.cl_missed),
+    syncMissed: formatBalance(row.sync_missed),
     blockConsensus: formatBalance(row.block_reward),
     blockExecution: formatWeiToToken(row.exec_reward ?? BigInt(0)),
   }));

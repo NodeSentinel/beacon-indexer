@@ -50,9 +50,13 @@ export const RewardItemSchema = z.object({
   source: z.string(),
   inactivity: z.string(),
   /** Sync committee rewards (in token: GNO or ETH) */
-  syncCommittee: z.string(),
-  /** Sum of missed CL rewards (in token: GNO or ETH) */
+  sync: z.string(),
+  /** Sum of missed rewards (CL + sync missed) in token units */
   missed: z.string(),
+  /** Sum of missed CL rewards (in token: GNO or ETH) */
+  clMissed: z.string(),
+  /** Sum of missed sync rewards (in token: GNO or ETH) */
+  syncMissed: z.string(),
   /** Block proposal consensus reward (in token: GNO or ETH) */
   blockConsensus: z.string(),
   /** Block proposal execution reward (in native EL token: xDAI or ETH) */

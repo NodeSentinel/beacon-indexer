@@ -86,6 +86,7 @@ describe('Daily Archive Process', () => {
       attestationCount: number;
       missedAttestationCount?: number | null;
       syncRewardTotal: bigint;
+      syncMissedRewardTotal?: bigint;
       execRewardTotal?: string | null;
       blockRewardTotal?: bigint | null;
       clRewardTotal: bigint;
@@ -109,6 +110,7 @@ describe('Daily Archive Process', () => {
         attestationCount: r.attestationCount,
         missedAttestationCount: r.missedAttestationCount ?? null,
         syncRewardTotal: r.syncRewardTotal,
+        syncMissedRewardTotal: r.syncMissedRewardTotal ?? BigInt(0),
         execRewardTotal: r.execRewardTotal ?? null,
         blockRewardTotal: r.blockRewardTotal ?? null,
         clRewardTotal: r.clRewardTotal,
@@ -144,6 +146,7 @@ describe('Daily Archive Process', () => {
           dataByEpoch: [[epoch, '50', '60', '70', '10', '5', '3', '2', '1']],
           attestationCount: 1,
           syncRewardTotal: BigInt(200),
+          syncMissedRewardTotal: BigInt(25),
           clRewardTotal: BigInt(190), // 50+60+70+10
           clMissedRewardTotal: BigInt(11), // 5+3+2+1
         },
@@ -203,6 +206,7 @@ describe('Daily Archive Process', () => {
     expect(v1.attestationCount).toBe(24);
     expect(v1.missedAttestationCount).toBeNull(); // all NULL → SUM=0 → NULLIF=null
     expect(v1.syncRewardTotal).toBe(BigInt(2400)); // 24 × 100
+    expect(v1.syncMissedRewardTotal).toBe(BigInt(0));
     expect(v1.clRewardTotal).toBe(BigInt(1560)); // 24 × 65
     expect(v1.clMissedRewardTotal).toBe(BigInt(0));
 
@@ -211,6 +215,7 @@ describe('Daily Archive Process', () => {
     expect(v2).toBeDefined();
     expect(v2.attestationCount).toBe(24);
     expect(v2.syncRewardTotal).toBe(BigInt(4800)); // 24 × 200
+    expect(v2.syncMissedRewardTotal).toBe(BigInt(600)); // 24 × 25
     expect(v2.clRewardTotal).toBe(BigInt(4560)); // 24 × 190
     expect(v2.clMissedRewardTotal).toBe(BigInt(264)); // 24 × 11
 

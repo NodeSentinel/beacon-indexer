@@ -139,12 +139,12 @@ export class HourlyArchiveStorage {
             ),
 
             sync_rewards AS (
-              -- Sync rewards are temporarily disabled here until historical backfill completes.
               SELECT
-                NULL::int AS validator_index,
-                NULL::int AS slot,
-                NULL::bigint AS sync_committee_reward
-              WHERE FALSE
+                vsr.validator_index,
+                vsr.slot,
+                vsr.sync_committee AS sync_committee_reward
+              FROM validator_sync_rewards vsr
+              WHERE vsr.slot >= ${startSlot}::int AND vsr.slot <= ${endSlot}::int
             ),
 
             block_rewards AS (
@@ -234,7 +234,14 @@ export class HourlyArchiveStorage {
                   END
                   ORDER BY slot
                 ) AS data_by_slot,
-                COALESCE(SUM(sync_reward), 0) AS sync_reward_total,
+                COALESCE(
+                  SUM(CASE WHEN sync_reward > 0 THEN sync_reward ELSE 0 END),
+                  0
+                ) AS sync_reward_total,
+                COALESCE(
+                  SUM(CASE WHEN sync_reward < 0 THEN -sync_reward ELSE 0 END),
+                  0
+                ) AS sync_missed_reward_total,
                 NULLIF(SUM(exec_reward), 0::numeric) AS exec_reward_total,
                 NULLIF(SUM(block_reward), 0) AS block_reward_total
               FROM slot_data
@@ -287,6 +294,7 @@ export class HourlyArchiveStorage {
             attestation_count,
             missed_attestation_count,
             sync_reward_total,
+            sync_missed_reward_total,
             exec_reward_total,
             block_reward_total,
             cl_reward_total,
@@ -302,6 +310,7 @@ export class HourlyArchiveStorage {
             COALESCE(aa.attestation_count, 0)::smallint AS attestation_count,
             NULLIF(COALESCE(aa.missed_attestation_count, 0), 0)::smallint AS missed_attestation_count,
             COALESCE(sa.sync_reward_total, 0) AS sync_reward_total,
+            COALESCE(sa.sync_missed_reward_total, 0) AS sync_missed_reward_total,
             sa.exec_reward_total,
             sa.block_reward_total,
             COALESCE(ej.cl_reward_total, 0) AS cl_reward_total,
@@ -311,6 +320,12 @@ export class HourlyArchiveStorage {
           FROM slot_agg sa
           FULL OUTER JOIN epoch_json ej ON sa.validator_index = ej.validator_index
           LEFT JOIN attestation_agg aa ON COALESCE(sa.validator_index, ej.validator_index) = aa.validator_index
+        `;
+
+        await tx.$executeRaw`
+          DELETE FROM validator_sync_rewards
+          WHERE slot >= ${startSlot}::int
+            AND slot <= ${endSlot}::int
         `;
 
         // Drop committee partition
