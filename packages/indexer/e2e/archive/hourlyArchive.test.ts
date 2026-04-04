@@ -377,7 +377,7 @@ describe('Hourly Archive Process', () => {
     // Missed count should be 2 (slots with delay 6 and NULL)
     expect(validator100.missedAttestationCount).toBe(2);
 
-    // Rewards: sync=3000 (1000+2000 from slots 0,1), exec=7000 (from slot 0), block=5000 (from slot 1)
+    // Rewards: sync is temporarily disabled, exec=7000 (from slot 0), block=5000 (from slot 1)
     expect(validator100.syncRewardTotal).toBe(BigInt(0));
     expect(validator100.execRewardTotal?.toString()).toBe('7000');
     expect(validator100.blockRewardTotal).toBe(BigInt(5000));
@@ -394,7 +394,7 @@ describe('Hourly Archive Process', () => {
     expect(validator200.attestationCount).toBe(4);
     expect(validator200.missedAttestationCount).toBeNull(); // NULL when 0 for storage optimization
 
-    // Rewards: sync=3000 (from slot 2), exec=8000 (from slot 2), block=6000 (from slot 3)
+    // Rewards: sync is temporarily disabled, exec=8000 (from slot 2), block=6000 (from slot 3)
     expect(validator200.syncRewardTotal).toBe(BigInt(0));
     expect(validator200.execRewardTotal?.toString()).toBe('8000');
     expect(validator200.blockRewardTotal).toBe(BigInt(6000));
@@ -406,15 +406,15 @@ describe('Hourly Archive Process', () => {
 
     // Verify JSON data structures
     // Validator 100: data_by_slot should have 4 entries with variable-length tuples
-    // Proposer slots → 5 elements, sync-only → 3, attestation-only → 2
+    // Proposer slots → 5 elements, attestation-only → 2
     const validator100Slots = validator100.dataBySlot as Array<(number | string)[]>;
     expect(validator100Slots.length).toBe(4);
 
-    // slot 0: proposer (exec_reward=7000), sync=1000 → 5 elements
-    expect(validator100Slots[0]).toEqual([testSlots[0], 0, '1000', '7000', '0']);
+    // slot 0: proposer (exec_reward=7000), sync disabled → 5 elements with sync=0
+    expect(validator100Slots[0]).toEqual([testSlots[0], 0, '0', '7000', '0']);
 
-    // slot 1: proposer (block_reward=5000), sync=2000 → 5 elements
-    expect(validator100Slots[1]).toEqual([testSlots[1], 3, '2000', '0', '5000']);
+    // slot 1: proposer (block_reward=5000), sync disabled → 5 elements with sync=0
+    expect(validator100Slots[1]).toEqual([testSlots[1], 3, '0', '0', '5000']);
 
     // slot 2: no sync, no proposer → 2 elements
     expect(validator100Slots[2]).toEqual([testSlots[2], 6]);
