@@ -36,6 +36,7 @@ RUN pnpm exec prisma generate --schema=./packages/db/prisma/schema.prisma
 RUN pnpm --filter @beacon-indexer/db run build
 
 # Copy runtime source after the shared Prisma/db layers so app-only edits stay cached.
+# beacon-utils is source-only and is executed directly through tsx.
 COPY packages/beacon-utils ./packages/beacon-utils
 COPY packages/indexer ./packages/indexer
 
