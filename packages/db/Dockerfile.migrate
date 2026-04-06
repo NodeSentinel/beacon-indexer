@@ -1,0 +1,27 @@
+FROM node:22-alpine
+
+# Install system dependencies for Prisma, then pnpm for workspace installs.
+RUN apk add --no-cache openssl
+RUN npm install -g pnpm@9.2.0
+
+WORKDIR /app
+
+# Copy workspace metadata so pnpm can resolve the full workspace graph reliably.
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.base.json ./
+COPY packages/api/package.json ./packages/api/package.json
+COPY packages/api/tsconfig.json ./packages/api/tsconfig.json
+COPY packages/db/package.json ./packages/db/package.json
+COPY packages/db/tsconfig.json ./packages/db/tsconfig.json
+COPY packages/db/prisma ./packages/db/prisma
+COPY packages/beacon-utils/package.json ./packages/beacon-utils/package.json
+COPY packages/beacon-utils/tsconfig.json ./packages/beacon-utils/tsconfig.json
+COPY packages/indexer/package.json ./packages/indexer/package.json
+COPY packages/indexer/tsconfig.json ./packages/indexer/tsconfig.json
+COPY packages/telegram-bot/package.json ./packages/telegram-bot/package.json
+COPY packages/telegram-bot/tsconfig.json ./packages/telegram-bot/tsconfig.json
+COPY packages/webapp/package.json ./packages/webapp/package.json
+COPY packages/webapp/tsconfig.json ./packages/webapp/tsconfig.json
+
+# Skip Prisma's postinstall generation so the image stays focused on migration runtime only.
+ENV PRISMA_SKIP_POSTINSTALL_GENERATE=true
+RUN pnpm install --frozen-lockfile

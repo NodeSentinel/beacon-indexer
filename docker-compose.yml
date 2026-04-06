@@ -38,23 +38,19 @@ services:
       - app-network
 
   migrate:
-    image: node:22-alpine
-    working_dir: /app
-    volumes:
-      - .:/app
     env_file:
       - packages/db/.env
     environment:
       - DOCKER_ENV=true
+    build:
+      context: .
+      dockerfile: packages/db/Dockerfile.migrate
     depends_on:
       postgres:
         condition: service_healthy
     command: >
       sh -c "
         export DATABASE_URL=postgresql://$$POSTGRES_USER:$$POSTGRES_PASSWORD@postgres:5432/$$POSTGRES_DB?schema=public &&
-        apk add --no-cache openssl &&
-        npm install -g pnpm@9.2.0 &&
-        pnpm install --frozen-lockfile &&
         echo 'Waiting for database to be ready...' &&
         pnpm exec prisma migrate deploy --schema=./packages/db/prisma/schema.prisma &&
         echo 'Database migration completed successfully!'
