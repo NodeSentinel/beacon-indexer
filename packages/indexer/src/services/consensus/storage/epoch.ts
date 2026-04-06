@@ -428,15 +428,16 @@ export class EpochStorage {
     },
   ) {
     await this.prisma.$transaction(async (tx) => {
-      await tx.syncCommittee.upsert({
-        where: { fromEpoch_toEpoch: { fromEpoch, toEpoch } },
-        create: {
+      await tx.syncCommittee.createMany({
+        data: {
           fromEpoch,
           toEpoch,
           validators: syncCommitteeData.validators,
           validatorAggregates: syncCommitteeData.validator_aggregates,
         },
-        update: {},
+        // Multiple epoch workers can race to insert the same sync committee period.
+        // If another worker won first, treat it as success and still mark this epoch as done.
+        skipDuplicates: true,
       });
 
       await tx.epoch.update({
