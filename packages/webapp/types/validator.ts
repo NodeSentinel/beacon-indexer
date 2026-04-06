@@ -62,7 +62,7 @@ export interface Reward {
   target: string;
   source: string;
   inactivity: string;
-  syncCommittee: string;
+  sync: string;
   missed: string;
   blockConsensus: string;
   /** Execution reward in native EL token (xDAI or ETH) */

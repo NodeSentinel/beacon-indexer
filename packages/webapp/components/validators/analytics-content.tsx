@@ -229,7 +229,7 @@ type RewardBucket = {
   head: number;
   target: number;
   source: number;
-  syncCommittee: number;
+  sync: number;
   missed: number;
   blockConsensus: number;
   blockExecution: number;
@@ -258,7 +258,7 @@ function RewardsTab({
           head: (acc?.head ?? 0) + parseFloat(item.head),
           target: (acc?.target ?? 0) + parseFloat(item.target),
           source: (acc?.source ?? 0) + parseFloat(item.source),
-          syncCommittee: (acc?.syncCommittee ?? 0) + parseFloat(item.syncCommittee),
+          sync: (acc?.sync ?? 0) + parseFloat(item.sync),
           missed: (acc?.missed ?? 0) + parseFloat(item.missed),
           blockConsensus: (acc?.blockConsensus ?? 0) + parseFloat(item.blockConsensus),
           blockExecution: (acc?.blockExecution ?? 0) + parseFloat(item.blockExecution),
@@ -267,19 +267,18 @@ function RewardsTab({
           const head = acc?.head ?? 0;
           const target = acc?.target ?? 0;
           const source = acc?.source ?? 0;
-          const syncCommittee = acc?.syncCommittee ?? 0;
+          const sync = acc?.sync ?? 0;
           const missed = acc?.missed ?? 0;
           const blockConsensus = acc?.blockConsensus ?? 0;
           const blockExecution = acc?.blockExecution ?? 0;
-          const clTotal =
-            (head + target + source + syncCommittee + blockConsensus - missed) * tokenPrice;
+          const clTotal = (head + target + source + sync + blockConsensus - missed) * tokenPrice;
           const elTotal = blockExecution;
           return {
             time,
             head,
             target,
             source,
-            syncCommittee,
+            sync,
             missed,
             blockConsensus,
             blockExecution,
@@ -296,7 +295,7 @@ function RewardsTab({
         source: acc.source + item.source,
         target: acc.target + item.target,
         head: acc.head + item.head,
-        syncCommittee: acc.syncCommittee + item.syncCommittee,
+        sync: acc.sync + item.sync,
         missed: acc.missed + item.missed,
         blockConsensus: acc.blockConsensus + item.blockConsensus,
         blockExecution: acc.blockExecution + item.blockExecution,
@@ -305,7 +304,7 @@ function RewardsTab({
         source: 0,
         target: 0,
         head: 0,
-        syncCommittee: 0,
+        sync: 0,
         missed: 0,
         blockConsensus: 0,
         blockExecution: 0,
@@ -320,7 +319,7 @@ function RewardsTab({
         head: d.head * tokenPrice,
         target: d.target * tokenPrice,
         source: d.source * tokenPrice,
-        syncCommittee: d.syncCommittee * tokenPrice,
+        sync: d.sync * tokenPrice,
         blockConsensus: d.blockConsensus * tokenPrice,
         blockExecution: d.blockExecution,
         missed: -d.missed * tokenPrice,
@@ -393,7 +392,7 @@ function RewardsTab({
         <RewardHeader
           label="SYNC"
           help="Reward for participating in a sync committee. Only ~512 validators are randomly selected every ~27 hours, so this may be zero most of the time."
-          value={rewardsStats.syncCommittee}
+          value={rewardsStats.sync}
           token="GNO"
           color="#fbbf24"
           tokenPrice={tokenPrice}
@@ -421,7 +420,7 @@ function RewardsTab({
           source: { label: 'Source', color: '#3b82f6' },
           target: { label: 'Target', color: '#10b981' },
           head: { label: 'Head', color: '#8b5cf6' },
-          syncCommittee: { label: 'Sync Committee', color: '#fbbf24' },
+          sync: { label: 'Sync Committee', color: '#fbbf24' },
           blockConsensus: { label: 'Block (CL)', color: '#f97316' },
           blockExecution: { label: 'Block (EL)', color: '#06b6d4' },
           missed: { label: 'Missed', color: '#ef4444' },
@@ -490,13 +489,13 @@ function RewardsTab({
                           </span>
                         </span>
                       </div>
-                      {raw.syncCommittee > 0 && (
+                      {raw.sync > 0 && (
                         <div className="flex items-center justify-between gap-4">
                           <span className="text-muted-foreground">Sync Committee:</span>
                           <span className="font-normal text-warning">
-                            {fmtToken(raw.syncCommittee)} GNO{' '}
+                            {fmtToken(raw.sync)} GNO{' '}
                             <span className="text-muted-foreground">
-                              ({toUsd(raw.syncCommittee, tokenPrice)})
+                              ({toUsd(raw.sync, tokenPrice)})
                             </span>
                           </span>
                         </div>
@@ -535,7 +534,7 @@ function RewardsTab({
             <Bar dataKey="source" stackId="rewards" fill="#3b82f6" radius={[0, 0, 0, 0]} />
             <Bar dataKey="target" stackId="rewards" fill="#10b981" radius={[0, 0, 0, 0]} />
             <Bar dataKey="head" stackId="rewards" fill="#8b5cf6" radius={[0, 0, 0, 0]} />
-            <Bar dataKey="syncCommittee" stackId="rewards" fill="#fbbf24" radius={[0, 0, 0, 0]} />
+            <Bar dataKey="sync" stackId="rewards" fill="#fbbf24" radius={[0, 0, 0, 0]} />
             <Bar dataKey="blockConsensus" stackId="rewards" fill="#f97316" radius={[0, 0, 0, 0]} />
             <Bar dataKey="blockExecution" stackId="rewards" fill="#06b6d4" radius={[0, 0, 0, 0]} />
             <Bar dataKey="missed" stackId="rewards" fill="#ef4444" radius={[4, 4, 0, 0]} />
