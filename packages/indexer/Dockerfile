@@ -26,11 +26,8 @@ COPY packages/db/prisma ./packages/db/prisma
 ENV PRISMA_SKIP_POSTINSTALL_GENERATE=true
 RUN pnpm install --frozen-lockfile
 
-# Now copy source code (changes here won't invalidate the install cache)
+# Copy the db source before building the shared Prisma/db layers.
 COPY packages/db/src ./packages/db/src
-COPY packages/beacon-utils ./packages/beacon-utils
-COPY packages/indexer ./packages/indexer
-COPY scripts/setDbUrl.js ./scripts/setDbUrl.js
 
 # Generate Prisma client from db package
 RUN pnpm exec prisma generate --schema=./packages/db/prisma/schema.prisma
@@ -38,14 +35,9 @@ RUN pnpm exec prisma generate --schema=./packages/db/prisma/schema.prisma
 # Build the db package first
 RUN pnpm --filter @beacon-indexer/db run build
 
-# Build beacon-utils
-RUN pnpm --filter @beacon-indexer/beacon-utils run build
-
-# Build the indexer package after db is ready
-RUN pnpm --filter indexer run build
-
-# Verify the build output
-RUN ls -la packages/indexer/dist/
+# Copy runtime source after the shared Prisma/db layers so app-only edits stay cached.
+COPY packages/beacon-utils ./packages/beacon-utils
+COPY packages/indexer ./packages/indexer
 
 # Set working directory to the indexer package
 WORKDIR /app/packages/indexer

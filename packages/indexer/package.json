@@ -9,7 +9,7 @@
   },
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
-    "start": "tsx dist/index.js",
+    "start": "tsx src/index.ts",
     "dev": "tsx src/index.ts",
     "dev:gnosis": "npx tsx src/index.ts",
     "dev:ethereum": "npx tsx src/index.ts",
