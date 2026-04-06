@@ -108,17 +108,20 @@ export function logError(error: AxiosError): Promise<never> {
   // Log the error with endpoint information
   const endpoint = extractEndpointPath(error.config?.url || error.request?.url);
   const statusCode = error.response?.status;
+  const errorCode = error.code;
   const method = error.config?.method?.toUpperCase() || 'UNKNOWN';
   const statusText = error.response?.statusText || '';
   const errorMessage = error.message || statusText || '';
+  const errorCodeSuffix = errorCode ? ` (${errorCode})` : '';
   const nodeTypePrefix = nodeType ? `[${nodeType.toUpperCase()}] ` : '';
   const message = statusCode
-    ? `${nodeTypePrefix}${statusCode} ${method} ${endpoint} - ${errorMessage}`
-    : `${nodeTypePrefix}ERROR ${method} ${endpoint} - ${errorMessage}`;
+    ? `${nodeTypePrefix}${statusCode} ${method} ${endpoint} - ${errorMessage}${errorCodeSuffix}`
+    : `${nodeTypePrefix}ERROR ${method} ${endpoint} - ${errorMessage}${errorCodeSuffix}`;
 
   const logData: {
     statusCode?: number;
     error: string;
+    code?: string;
     message?: string;
     duration?: string;
     nodeType?: string;
@@ -128,6 +131,10 @@ export function logError(error: AxiosError): Promise<never> {
 
   if (statusCode) {
     logData.statusCode = statusCode;
+  }
+
+  if (errorCode) {
+    logData.code = errorCode;
   }
 
   // Include response data message if available

@@ -43,7 +43,7 @@ export class ExecutionClient {
   constructor(config: ExecutionClientConfig) {
     this.config = config;
     this.limiter = pLimit(config.requestsPerSecond);
-    this.axiosInstance = axios.create({ timeout: ms('1s') });
+    this.axiosInstance = axios.create({ timeout: ms('2.5s') });
 
     // Setup interceptors
     this.axiosInstance.interceptors.request.use(async (config: InternalAxiosRequestConfig) => {

@@ -1,4 +1,5 @@
 import axios, { AxiosError, AxiosInstance, InternalAxiosRequestConfig } from 'axios';
+import ms from 'ms';
 
 import { logError, logRequest, logResponse } from '@/src/lib/httpPino.js';
 import {
@@ -65,7 +66,7 @@ export class BeaconClient extends ReliableRequestClient {
     this.slotStartIndexing = config.slotStartIndexing;
     this.slotsPerEpoch = config.slotsPerEpoch;
     this.archiveNodeToken = config.archiveNodeToken;
-    this.axiosInstance = axios.create();
+    this.axiosInstance = axios.create({ timeout: ms('8s') });
 
     // Add header interceptor for archive node requests and nodeType metadata
     this.axiosInstance.interceptors.request.use((config) => {
