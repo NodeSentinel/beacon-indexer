@@ -12,7 +12,7 @@ import { pinoLog } from '@/src/xstate/pinoLog.js';
 const LOGGER_CONTEXT = 'LagAlerting';
 
 // Lag thresholds (in slots)
-const LAG_ALERT_THRESHOLD = 10;
+const LAG_ALERT_THRESHOLD = 100;
 const LAG_RECOVERY_THRESHOLD = 5;
 
 // Timing
