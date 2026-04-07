@@ -268,4 +268,98 @@ describe('Incident Rewards', () => {
     expect(snapshot.rewardsProcessedThroughSlot).toBe(104);
     expect((notification.payload as Record<string, unknown>).missedConsensusRewards).toBe('15');
   });
+
+  // This scenario proves the reward cursor only applies the unprocessed reward range.
+  it('advances incident rewards from rewardsProcessedThroughSlot without reapplying older rewards', async () => {
+    const slotsPerEpoch = gnosisConfig.beacon.slotsPerEpoch;
+    const openedSlot = 3 * slotsPerEpoch;
+    const processedThroughSlot = 4 * slotsPerEpoch - 1;
+    const firstUnprocessedSlot = processedThroughSlot + 1;
+    const processThroughSlot = firstUnprocessedSlot + Math.floor(slotsPerEpoch / 2);
+
+    // Seed an already-open incident with a previously accumulated reward total.
+    await prisma.clusterIncident.create({
+      data: {
+        clusterId: CLUSTER_ID,
+        status: 'open',
+        openedAt: new Date(beaconTime.getTimestampFromSlotNumber(openedSlot)),
+        openedSlot,
+        validatorIndexes: [VALIDATOR_INDEX],
+        missedConsensusRewards: BigInt(20),
+      },
+    });
+
+    // Mark rewards through the end of epoch 3 as already processed for this validator.
+    await prisma.validatorsSnapshotStats.update({
+      where: { validatorIndex: VALIDATOR_INDEX },
+      data: {
+        rewardsProcessedThroughSlot: processedThroughSlot,
+      },
+    });
+
+    // Seed an older epoch reward that must be ignored because it is already behind the cursor.
+    await prisma.epochRewards.create({
+      data: {
+        epoch: 3,
+        validatorIndex: VALIDATOR_INDEX,
+        head: BigInt(0),
+        target: BigInt(0),
+        source: BigInt(0),
+        inactivity: BigInt(0),
+        missedHead: BigInt(40),
+        missedTarget: BigInt(30),
+        missedSource: BigInt(20),
+        missedInactivity: BigInt(10),
+      },
+    });
+
+    // Seed a new epoch reward that falls after the processed cursor and should be applied.
+    await prisma.epochRewards.create({
+      data: {
+        epoch: 4,
+        validatorIndex: VALIDATOR_INDEX,
+        head: BigInt(0),
+        target: BigInt(0),
+        source: BigInt(0),
+        inactivity: BigInt(0),
+        missedHead: BigInt(4),
+        missedTarget: BigInt(3),
+        missedSource: BigInt(2),
+        missedInactivity: BigInt(1),
+      },
+    });
+
+    // Seed sync penalties on both sides of the cursor to prove the slot lower bound also advances incrementally.
+    await prisma.validatorSyncRewards.createMany({
+      data: [
+        {
+          slot: processedThroughSlot - 7,
+          validatorIndex: VALIDATOR_INDEX,
+          syncCommittee: BigInt(-9),
+        },
+        {
+          slot: firstUnprocessedSlot + 2,
+          validatorIndex: VALIDATOR_INDEX,
+          syncCommittee: BigInt(-7),
+        },
+      ],
+    });
+
+    // Run the reward worker past the unprocessed range.
+    await incidentRewardsController.syncOpenIncidentRewards({
+      processThroughSlot,
+    });
+
+    // Load the updated incident and snapshot cursor after the incremental sync completes.
+    const incident = await prisma.clusterIncident.findFirstOrThrow({
+      where: { clusterId: CLUSTER_ID },
+    });
+    const snapshot = await prisma.validatorsSnapshotStats.findUniqueOrThrow({
+      where: { validatorIndex: VALIDATOR_INDEX },
+    });
+
+    // Only the post-cursor epoch reward and post-cursor sync penalty should be added to the existing total.
+    expect(incident.missedConsensusRewards).toBe(BigInt(37));
+    expect(snapshot.rewardsProcessedThroughSlot).toBe(processThroughSlot);
+  });
 });

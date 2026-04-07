@@ -39,7 +39,7 @@ export class IncidentRewardsStorage {
       snapshots.map((snapshot) => [snapshot.validatorIndex, snapshot] as const),
     );
 
-    const touchedValidatorIndexes = new Set<number>();
+    const processedThroughByValidator = new Map<number, number>();
 
     for (const incident of candidates) {
       const upperBound =
@@ -51,82 +51,95 @@ export class IncidentRewardsStorage {
         continue;
       }
 
-      const shouldRecompute = incident.validatorIndexes.some((validatorIndex) => {
+      const hasUnprocessedRange = incident.validatorIndexes.some((validatorIndex) => {
         const snapshot = snapshotByValidator.get(validatorIndex);
         const processedThrough = snapshot?.rewardsProcessedThroughSlot ?? incident.openedSlot - 1;
-        return processedThrough < upperBound;
+        const lowerBound = Math.max(incident.openedSlot, processedThrough + 1);
+        return lowerBound <= upperBound;
       });
 
-      if (!shouldRecompute) {
+      if (!hasUnprocessedRange) {
         continue;
       }
 
-      const startEpoch = Math.floor(incident.openedSlot / this.chainTiming.slotsPerEpoch);
-      const endEpoch = Math.floor(upperBound / this.chainTiming.slotsPerEpoch);
-
-      const epochRewardRows =
-        incident.validatorIndexes.length > 0
-          ? await this.prisma.epochRewards.findMany({
-              where: {
-                validatorIndex: { in: incident.validatorIndexes },
-                epoch: {
-                  gte: startEpoch,
-                  lte: endEpoch,
-                },
-              },
-              select: {
-                missedHead: true,
-                missedTarget: true,
-                missedSource: true,
-                missedInactivity: true,
-              },
-            })
-          : [];
-
-      const syncRewardRows =
-        incident.validatorIndexes.length > 0
-          ? await this.prisma.validatorSyncRewards.findMany({
-              where: {
-                validatorIndex: { in: incident.validatorIndexes },
-                slot: {
-                  gte: incident.openedSlot,
-                  lte: upperBound,
-                },
-              },
-              select: {
-                syncCommittee: true,
-              },
-            })
-          : [];
-
-      const clMissed = epochRewardRows.reduce(
-        (sum, row) =>
-          sum + row.missedHead + row.missedTarget + row.missedSource + row.missedInactivity,
-        BigInt(0),
-      );
-      const syncMissed = syncRewardRows.reduce((sum, row) => {
-        return row.syncCommittee < 0 ? sum + -row.syncCommittee : sum;
-      }, BigInt(0));
-
-      await this.prisma.clusterIncident.update({
-        where: { id: incident.id },
-        data: {
-          missedConsensusRewards: clMissed + syncMissed,
-        },
-      });
+      let incidentDelta = BigInt(0);
 
       for (const validatorIndex of incident.validatorIndexes) {
-        touchedValidatorIndexes.add(validatorIndex);
+        const snapshot = snapshotByValidator.get(validatorIndex);
+        const processedThrough = snapshot?.rewardsProcessedThroughSlot ?? incident.openedSlot - 1;
+        const lowerBound = Math.max(incident.openedSlot, processedThrough + 1);
+
+        if (lowerBound > upperBound) {
+          continue;
+        }
+
+        const startEpoch = Math.floor(lowerBound / this.chainTiming.slotsPerEpoch);
+        const endEpoch = Math.floor(upperBound / this.chainTiming.slotsPerEpoch);
+
+        const [epochRewardRows, syncRewardRows] = await Promise.all([
+          this.prisma.epochRewards.findMany({
+            where: {
+              validatorIndex,
+              epoch: {
+                gte: startEpoch,
+                lte: endEpoch,
+              },
+            },
+            select: {
+              missedHead: true,
+              missedTarget: true,
+              missedSource: true,
+              missedInactivity: true,
+            },
+          }),
+          this.prisma.validatorSyncRewards.findMany({
+            where: {
+              validatorIndex,
+              slot: {
+                gte: lowerBound,
+                lte: upperBound,
+              },
+            },
+            select: {
+              syncCommittee: true,
+            },
+          }),
+        ]);
+
+        incidentDelta += epochRewardRows.reduce(
+          (sum, row) =>
+            sum + row.missedHead + row.missedTarget + row.missedSource + row.missedInactivity,
+          BigInt(0),
+        );
+        incidentDelta += syncRewardRows.reduce((sum, row) => {
+          return row.syncCommittee < 0 ? sum + -row.syncCommittee : sum;
+        }, BigInt(0));
+
+        processedThroughByValidator.set(
+          validatorIndex,
+          Math.max(processedThroughByValidator.get(validatorIndex) ?? -1, upperBound),
+        );
+        snapshotByValidator.set(validatorIndex, {
+          validatorIndex,
+          rewardsProcessedThroughSlot: upperBound,
+        });
+      }
+
+      if (incidentDelta > BigInt(0)) {
+        await this.prisma.clusterIncident.update({
+          where: { id: incident.id },
+          data: {
+            missedConsensusRewards: (incident.missedConsensusRewards ?? BigInt(0)) + incidentDelta,
+          },
+        });
       }
     }
 
-    if (touchedValidatorIndexes.size > 0) {
-      await this.prisma.validatorsSnapshotStats.updateMany({
-        where: {
-          validatorIndex: { in: [...touchedValidatorIndexes] },
-        },
+    for (const [validatorIndex, processedThroughSlot] of processedThroughByValidator) {
+      await this.prisma.validatorsSnapshotStats.update({
+        where: { validatorIndex },
         data: {
-          rewardsProcessedThroughSlot: params.processThroughSlot,
+          rewardsProcessedThroughSlot: processedThroughSlot,
         },
       });
     }
