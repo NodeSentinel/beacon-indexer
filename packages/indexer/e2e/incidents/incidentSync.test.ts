@@ -284,6 +284,17 @@ describe('Incident Sync Process', () => {
         0,
       ),
     );
+    const openedHour = new Date(
+      Date.UTC(
+        openedAt.getUTCFullYear(),
+        openedAt.getUTCMonth(),
+        openedAt.getUTCDate(),
+        openedAt.getUTCHours(),
+        0,
+        0,
+        0,
+      ),
+    );
 
     // Seed the snapshot as healthy so the incident is eligible for closure.
     await prisma.validatorsSnapshotStats.create({
@@ -328,10 +339,11 @@ describe('Incident Sync Process', () => {
       },
     });
 
-    // Mark the opening hour as archived so the storage attempts the archive path.
+    // Mark the real opening hour as archived so the storage must inspect archive
+    // data instead of treating the whole incident as still-live raw data.
     await prisma.archive.update({
       where: { id: 1 },
-      data: { lastHour: new Date(openedDay.getTime() + 60 * 60 * 1000) },
+      data: { lastHour: openedHour },
     });
 
     // Execute the sync at the observed closing slot.
