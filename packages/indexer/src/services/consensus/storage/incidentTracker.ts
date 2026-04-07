@@ -20,13 +20,12 @@ type DutyRow = {
 type ValidatorState = {
   streakCount: number;
   streakStartSlot: number | null;
-  inactive: boolean;
-  inactiveSinceSlot: number | null;
 };
 
 type ClusterState = {
-  inactiveValidators: Set<number>;
-  inactiveSinceByValidator: Map<number, number>;
+  threshold: number;
+  qualifyingValidators: Set<number>;
+  qualifyingOpenedSlotByValidator: Map<number, number>;
   openIncident: { id: string } | null;
 };
 
@@ -40,9 +39,8 @@ export class IncidentTrackerStorage {
     processor: string;
     safeUpperBound: number;
     maxAttestationDelay: number;
-    inactiveMissedCount: number;
   }): Promise<void> {
-    const { processor, safeUpperBound, maxAttestationDelay, inactiveMissedCount } = params;
+    const { processor, safeUpperBound, maxAttestationDelay } = params;
 
     await this.prisma.$transaction(async (tx) => {
       const state = await tx.incidentProcessorState.upsert({
@@ -60,7 +58,6 @@ export class IncidentTrackerStorage {
         fromSlot,
         toSlot: safeUpperBound,
         maxAttestationDelay,
-        inactiveMissedCount,
       });
 
       await tx.incidentProcessorState.update({
@@ -80,35 +77,57 @@ export class IncidentTrackerStorage {
       fromSlot: number;
       toSlot: number;
       maxAttestationDelay: number;
-      inactiveMissedCount: number;
     },
   ): Promise<void> {
-    const memberships = await tx.$queryRaw<Array<{ cluster_id: string; validator_index: number }>>`
-      SELECT cv.cluster_id, cv.validator_index
+    const memberships = await tx.$queryRaw<
+      Array<{
+        cluster_id: string;
+        validator_index: number;
+        missed_attestation_threshold: number;
+      }>
+    >`
+      SELECT
+        cv.cluster_id,
+        cv.validator_index,
+        c.missed_attestation_threshold
       FROM cluster_validator cv
+      JOIN cluster c ON c.id = cv.cluster_id
       JOIN validator v ON v.id = cv.validator_index
       WHERE COALESCE(v.status, 0) = ANY(${INCIDENT_TRACKED_BEACON_STATUSES}::int[])
     `;
 
     const openIncidents = await tx.clusterIncident.findMany({
       where: { status: 'open' },
-      select: { id: true, clusterId: true },
+      include: {
+        cluster: {
+          select: { missedAttestationThreshold: true },
+        },
+      },
     });
 
     if (memberships.length === 0 && openIncidents.length === 0) {
       return;
     }
 
-    const validatorToClusters = new Map<number, string[]>();
+    const validatorToClusters = new Map<number, Array<{ clusterId: string; threshold: number }>>();
     const clusterStates = new Map<string, ClusterState>();
+    let maxThreshold = 0;
+
     for (const membership of memberships) {
       const clusters = validatorToClusters.get(membership.validator_index) ?? [];
-      clusters.push(membership.cluster_id);
+      clusters.push({
+        clusterId: membership.cluster_id,
+        threshold: membership.missed_attestation_threshold,
+      });
       validatorToClusters.set(membership.validator_index, clusters);
+
+      maxThreshold = Math.max(maxThreshold, membership.missed_attestation_threshold);
+
       if (!clusterStates.has(membership.cluster_id)) {
         clusterStates.set(membership.cluster_id, {
-          inactiveValidators: new Set<number>(),
-          inactiveSinceByValidator: new Map<number, number>(),
+          threshold: membership.missed_attestation_threshold,
+          qualifyingValidators: new Set<number>(),
+          qualifyingOpenedSlotByValidator: new Map<number, number>(),
           openIncident: null,
         });
       }
@@ -117,8 +136,9 @@ export class IncidentTrackerStorage {
     for (const incident of openIncidents) {
       if (!clusterStates.has(incident.clusterId)) {
         clusterStates.set(incident.clusterId, {
-          inactiveValidators: new Set<number>(),
-          inactiveSinceByValidator: new Map<number, number>(),
+          threshold: incident.cluster.missedAttestationThreshold,
+          qualifyingValidators: new Set<number>(),
+          qualifyingOpenedSlotByValidator: new Map<number, number>(),
           openIncident: { id: incident.id },
         });
       } else {
@@ -127,7 +147,7 @@ export class IncidentTrackerStorage {
     }
 
     const validatorIndexes = [...validatorToClusters.keys()].sort((a, b) => a - b);
-    const historyStartSlot = Math.max(0, params.fromSlot - params.inactiveMissedCount * 40);
+    const historyStartSlot = Math.max(0, params.fromSlot - Math.max(maxThreshold, 1) * 40);
     const duties =
       validatorIndexes.length > 0
         ? await tx.$queryRaw<DutyRow[]>`
@@ -171,29 +191,29 @@ export class IncidentTrackerStorage {
         streakStartSlot = duty.slot;
       }
 
-      const inactive = streakCount >= params.inactiveMissedCount;
       validatorStates.set(validatorIndex, {
         streakCount,
         streakStartSlot,
-        inactive,
-        inactiveSinceSlot: inactive ? streakStartSlot : null,
       });
     }
 
     for (const [validatorIndex, state] of validatorStates) {
-      if (!state.inactive || state.inactiveSinceSlot === null) {
-        continue;
-      }
+      for (const cluster of validatorToClusters.get(validatorIndex) ?? []) {
+        if (state.streakStartSlot === null || state.streakCount < cluster.threshold) {
+          continue;
+        }
 
-      for (const clusterId of validatorToClusters.get(validatorIndex) ?? []) {
-        const clusterState = clusterStates.get(clusterId)!;
-        clusterState.inactiveValidators.add(validatorIndex);
-        clusterState.inactiveSinceByValidator.set(validatorIndex, state.inactiveSinceSlot);
+        const clusterState = clusterStates.get(cluster.clusterId)!;
+        clusterState.qualifyingValidators.add(validatorIndex);
+        clusterState.qualifyingOpenedSlotByValidator.set(
+          validatorIndex,
+          state.streakStartSlot + cluster.threshold - 1,
+        );
       }
     }
 
     for (const [clusterId, clusterState] of clusterStates) {
-      if (clusterState.openIncident && clusterState.inactiveValidators.size === 0) {
+      if (clusterState.openIncident && clusterState.qualifyingValidators.size === 0) {
         await this.incidentStorage.closeIncident(tx, {
           incidentId: clusterState.openIncident.id,
           closedSlot: params.fromSlot,
@@ -201,15 +221,14 @@ export class IncidentTrackerStorage {
         clusterState.openIncident = null;
       }
 
-      if (clusterState.openIncident || clusterState.inactiveValidators.size === 0) {
+      if (clusterState.openIncident || clusterState.qualifyingValidators.size === 0) {
         continue;
       }
 
-      const openedSlot = Math.min(...clusterState.inactiveSinceByValidator.values());
       const incident = await this.incidentStorage.openIncidentIfMissing(tx, {
         clusterId,
-        openedSlot,
-        validatorIndexes: [...clusterState.inactiveValidators].sort((a, b) => a - b),
+        openedSlot: Math.min(...clusterState.qualifyingOpenedSlotByValidator.values()),
+        validatorIndexes: [...clusterState.qualifyingValidators].sort((a, b) => a - b),
       });
       clusterState.openIncident = { id: incident.id };
     }
@@ -218,13 +237,18 @@ export class IncidentTrackerStorage {
     for (const slot of orderedSlots) {
       const additionsByCluster = new Map<
         string,
-        Array<{ validatorIndex: number; inactiveSinceSlot: number }>
+        Array<{ validatorIndex: number; openedSlot: number }>
       >();
       const removalsByCluster = new Map<string, number[]>();
 
       for (const duty of dutiesBySlot.get(slot) ?? []) {
-        const state = validatorStates.get(duty.validator_index)!;
-        const wasInactive = state.inactive;
+        const state = validatorStates.get(duty.validator_index);
+        if (state === undefined) {
+          continue;
+        }
+
+        const previousStreakCount = state.streakCount;
+        const previousStreakStartSlot = state.streakStartSlot;
 
         if (this.isMissedDuty(duty, params.maxAttestationDelay)) {
           if (state.streakCount === 0) {
@@ -236,25 +260,25 @@ export class IncidentTrackerStorage {
           state.streakStartSlot = null;
         }
 
-        state.inactive = state.streakCount >= params.inactiveMissedCount;
-        state.inactiveSinceSlot = state.inactive ? state.streakStartSlot : null;
+        for (const cluster of validatorToClusters.get(duty.validator_index) ?? []) {
+          const wasQualifying =
+            previousStreakStartSlot !== null && previousStreakCount >= cluster.threshold;
+          const isQualifying =
+            state.streakStartSlot !== null && state.streakCount >= cluster.threshold;
 
-        if (!wasInactive && state.inactive && state.inactiveSinceSlot !== null) {
-          for (const clusterId of validatorToClusters.get(duty.validator_index) ?? []) {
-            const additions = additionsByCluster.get(clusterId) ?? [];
+          if (!wasQualifying && isQualifying) {
+            const additions = additionsByCluster.get(cluster.clusterId) ?? [];
             additions.push({
               validatorIndex: duty.validator_index,
-              inactiveSinceSlot: state.inactiveSinceSlot,
+              openedSlot: state.streakStartSlot! + cluster.threshold - 1,
             });
-            additionsByCluster.set(clusterId, additions);
+            additionsByCluster.set(cluster.clusterId, additions);
           }
-        }
 
-        if (wasInactive && !state.inactive) {
-          for (const clusterId of validatorToClusters.get(duty.validator_index) ?? []) {
-            const removals = removalsByCluster.get(clusterId) ?? [];
+          if (wasQualifying && !isQualifying) {
+            const removals = removalsByCluster.get(cluster.clusterId) ?? [];
             removals.push(duty.validator_index);
-            removalsByCluster.set(clusterId, removals);
+            removalsByCluster.set(cluster.clusterId, removals);
           }
         }
       }
@@ -262,22 +286,25 @@ export class IncidentTrackerStorage {
       const affectedClusters = new Set([...additionsByCluster.keys(), ...removalsByCluster.keys()]);
 
       for (const clusterId of affectedClusters) {
-        const clusterState = clusterStates.get(clusterId)!;
+        const clusterState = clusterStates.get(clusterId);
+        if (clusterState === undefined) {
+          continue;
+        }
 
         for (const validatorIndex of removalsByCluster.get(clusterId) ?? []) {
-          clusterState.inactiveValidators.delete(validatorIndex);
-          clusterState.inactiveSinceByValidator.delete(validatorIndex);
+          clusterState.qualifyingValidators.delete(validatorIndex);
+          clusterState.qualifyingOpenedSlotByValidator.delete(validatorIndex);
         }
 
         for (const addition of additionsByCluster.get(clusterId) ?? []) {
-          clusterState.inactiveValidators.add(addition.validatorIndex);
-          clusterState.inactiveSinceByValidator.set(
+          clusterState.qualifyingValidators.add(addition.validatorIndex);
+          clusterState.qualifyingOpenedSlotByValidator.set(
             addition.validatorIndex,
-            addition.inactiveSinceSlot,
+            addition.openedSlot,
           );
         }
 
-        if (clusterState.inactiveValidators.size === 0) {
+        if (clusterState.qualifyingValidators.size === 0) {
           if (clusterState.openIncident) {
             await this.incidentStorage.closeIncident(tx, {
               incidentId: clusterState.openIncident.id,
@@ -288,13 +315,15 @@ export class IncidentTrackerStorage {
           continue;
         }
 
-        const openedSlot = Math.min(...clusterState.inactiveSinceByValidator.values());
-        const incident = await this.incidentStorage.openIncidentIfMissing(tx, {
-          clusterId,
-          openedSlot,
-          validatorIndexes: [...clusterState.inactiveValidators].sort((a, b) => a - b),
-        });
-        clusterState.openIncident = { id: incident.id };
+        const hasNewAdditions = (additionsByCluster.get(clusterId) ?? []).length > 0;
+        if (!clusterState.openIncident || hasNewAdditions) {
+          const incident = await this.incidentStorage.openIncidentIfMissing(tx, {
+            clusterId,
+            openedSlot: Math.min(...clusterState.qualifyingOpenedSlotByValidator.values()),
+            validatorIndexes: [...clusterState.qualifyingValidators].sort((a, b) => a - b),
+          });
+          clusterState.openIncident = { id: incident.id };
+        }
       }
     }
   }

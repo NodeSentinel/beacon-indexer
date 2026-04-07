@@ -585,14 +585,13 @@ export class SnapshotStorage {
 
     await this.prisma.$executeRaw`
       INSERT INTO validators_snapshot_stats (
-        validator_index, status, is_inactive,
+        validator_index, status,
         attestations_total, attestations_missed, beacon_status,
         balance, effective_balance, updated_at
       )
       SELECT
         v.id,
         'active',
-        false,
         0,
         0,
         v.status,

@@ -9,75 +9,114 @@ export class ValidatorActivityStatusStorage {
 
   async syncCurrentActivityStatus(params: {
     safeObservedSlot: number;
-    inactiveMissedCount: number;
     maxAttestationDelay: number;
   }): Promise<void> {
-    const { safeObservedSlot, inactiveMissedCount, maxAttestationDelay } = params;
+    const { safeObservedSlot, maxAttestationDelay } = params;
 
-    await this.prisma.$executeRaw`
-      WITH recent_committees AS (
-        SELECT
-          c.validator_index,
-          c.slot,
-          c.attestation_delay
-        FROM committee c
-        WHERE c.slot <= ${safeObservedSlot}::int
-          AND c.slot > ${safeObservedSlot}::int - (${inactiveMissedCount}::int * 40)
-      ),
-      ranked_committees AS (
-        SELECT
-          rc.validator_index,
-          rc.slot,
-          rc.attestation_delay,
-          ROW_NUMBER() OVER (
-            PARTITION BY rc.validator_index
-            ORDER BY rc.slot DESC
-          )::int AS duty_rank,
-          (
-            rc.attestation_delay IS NULL OR
-            rc.attestation_delay > ${maxAttestationDelay}::int
-          ) AS is_missed
-        FROM recent_committees rc
-      ),
-      streak_bounds AS (
-        SELECT
-          rc.validator_index,
-          MIN(rc.duty_rank) FILTER (
-            WHERE rc.is_missed = false
-          )::int AS first_attested_rank,
-          MAX(rc.slot)::int AS last_observed_slot,
-          MAX(rc.slot) FILTER (
-            WHERE rc.is_missed = false
-          )::int AS last_attested_slot
-        FROM ranked_committees rc
-        GROUP BY rc.validator_index
-      ),
-      current_activity AS (
-        SELECT
-          vss.validator_index,
-          COUNT(*) FILTER (
-            WHERE rc.is_missed = true
-              AND (
-                sb.first_attested_rank IS NULL OR
-                rc.duty_rank < sb.first_attested_rank
-              )
-          )::int AS missed_streak,
-          sb.last_observed_slot,
-          sb.last_attested_slot
-        FROM validators_snapshot_stats vss
-        LEFT JOIN ranked_committees rc ON rc.validator_index = vss.validator_index
-        LEFT JOIN streak_bounds sb ON sb.validator_index = vss.validator_index
-        GROUP BY vss.validator_index, sb.first_attested_rank, sb.last_observed_slot, sb.last_attested_slot
-      )
-      UPDATE validators_snapshot_stats vss
-      SET
-        is_inactive = ca.missed_streak >= ${inactiveMissedCount}::int,
-        consecutive_missed_attestations = ca.missed_streak,
-        last_observed_slot = ca.last_observed_slot,
-        last_attested_slot = ca.last_attested_slot,
-        updated_at = NOW()
-      FROM current_activity ca
-      WHERE vss.validator_index = ca.validator_index
+    const newDuties = await this.prisma.$queryRaw<
+      Array<{
+        validator_index: number;
+        slot: number;
+        attestation_delay: number | null;
+      }>
+    >`
+      SELECT
+        vss.validator_index,
+        c.slot,
+        c.attestation_delay
+      FROM validators_snapshot_stats vss
+      JOIN committee c ON c.validator_index = vss.validator_index
+      WHERE c.slot <= ${safeObservedSlot}::int
+        AND c.slot > COALESCE(vss.last_observed_slot, -1)
+      ORDER BY vss.validator_index ASC, c.slot ASC
     `;
+
+    if (newDuties.length === 0) {
+      return;
+    }
+
+    const snapshots = await this.prisma.validatorsSnapshotStats.findMany({
+      where: {
+        validatorIndex: {
+          in: [...new Set(newDuties.map((duty) => duty.validator_index))],
+        },
+      },
+      select: {
+        validatorIndex: true,
+        consecutiveMissedAttestations: true,
+        currentMissedStreakStartSlot: true,
+        lastObservedSlot: true,
+        lastAttestedSlot: true,
+        lastMissedAttestationSlot: true,
+      },
+    });
+
+    const snapshotByValidator = new Map(
+      snapshots.map((snapshot) => [snapshot.validatorIndex, snapshot] as const),
+    );
+    const updates = new Map<
+      number,
+      {
+        consecutiveMissedAttestations: number;
+        currentMissedStreakStartSlot: number | null;
+        lastObservedSlot: number | null;
+        lastAttestedSlot: number | null;
+        lastMissedAttestationSlot: number | null;
+      }
+    >();
+
+    for (const duty of newDuties) {
+      const current =
+        updates.get(duty.validator_index) ??
+        (() => {
+          const snapshot = snapshotByValidator.get(duty.validator_index);
+          if (!snapshot) {
+            throw new Error(`Missing snapshot row for validator ${duty.validator_index}`);
+          }
+
+          return {
+            consecutiveMissedAttestations: snapshot.consecutiveMissedAttestations,
+            currentMissedStreakStartSlot: snapshot.currentMissedStreakStartSlot,
+            lastObservedSlot: snapshot.lastObservedSlot,
+            lastAttestedSlot: snapshot.lastAttestedSlot,
+            lastMissedAttestationSlot: snapshot.lastMissedAttestationSlot,
+          };
+        })();
+
+      const isMissed =
+        duty.attestation_delay === null || duty.attestation_delay > maxAttestationDelay;
+
+      current.lastObservedSlot = duty.slot;
+
+      if (isMissed) {
+        if (current.consecutiveMissedAttestations === 0) {
+          current.currentMissedStreakStartSlot = duty.slot;
+        }
+        current.consecutiveMissedAttestations += 1;
+        current.lastMissedAttestationSlot = duty.slot;
+      } else {
+        current.consecutiveMissedAttestations = 0;
+        current.currentMissedStreakStartSlot = null;
+        current.lastAttestedSlot = duty.slot;
+      }
+
+      updates.set(duty.validator_index, current);
+    }
+
+    await this.prisma.$transaction(
+      [...updates.entries()].map(([validatorIndex, update]) =>
+        this.prisma.validatorsSnapshotStats.update({
+          where: { validatorIndex },
+          data: {
+            consecutiveMissedAttestations: update.consecutiveMissedAttestations,
+            currentMissedStreakStartSlot: update.currentMissedStreakStartSlot,
+            lastObservedSlot: update.lastObservedSlot,
+            lastAttestedSlot: update.lastAttestedSlot,
+            lastMissedAttestationSlot: update.lastMissedAttestationSlot,
+            updatedAt: new Date(),
+          },
+        }),
+      ),
+    );
   }
 }

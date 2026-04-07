@@ -117,16 +117,18 @@ describe('Snapshot - Balance and Metrics Updates', () => {
 
   /**
    * Sets the snapshot row to a non-default activity state so we can verify
-   * balance and metrics updates do not rewrite liveness fields.
+   * balance and metrics updates do not rewrite validator-owned streak facts.
    */
   async function seedActivityState(validatorIndex: number) {
     await prisma.$executeRaw`
       UPDATE validators_snapshot_stats
       SET
         status = 'inactive',
-        is_inactive = true,
-        inactive_since_slot = 100,
-        active_since_slot = NULL
+        consecutive_missed_attestations = 3,
+        current_missed_streak_start_slot = 100,
+        last_observed_slot = 102,
+        last_attested_slot = 99,
+        last_missed_attestation_slot = 102
       WHERE validator_index = ${validatorIndex}
     `;
   }
@@ -157,9 +159,11 @@ describe('Snapshot - Balance and Metrics Updates', () => {
       Array<{
         validator_index: number;
         status: string;
-        is_inactive: boolean;
-        inactive_since_slot: number | null;
-        active_since_slot: number | null;
+        consecutive_missed_attestations: number;
+        current_missed_streak_start_slot: number | null;
+        last_observed_slot: number | null;
+        last_attested_slot: number | null;
+        last_missed_attestation_slot: number | null;
         balance: bigint;
         effective_balance: bigint;
         beacon_status: number | null;
@@ -203,9 +207,11 @@ describe('Snapshot - Balance and Metrics Updates', () => {
     expect(row!.effective_balance).toBe(BigInt(31_999_000_000));
     expect(row!.beacon_status).toBe(7);
     expect(row!.status).toBe('inactive');
-    expect(row!.is_inactive).toBe(true);
-    expect(row!.inactive_since_slot).toBe(100);
-    expect(row!.active_since_slot).toBeNull();
+    expect(row!.consecutive_missed_attestations).toBe(3);
+    expect(row!.current_missed_streak_start_slot).toBe(100);
+    expect(row!.last_observed_slot).toBe(102);
+    expect(row!.last_attested_slot).toBe(99);
+    expect(row!.last_missed_attestation_slot).toBe(102);
   });
 
   it('should update hourly metrics without changing activity fields', async () => {
@@ -234,9 +240,11 @@ describe('Snapshot - Balance and Metrics Updates', () => {
     expect(row!.missed_attestation_count_h).toBe(1);
     expect(Number(row!.performance_h)).toBeCloseTo(0.5, 2);
     expect(row!.status).toBe('inactive');
-    expect(row!.is_inactive).toBe(true);
-    expect(row!.inactive_since_slot).toBe(100);
-    expect(row!.active_since_slot).toBeNull();
+    expect(row!.consecutive_missed_attestations).toBe(3);
+    expect(row!.current_missed_streak_start_slot).toBe(100);
+    expect(row!.last_observed_slot).toBe(102);
+    expect(row!.last_attested_slot).toBe(99);
+    expect(row!.last_missed_attestation_slot).toBe(102);
   });
 
   it('should preserve performance columns when balances refresh', async () => {
@@ -274,9 +282,11 @@ describe('Snapshot - Balance and Metrics Updates', () => {
     expect(row!.effective_balance).toBe(BigInt(32_444_000_000));
     expect(row!.beacon_status).toBe(11);
     expect(row!.status).toBe('active');
-    expect(row!.is_inactive).toBe(false);
-    expect(row!.inactive_since_slot).toBeNull();
-    expect(row!.active_since_slot).toBeNull();
+    expect(row!.consecutive_missed_attestations).toBe(0);
+    expect(row!.current_missed_streak_start_slot).toBeNull();
+    expect(row!.last_observed_slot).toBeNull();
+    expect(row!.last_attested_slot).toBeNull();
+    expect(row!.last_missed_attestation_slot).toBeNull();
   });
 });
 
@@ -368,9 +378,11 @@ describe('Snapshot - New Validator Detection', () => {
       Array<{
         validator_index: number;
         status: string;
-        is_inactive: boolean;
-        inactive_since_slot: number | null;
-        active_since_slot: number | null;
+        consecutive_missed_attestations: number;
+        current_missed_streak_start_slot: number | null;
+        last_observed_slot: number | null;
+        last_attested_slot: number | null;
+        last_missed_attestation_slot: number | null;
         attestations_total: number;
         attestations_missed: number;
       }>
@@ -379,9 +391,11 @@ describe('Snapshot - New Validator Detection', () => {
     const row = rows[0];
     expect(row).not.toBeNull();
     expect(row!.status).toBe('active'); // starts as active
-    expect(row!.is_inactive).toBe(false); // not inactive
-    expect(row!.inactive_since_slot).toBeNull();
-    expect(row!.active_since_slot).toBeNull();
+    expect(row!.consecutive_missed_attestations).toBe(0); // no current streak
+    expect(row!.current_missed_streak_start_slot).toBeNull();
+    expect(row!.last_observed_slot).toBeNull();
+    expect(row!.last_attested_slot).toBeNull();
+    expect(row!.last_missed_attestation_slot).toBeNull();
     expect(row!.attestations_total).toBe(0); // no attestations yet
     expect(row!.attestations_missed).toBe(0); // no misses yet
   });

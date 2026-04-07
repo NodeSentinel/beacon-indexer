@@ -36,7 +36,6 @@ describe('ValidatorActivityStatusController', () => {
       lastIndexedSlot: 193,
       maxIndexerLagSlotsForAlerts: 6,
       maxAttestationDelay: 3,
-      inactiveMissedCount: 4,
     });
 
     expect(syncCurrentActivityStatus).not.toHaveBeenCalled();
@@ -57,12 +56,10 @@ describe('ValidatorActivityStatusController', () => {
       lastIndexedSlot: 198,
       maxIndexerLagSlotsForAlerts: 6,
       maxAttestationDelay: 3,
-      inactiveMissedCount: 4,
     });
 
     expect(syncCurrentActivityStatus).toHaveBeenCalledWith({
       safeObservedSlot: 195,
-      inactiveMissedCount: 4,
       maxAttestationDelay: 3,
     });
   });

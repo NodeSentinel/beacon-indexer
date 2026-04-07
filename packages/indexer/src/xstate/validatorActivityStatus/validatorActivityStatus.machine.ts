@@ -13,7 +13,6 @@ const runSync = fromPromise(
       slotController: SlotController;
       maxIndexerLagSlotsForAlerts: number;
       maxAttestationDelay: number;
-      inactiveMissedCount: number;
     };
   }) => {
     const lastIndexedSlot = await input.slotController.getLastProcessedSlot();
@@ -25,7 +24,6 @@ const runSync = fromPromise(
       lastIndexedSlot,
       maxIndexerLagSlotsForAlerts: input.maxIndexerLagSlotsForAlerts,
       maxAttestationDelay: input.maxAttestationDelay,
-      inactiveMissedCount: input.inactiveMissedCount,
     });
   },
 );
@@ -38,7 +36,6 @@ export const validatorActivityStatusMachine = setup({
       slotDuration: number;
       maxIndexerLagSlotsForAlerts: number;
       maxAttestationDelay: number;
-      inactiveMissedCount: number;
     };
     input: {
       validatorActivityStatusController: ValidatorActivityStatusController;
@@ -46,7 +43,6 @@ export const validatorActivityStatusMachine = setup({
       slotDuration: number;
       maxIndexerLagSlotsForAlerts: number;
       maxAttestationDelay: number;
-      inactiveMissedCount: number;
     };
   },
   delays: {
@@ -64,7 +60,6 @@ export const validatorActivityStatusMachine = setup({
     slotDuration: input.slotDuration,
     maxIndexerLagSlotsForAlerts: input.maxIndexerLagSlotsForAlerts,
     maxAttestationDelay: input.maxAttestationDelay,
-    inactiveMissedCount: input.inactiveMissedCount,
   }),
   states: {
     waiting: {
@@ -82,7 +77,6 @@ export const validatorActivityStatusMachine = setup({
           slotController: context.slotController,
           maxIndexerLagSlotsForAlerts: context.maxIndexerLagSlotsForAlerts,
           maxAttestationDelay: context.maxAttestationDelay,
-          inactiveMissedCount: context.inactiveMissedCount,
         }),
         onDone: {
           target: 'waiting',

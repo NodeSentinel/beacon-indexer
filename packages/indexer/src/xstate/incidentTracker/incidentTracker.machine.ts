@@ -12,7 +12,6 @@ const runSync = fromPromise(
       incidentTrackerController: IncidentTrackerController;
       slotController: SlotController;
       maxAttestationDelay: number;
-      inactiveMissedCount: number;
     };
   }) => {
     const lastIndexedSlot = await input.slotController.getLastProcessedSlot();
@@ -23,7 +22,6 @@ const runSync = fromPromise(
     await input.incidentTrackerController.syncTrackedIncidents({
       lastIndexedSlot,
       maxAttestationDelay: input.maxAttestationDelay,
-      inactiveMissedCount: input.inactiveMissedCount,
     });
   },
 );
@@ -35,14 +33,12 @@ export const incidentTrackerMachine = setup({
       slotController: SlotController;
       slotDuration: number;
       maxAttestationDelay: number;
-      inactiveMissedCount: number;
     };
     input: {
       incidentTrackerController: IncidentTrackerController;
       slotController: SlotController;
       slotDuration: number;
       maxAttestationDelay: number;
-      inactiveMissedCount: number;
     };
   },
   delays: {
@@ -59,7 +55,6 @@ export const incidentTrackerMachine = setup({
     slotController: input.slotController,
     slotDuration: input.slotDuration,
     maxAttestationDelay: input.maxAttestationDelay,
-    inactiveMissedCount: input.inactiveMissedCount,
   }),
   states: {
     waiting: {
@@ -76,7 +71,6 @@ export const incidentTrackerMachine = setup({
           incidentTrackerController: context.incidentTrackerController,
           slotController: context.slotController,
           maxAttestationDelay: context.maxAttestationDelay,
-          inactiveMissedCount: context.inactiveMissedCount,
         }),
         onDone: {
           target: 'waiting',

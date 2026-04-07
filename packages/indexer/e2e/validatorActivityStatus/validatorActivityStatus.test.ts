@@ -6,7 +6,8 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vites
 import { ValidatorActivityStatusController } from '@/src/services/consensus/controllers/validatorActivityStatus.js';
 import { ValidatorActivityStatusStorage } from '@/src/services/consensus/storage/validatorActivityStatus.js';
 
-// This suite verifies the fast validator activity updater against a real database.
+// This suite verifies the validator activity worker against the revised
+// validator-owned snapshot contract.
 describe('Validator Activity Status Updater', () => {
   let prisma: PrismaClient;
   let beaconTime: BeaconTime;
@@ -14,24 +15,24 @@ describe('Validator Activity Status Updater', () => {
   let controller: ValidatorActivityStatusController;
 
   beforeAll(async () => {
-    // The e2e suite uses the same live PostgreSQL setup as the other indexer integration tests.
+    // The suite uses the real Postgres-backed Prisma client so the schema
+    // assertions cover the generated model surface, not mocked shapes.
     if (!process.env.DATABASE_URL) {
       throw new Error('DATABASE_URL is not set');
     }
 
-    // Create the generated Prisma client so the updater runs against the real schema.
     prisma = new PrismaClient({
       datasources: { db: { url: process.env.DATABASE_URL } },
     });
   });
 
   afterAll(async () => {
-    // Disconnect cleanly so the test process exits without open handles.
+    // Always close Prisma so Vitest can exit cleanly.
     await prisma.$disconnect();
   });
 
   beforeEach(async () => {
-    // Reset the clock helper, storage, and controller for each scenario.
+    // Recreate the worker dependencies from a clean clock state for each test.
     beaconTime = new BeaconTime({
       genesisTimestamp: gnosisConfig.beacon.genesisTimestamp,
       slotDurationMs: gnosisConfig.beacon.slotDuration,
@@ -43,12 +44,12 @@ describe('Validator Activity Status Updater', () => {
     storage = new ValidatorActivityStatusStorage(prisma);
     controller = new ValidatorActivityStatusController(storage, beaconTime);
 
-    // Remove only the data touched by this suite, keeping the setup isolated and deterministic.
+    // Remove only the rows touched by this suite so each scenario stays isolated.
     await prisma.incidentProcessorState.deleteMany({});
     await prisma.$executeRawUnsafe(`DELETE FROM "validators_snapshot_stats"`);
     await prisma.$executeRawUnsafe(`DELETE FROM "committee"`);
 
-    // Recreate a broad committee partition so the raw inserts succeed in every test.
+    // Recreate a broad committee partition so raw inserts succeed for every slot.
     await prisma.$executeRawUnsafe(
       `DO $$ DECLARE r RECORD; BEGIN FOR r IN SELECT inhrelid::regclass AS child FROM pg_inherits WHERE inhparent = 'committee'::regclass LOOP EXECUTE 'DROP TABLE ' || r.child || ' CASCADE'; END LOOP; END $$`,
     );
@@ -57,20 +58,22 @@ describe('Validator Activity Status Updater', () => {
     );
   });
 
-  // This helper seeds the snapshot row whose liveness columns the fast updater owns.
+  // This helper seeds one validator snapshot row using only the fields the new
+  // validator activity worker owns or must preserve.
   async function seedSnapshotValidator(validatorIndex: number) {
     await prisma.validatorsSnapshotStats.create({
       data: {
         validatorIndex,
         status: 'active',
-        isInactive: false,
-        inactiveSinceSlot: null,
-        activeSinceSlot: 90,
         consecutiveMissedAttestations: 0,
+        currentMissedStreakStartSlot: null,
         lastObservedSlot: 90,
         lastAttestedSlot: 90,
         lastMissedAttestationSlot: null,
         rewardsProcessedThroughSlot: 80,
+        missedConsensusRewardsTotal: BigInt(15),
+        missedSyncRewardsTotal: BigInt(5),
+        missedAttestationsRewardsTotal: BigInt(10),
         balance: BigInt(32_000_000_000),
         effectiveBalance: BigInt(32_000_000_000),
         beaconStatus: 3,
@@ -80,7 +83,7 @@ describe('Validator Activity Status Updater', () => {
     });
   }
 
-  // This helper inserts recent committee duties that were all missed for one validator.
+  // This helper inserts a run of missed committee duties for one validator.
   async function seedCommitteeMisses(slots: number[], validatorIndex: number) {
     for (const [index, slot] of slots.entries()) {
       await prisma.$executeRaw`
@@ -90,28 +93,30 @@ describe('Validator Activity Status Updater', () => {
     }
   }
 
-  // This helper reads back the snapshot row after the updater runs.
+  // This helper reads the current snapshot row after the worker runs.
   async function getSnapshot(validatorIndex: number) {
     return prisma.validatorsSnapshotStats.findUniqueOrThrow({
       where: { validatorIndex },
     });
   }
 
-  // This scenario preserves the Task 1 schema-lock coverage for the new snapshot fields.
-  it('persists validator activity state and processor cursors', async () => {
-    // Seed the validator snapshot row with the activity-tracking columns introduced by the refactor.
+  // This scenario locks the generated Prisma schema for the new validator-owned
+  // activity and reward accumulator fields.
+  it('persists validator streak facts, reward accumulators, and the incident cursor state', async () => {
+    // Seed one snapshot row with the new streak and reward accumulator fields.
     await prisma.validatorsSnapshotStats.create({
       data: {
         validatorIndex: 101,
         status: 'active',
-        isInactive: false,
-        inactiveSinceSlot: null,
-        activeSinceSlot: 42,
-        consecutiveMissedAttestations: 0,
+        consecutiveMissedAttestations: 2,
+        currentMissedStreakStartSlot: 41,
         lastObservedSlot: 42,
-        lastAttestedSlot: 41,
-        lastMissedAttestationSlot: null,
+        lastAttestedSlot: 40,
+        lastMissedAttestationSlot: 42,
         rewardsProcessedThroughSlot: 88,
+        missedConsensusRewardsTotal: BigInt(15),
+        missedSyncRewardsTotal: BigInt(5),
+        missedAttestationsRewardsTotal: BigInt(10),
         balance: BigInt(32_000_000_000),
         effectiveBalance: BigInt(32_000_000_000),
         beaconStatus: 3,
@@ -120,7 +125,7 @@ describe('Validator Activity Status Updater', () => {
       },
     });
 
-    // Seed the dedicated incident processor cursor row that Task 1 introduced.
+    // Seed the dedicated incident processor cursor row that the tracker uses.
     await prisma.incidentProcessorState.create({
       data: {
         processor: 'incident-tracker',
@@ -128,7 +133,7 @@ describe('Validator Activity Status Updater', () => {
       },
     });
 
-    // Read the rows back through Prisma so the test locks the generated schema surface.
+    // Read both rows back through Prisma so the test locks the schema surface.
     const snapshot = await prisma.validatorsSnapshotStats.findUniqueOrThrow({
       where: { validatorIndex: 101 },
     });
@@ -136,74 +141,78 @@ describe('Validator Activity Status Updater', () => {
       where: { processor: 'incident-tracker' },
     });
 
-    expect(snapshot.consecutiveMissedAttestations).toBe(0);
+    expect(snapshot.consecutiveMissedAttestations).toBe(2);
+    expect(snapshot.currentMissedStreakStartSlot).toBe(41);
     expect(snapshot.lastObservedSlot).toBe(42);
-    expect(snapshot.lastAttestedSlot).toBe(41);
-    expect(snapshot.lastMissedAttestationSlot).toBeNull();
+    expect(snapshot.lastAttestedSlot).toBe(40);
+    expect(snapshot.lastMissedAttestationSlot).toBe(42);
     expect(snapshot.rewardsProcessedThroughSlot).toBe(88);
+    expect(snapshot.missedConsensusRewardsTotal).toBe(BigInt(15));
+    expect(snapshot.missedSyncRewardsTotal).toBe(BigInt(5));
+    expect(snapshot.missedAttestationsRewardsTotal).toBe(BigInt(10));
     expect(processorState.lastProcessedSlot).toBe(9001);
   });
 
-  // This scenario proves stale indexed data aborts early and leaves current activity untouched.
-  it('aborts without mutating snapshot state when the indexed committee window is stale', async () => {
-    // Seed the validator row and enough committee misses that a fresh run would mark it inactive.
+  // This scenario proves stale indexed data aborts early and preserves the
+  // validator-owned streak facts.
+  it('aborts without mutating validator streak facts when indexed committee data is stale', async () => {
+    // Seed the validator row and enough missed duties that a fresh run would update it.
     await seedSnapshotValidator(101);
     await seedCommitteeMisses([120, 121, 122, 123], 101);
 
-    // Simulate the chain head being too far ahead of the indexed slot.
+    // Simulate the chain head moving too far beyond the indexed committee slot.
     vi.spyOn(beaconTime, 'getChainCurrentSlot').mockReturnValue(130);
 
-    // Run the updater with a freshness threshold that the indexed slot fails.
+    // Run the updater with a freshness allowance that the indexed slot fails.
     await controller.syncCurrentActivityStatus({
       lastIndexedSlot: 123,
       maxIndexerLagSlotsForAlerts: 6,
       maxAttestationDelay: 1,
-      inactiveMissedCount: 4,
     });
 
-    // Confirm the liveness columns remain exactly as they were before the stale run.
+    // Confirm the worker left the streak facts and reward cursors untouched.
     const row = await getSnapshot(101);
-    expect(row.isInactive).toBe(false);
     expect(row.consecutiveMissedAttestations).toBe(0);
+    expect(row.currentMissedStreakStartSlot).toBeNull();
     expect(row.lastObservedSlot).toBe(90);
     expect(row.lastAttestedSlot).toBe(90);
-    expect(row.activeSinceSlot).toBe(90);
-    expect(row.inactiveSinceSlot).toBeNull();
+    expect(row.lastMissedAttestationSlot).toBeNull();
+    expect(row.rewardsProcessedThroughSlot).toBe(80);
+    expect(row.missedConsensusRewardsTotal).toBe(BigInt(15));
   });
 
-  // This scenario proves fresh indexed committee data updates the current activity owner columns.
-  it('updates current validator activity fields when the indexed committee window is fresh', async () => {
-    // Seed the validator row and a run of recent committee misses inside the safe observation window.
+  // This scenario proves a fresh all-missed run creates one contiguous streak
+  // without touching reward progress fields.
+  it('tracks a contiguous all-missed streak from fresh committee duties', async () => {
+    // Seed the validator row and four new missed duties inside the safe window.
     await seedSnapshotValidator(101);
     await seedCommitteeMisses([120, 121, 122, 123], 101);
 
-    // Keep the head close enough that the freshness guard allows the sync to run.
+    // Keep the head close enough to pass the freshness gate.
     vi.spyOn(beaconTime, 'getChainCurrentSlot').mockReturnValue(129);
 
-    // Run the updater using the same indexed slot, now treated as fresh.
+    // Run the updater over the fresh committee window.
     await controller.syncCurrentActivityStatus({
       lastIndexedSlot: 124,
       maxIndexerLagSlotsForAlerts: 6,
       maxAttestationDelay: 1,
-      inactiveMissedCount: 4,
     });
 
-    // Confirm the updater took ownership of the current activity columns only.
+    // Confirm the worker recorded only the objective streak facts.
     const row = await getSnapshot(101);
-    expect(row.isInactive).toBe(true);
     expect(row.consecutiveMissedAttestations).toBe(4);
+    expect(row.currentMissedStreakStartSlot).toBe(120);
     expect(row.lastObservedSlot).toBe(123);
-    expect(row.lastAttestedSlot).toBeNull();
-    expect(row.lastMissedAttestationSlot).toBeNull();
-    expect(row.status).toBe('active');
-    expect(row.activeSinceSlot).toBe(90);
-    expect(row.inactiveSinceSlot).toBeNull();
+    expect(row.lastAttestedSlot).toBe(90);
+    expect(row.lastMissedAttestationSlot).toBe(123);
     expect(row.rewardsProcessedThroughSlot).toBe(80);
+    expect(row.missedConsensusRewardsTotal).toBe(BigInt(15));
   });
 
-  // This scenario proves the updater uses the trailing missed streak, not total misses in the window.
-  it('resets the missed streak after an attested duty inside the observation window', async () => {
-    // Seed the validator row and a mixed sequence ordered oldest->newest as miss, attested, miss, miss.
+  // This scenario proves an attested duty resets the streak and starts a new
+  // one on the next missed duty.
+  it('resets the streak after an attested duty and starts a new streak on the next miss', async () => {
+    // Seed the validator row and a mixed duty sequence: miss, attest, miss, miss.
     await seedSnapshotValidator(101);
     await prisma.$executeRaw`
       INSERT INTO committee (slot, "index", validator_index, aggregation_bits_index, attestation_delay)
@@ -214,21 +223,21 @@ describe('Validator Activity Status Updater', () => {
         (123, 3, 101, 3, ${null})
     `;
 
-    // Keep the indexed window fresh and include the newest duty in the safe observation slot.
+    // Keep the indexed window fresh so the worker processes the new duties.
     vi.spyOn(beaconTime, 'getChainCurrentSlot').mockReturnValue(129);
 
     await controller.syncCurrentActivityStatus({
       lastIndexedSlot: 124,
       maxIndexerLagSlotsForAlerts: 6,
       maxAttestationDelay: 1,
-      inactiveMissedCount: 3,
     });
 
-    // Only the trailing misses after the attested duty should count toward inactivity.
+    // Only the two trailing misses after the attestation should remain in the streak.
     const row = await getSnapshot(101);
     expect(row.consecutiveMissedAttestations).toBe(2);
-    expect(row.isInactive).toBe(false);
+    expect(row.currentMissedStreakStartSlot).toBe(122);
     expect(row.lastObservedSlot).toBe(123);
     expect(row.lastAttestedSlot).toBe(121);
+    expect(row.lastMissedAttestationSlot).toBe(123);
   });
 });

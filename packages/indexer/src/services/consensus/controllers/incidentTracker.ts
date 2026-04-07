@@ -10,7 +10,6 @@ export class IncidentTrackerController {
   async syncTrackedIncidents(params: {
     lastIndexedSlot: number;
     maxAttestationDelay: number;
-    inactiveMissedCount: number;
   }): Promise<void> {
     const safeUpperBound = params.lastIndexedSlot - params.maxAttestationDelay;
     if (safeUpperBound < 0) {
@@ -21,7 +20,6 @@ export class IncidentTrackerController {
       processor: 'incident-tracker',
       safeUpperBound,
       maxAttestationDelay: params.maxAttestationDelay,
-      inactiveMissedCount: params.inactiveMissedCount,
     });
     this.logger.info('Synchronized tracked incidents', { safeUpperBound });
   }

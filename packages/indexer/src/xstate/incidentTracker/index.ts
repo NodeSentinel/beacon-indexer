@@ -13,7 +13,6 @@ export const getIncidentTrackerActor = (
   slotController: SlotController,
   slotDuration: number,
   maxAttestationDelay: number,
-  inactiveMissedCount: number,
 ) => {
   const actor = createActor(incidentTrackerMachine, {
     input: {
@@ -21,7 +20,6 @@ export const getIncidentTrackerActor = (
       slotController,
       slotDuration,
       maxAttestationDelay,
-      inactiveMissedCount,
     },
   });
 

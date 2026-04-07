@@ -9,7 +9,8 @@ import { IncidentStorage } from '@/src/services/consensus/storage/incident.js';
 import { IncidentTrackerStorage } from '@/src/services/consensus/storage/incidentTracker.js';
 import { ValidatorActivityStatusStorage } from '@/src/services/consensus/storage/validatorActivityStatus.js';
 
-// This suite verifies the new sequential incident tracker path end to end.
+// This suite verifies cluster-scoped incident tracking on top of validator-owned
+// streak facts and per-cluster thresholds.
 describe('Incident Tracker', () => {
   let prisma: PrismaClient;
   let beaconTime: BeaconTime;
@@ -17,11 +18,12 @@ describe('Incident Tracker', () => {
   let incidentTrackerController: IncidentTrackerController;
 
   const VALIDATOR_INDEX = 101;
-  const CLUSTER_ID = 'cluster-a';
   const USER_ID = 'incident-user';
+  const CLUSTER_A_ID = 'cluster-a';
+  const CLUSTER_B_ID = 'cluster-b';
 
   beforeAll(async () => {
-    // E2E tests require a real PostgreSQL database.
+    // The suite runs against a real PostgreSQL database.
     if (!process.env.DATABASE_URL) {
       throw new Error('DATABASE_URL is not set');
     }
@@ -32,10 +34,12 @@ describe('Incident Tracker', () => {
   });
 
   afterAll(async () => {
+    // Disconnect Prisma so Vitest can exit cleanly.
     await prisma.$disconnect();
   });
 
   beforeEach(async () => {
+    // Recreate the worker dependencies from a clean clock state each time.
     beaconTime = new BeaconTime({
       genesisTimestamp: gnosisConfig.beacon.genesisTimestamp,
       slotDurationMs: gnosisConfig.beacon.slotDuration,
@@ -61,6 +65,7 @@ describe('Incident Tracker', () => {
       ),
     );
 
+    // Clear the tables touched by this suite so each scenario stays isolated.
     await prisma.notificationQueue.deleteMany({});
     await prisma.clusterIncident.deleteMany({});
     await prisma.incidentProcessorState.deleteMany({});
@@ -72,6 +77,7 @@ describe('Incident Tracker', () => {
     await prisma.$executeRawUnsafe(`DELETE FROM "committee"`);
     await prisma.validator.deleteMany({});
 
+    // Recreate one broad committee partition for the test slot range.
     await prisma.$executeRawUnsafe(
       `DO $$ DECLARE r RECORD; BEGIN FOR r IN SELECT inhrelid::regclass AS child FROM pg_inherits WHERE inhparent = 'committee'::regclass LOOP EXECUTE 'DROP TABLE ' || r.child || ' CASCADE'; END LOOP; END $$`,
     );
@@ -79,20 +85,13 @@ describe('Incident Tracker', () => {
       `CREATE TABLE IF NOT EXISTS committee_test_partition PARTITION OF committee FOR VALUES FROM (0) TO (100000000)`,
     );
 
+    // Seed the shared user and validator referenced by every scenario.
     await prisma.user.create({
       data: {
         id: USER_ID,
         username: 'incident-user',
         telegramId: BigInt(123456),
         hasBlockedBot: false,
-      },
-    });
-
-    await prisma.cluster.create({
-      data: {
-        id: CLUSTER_ID,
-        name: 'Incident Cluster',
-        ownerId: USER_ID,
       },
     });
 
@@ -105,25 +104,19 @@ describe('Incident Tracker', () => {
       },
     });
 
-    await prisma.clusterValidator.create({
-      data: {
-        clusterId: CLUSTER_ID,
-        validatorIndex: VALIDATOR_INDEX,
-      },
-    });
-
     await prisma.validatorsSnapshotStats.create({
       data: {
         validatorIndex: VALIDATOR_INDEX,
         status: 'active',
-        isInactive: false,
-        inactiveSinceSlot: null,
-        activeSinceSlot: null,
         consecutiveMissedAttestations: 0,
+        currentMissedStreakStartSlot: null,
         lastObservedSlot: null,
         lastAttestedSlot: null,
         lastMissedAttestationSlot: null,
         rewardsProcessedThroughSlot: null,
+        missedConsensusRewardsTotal: BigInt(0),
+        missedSyncRewardsTotal: BigInt(0),
+        missedAttestationsRewardsTotal: BigInt(0),
         balance: BigInt(32_000_000_000),
         effectiveBalance: BigInt(32_000_000_000),
         beaconStatus: 3,
@@ -133,6 +126,26 @@ describe('Incident Tracker', () => {
     });
   });
 
+  // This helper creates a cluster with a custom missed-attestation threshold.
+  async function seedCluster(params: { clusterId: string; threshold: number }) {
+    await prisma.cluster.create({
+      data: {
+        id: params.clusterId,
+        name: params.clusterId,
+        ownerId: USER_ID,
+        missedAttestationThreshold: params.threshold,
+      },
+    });
+
+    await prisma.clusterValidator.create({
+      data: {
+        clusterId: params.clusterId,
+        validatorIndex: VALIDATOR_INDEX,
+      },
+    });
+  }
+
+  // This helper seeds one tracker cursor row.
   async function seedIncidentProcessorState(processor: string, lastProcessedSlot: number) {
     await prisma.incidentProcessorState.create({
       data: {
@@ -142,6 +155,7 @@ describe('Incident Tracker', () => {
     });
   }
 
+  // This helper inserts a run of missed committee duties for the shared validator.
   async function seedCommitteeMisses(slots: number[]) {
     for (const [index, slot] of slots.entries()) {
       await prisma.$executeRaw`
@@ -151,6 +165,7 @@ describe('Incident Tracker', () => {
     }
   }
 
+  // This helper inserts one successful attestation duty for the shared validator.
   async function seedCommitteeHit(slot: number) {
     await prisma.$executeRaw`
       INSERT INTO committee (slot, "index", validator_index, aggregation_bits_index, attestation_delay)
@@ -158,6 +173,7 @@ describe('Incident Tracker', () => {
     `;
   }
 
+  // This helper marks a slot range as fully indexed so the workers can advance.
   async function seedIndexedSlots(fromSlot: number, toSlot: number) {
     for (let slot = fromSlot; slot <= toSlot; slot += 1) {
       await prisma.slot.create({
@@ -170,77 +186,86 @@ describe('Incident Tracker', () => {
     }
   }
 
-  // This scenario proves open incidents do not get stranded when the cluster later has zero tracked memberships.
-  it('closes an existing open incident when the cluster has zero current tracked memberships', async () => {
-    // Seed the durable tracker cursor so this run starts after the incident was opened.
+  // This scenario proves open incidents do not get stranded when cluster
+  // membership disappears while the incident is still open.
+  it('closes an open incident when the cluster now has zero tracked memberships', async () => {
+    // Seed one thresholded cluster and an already-open incident.
+    await seedCluster({ clusterId: CLUSTER_A_ID, threshold: 3 });
     await seedIncidentProcessorState('incident-tracker', 104);
-
-    // Create an already-open incident that still points at the cluster.
     await prisma.clusterIncident.create({
       data: {
-        clusterId: CLUSTER_ID,
+        clusterId: CLUSTER_A_ID,
         status: 'open',
         openedAt: new Date(beaconTime.getTimestampFromSlotNumber(100)),
         openedSlot: 100,
         validatorIndexes: [VALIDATOR_INDEX],
+        openedValidatorRewardTotals: {
+          [String(VALIDATOR_INDEX)]: {
+            missedConsensusRewardsTotal: '0',
+            missedSyncRewardsTotal: '0',
+            missedAttestationsRewardsTotal: '0',
+          },
+        },
       },
     });
 
-    // Remove the cluster membership to simulate a validator exit or explicit unlink while the incident is open.
+    // Remove the cluster membership to simulate an exit or unlink after opening.
     await prisma.clusterValidator.deleteMany({
-      where: { clusterId: CLUSTER_ID, validatorIndex: VALIDATOR_INDEX },
+      where: { clusterId: CLUSTER_A_ID, validatorIndex: VALIDATOR_INDEX },
     });
 
-    // Mark the follow-up slots as indexed so the tracker can advance its cursor.
+    // Mark the following slots as indexed so the tracker can advance its cursor.
     await seedIndexedSlots(105, 106);
 
-    // Run the tracker over the next safe range and let it revisit the stranded open incident.
+    // Run the tracker through the next safe range.
     await incidentTrackerController.syncTrackedIncidents({
       lastIndexedSlot: 106,
       maxAttestationDelay: 1,
-      inactiveMissedCount: 4,
     });
 
-    // The incident should now be closed even though the cluster currently has no tracked validators.
+    // The incident should now be closed at the first slot after the stored cursor.
     const incident = await prisma.clusterIncident.findFirstOrThrow({
-      where: { clusterId: CLUSTER_ID },
+      where: { clusterId: CLUSTER_A_ID },
     });
-
     expect(incident.status).toBe('closed');
     expect(incident.closedSlot).toBe(105);
   });
 
-  // This scenario proves the new tracker reconstructs open and close slots from the durable cursor.
-  it('opens and closes incidents using the sequential processor cursor', async () => {
-    // Start the durable cursor immediately before the missed-duty streak begins.
+  // This scenario proves the tracker reconstructs the exact open and close slot
+  // boundaries from the sequential cursor and per-cluster threshold.
+  it('opens and closes incidents with exact slot boundaries derived from the cluster threshold', async () => {
+    // Seed one cluster with a threshold of three consecutive missed duties.
+    await seedCluster({ clusterId: CLUSTER_A_ID, threshold: 3 });
+
+    // Start the durable cursor immediately before the streak begins.
     await seedIncidentProcessorState('incident-tracker', 99);
-    // Create four missed duties followed by one successful attestation.
-    await seedCommitteeMisses([100, 101, 102, 103]);
-    await seedCommitteeHit(104);
-    // Mark the relevant slots as indexed so both workers can process them.
-    await seedIndexedSlots(100, 105);
 
-    // Keep the freshness gate open for the validator activity updater.
-    vi.spyOn(beaconTime, 'getChainCurrentSlot').mockReturnValue(106);
+    // Seed three misses followed by one successful attestation.
+    await seedCommitteeMisses([100, 101, 102]);
+    await seedCommitteeHit(103);
 
-    // First update the current validator activity state from the indexed committee data.
+    // Mark the surrounding slots as indexed for both workers.
+    await seedIndexedSlots(100, 104);
+
+    // Keep the validator activity worker inside the freshness gate.
+    vi.spyOn(beaconTime, 'getChainCurrentSlot').mockReturnValue(105);
+
+    // Refresh the validator-owned streak facts first.
     await validatorActivityStatusController.syncCurrentActivityStatus({
-      lastIndexedSlot: 105,
+      lastIndexedSlot: 104,
       maxIndexerLagSlotsForAlerts: 6,
       maxAttestationDelay: 1,
-      inactiveMissedCount: 4,
     });
 
-    // Then advance the durable incident tracker across the same indexed range.
+    // Then advance the incident tracker over the same indexed window.
     await incidentTrackerController.syncTrackedIncidents({
-      lastIndexedSlot: 105,
+      lastIndexedSlot: 104,
       maxAttestationDelay: 1,
-      inactiveMissedCount: 4,
     });
 
-    // Read back the incident, cursor, and snapshot rows to verify the end-to-end state transition.
+    // Read back the incident, tracker cursor, and validator snapshot state.
     const incident = await prisma.clusterIncident.findFirstOrThrow({
-      where: { clusterId: CLUSTER_ID },
+      where: { clusterId: CLUSTER_A_ID },
     });
     const processorState = await prisma.incidentProcessorState.findUniqueOrThrow({
       where: { processor: 'incident-tracker' },
@@ -249,11 +274,61 @@ describe('Incident Tracker', () => {
       where: { validatorIndex: VALIDATOR_INDEX },
     });
 
+    // Threshold three means the incident opens on the third missed duty.
     expect(incident.status).toBe('closed');
-    expect(incident.openedSlot).toBe(100);
-    expect(incident.closedSlot).toBe(104);
-    expect(processorState.lastProcessedSlot).toBe(104);
-    expect(snapshot.isInactive).toBe(false);
+    expect(incident.openedSlot).toBe(102);
+    expect(incident.closedSlot).toBe(103);
+    expect(processorState.lastProcessedSlot).toBe(103);
+
+    // The validator-owned streak facts remain objective and reset after the hit.
     expect(snapshot.consecutiveMissedAttestations).toBe(0);
+    expect(snapshot.currentMissedStreakStartSlot).toBeNull();
+    expect(snapshot.lastAttestedSlot).toBe(103);
+  });
+
+  // This scenario proves the same validator streak is interpreted differently by
+  // different clusters without mutating the underlying validator facts.
+  it('interprets one validator streak through each cluster threshold independently', async () => {
+    // Seed two clusters that share the same validator but apply different thresholds.
+    await seedCluster({ clusterId: CLUSTER_A_ID, threshold: 3 });
+    await seedCluster({ clusterId: CLUSTER_B_ID, threshold: 5 });
+    await seedIncidentProcessorState('incident-tracker', 99);
+
+    // Seed four missed duties so the validator qualifies for threshold three but not five.
+    await seedCommitteeMisses([100, 101, 102, 103]);
+    await seedIndexedSlots(100, 104);
+
+    // Keep the validator activity worker inside the freshness gate.
+    vi.spyOn(beaconTime, 'getChainCurrentSlot').mockReturnValue(105);
+
+    // Refresh the validator facts and then let the tracker interpret them.
+    await validatorActivityStatusController.syncCurrentActivityStatus({
+      lastIndexedSlot: 104,
+      maxIndexerLagSlotsForAlerts: 6,
+      maxAttestationDelay: 1,
+    });
+    await incidentTrackerController.syncTrackedIncidents({
+      lastIndexedSlot: 104,
+      maxAttestationDelay: 1,
+    });
+
+    // Cluster A should open on slot 102, while cluster B should still have no incident.
+    const clusterAIncident = await prisma.clusterIncident.findFirstOrThrow({
+      where: { clusterId: CLUSTER_A_ID },
+    });
+    const clusterBIncident = await prisma.clusterIncident.findFirst({
+      where: { clusterId: CLUSTER_B_ID },
+    });
+    const snapshot = await prisma.validatorsSnapshotStats.findUniqueOrThrow({
+      where: { validatorIndex: VALIDATOR_INDEX },
+    });
+
+    expect(clusterAIncident.status).toBe('open');
+    expect(clusterAIncident.openedSlot).toBe(102);
+    expect(clusterBIncident).toBeNull();
+
+    // The validator facts remain cluster-agnostic even though incident outcomes differ.
+    expect(snapshot.consecutiveMissedAttestations).toBe(4);
+    expect(snapshot.currentMissedStreakStartSlot).toBe(100);
   });
 });
