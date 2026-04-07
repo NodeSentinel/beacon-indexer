@@ -382,6 +382,11 @@ model ValidatorsSnapshotStats {
   isInactive        Boolean @default(false) @map("is_inactive")
   inactiveSinceSlot Int?    @map("inactive_since_slot")
   activeSinceSlot   Int?    @map("active_since_slot")
+  consecutiveMissedAttestations Int     @default(0) @map("consecutive_missed_attestations")
+  lastObservedSlot              Int?    @map("last_observed_slot")
+  lastAttestedSlot              Int?    @map("last_attested_slot")
+  lastMissedAttestationSlot     Int?    @map("last_missed_attestation_slot")
+  rewardsProcessedThroughSlot    Int?    @map("rewards_processed_through_slot")
 
   // Balances
   balance          BigInt @map("balance")
@@ -448,6 +453,14 @@ model ValidatorsSnapshotStats {
   updatedAt DateTime @default(now()) @map("updated_at") @db.Timestamp
 
   @@map("validators_snapshot_stats")
+}
+
+model IncidentProcessorState {
+  processor         String   @id @map("processor") @db.VarChar(64)
+  lastProcessedSlot Int      @map("last_processed_slot")
+  updatedAt         DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamp
+
+  @@map("incident_processor_state")
 }
 
 model ChainEpochStats {
@@ -520,6 +533,8 @@ model ClusterIncident {
   durationSeconds Int?      @map("duration_seconds")
 
   missedConsensusRewards BigInt? @map("missed_consensus_rewards")
+  rewardsFinalized       Boolean @default(false) @map("rewards_finalized")
+  rewardsFinalizedAt     DateTime? @map("rewards_finalized_at") @db.Timestamp
 
   openedNotificationQueuedAt DateTime? @map("opened_notification_queued_at") @db.Timestamp
   closedNotificationQueuedAt DateTime? @map("closed_notification_queued_at") @db.Timestamp
