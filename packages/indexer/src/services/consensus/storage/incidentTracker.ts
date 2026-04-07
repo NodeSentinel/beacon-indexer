@@ -83,17 +83,38 @@ export class IncidentTrackerStorage {
       inactiveMissedCount: number;
     },
   ): Promise<void> {
-    const memberships = await tx.$queryRaw<Array<{ cluster_id: string; validator_index: number }>>`
-      SELECT cv.cluster_id, cv.validator_index
-      FROM cluster_validator cv
-      JOIN validator v ON v.id = cv.validator_index
-      WHERE COALESCE(v.status, 0) = ANY(${INCIDENT_TRACKED_BEACON_STATUSES}::int[])
-    `;
-
     const openIncidents = await tx.clusterIncident.findMany({
       where: { status: 'open' },
-      select: { id: true, clusterId: true },
+      select: { id: true, clusterId: true, validatorIndexes: true },
     });
+
+    const historyStartSlot = Math.max(0, params.fromSlot - params.inactiveMissedCount * 40);
+    const validatorsWithRelevantDuties = await tx.$queryRaw<Array<{ validator_index: number }>>`
+      SELECT DISTINCT c.validator_index
+      FROM committee c
+      WHERE c.slot BETWEEN ${historyStartSlot}::int AND ${params.toSlot}::int
+    `;
+    const relevantValidatorIndexes = [
+      ...new Set([
+        ...validatorsWithRelevantDuties.map((row) => row.validator_index),
+        ...openIncidents.flatMap((incident) => incident.validatorIndexes),
+      ]),
+    ];
+
+    if (relevantValidatorIndexes.length === 0 && openIncidents.length === 0) {
+      return;
+    }
+
+    const memberships =
+      relevantValidatorIndexes.length > 0
+        ? await tx.$queryRaw<Array<{ cluster_id: string; validator_index: number }>>`
+            SELECT cv.cluster_id, cv.validator_index
+            FROM cluster_validator cv
+            JOIN validator v ON v.id = cv.validator_index
+            WHERE cv.validator_index = ANY(${relevantValidatorIndexes}::int[])
+              AND COALESCE(v.status, 0) = ANY(${INCIDENT_TRACKED_BEACON_STATUSES}::int[])
+          `
+        : [];
 
     if (memberships.length === 0 && openIncidents.length === 0) {
       return;
@@ -127,7 +148,6 @@ export class IncidentTrackerStorage {
     }
 
     const validatorIndexes = [...validatorToClusters.keys()].sort((a, b) => a - b);
-    const historyStartSlot = Math.max(0, params.fromSlot - params.inactiveMissedCount * 40);
     const duties =
       validatorIndexes.length > 0
         ? await tx.$queryRaw<DutyRow[]>`
