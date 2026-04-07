@@ -1,8 +1,6 @@
 import { VALIDATOR_STATUS } from '@beacon-indexer/beacon-utils';
 import { PrismaClient } from '@beacon-indexer/db';
 
-import { getRuntimeChainConfig } from '@/src/lib/runtimeConfig.js';
-
 const INCIDENT_TRACKED_BEACON_STATUSES = [
   VALIDATOR_STATUS.pending_initialized,
   VALIDATOR_STATUS.pending_queued,
@@ -13,14 +11,18 @@ const INCIDENT_TRACKED_BEACON_STATUSES = [
 // Cluster incidents only apply while validators are still expected to participate.
 // Exited/withdrawn statuses are intentionally excluded.
 export class IncidentStorage {
-  constructor(private readonly prisma: PrismaClient) {}
+  constructor(
+    private readonly prisma: PrismaClient,
+    private readonly chainTiming: {
+      genesisTimeSec: number;
+      secPerSlot: number;
+      slotsPerEpoch: number;
+    },
+  ) {}
 
   async syncIncidents(params: { observedAt: Date; observedSlot: number }): Promise<void> {
     const { observedAt, observedSlot } = params;
-    const chainConfig = getRuntimeChainConfig();
-    const genesisTimeSec = Math.floor(chainConfig.beacon.genesisTimestamp / 1000);
-    const secPerSlot = Math.floor(chainConfig.beacon.slotDuration / 1000);
-    const slotsPerEpoch = chainConfig.beacon.slotsPerEpoch;
+    const { genesisTimeSec, secPerSlot, slotsPerEpoch } = this.chainTiming;
 
     await this.prisma.$executeRaw`
       WITH

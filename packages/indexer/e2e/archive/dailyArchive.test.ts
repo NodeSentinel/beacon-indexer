@@ -35,7 +35,7 @@ describe('Daily Archive Process', () => {
       datasources: { db: { url: process.env.DATABASE_URL } },
     });
 
-    dailyArchiveStorage = new DailyArchiveStorage(prisma);
+    dailyArchiveStorage = new DailyArchiveStorage(prisma, 14);
   });
 
   afterAll(async () => {

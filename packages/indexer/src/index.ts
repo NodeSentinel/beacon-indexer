@@ -166,7 +166,7 @@ async function main() {
   );
 
   // Create daily archive storage and controller
-  const dailyArchiveStorage = new DailyArchiveStorage(prisma);
+  const dailyArchiveStorage = new DailyArchiveStorage(prisma, env.ARCHIVE_DETAIL_RETENTION_DAYS);
   const lookbackSlotTimestamp = beaconTime.getTimestampFromSlotNumber(env.CONSENSUS_LOOKBACK_SLOT);
   const dailyArchiveController = new DailyArchiveController(
     dailyArchiveStorage,
@@ -189,7 +189,11 @@ async function main() {
   const snapshotController = new SnapshotController(snapshotStorage, beaconTime);
 
   // Create incident storage and controller
-  const incidentStorage = new IncidentStorage(prisma);
+  const incidentStorage = new IncidentStorage(prisma, {
+    genesisTimeSec: Math.floor(chainConfig.beacon.genesisTimestamp / 1000),
+    secPerSlot: Math.floor(chainConfig.beacon.slotDuration / 1000),
+    slotsPerEpoch: chainConfig.beacon.slotsPerEpoch,
+  });
   const incidentController = new IncidentController(incidentStorage, beaconTime);
 
   // Start indexing the beacon chain

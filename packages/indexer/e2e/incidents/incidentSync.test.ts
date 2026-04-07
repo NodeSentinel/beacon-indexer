@@ -60,7 +60,11 @@ describe('Incident Sync Process', () => {
     });
 
     // Exercise the real storage class against Postgres.
-    incidentStorage = new IncidentStorage(prisma);
+    incidentStorage = new IncidentStorage(prisma, {
+      genesisTimeSec: Math.floor(gnosisConfig.beacon.genesisTimestamp / 1000),
+      secPerSlot: Math.floor(gnosisConfig.beacon.slotDuration / 1000),
+      slotsPerEpoch: gnosisConfig.beacon.slotsPerEpoch,
+    });
   });
 
   afterAll(async () => {

@@ -3,8 +3,6 @@ import { addDays } from 'date-fns';
 import { formatInTimeZone } from 'date-fns-tz';
 import ms from 'ms';
 
-import { getArchiveDetailRetentionDays } from '@/src/lib/runtimeConfig.js';
-
 /**
  * DailyArchiveStorage - Database persistence layer for daily archive operations.
  *
@@ -12,7 +10,10 @@ import { getArchiveDetailRetentionDays } from '@/src/lib/runtimeConfig.js';
  * Follows the same pattern as HourlyArchiveStorage.
  */
 export class DailyArchiveStorage {
-  constructor(private readonly prisma: PrismaClient) {}
+  constructor(
+    private readonly prisma: PrismaClient,
+    private readonly archiveDetailRetentionDays: number,
+  ) {}
 
   /**
    * Check if a daily archive already exists for a specific UTC day.
@@ -195,7 +196,7 @@ export class DailyArchiveStorage {
 
         // 5. Clean JSON detail from daily partitions older than the configured retention window
         const cleanupCutoff = new Date(
-          dayStart.getTime() - getArchiveDetailRetentionDays() * 24 * 60 * 60 * 1000,
+          dayStart.getTime() - this.archiveDetailRetentionDays * 24 * 60 * 60 * 1000,
         );
         await tx.$executeRaw`
           UPDATE validator_daily_archive
