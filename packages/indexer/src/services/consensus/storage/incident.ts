@@ -15,26 +15,26 @@ const INCIDENT_TRACKED_BEACON_STATUSES = [
 export class IncidentStorage {
   constructor(private readonly prisma: PrismaClient) {}
 
-  async syncIncidents(params: {
-    observedAt: Date;
-    observedAtIso: string;
-    observedSlot: number;
-  }): Promise<void> {
-    const { observedAt, observedAtIso, observedSlot } = params;
+  async syncIncidents(params: { observedAt: Date; observedSlot: number }): Promise<void> {
+    const { observedAt, observedSlot } = params;
     const genesisTimeSec = Math.floor(chainConfig.beacon.genesisTimestamp / 1000);
     const secPerSlot = Math.floor(chainConfig.beacon.slotDuration / 1000);
     const slotsPerEpoch = chainConfig.beacon.slotsPerEpoch;
 
     await this.prisma.$executeRaw`
       WITH
-        chain AS (
+        -- Chain constants needed to translate slots into UTC hour/day buckets
+        -- and epochs without recomputing them in many places.
+        chain_constants AS (
           SELECT
             ${genesisTimeSec}::bigint AS genesis_sec,
             ${secPerSlot}::int AS sec_per_slot,
             ${slotsPerEpoch}::int AS slots_per_epoch
         ),
 
-        archive_info AS (
+        -- Single-row archive boundary used to decide whether the incident start
+        -- still lives in raw tables or already moved into archive tables.
+        archive_hour_boundary AS (
           SELECT last_hour
           FROM archive
           WHERE id = 1
@@ -57,7 +57,8 @@ export class IncidentStorage {
         inactive_cluster_validators AS (
           SELECT
             cv.cluster_id,
-            vss.validator_index
+            vss.validator_index,
+            vss.inactive_since_slot
           FROM validators_snapshot_stats vss
           JOIN cluster_validator cv ON cv.validator_index = vss.validator_index
           WHERE vss.is_inactive = true
@@ -78,6 +79,7 @@ export class IncidentStorage {
             c.id AS cluster_id,
             c.name AS cluster_name,
             c.owner_id,
+            MIN(icv.inactive_since_slot) AS inactive_since_slot,
             COALESCE(
               ARRAY_AGG(icv.validator_index ORDER BY icv.validator_index),
               ARRAY[]::int[]
@@ -104,8 +106,11 @@ export class IncidentStorage {
           SELECT
             cs.cluster_id,
             'open'::"public"."ClusterIncidentStatus",
-            ${observedAt}::timestamp,
-            ${observedSlot}::int,
+            TO_TIMESTAMP(
+              cc.genesis_sec +
+              (COALESCE(cs.inactive_since_slot, ${observedSlot}::int)::bigint * cc.sec_per_slot)
+            )::timestamp,
+            COALESCE(cs.inactive_since_slot, ${observedSlot}::int),
             cs.inactive_validator_indexes,
             CASE
               WHEN u.telegram_id IS NOT NULL AND u.has_blocked_bot = false
@@ -115,12 +120,19 @@ export class IncidentStorage {
             ${observedAt}::timestamp,
             ${observedAt}::timestamp
           FROM cluster_states cs
+          CROSS JOIN chain_constants cc
           LEFT JOIN open_incidents oi ON oi.cluster_id = cs.cluster_id
           JOIN "user" u ON u.id = cs.owner_id
           WHERE array_length(cs.inactive_validator_indexes, 1) > 0
             AND oi.id IS NULL
           ON CONFLICT DO NOTHING
-          RETURNING id, cluster_id, validator_indexes, opened_notification_queued_at
+          RETURNING
+            id,
+            cluster_id,
+            validator_indexes,
+            opened_at,
+            opened_slot,
+            opened_notification_queued_at
         ),
 
         -- Enqueue notifications for newly opened incidents when the owner can receive bot messages.
@@ -141,8 +153,11 @@ export class IncidentStorage {
               'clusterId', c.id,
               'clusterName', c.name,
               'incidentId', ioi.id,
-              'openedAt', ${observedAtIso},
-              'openedSlot', ${observedSlot}::int,
+              'openedAt', to_char(
+                ioi.opened_at AT TIME ZONE 'UTC',
+                'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'
+              ),
+              'openedSlot', ioi.opened_slot,
               'validatorIndexes', to_jsonb(ioi.validator_indexes)
             ),
             false,
@@ -186,11 +201,26 @@ export class IncidentStorage {
             ci.validator_indexes,
             ci.opened_at,
             ci.opened_slot,
-            ${observedAt}::timestamp AS closed_at,
-            ${observedSlot}::int AS closed_slot,
-            GREATEST(${observedSlot}::int - ci.opened_slot, 0) AS duration_slots,
+            TO_TIMESTAMP(
+              cc.genesis_sec +
+              (
+                COALESCE(recovery.active_since_slot, ${observedSlot}::int)::bigint *
+                cc.sec_per_slot
+              )
+            )::timestamp AS closed_at,
+            COALESCE(recovery.active_since_slot, ${observedSlot}::int) AS closed_slot,
+            GREATEST(COALESCE(recovery.active_since_slot, ${observedSlot}::int) - ci.opened_slot, 0)
+              AS duration_slots,
             GREATEST(
-              EXTRACT(EPOCH FROM (${observedAt}::timestamp - ci.opened_at))::int,
+              EXTRACT(EPOCH FROM (
+                TO_TIMESTAMP(
+                  cc.genesis_sec +
+                  (
+                    COALESCE(recovery.active_since_slot, ${observedSlot}::int)::bigint *
+                    cc.sec_per_slot
+                  )
+                )::timestamp - ci.opened_at
+              ))::int,
               0
             ) AS duration_seconds,
             CASE
@@ -202,11 +232,21 @@ export class IncidentStorage {
           JOIN cluster_states cs ON ci.cluster_id = cs.cluster_id
           JOIN cluster c ON c.id = cs.cluster_id
           JOIN "user" u ON u.id = c.owner_id
+          CROSS JOIN chain_constants cc
+          LEFT JOIN LATERAL (
+            SELECT
+              MAX(vss.active_since_slot)::int AS active_since_slot
+            FROM unnest(ci.validator_indexes) AS affected_validator(validator_index)
+            JOIN validators_snapshot_stats vss
+              ON vss.validator_index = affected_validator.validator_index
+          ) recovery ON true
           WHERE ci.status = 'open'::"public"."ClusterIncidentStatus"
             AND array_length(cs.inactive_validator_indexes, 1) IS NULL
         ),
 
-        incident_bounds AS (
+        -- Precompute every time/slot/epoch boundary the reward calculation needs.
+        -- Keeping this in one CTE makes the later sections much easier to read.
+        closing_incident_time_bounds AS (
           SELECT
             ic.*,
             ai.last_hour,
@@ -223,11 +263,21 @@ export class IncidentStorage {
             DATE_TRUNC('hour', ic.closed_at)::timestamp AS closed_hour,
             DATE_TRUNC('day', ic.closed_at)::timestamp AS closed_day
           FROM incident_closures ic
-          CROSS JOIN chain c
-          CROSS JOIN archive_info ai
+          CROSS JOIN chain_constants c
+          CROSS JOIN archive_hour_boundary ai
         ),
 
-        incident_reward_flags AS (
+        -- Decide whether we can compute an exact missed reward number.
+        --
+        -- Exact calculation is possible in two cases:
+        -- 1. The incident opened after the latest archived hour, so everything is
+        --    still in raw tables.
+        -- 2. The incident touches archived data, but every archived day/hour we
+        --    need still retains JSON detail (data_by_slot / data_by_epoch).
+        --
+        -- If a required daily row already had its JSON detail cleaned to NULL, we
+        -- stop and store NULL instead of returning an imprecise approximation.
+        closing_incident_calculation_eligibility AS (
           SELECT
             ib.id,
             CASE
@@ -239,6 +289,8 @@ export class IncidentStorage {
                   AND vda.timestamp BETWEEN ib.opened_day AND ib.closed_day
                   AND (vda.data_by_slot IS NULL OR vda.data_by_epoch IS NULL)
               ) THEN false
+              -- If the incident start is archived, at least one archived boundary row
+              -- with preserved JSON detail must exist so we can trim the partial day/hour.
               WHEN NOT EXISTS (
                 SELECT 1
                 FROM validator_hourly_archive vha
@@ -256,10 +308,13 @@ export class IncidentStorage {
               ) THEN false
               ELSE true
             END AS can_calculate
-          FROM incident_bounds ib
+          FROM closing_incident_time_bounds ib
         ),
 
-        raw_rewards AS (
+        -- Portion still available in raw tables:
+        -- epoch_rewards contains missed CL reward by epoch and validator_sync_rewards
+        -- contains signed sync rewards by slot. Negative sync rows represent missed reward.
+        live_unarchived_raw_rewards AS (
           SELECT
             ib.id,
             COALESCE((
@@ -277,34 +332,44 @@ export class IncidentStorage {
                 AND vsr.slot BETWEEN ib.opened_slot AND ib.closed_slot
                 AND vsr.sync_committee < 0
             ), 0::bigint) AS sync_missed
-          FROM incident_bounds ib
+          FROM closing_incident_time_bounds ib
         ),
 
-        full_daily_rewards AS (
+        -- Whole daily archive rows fully covered by the incident.
+        -- These rows can use aggregate columns directly because the incident spans
+        -- the entire archived day, so no JSON trimming is needed.
+        fully_covered_daily_archive_totals AS (
           SELECT
             ib.id,
             COALESCE(SUM(vda.cl_missed_reward_total), 0::bigint) AS cl_missed,
             COALESCE(SUM(vda.sync_missed_reward_total), 0::bigint) AS sync_missed
-          FROM incident_bounds ib
+          FROM closing_incident_time_bounds ib
           JOIN validator_daily_archive vda
+            -- ANY(validator_indexes) expands the incident's validator set without
+            -- exploding it into a separate unnested CTE.
             ON vda.validator_index = ANY(ib.validator_indexes)
            AND vda.timestamp > ib.opened_day
            AND vda.timestamp < ib.closed_day
           GROUP BY ib.id
         ),
 
-        edge_daily_rewards AS (
+        -- Partial daily archive rows at the incident boundaries.
+        -- We only inspect the opened and closed day because all days strictly inside
+        -- the range were already handled by fully_covered_daily_archive_totals.
+        boundary_daily_archive_detail_rewards AS (
           SELECT
             ib.id,
             COALESCE(SUM(sync_rewards.sync_missed), 0::bigint) AS sync_missed,
             COALESCE(SUM(epoch_rewards.cl_missed), 0::bigint) AS cl_missed
-          FROM incident_bounds ib
+          FROM closing_incident_time_bounds ib
           JOIN validator_daily_archive vda
             ON vda.validator_index = ANY(ib.validator_indexes)
            AND vda.timestamp IN (ib.opened_day, ib.closed_day)
            AND vda.data_by_slot IS NOT NULL
            AND vda.data_by_epoch IS NOT NULL
           LEFT JOIN LATERAL (
+            -- LATERAL lets us parse only the current row's JSON array and keep the
+            -- surrounding join cardinality at one row per archive record.
             SELECT
               COALESCE(SUM(-((slot_item.value ->> 2)::bigint)), 0::bigint) AS sync_missed
             FROM jsonb_array_elements(vda.data_by_slot) AS slot_item(value)
@@ -313,6 +378,8 @@ export class IncidentStorage {
               AND (slot_item.value ->> 2)::bigint < 0
           ) sync_rewards ON true
           LEFT JOIN LATERAL (
+            -- data_by_epoch stores missed CL reward split in positions 5..8.
+            -- Here we only keep epochs that fall inside the incident window.
             SELECT
               COALESCE(SUM(
                 (epoch_item.value ->> 5)::bigint +
@@ -326,12 +393,15 @@ export class IncidentStorage {
           GROUP BY ib.id
         ),
 
-        full_hourly_rewards AS (
+        -- Whole hourly archive rows fully covered by the incident.
+        -- Same idea as daily totals, but for the hours between the first and last
+        -- partial archived hours.
+        fully_covered_hourly_archive_totals AS (
           SELECT
             ib.id,
             COALESCE(SUM(vha.cl_missed_reward_total), 0::bigint) AS cl_missed,
             COALESCE(SUM(vha.sync_missed_reward_total), 0::bigint) AS sync_missed
-          FROM incident_bounds ib
+          FROM closing_incident_time_bounds ib
           JOIN validator_hourly_archive vha
             ON vha.validator_index = ANY(ib.validator_indexes)
            AND vha.timestamp > ib.opened_hour
@@ -339,16 +409,21 @@ export class IncidentStorage {
           GROUP BY ib.id
         ),
 
-        edge_hourly_rewards AS (
+        -- Partial hourly archive rows at the incident boundaries.
+        -- We only crack open data_by_slot / data_by_epoch for the first and last
+        -- archived hour touched by the incident.
+        boundary_hourly_archive_detail_rewards AS (
           SELECT
             ib.id,
             COALESCE(SUM(sync_rewards.sync_missed), 0::bigint) AS sync_missed,
             COALESCE(SUM(epoch_rewards.cl_missed), 0::bigint) AS cl_missed
-          FROM incident_bounds ib
+          FROM closing_incident_time_bounds ib
           JOIN validator_hourly_archive vha
             ON vha.validator_index = ANY(ib.validator_indexes)
            AND vha.timestamp IN (ib.opened_hour, ib.closed_hour)
           LEFT JOIN LATERAL (
+            -- Parse only the current hourly row's slot tuples and keep the missed
+            -- sync entries whose slot falls inside the incident boundaries.
             SELECT
               COALESCE(SUM(-((slot_item.value ->> 2)::bigint)), 0::bigint) AS sync_missed
             FROM jsonb_array_elements(vha.data_by_slot) AS slot_item(value)
@@ -357,6 +432,8 @@ export class IncidentStorage {
               AND (slot_item.value ->> 2)::bigint < 0
           ) sync_rewards ON true
           LEFT JOIN LATERAL (
+            -- Parse only the current hourly row's epoch tuples and sum the missed
+            -- CL reward components for epochs inside the incident window.
             SELECT
               COALESCE(SUM(
                 (epoch_item.value ->> 5)::bigint +
@@ -370,31 +447,41 @@ export class IncidentStorage {
           GROUP BY ib.id
         ),
 
-        incident_rewards AS (
+        -- Final exact missed consensus reward, assembled from:
+        -- - live raw data still not archived
+        -- - fully covered daily/hourly archive buckets
+        -- - boundary daily/hourly archive rows that need JSON trimming
+        --
+        -- The sources are intentionally non-overlapping:
+        -- raw handles unarchived data only, aggregate archive CTEs handle only full
+        -- buckets, and boundary archive CTEs handle only the partial opened/closed
+        -- day/hour rows.
+        closing_incident_missed_consensus_rewards AS (
           SELECT
             ib.id,
             rf.can_calculate,
             CASE
               WHEN rf.can_calculate THEN
-                COALESCE(rr.cl_missed, 0::bigint) +
-                COALESCE(rr.sync_missed, 0::bigint) +
-                COALESCE(fdr.cl_missed, 0::bigint) +
-                COALESCE(fdr.sync_missed, 0::bigint) +
-                COALESCE(edr.cl_missed, 0::bigint) +
-                COALESCE(edr.sync_missed, 0::bigint) +
-                COALESCE(fhr.cl_missed, 0::bigint) +
-                COALESCE(fhr.sync_missed, 0::bigint) +
-                COALESCE(ehr.cl_missed, 0::bigint) +
-                COALESCE(ehr.sync_missed, 0::bigint)
+                COALESCE(live_raw.cl_missed, 0::bigint) +
+                COALESCE(live_raw.sync_missed, 0::bigint) +
+                COALESCE(full_days.cl_missed, 0::bigint) +
+                COALESCE(full_days.sync_missed, 0::bigint) +
+                COALESCE(boundary_days.cl_missed, 0::bigint) +
+                COALESCE(boundary_days.sync_missed, 0::bigint) +
+                COALESCE(full_hours.cl_missed, 0::bigint) +
+                COALESCE(full_hours.sync_missed, 0::bigint) +
+                COALESCE(boundary_hours.cl_missed, 0::bigint) +
+                COALESCE(boundary_hours.sync_missed, 0::bigint)
               ELSE NULL
             END AS missed_consensus_rewards
-          FROM incident_bounds ib
-          JOIN incident_reward_flags rf ON rf.id = ib.id
-          LEFT JOIN raw_rewards rr ON rr.id = ib.id
-          LEFT JOIN full_daily_rewards fdr ON fdr.id = ib.id
-          LEFT JOIN edge_daily_rewards edr ON edr.id = ib.id
-          LEFT JOIN full_hourly_rewards fhr ON fhr.id = ib.id
-          LEFT JOIN edge_hourly_rewards ehr ON ehr.id = ib.id
+          FROM closing_incident_time_bounds ib
+          JOIN closing_incident_calculation_eligibility rf ON rf.id = ib.id
+          LEFT JOIN live_unarchived_raw_rewards live_raw ON live_raw.id = ib.id
+          LEFT JOIN fully_covered_daily_archive_totals full_days ON full_days.id = ib.id
+          LEFT JOIN boundary_daily_archive_detail_rewards boundary_days ON boundary_days.id = ib.id
+          LEFT JOIN fully_covered_hourly_archive_totals full_hours ON full_hours.id = ib.id
+          LEFT JOIN boundary_hourly_archive_detail_rewards boundary_hours
+            ON boundary_hours.id = ib.id
         ),
 
         -- Close incidents and persist the best-effort missed consensus rewards.
@@ -412,7 +499,7 @@ export class IncidentStorage {
             closed_notification_queued_at = ic.closed_notification_queued_at,
             updated_at = ic.closed_at
           FROM incident_closures ic
-          LEFT JOIN incident_rewards ir ON ir.id = ic.id
+          LEFT JOIN closing_incident_missed_consensus_rewards ir ON ir.id = ic.id
           WHERE ci.id = ic.id
           RETURNING
             ci.id,
@@ -444,7 +531,10 @@ export class IncidentStorage {
               'clusterId', ic.cluster_id,
               'clusterName', ic.cluster_name,
               'incidentId', ci.id,
-              'closedAt', ${observedAtIso},
+              'closedAt', to_char(
+                ci.closed_at AT TIME ZONE 'UTC',
+                'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'
+              ),
               'closedSlot', ci.closed_slot,
               'durationSeconds', ci.duration_seconds,
               'durationSlots', ci.duration_slots,

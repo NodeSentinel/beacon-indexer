@@ -378,8 +378,10 @@ model ValidatorsSnapshotStats {
   validatorIndex Int @id(map: "validators_snapshot_stats_pkey") @map("validator_index")
 
   // State
-  status     String  @map("status") @db.VarChar(10)
-  isInactive Boolean @default(false) @map("is_inactive")
+  status            String  @map("status") @db.VarChar(10)
+  isInactive        Boolean @default(false) @map("is_inactive")
+  inactiveSinceSlot Int?    @map("inactive_since_slot")
+  activeSinceSlot   Int?    @map("active_since_slot")
 
   // Balances
   balance          BigInt @map("balance")

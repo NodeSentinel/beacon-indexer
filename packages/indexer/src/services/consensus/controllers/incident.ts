@@ -18,7 +18,6 @@ export class IncidentController {
 
     await this.incidentStorage.syncIncidents({
       observedAt,
-      observedAtIso: observedAt.toISOString(),
       observedSlot,
     });
     this.logger.info('Synchronized cluster incidents');

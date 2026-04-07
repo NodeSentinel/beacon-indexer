@@ -42,7 +42,10 @@ export class SnapshotStorage {
     await this.prisma.$executeRaw`
       WITH
         user_validators AS (
-          SELECT DISTINCT vss.validator_index
+          SELECT
+            vss.validator_index,
+            vss.is_inactive AS was_inactive,
+            vss.inactive_since_slot
           FROM validators_snapshot_stats vss
         ),
 
@@ -65,6 +68,11 @@ export class SnapshotStorage {
             a.validator_index,
             a.slot,
             a.is_missed,
+            SUM(CASE WHEN a.is_missed = 0 THEN 1 ELSE 0 END) OVER (
+              PARTITION BY a.validator_index
+              ORDER BY a.slot DESC
+              ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+            ) AS non_missed_seen_from_head,
             ROW_NUMBER() OVER (
               PARTITION BY a.validator_index
               ORDER BY a.slot DESC
@@ -73,19 +81,51 @@ export class SnapshotStorage {
           WHERE a.slot >= ${inactivityCheckStartSlot}::int
         ),
 
-        -- A validator is inactive if they missed ALL of the last N attestations
-        inactivity AS (
+        -- Current leading missed streak from the newest attestation backwards.
+        -- If this streak length reaches the inactivity threshold, the validator is inactive.
+        leading_missed_streak AS (
           SELECT
             sa.validator_index,
-            CASE
-              WHEN SUM(
-                CASE WHEN sa.rn <= ${inactiveMissedCount}::int THEN sa.is_missed ELSE 0 END
-              ) = ${inactiveMissedCount}::int
-              THEN true
-              ELSE false
-            END AS is_inactive
+            COUNT(*)::int AS missed_streak_count,
+            MIN(sa.slot)::int AS missed_streak_start_slot
           FROM status_attestations sa
+          WHERE sa.is_missed = 1
+            AND sa.non_missed_seen_from_head = 0
           GROUP BY sa.validator_index
+        ),
+
+        -- If the validator was inactive in the previous snapshot, this is the first
+        -- successful attestation after the stored inactive_since_slot. That is the
+        -- slot where the validator became active again.
+        recovered_active_slots AS (
+          SELECT
+            uv.validator_index,
+            MIN(a.slot)::int AS active_since_slot
+          FROM user_validators uv
+          JOIN attestations a
+            ON a.validator_index = uv.validator_index
+          WHERE uv.was_inactive = true
+            AND uv.inactive_since_slot IS NOT NULL
+            AND a.slot > uv.inactive_since_slot
+            AND a.is_missed = 0
+          GROUP BY uv.validator_index
+        ),
+
+        inactivity_state AS (
+          SELECT
+            uv.validator_index,
+            COALESCE(lms.missed_streak_count, 0) >= ${inactiveMissedCount}::int AS is_inactive,
+            CASE
+              WHEN COALESCE(lms.missed_streak_count, 0) >= ${inactiveMissedCount}::int
+              THEN lms.missed_streak_start_slot
+              ELSE NULL
+            END AS inactive_since_slot_candidate,
+            ras.active_since_slot AS active_since_slot_candidate
+          FROM user_validators uv
+          LEFT JOIN leading_missed_streak lms
+            ON lms.validator_index = uv.validator_index
+          LEFT JOIN recovered_active_slots ras
+            ON ras.validator_index = uv.validator_index
         ),
 
         hourly AS (
@@ -102,6 +142,8 @@ export class SnapshotStorage {
             uvs.validator_index,
             CASE WHEN COALESCE(i.is_inactive, false) THEN 'inactive' ELSE 'active' END AS status,
             COALESCE(i.is_inactive, false) AS is_inactive,
+            i.inactive_since_slot_candidate,
+            i.active_since_slot_candidate,
             COALESCE(h.attestations_total, 0) AS attestations_total,
             COALESCE(h.attestations_missed, 0) AS attestations_missed,
             v.status AS beacon_status,
@@ -109,7 +151,7 @@ export class SnapshotStorage {
             COALESCE(v.effective_balance, 0) AS effective_balance
           FROM user_validators uvs
           LEFT JOIN hourly h ON uvs.validator_index = h.validator_index
-          LEFT JOIN inactivity i ON uvs.validator_index = i.validator_index
+          LEFT JOIN inactivity_state i ON uvs.validator_index = i.validator_index
           JOIN validator v ON v.id = uvs.validator_index
         )
 
@@ -117,6 +159,20 @@ export class SnapshotStorage {
       SET
         status = sd.status,
         is_inactive = sd.is_inactive,
+        inactive_since_slot = CASE
+          WHEN sd.is_inactive AND vss.is_inactive
+          THEN COALESCE(vss.inactive_since_slot, sd.inactive_since_slot_candidate)
+          WHEN sd.is_inactive
+          THEN sd.inactive_since_slot_candidate
+          ELSE NULL
+        END,
+        active_since_slot = CASE
+          WHEN sd.is_inactive
+          THEN NULL
+          WHEN vss.is_inactive AND NOT sd.is_inactive
+          THEN sd.active_since_slot_candidate
+          ELSE vss.active_since_slot
+        END,
         attestations_total = sd.attestations_total,
         attestations_missed = sd.attestations_missed,
         beacon_status = sd.beacon_status,

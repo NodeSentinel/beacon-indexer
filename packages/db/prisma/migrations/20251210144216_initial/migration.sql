@@ -261,6 +261,8 @@ VALUES (1, NULL, NULL, NULL);
 CREATE TABLE "public"."validators_snapshot_stats" (
     "validator_index" INTEGER NOT NULL,
     "status" VARCHAR(10) NOT NULL,
+    "inactive_since_slot" INTEGER,
+    "active_since_slot" INTEGER,
     "attestations_total" INTEGER NOT NULL,
     "attestations_missed" INTEGER NOT NULL,
     "attestation_count_h" SMALLINT NOT NULL DEFAULT 0,

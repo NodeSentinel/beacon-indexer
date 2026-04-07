@@ -37,7 +37,6 @@ describe('IncidentController', () => {
     await controller.syncOpenIncidents(gnosisConfig.beacon.maxAttestationDelay);
     expect(syncIncidents).toHaveBeenCalledWith({
       observedAt: new Date(beaconTime.getTimestampFromSlotNumber(observedSlot)),
-      observedAtIso: new Date(beaconTime.getTimestampFromSlotNumber(observedSlot)).toISOString(),
       observedSlot,
     });
   });

@@ -177,6 +177,8 @@ describe('Snapshot - Inactivity Detection', () => {
         validator_index: number;
         status: string;
         is_inactive: boolean;
+        inactive_since_slot: number | null;
+        active_since_slot: number | null;
         attestations_total: number;
         attestations_missed: number;
       }>
@@ -231,6 +233,8 @@ describe('Snapshot - Inactivity Detection', () => {
     expect(row).not.toBeNull();
     expect(row!.status).toBe('inactive');
     expect(row!.is_inactive).toBe(true);
+    expect(row!.inactive_since_slot).toBe(100);
+    expect(row!.active_since_slot).toBeNull();
   });
 
   it('should NOT count as missed when slot is beyond maxSlotToQuery', async () => {
@@ -332,6 +336,8 @@ describe('Snapshot - Inactivity Detection', () => {
     row = await getSnapshot(1);
     expect(row!.status).toBe('active');
     expect(row!.is_inactive).toBe(false);
+    expect(row!.inactive_since_slot).toBeNull();
+    expect(row!.active_since_slot).toBe(125);
   });
 
   it('should count null attestation_delay as missed', async () => {
@@ -632,6 +638,8 @@ describe('Snapshot - New Validator Detection', () => {
         validator_index: number;
         status: string;
         is_inactive: boolean;
+        inactive_since_slot: number | null;
+        active_since_slot: number | null;
         attestations_total: number;
         attestations_missed: number;
       }>
@@ -641,6 +649,8 @@ describe('Snapshot - New Validator Detection', () => {
     expect(row).not.toBeNull();
     expect(row!.status).toBe('active'); // starts as active
     expect(row!.is_inactive).toBe(false); // not inactive
+    expect(row!.inactive_since_slot).toBeNull();
+    expect(row!.active_since_slot).toBeNull();
     expect(row!.attestations_total).toBe(0); // no attestations yet
     expect(row!.attestations_missed).toBe(0); // no misses yet
   });

@@ -227,7 +227,6 @@ describe('Incident Sync Process', () => {
     // Execute the incident sync at the observed closing slot.
     await incidentStorage.syncIncidents({
       observedAt: getSlotDate(closedSlot),
-      observedAtIso: getSlotDate(closedSlot).toISOString(),
       observedSlot: closedSlot,
     });
 
@@ -338,7 +337,6 @@ describe('Incident Sync Process', () => {
     // Execute the sync at the observed closing slot.
     await incidentStorage.syncIncidents({
       observedAt: getSlotDate(closedSlot),
-      observedAtIso: getSlotDate(closedSlot).toISOString(),
       observedSlot: closedSlot,
     });
 
