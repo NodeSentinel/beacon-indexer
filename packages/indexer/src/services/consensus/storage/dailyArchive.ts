@@ -3,7 +3,7 @@ import { addDays } from 'date-fns';
 import { formatInTimeZone } from 'date-fns-tz';
 import ms from 'ms';
 
-import { env } from '@/src/lib/env.js';
+import { getArchiveDetailRetentionDays } from '@/src/lib/runtimeConfig.js';
 
 /**
  * DailyArchiveStorage - Database persistence layer for daily archive operations.
@@ -195,7 +195,7 @@ export class DailyArchiveStorage {
 
         // 5. Clean JSON detail from daily partitions older than the configured retention window
         const cleanupCutoff = new Date(
-          dayStart.getTime() - env.ARCHIVE_DETAIL_RETENTION_DAYS * 24 * 60 * 60 * 1000,
+          dayStart.getTime() - getArchiveDetailRetentionDays() * 24 * 60 * 60 * 1000,
         );
         await tx.$executeRaw`
           UPDATE validator_daily_archive

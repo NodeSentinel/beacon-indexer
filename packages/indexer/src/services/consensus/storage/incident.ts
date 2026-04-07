@@ -1,7 +1,7 @@
 import { VALIDATOR_STATUS } from '@beacon-indexer/beacon-utils';
 import { PrismaClient } from '@beacon-indexer/db';
 
-import { chainConfig } from '@/src/lib/env.js';
+import { getRuntimeChainConfig } from '@/src/lib/runtimeConfig.js';
 
 const INCIDENT_TRACKED_BEACON_STATUSES = [
   VALIDATOR_STATUS.pending_initialized,
@@ -17,6 +17,7 @@ export class IncidentStorage {
 
   async syncIncidents(params: { observedAt: Date; observedSlot: number }): Promise<void> {
     const { observedAt, observedSlot } = params;
+    const chainConfig = getRuntimeChainConfig();
     const genesisTimeSec = Math.floor(chainConfig.beacon.genesisTimestamp / 1000);
     const secPerSlot = Math.floor(chainConfig.beacon.slotDuration / 1000);
     const slotsPerEpoch = chainConfig.beacon.slotsPerEpoch;

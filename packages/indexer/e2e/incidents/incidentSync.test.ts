@@ -1,7 +1,7 @@
+import { gnosisConfig } from '@beacon-indexer/beacon-utils/config/chain';
 import { Prisma, PrismaClient } from '@beacon-indexer/db';
 import { beforeAll, beforeEach, describe, expect, it, afterAll } from 'vitest';
 
-import { chainConfig } from '@/src/lib/env.js';
 import { IncidentStorage } from '@/src/services/consensus/storage/incident.js';
 
 describe('Incident Sync Process', () => {
@@ -19,7 +19,7 @@ describe('Incident Sync Process', () => {
 
   // Convert a slot to the UTC timestamp used by the indexer.
   function getSlotDate(slot: number): Date {
-    return new Date(chainConfig.beacon.genesisTimestamp + slot * chainConfig.beacon.slotDuration);
+    return new Date(gnosisConfig.beacon.genesisTimestamp + slot * gnosisConfig.beacon.slotDuration);
   }
 
   // Create the daily archive partition required before inserting a daily row.
@@ -156,7 +156,7 @@ describe('Incident Sync Process', () => {
    */
   it('should close a raw-window incident with missed consensus rewards and no execution field', async () => {
     // Pick a short incident that stays inside a single epoch for simple assertions.
-    const openedSlot = chainConfig.beacon.slotsPerEpoch * 200;
+    const openedSlot = gnosisConfig.beacon.slotsPerEpoch * 200;
 
     // Close it a few slots later while staying in the same epoch.
     const closedSlot = openedSlot + 10;
@@ -264,7 +264,7 @@ describe('Incident Sync Process', () => {
    */
   it('should leave missed consensus rewards null when archived detail is no longer available', async () => {
     // Pick a slot well in the past so the test can treat it as archived data.
-    const openedSlot = chainConfig.beacon.slotsPerEpoch * 400;
+    const openedSlot = gnosisConfig.beacon.slotsPerEpoch * 400;
 
     // Close the incident later in the same day to force a partial archived boundary.
     const closedSlot = openedSlot + 12;
