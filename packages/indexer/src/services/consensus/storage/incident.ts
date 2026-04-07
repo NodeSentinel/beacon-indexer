@@ -123,9 +123,6 @@ export class IncidentStorage {
     }
 
     const closedAt = this.getSlotDate(params.closedSlot);
-    const closedNotificationQueuedAt = this.canQueueNotification(incident.cluster.owner)
-      ? closedAt
-      : null;
     const durationSlots = Math.max(params.closedSlot - incident.openedSlot, 0);
     const durationSeconds = Math.max(
       Math.floor((closedAt.getTime() - incident.openedAt.getTime()) / 1000),
@@ -140,31 +137,9 @@ export class IncidentStorage {
         closedSlot: params.closedSlot,
         durationSlots,
         durationSeconds,
-        closedNotificationQueuedAt,
         updatedAt: closedAt,
       },
     });
-
-    if (closedNotificationQueuedAt) {
-      await tx.notificationQueue.create({
-        data: {
-          userId: incident.cluster.ownerId,
-          type: 'incident_closed',
-          payload: {
-            clusterId: incident.clusterId,
-            clusterName: incident.cluster.name,
-            incidentId: incident.id,
-            closedAt: closedAt.toISOString(),
-            closedSlot: params.closedSlot,
-            durationSeconds,
-            durationSlots,
-            missedConsensusRewards: closedIncident.missedConsensusRewards?.toString() ?? null,
-          },
-          delivered: false,
-          createdAt: closedAt,
-        },
-      });
-    }
 
     return closedIncident;
   }

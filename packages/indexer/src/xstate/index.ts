@@ -8,6 +8,7 @@ import {
 } from './archive/index.js';
 import { getChainStatsActor } from './chainStats/index.js';
 import { getCreateEpochActor, getEpochOrchestratorActor } from './epoch/index.js';
+import { getIncidentRewardsActor } from './incidentRewards/index.js';
 import { getIncidentTrackerActor } from './incidentTracker/index.js';
 import { getLagAlertingActor } from './lagAlerting/index.js';
 import { getSnapshotActor } from './snapshot/index.js';
@@ -17,6 +18,7 @@ import { ChainStatsController } from '@/src/services/consensus/controllers/chain
 import { DailyArchiveController } from '@/src/services/consensus/controllers/dailyArchive.js';
 import { EpochController } from '@/src/services/consensus/controllers/epoch.js';
 import { HourlyArchiveController } from '@/src/services/consensus/controllers/hourlyArchive.js';
+import { IncidentRewardsController } from '@/src/services/consensus/controllers/incidentRewards.js';
 import { IncidentTrackerController } from '@/src/services/consensus/controllers/incidentTracker.js';
 import { MonthlyArchiveController } from '@/src/services/consensus/controllers/monthlyArchive.js';
 import { PartitionController } from '@/src/services/consensus/controllers/partition.js';
@@ -38,6 +40,7 @@ export default function initXstateMachines(
   chainStatsController: ChainStatsController,
   snapshotController: SnapshotController,
   incidentTrackerController: IncidentTrackerController,
+  incidentRewardsController: IncidentRewardsController,
   validatorActivityStatusController: ValidatorActivityStatusController,
   chain: Chain,
   maxAttestationDelay: number,
@@ -95,6 +98,9 @@ export default function initXstateMachines(
     missedAttestationsForInactivity,
   );
   incidentTrackerActor.start();
+
+  const incidentRewardsActor = getIncidentRewardsActor(incidentRewardsController, slotController);
+  incidentRewardsActor.start();
 
   const snapshotActor = getSnapshotActor(
     snapshotController,

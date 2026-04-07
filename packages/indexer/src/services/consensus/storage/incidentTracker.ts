@@ -90,7 +90,12 @@ export class IncidentTrackerStorage {
       WHERE COALESCE(v.status, 0) = ANY(${INCIDENT_TRACKED_BEACON_STATUSES}::int[])
     `;
 
-    if (memberships.length === 0) {
+    const openIncidents = await tx.clusterIncident.findMany({
+      where: { status: 'open' },
+      select: { id: true, clusterId: true },
+    });
+
+    if (memberships.length === 0 && openIncidents.length === 0) {
       return;
     }
 
@@ -109,15 +114,30 @@ export class IncidentTrackerStorage {
       }
     }
 
+    for (const incident of openIncidents) {
+      if (!clusterStates.has(incident.clusterId)) {
+        clusterStates.set(incident.clusterId, {
+          inactiveValidators: new Set<number>(),
+          inactiveSinceByValidator: new Map<number, number>(),
+          openIncident: { id: incident.id },
+        });
+      } else {
+        clusterStates.get(incident.clusterId)!.openIncident = { id: incident.id };
+      }
+    }
+
     const validatorIndexes = [...validatorToClusters.keys()].sort((a, b) => a - b);
     const historyStartSlot = Math.max(0, params.fromSlot - params.inactiveMissedCount * 40);
-    const duties = await tx.$queryRaw<DutyRow[]>`
-      SELECT c.slot, c.validator_index, c.attestation_delay
-      FROM committee c
-      WHERE c.validator_index = ANY(${validatorIndexes}::int[])
-        AND c.slot BETWEEN ${historyStartSlot}::int AND ${params.toSlot}::int
-      ORDER BY c.slot ASC, c.validator_index ASC
-    `;
+    const duties =
+      validatorIndexes.length > 0
+        ? await tx.$queryRaw<DutyRow[]>`
+            SELECT c.slot, c.validator_index, c.attestation_delay
+            FROM committee c
+            WHERE c.validator_index = ANY(${validatorIndexes}::int[])
+              AND c.slot BETWEEN ${historyStartSlot}::int AND ${params.toSlot}::int
+            ORDER BY c.slot ASC, c.validator_index ASC
+          `
+        : [];
 
     const dutiesByValidator = new Map<number, DutyRow[]>();
     const dutiesBySlot = new Map<number, DutyRow[]>();
@@ -160,17 +180,6 @@ export class IncidentTrackerStorage {
       });
     }
 
-    const openIncidents = await tx.clusterIncident.findMany({
-      where: { status: 'open' },
-      select: { id: true, clusterId: true },
-    });
-    for (const incident of openIncidents) {
-      const clusterState = clusterStates.get(incident.clusterId);
-      if (clusterState) {
-        clusterState.openIncident = { id: incident.id };
-      }
-    }
-
     for (const [validatorIndex, state] of validatorStates) {
       if (!state.inactive || state.inactiveSinceSlot === null) {
         continue;
@@ -184,6 +193,14 @@ export class IncidentTrackerStorage {
     }
 
     for (const [clusterId, clusterState] of clusterStates) {
+      if (clusterState.openIncident && clusterState.inactiveValidators.size === 0) {
+        await this.incidentStorage.closeIncident(tx, {
+          incidentId: clusterState.openIncident.id,
+          closedSlot: params.fromSlot,
+        });
+        clusterState.openIncident = null;
+      }
+
       if (clusterState.openIncident || clusterState.inactiveValidators.size === 0) {
         continue;
       }

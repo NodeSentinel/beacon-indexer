@@ -3,25 +3,27 @@ import { gnosisConfig } from '@beacon-indexer/beacon-utils/config/chain';
 import { PrismaClient } from '@beacon-indexer/db';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { IncidentRewardsController } from '@/src/services/consensus/controllers/incidentRewards.js';
 import { IncidentTrackerController } from '@/src/services/consensus/controllers/incidentTracker.js';
 import { ValidatorActivityStatusController } from '@/src/services/consensus/controllers/validatorActivityStatus.js';
 import { IncidentStorage } from '@/src/services/consensus/storage/incident.js';
+import { IncidentRewardsStorage } from '@/src/services/consensus/storage/incidentRewards.js';
 import { IncidentTrackerStorage } from '@/src/services/consensus/storage/incidentTracker.js';
 import { ValidatorActivityStatusStorage } from '@/src/services/consensus/storage/validatorActivityStatus.js';
 
-// This suite verifies the new sequential incident tracker path end to end.
-describe('Incident Tracker', () => {
+// This suite verifies reward finalization and close notifications on the new tracker path.
+describe('Incident Rewards', () => {
   let prisma: PrismaClient;
   let beaconTime: BeaconTime;
   let validatorActivityStatusController: ValidatorActivityStatusController;
   let incidentTrackerController: IncidentTrackerController;
+  let incidentRewardsController: IncidentRewardsController;
 
   const VALIDATOR_INDEX = 101;
   const CLUSTER_ID = 'cluster-a';
   const USER_ID = 'incident-user';
 
   beforeAll(async () => {
-    // E2E tests require a real PostgreSQL database.
     if (!process.env.DATABASE_URL) {
       throw new Error('DATABASE_URL is not set');
     }
@@ -45,20 +47,25 @@ describe('Incident Tracker', () => {
       delaySlotsToHead: gnosisConfig.beacon.delaySlotsToHead,
     });
 
+    const incidentStorage = new IncidentStorage(prisma, {
+      genesisTimeSec: Math.floor(gnosisConfig.beacon.genesisTimestamp / 1000),
+      secPerSlot: Math.floor(gnosisConfig.beacon.slotDuration / 1000),
+      slotsPerEpoch: gnosisConfig.beacon.slotsPerEpoch,
+    });
+
     validatorActivityStatusController = new ValidatorActivityStatusController(
       new ValidatorActivityStatusStorage(prisma),
       beaconTime,
     );
 
     incidentTrackerController = new IncidentTrackerController(
-      new IncidentTrackerStorage(
-        prisma,
-        new IncidentStorage(prisma, {
-          genesisTimeSec: Math.floor(gnosisConfig.beacon.genesisTimestamp / 1000),
-          secPerSlot: Math.floor(gnosisConfig.beacon.slotDuration / 1000),
-          slotsPerEpoch: gnosisConfig.beacon.slotsPerEpoch,
-        }),
-      ),
+      new IncidentTrackerStorage(prisma, incidentStorage),
+    );
+
+    incidentRewardsController = new IncidentRewardsController(
+      new IncidentRewardsStorage(prisma, {
+        slotsPerEpoch: gnosisConfig.beacon.slotsPerEpoch,
+      }),
     );
 
     await prisma.notificationQueue.deleteMany({});
@@ -68,6 +75,8 @@ describe('Incident Tracker', () => {
     await prisma.cluster.deleteMany({});
     await prisma.user.deleteMany({});
     await prisma.validatorsSnapshotStats.deleteMany({});
+    await prisma.validatorSyncRewards.deleteMany({});
+    await prisma.$executeRawUnsafe(`DELETE FROM "epoch_rewards"`);
     await prisma.slot.deleteMany({});
     await prisma.$executeRawUnsafe(`DELETE FROM "committee"`);
     await prisma.validator.deleteMany({});
@@ -77,6 +86,12 @@ describe('Incident Tracker', () => {
     );
     await prisma.$executeRawUnsafe(
       `CREATE TABLE IF NOT EXISTS committee_test_partition PARTITION OF committee FOR VALUES FROM (0) TO (100000000)`,
+    );
+    await prisma.$executeRawUnsafe(
+      `DO $$ DECLARE r RECORD; BEGIN FOR r IN SELECT inhrelid::regclass AS child FROM pg_inherits WHERE inhparent = 'epoch_rewards'::regclass LOOP EXECUTE 'DROP TABLE ' || r.child || ' CASCADE'; END LOOP; END $$`,
+    );
+    await prisma.$executeRawUnsafe(
+      `CREATE TABLE IF NOT EXISTS epoch_rewards_test_partition PARTITION OF epoch_rewards FOR VALUES FROM (0) TO (100000000)`,
     );
 
     await prisma.user.create({
@@ -133,15 +148,6 @@ describe('Incident Tracker', () => {
     });
   });
 
-  async function seedIncidentProcessorState(processor: string, lastProcessedSlot: number) {
-    await prisma.incidentProcessorState.create({
-      data: {
-        processor,
-        lastProcessedSlot,
-      },
-    });
-  }
-
   async function seedCommitteeMisses(slots: number[]) {
     for (const [index, slot] of slots.entries()) {
       await prisma.$executeRaw`
@@ -170,60 +176,50 @@ describe('Incident Tracker', () => {
     }
   }
 
-  // This scenario proves open incidents do not get stranded when the cluster later has zero tracked memberships.
-  it('closes an existing open incident when the cluster has zero current tracked memberships', async () => {
-    // Seed the durable tracker cursor so this run starts after the incident was opened.
-    await seedIncidentProcessorState('incident-tracker', 104);
+  // This scenario proves the close notification is deferred until the reward worker finalizes the incident.
+  it('finalizes closed incidents and queues close notifications with reward values', async () => {
+    // Create an inactivity streak that opens an incident and a later hit that closes it.
+    await seedCommitteeMisses([100, 101, 102, 103]);
+    await seedCommitteeHit(104);
+    // Mark the surrounding slots as indexed so both workers can process the same window.
+    await seedIndexedSlots(100, 105);
 
-    // Create an already-open incident that still points at the cluster.
-    await prisma.clusterIncident.create({
+    // Seed consensus-layer reward misses that the reward worker should aggregate onto the incident.
+    await prisma.epochRewards.create({
       data: {
-        clusterId: CLUSTER_ID,
-        status: 'open',
-        openedAt: new Date(beaconTime.getTimestampFromSlotNumber(100)),
-        openedSlot: 100,
-        validatorIndexes: [VALIDATOR_INDEX],
+        epoch: Math.floor(100 / gnosisConfig.beacon.slotsPerEpoch),
+        validatorIndex: VALIDATOR_INDEX,
+        head: BigInt(0),
+        target: BigInt(0),
+        source: BigInt(0),
+        inactivity: BigInt(0),
+        missedHead: BigInt(4),
+        missedTarget: BigInt(3),
+        missedSource: BigInt(2),
+        missedInactivity: BigInt(1),
       },
     });
 
-    // Remove the cluster membership to simulate a validator exit or explicit unlink while the incident is open.
-    await prisma.clusterValidator.deleteMany({
-      where: { clusterId: CLUSTER_ID, validatorIndex: VALIDATOR_INDEX },
+    // Seed sync committee penalties in the same time range to prove both reward sources are included.
+    await prisma.validatorSyncRewards.createMany({
+      data: [
+        {
+          slot: 102,
+          validatorIndex: VALIDATOR_INDEX,
+          syncCommittee: BigInt(-5),
+        },
+        {
+          slot: 103,
+          validatorIndex: VALIDATOR_INDEX,
+          syncCommittee: BigInt(9),
+        },
+      ],
     });
 
-    // Mark the follow-up slots as indexed so the tracker can advance its cursor.
-    await seedIndexedSlots(105, 106);
-
-    // Run the tracker over the next safe range and let it revisit the stranded open incident.
-    await incidentTrackerController.syncTrackedIncidents({
-      lastIndexedSlot: 106,
-      maxAttestationDelay: 1,
-      inactiveMissedCount: 4,
-    });
-
-    // The incident should now be closed even though the cluster currently has no tracked validators.
-    const incident = await prisma.clusterIncident.findFirstOrThrow({
-      where: { clusterId: CLUSTER_ID },
-    });
-
-    expect(incident.status).toBe('closed');
-    expect(incident.closedSlot).toBe(105);
-  });
-
-  // This scenario proves the new tracker reconstructs open and close slots from the durable cursor.
-  it('opens and closes incidents using the sequential processor cursor', async () => {
-    // Start the durable cursor immediately before the missed-duty streak begins.
-    await seedIncidentProcessorState('incident-tracker', 99);
-    // Create four missed duties followed by one successful attestation.
-    await seedCommitteeMisses([100, 101, 102, 103]);
-    await seedCommitteeHit(104);
-    // Mark the relevant slots as indexed so both workers can process them.
-    await seedIndexedSlots(100, 105);
-
-    // Keep the freshness gate open for the validator activity updater.
+    // Keep the validator activity updater inside the freshness gate.
     vi.spyOn(beaconTime, 'getChainCurrentSlot').mockReturnValue(106);
 
-    // First update the current validator activity state from the indexed committee data.
+    // Refresh current liveness state from the indexed committee data.
     await validatorActivityStatusController.syncCurrentActivityStatus({
       lastIndexedSlot: 105,
       maxIndexerLagSlotsForAlerts: 6,
@@ -231,29 +227,45 @@ describe('Incident Tracker', () => {
       inactiveMissedCount: 4,
     });
 
-    // Then advance the durable incident tracker across the same indexed range.
+    // Advance the tracker so it opens and closes the incident on the durable path.
     await incidentTrackerController.syncTrackedIncidents({
       lastIndexedSlot: 105,
       maxAttestationDelay: 1,
       inactiveMissedCount: 4,
     });
 
-    // Read back the incident, cursor, and snapshot rows to verify the end-to-end state transition.
-    const incident = await prisma.clusterIncident.findFirstOrThrow({
+    // Confirm the incident is closed but still waiting for reward finalization and close notification enqueueing.
+    const closedBeforeRewards = await prisma.clusterIncident.findFirstOrThrow({
       where: { clusterId: CLUSTER_ID },
     });
-    const processorState = await prisma.incidentProcessorState.findUniqueOrThrow({
-      where: { processor: 'incident-tracker' },
+    expect(closedBeforeRewards.status).toBe('closed');
+    expect(closedBeforeRewards.rewardsFinalized).toBe(false);
+    expect(
+      await prisma.notificationQueue.count({
+        where: { type: 'incident_closed' },
+      }),
+    ).toBe(0);
+
+    // Run the reward worker through the closing slot so it finalizes totals and queues the close notification.
+    await incidentRewardsController.syncOpenIncidentRewards({
+      processThroughSlot: 104,
+    });
+
+    // Load the finalized incident, validator snapshot cursor, and queued notification for assertions.
+    const incident = await prisma.clusterIncident.findFirstOrThrow({
+      where: { clusterId: CLUSTER_ID },
     });
     const snapshot = await prisma.validatorsSnapshotStats.findUniqueOrThrow({
       where: { validatorIndex: VALIDATOR_INDEX },
     });
+    const notification = await prisma.notificationQueue.findFirstOrThrow({
+      where: { type: 'incident_closed' },
+    });
 
-    expect(incident.status).toBe('closed');
-    expect(incident.openedSlot).toBe(100);
-    expect(incident.closedSlot).toBe(104);
-    expect(processorState.lastProcessedSlot).toBe(104);
-    expect(snapshot.isInactive).toBe(false);
-    expect(snapshot.consecutiveMissedAttestations).toBe(0);
+    expect(incident.missedConsensusRewards).toBe(BigInt(15));
+    expect(incident.rewardsFinalized).toBe(true);
+    expect(incident.rewardsFinalizedAt).not.toBeNull();
+    expect(snapshot.rewardsProcessedThroughSlot).toBe(104);
+    expect((notification.payload as Record<string, unknown>).missedConsensusRewards).toBe('15');
   });
 });
