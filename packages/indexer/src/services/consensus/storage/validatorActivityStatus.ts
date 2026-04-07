@@ -35,26 +35,17 @@ export class ValidatorActivityStatusStorage {
           MAX(rc.slot) FILTER (
             WHERE rc.attestation_delay IS NOT NULL
               AND rc.attestation_delay <= ${maxAttestationDelay}::int
-          )::int AS last_attested_slot,
-          MAX(rc.slot) FILTER (
-            WHERE rc.slot IS NOT NULL
-              AND (rc.attestation_delay IS NULL OR rc.attestation_delay > ${maxAttestationDelay}::int)
-          )::int AS last_missed_attestation_slot
+          )::int AS last_attested_slot
         FROM validators_snapshot_stats vss
         LEFT JOIN recent_committees rc ON rc.validator_index = vss.validator_index
         GROUP BY vss.validator_index
       )
       UPDATE validators_snapshot_stats vss
       SET
-        status = CASE
-          WHEN ca.missed_count >= ${inactiveMissedCount}::int THEN 'inactive'
-          ELSE 'active'
-        END,
         is_inactive = ca.missed_count >= ${inactiveMissedCount}::int,
         consecutive_missed_attestations = ca.missed_count,
         last_observed_slot = ca.last_observed_slot,
         last_attested_slot = ca.last_attested_slot,
-        last_missed_attestation_slot = ca.last_missed_attestation_slot,
         updated_at = NOW()
       FROM current_activity ca
       WHERE vss.validator_index = ca.validator_index

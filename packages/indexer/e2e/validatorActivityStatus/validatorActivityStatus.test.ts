@@ -96,6 +96,53 @@ describe('Validator Activity Status Updater', () => {
     });
   }
 
+  // This scenario preserves the Task 1 schema-lock coverage for the new snapshot fields.
+  it('persists validator activity state and processor cursors', async () => {
+    // Seed the validator snapshot row with the activity-tracking columns introduced by the refactor.
+    await prisma.validatorsSnapshotStats.create({
+      data: {
+        validatorIndex: 101,
+        status: 'active',
+        isInactive: false,
+        inactiveSinceSlot: null,
+        activeSinceSlot: 42,
+        consecutiveMissedAttestations: 0,
+        lastObservedSlot: 42,
+        lastAttestedSlot: 41,
+        lastMissedAttestationSlot: null,
+        rewardsProcessedThroughSlot: 88,
+        balance: BigInt(32_000_000_000),
+        effectiveBalance: BigInt(32_000_000_000),
+        beaconStatus: 3,
+        attestationsTotal: 1,
+        attestationsMissed: 0,
+      },
+    });
+
+    // Seed the dedicated incident processor cursor row that Task 1 introduced.
+    await prisma.incidentProcessorState.create({
+      data: {
+        processor: 'incident-tracker',
+        lastProcessedSlot: 9001,
+      },
+    });
+
+    // Read the rows back through Prisma so the test locks the generated schema surface.
+    const snapshot = await prisma.validatorsSnapshotStats.findUniqueOrThrow({
+      where: { validatorIndex: 101 },
+    });
+    const processorState = await prisma.incidentProcessorState.findUniqueOrThrow({
+      where: { processor: 'incident-tracker' },
+    });
+
+    expect(snapshot.consecutiveMissedAttestations).toBe(0);
+    expect(snapshot.lastObservedSlot).toBe(42);
+    expect(snapshot.lastAttestedSlot).toBe(41);
+    expect(snapshot.lastMissedAttestationSlot).toBeNull();
+    expect(snapshot.rewardsProcessedThroughSlot).toBe(88);
+    expect(processorState.lastProcessedSlot).toBe(9001);
+  });
+
   // This scenario proves stale indexed data aborts early and leaves current activity untouched.
   it('aborts without mutating snapshot state when the indexed committee window is stale', async () => {
     // Seed the validator row and enough committee misses that a fresh run would mark it inactive.
@@ -146,6 +193,8 @@ describe('Validator Activity Status Updater', () => {
     expect(row.consecutiveMissedAttestations).toBe(4);
     expect(row.lastObservedSlot).toBe(123);
     expect(row.lastAttestedSlot).toBeNull();
+    expect(row.lastMissedAttestationSlot).toBeNull();
+    expect(row.status).toBe('active');
     expect(row.activeSinceSlot).toBe(90);
     expect(row.inactiveSinceSlot).toBeNull();
     expect(row.rewardsProcessedThroughSlot).toBe(80);
