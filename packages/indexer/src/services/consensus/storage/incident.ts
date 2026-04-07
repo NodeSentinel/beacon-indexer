@@ -1,13 +1,4 @@
-import { VALIDATOR_STATUS } from '@beacon-indexer/beacon-utils';
 import { Prisma, PrismaClient } from '@beacon-indexer/db';
-
-const INCIDENT_TRACKED_BEACON_STATUSES = [
-  VALIDATOR_STATUS.pending_initialized,
-  VALIDATOR_STATUS.pending_queued,
-  VALIDATOR_STATUS.active_ongoing,
-  VALIDATOR_STATUS.active_exiting,
-  VALIDATOR_STATUS.active_slashed,
-] as const;
 
 export class IncidentStorage {
   constructor(
@@ -141,71 +132,5 @@ export class IncidentStorage {
     });
 
     return closedIncident;
-  }
-
-  async syncIncidents(params: { observedAt: Date; observedSlot: number }): Promise<void> {
-    const { observedSlot } = params;
-
-    await this.prisma.$transaction(async (tx) => {
-      const clusterStates = await tx.cluster.findMany({
-        include: {
-          owner: true,
-          validators: {
-            include: {
-              validator: true,
-            },
-          },
-          incidents: {
-            where: { status: 'open' },
-            take: 1,
-          },
-        },
-      });
-
-      for (const cluster of clusterStates) {
-        const trackedValidatorIndexes = cluster.validators
-          .filter((clusterValidator) => {
-            const validatorStatus =
-              clusterValidator.validator.status ?? VALIDATOR_STATUS.pending_initialized;
-
-            return INCIDENT_TRACKED_BEACON_STATUSES.some(
-              (trackedStatus) => trackedStatus === validatorStatus,
-            );
-          })
-          .map((clusterValidator) => clusterValidator.validatorIndex);
-
-        const snapshots = await tx.validatorsSnapshotStats.findMany({
-          where: {
-            validatorIndex: { in: trackedValidatorIndexes },
-          },
-          select: {
-            validatorIndex: true,
-            isInactive: true,
-            inactiveSinceSlot: true,
-          },
-        });
-
-        const inactiveSnapshots = snapshots.filter(
-          (snapshot) => snapshot.isInactive && snapshot.inactiveSinceSlot !== null,
-        );
-        const openIncident = cluster.incidents[0] ?? null;
-
-        if (inactiveSnapshots.length === 0) {
-          if (openIncident !== null) {
-            await this.closeIncident(tx, {
-              incidentId: openIncident.id,
-              closedSlot: observedSlot,
-            });
-          }
-          continue;
-        }
-
-        await this.openIncidentIfMissing(tx, {
-          clusterId: cluster.id,
-          openedSlot: Math.min(...inactiveSnapshots.map((snapshot) => snapshot.inactiveSinceSlot!)),
-          validatorIndexes: inactiveSnapshots.map((snapshot) => snapshot.validatorIndex),
-        });
-      }
-    });
   }
 }
