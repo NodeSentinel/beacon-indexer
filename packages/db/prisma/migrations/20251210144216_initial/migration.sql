@@ -359,7 +359,6 @@ CREATE TABLE "public"."cluster_incident" (
     "duration_slots" INTEGER,
     "duration_seconds" INTEGER,
     "missed_consensus_rewards" BIGINT,
-    "missed_execution_rewards" NUMERIC(78, 0),
     "opened_notification_queued_at" TIMESTAMP,
     "closed_notification_queued_at" TIMESTAMP,
     "created_at" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,

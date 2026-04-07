@@ -517,8 +517,7 @@ model ClusterIncident {
   durationSlots   Int?      @map("duration_slots")
   durationSeconds Int?      @map("duration_seconds")
 
-  missedConsensusRewards BigInt?   @map("missed_consensus_rewards")
-  missedExecutionRewards Decimal?  @map("missed_execution_rewards") @db.Decimal(78, 0)
+  missedConsensusRewards BigInt? @map("missed_consensus_rewards")
 
   openedNotificationQueuedAt DateTime? @map("opened_notification_queued_at") @db.Timestamp
   closedNotificationQueuedAt DateTime? @map("closed_notification_queued_at") @db.Timestamp

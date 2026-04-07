@@ -41,6 +41,10 @@ export const env = createEnv({
       (val) => Number(val),
       z.number().int().positive(),
     ),
+    ARCHIVE_DETAIL_RETENTION_DAYS: z.preprocess(
+      (val) => (val === undefined ? undefined : Number(val)),
+      z.number().int().positive().default(14),
+    ),
     // Blockchain - Execution layer
     EXECUTION_BLOCKSCOUT_URL: z.string().url(),
     EXECUTION_BLOCKSCOUT_KEY: z.string().optional(),
