@@ -16,6 +16,7 @@ export class ValidatorActivityStatusController {
     lastIndexedSlot: number;
     maxIndexerLagSlotsForAlerts: number;
     maxAttestationDelay: number;
+    inactiveMissedCount: number;
   }): Promise<void> {
     const headSlot = this.beaconTime.getChainCurrentSlot();
 
@@ -38,6 +39,7 @@ export class ValidatorActivityStatusController {
 
     await this.storage.syncCurrentActivityStatus({
       safeObservedSlot,
+      inactiveMissedCount: params.inactiveMissedCount,
       maxAttestationDelay: params.maxAttestationDelay,
     });
     this.logger.info('Synchronized current validator activity status', { safeObservedSlot });

@@ -379,15 +379,14 @@ model ValidatorsSnapshotStats {
 
   // State
   status                        String  @map("status") @db.VarChar(10)
+  isInactive                    Boolean @default(false) @map("is_inactive")
+  inactiveSinceSlot             Int?    @map("inactive_since_slot")
+  activeSinceSlot               Int?    @map("active_since_slot")
   consecutiveMissedAttestations Int     @default(0) @map("consecutive_missed_attestations")
-  currentMissedStreakStartSlot  Int?    @map("current_missed_streak_start_slot")
   lastObservedSlot              Int?    @map("last_observed_slot")
   lastAttestedSlot              Int?    @map("last_attested_slot")
   lastMissedAttestationSlot     Int?    @map("last_missed_attestation_slot")
   rewardsProcessedThroughSlot   Int?    @map("rewards_processed_through_slot")
-  missedConsensusRewardsTotal   BigInt  @default(0) @map("missed_consensus_rewards_total")
-  missedSyncRewardsTotal        BigInt  @default(0) @map("missed_sync_rewards_total")
-  missedAttestationsRewardsTotal BigInt @default(0) @map("missed_attestations_rewards_total")
 
   // Balances
   balance          BigInt @map("balance")
@@ -533,11 +532,9 @@ model ClusterIncident {
   durationSlots   Int?      @map("duration_slots")
   durationSeconds Int?      @map("duration_seconds")
 
-  missedConsensusRewards     BigInt?   @map("missed_consensus_rewards")
-  openedValidatorRewardTotals Json?    @map("opened_validator_reward_totals")
-  closedValidatorRewardTotals Json?    @map("closed_validator_reward_totals")
-  rewardsFinalized           Boolean   @default(false) @map("rewards_finalized")
-  rewardsFinalizedAt         DateTime? @map("rewards_finalized_at") @db.Timestamp
+  missedConsensusRewards BigInt?   @map("missed_consensus_rewards")
+  rewardsFinalized       Boolean   @default(false) @map("rewards_finalized")
+  rewardsFinalizedAt     DateTime? @map("rewards_finalized_at") @db.Timestamp
 
   openedNotificationQueuedAt DateTime? @map("opened_notification_queued_at") @db.Timestamp
   closedNotificationQueuedAt DateTime? @map("closed_notification_queued_at") @db.Timestamp
@@ -566,7 +563,6 @@ model Cluster {
   ownerId                    String            @map("owner_id")
   visibility                 ClusterVisibility @default(private)
   feeRecipientAddress        String?           @map("fee_recipient_address") @db.VarChar(42)
-  missedAttestationThreshold Int               @default(3) @map("missed_attestation_threshold")
   createdAt                  DateTime          @default(now()) @map("created_at")
 
   owner      User               @relation(fields: [ownerId], references: [id], onDelete: Restrict)

@@ -1,7 +1,7 @@
-import { fromPromise, setup } from 'xstate';
+import { setup, fromPromise } from 'xstate';
 
+import { IncidentRewardsController } from '@/src/services/consensus/controllers/incidentRewards.js';
 import type { SlotController } from '@/src/services/consensus/controllers/slot.js';
-import { ValidatorRewardsProgressController } from '@/src/services/consensus/controllers/validatorRewardsProgress.js';
 import { pinoLog } from '@/src/xstate/pinoLog.js';
 
 const runSync = fromPromise(
@@ -9,7 +9,7 @@ const runSync = fromPromise(
     input,
   }: {
     input: {
-      validatorRewardsProgressController: ValidatorRewardsProgressController;
+      incidentRewardsController: IncidentRewardsController;
       slotController: SlotController;
     };
   }) => {
@@ -18,20 +18,20 @@ const runSync = fromPromise(
       return;
     }
 
-    await input.validatorRewardsProgressController.syncValidatorRewardsProgress({
+    await input.incidentRewardsController.syncOpenIncidentRewards({
       processThroughSlot: lastIndexedSlot,
     });
   },
 );
 
-export const validatorRewardsProgressMachine = setup({
+export const incidentRewardsMachine = setup({
   types: {} as {
     context: {
-      validatorRewardsProgressController: ValidatorRewardsProgressController;
+      incidentRewardsController: IncidentRewardsController;
       slotController: SlotController;
     };
     input: {
-      validatorRewardsProgressController: ValidatorRewardsProgressController;
+      incidentRewardsController: IncidentRewardsController;
       slotController: SlotController;
     };
   },
@@ -42,10 +42,10 @@ export const validatorRewardsProgressMachine = setup({
     runSync,
   },
 }).createMachine({
-  id: 'ValidatorRewardsProgress',
+  id: 'IncidentRewards',
   initial: 'waiting',
   context: ({ input }) => ({
-    validatorRewardsProgressController: input.validatorRewardsProgressController,
+    incidentRewardsController: input.incidentRewardsController,
     slotController: input.slotController,
   }),
   states: {
@@ -60,21 +60,19 @@ export const validatorRewardsProgressMachine = setup({
       invoke: {
         src: 'runSync',
         input: ({ context }) => ({
-          validatorRewardsProgressController: context.validatorRewardsProgressController,
+          incidentRewardsController: context.incidentRewardsController,
           slotController: context.slotController,
         }),
         onDone: {
           target: 'waiting',
-          actions: [
-            pinoLog(() => 'Validator rewards progress sync completed', 'ValidatorRewardsProgress'),
-          ],
+          actions: [pinoLog(() => 'Incident rewards sync completed', 'IncidentRewards')],
         },
         onError: {
           target: 'waiting',
           actions: [
             pinoLog(
-              ({ event }) => `Validator rewards progress sync error: ${event.error}`,
-              'ValidatorRewardsProgress',
+              ({ event }) => `Incident rewards sync error: ${event.error}`,
+              'IncidentRewards',
               'error',
             ),
           ],

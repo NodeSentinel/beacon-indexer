@@ -14,6 +14,7 @@ export const getValidatorActivityStatusActor = (
   slotDuration: number,
   maxIndexerLagSlotsForAlerts: number,
   maxAttestationDelay: number,
+  inactiveMissedCount: number,
 ) => {
   const actor = createActor(validatorActivityStatusMachine, {
     input: {
@@ -22,6 +23,7 @@ export const getValidatorActivityStatusActor = (
       slotDuration,
       maxIndexerLagSlotsForAlerts,
       maxAttestationDelay,
+      inactiveMissedCount,
     },
   });
 

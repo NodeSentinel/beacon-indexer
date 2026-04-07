@@ -1,7 +1,7 @@
 import { BeaconTime } from '@beacon-indexer/beacon-utils/beaconTime';
 import { gnosisConfig } from '@beacon-indexer/beacon-utils/config/chain';
 import { PrismaClient } from '@beacon-indexer/db';
-import { describe, it, expect, afterAll, beforeAll, beforeEach } from 'vitest';
+import { describe, it, expect, afterAll, afterEach, beforeAll, beforeEach } from 'vitest';
 
 import { SnapshotController } from '@/src/services/consensus/controllers/snapshot.js';
 import { SnapshotStorage } from '@/src/services/consensus/storage/snapshot.js';
@@ -79,6 +79,13 @@ describe('Snapshot - Balance and Metrics Updates', () => {
     await prisma.$disconnect();
   });
 
+  afterEach(async () => {
+    // Remove the broad committee partition so later suites can create real slot-range partitions.
+    await prisma.$executeRawUnsafe(
+      `DO $$ DECLARE r RECORD; BEGIN FOR r IN SELECT inhrelid::regclass AS child FROM pg_inherits WHERE inhparent = 'committee'::regclass LOOP EXECUTE 'DROP TABLE ' || r.child || ' CASCADE'; END LOOP; END $$`,
+    );
+  });
+
   // -- Helpers ---------------------------------------------------------------
 
   /**
@@ -124,8 +131,10 @@ describe('Snapshot - Balance and Metrics Updates', () => {
       UPDATE validators_snapshot_stats
       SET
         status = 'inactive',
+        is_inactive = true,
+        inactive_since_slot = 100,
+        active_since_slot = 90,
         consecutive_missed_attestations = 3,
-        current_missed_streak_start_slot = 100,
         last_observed_slot = 102,
         last_attested_slot = 99,
         last_missed_attestation_slot = 102
@@ -159,8 +168,10 @@ describe('Snapshot - Balance and Metrics Updates', () => {
       Array<{
         validator_index: number;
         status: string;
+        is_inactive: boolean;
+        inactive_since_slot: number | null;
+        active_since_slot: number | null;
         consecutive_missed_attestations: number;
-        current_missed_streak_start_slot: number | null;
         last_observed_slot: number | null;
         last_attested_slot: number | null;
         last_missed_attestation_slot: number | null;
@@ -207,8 +218,10 @@ describe('Snapshot - Balance and Metrics Updates', () => {
     expect(row!.effective_balance).toBe(BigInt(31_999_000_000));
     expect(row!.beacon_status).toBe(7);
     expect(row!.status).toBe('inactive');
+    expect(row!.is_inactive).toBe(true);
+    expect(row!.inactive_since_slot).toBe(100);
+    expect(row!.active_since_slot).toBe(90);
     expect(row!.consecutive_missed_attestations).toBe(3);
-    expect(row!.current_missed_streak_start_slot).toBe(100);
     expect(row!.last_observed_slot).toBe(102);
     expect(row!.last_attested_slot).toBe(99);
     expect(row!.last_missed_attestation_slot).toBe(102);
@@ -240,8 +253,10 @@ describe('Snapshot - Balance and Metrics Updates', () => {
     expect(row!.missed_attestation_count_h).toBe(1);
     expect(Number(row!.performance_h)).toBeCloseTo(0.5, 2);
     expect(row!.status).toBe('inactive');
+    expect(row!.is_inactive).toBe(true);
+    expect(row!.inactive_since_slot).toBe(100);
+    expect(row!.active_since_slot).toBe(90);
     expect(row!.consecutive_missed_attestations).toBe(3);
-    expect(row!.current_missed_streak_start_slot).toBe(100);
     expect(row!.last_observed_slot).toBe(102);
     expect(row!.last_attested_slot).toBe(99);
     expect(row!.last_missed_attestation_slot).toBe(102);
@@ -282,8 +297,10 @@ describe('Snapshot - Balance and Metrics Updates', () => {
     expect(row!.effective_balance).toBe(BigInt(32_444_000_000));
     expect(row!.beacon_status).toBe(11);
     expect(row!.status).toBe('active');
+    expect(row!.is_inactive).toBe(false);
+    expect(row!.inactive_since_slot).toBeNull();
+    expect(row!.active_since_slot).toBeNull();
     expect(row!.consecutive_missed_attestations).toBe(0);
-    expect(row!.current_missed_streak_start_slot).toBeNull();
     expect(row!.last_observed_slot).toBeNull();
     expect(row!.last_attested_slot).toBeNull();
     expect(row!.last_missed_attestation_slot).toBeNull();
@@ -378,8 +395,10 @@ describe('Snapshot - New Validator Detection', () => {
       Array<{
         validator_index: number;
         status: string;
+        is_inactive: boolean;
+        inactive_since_slot: number | null;
+        active_since_slot: number | null;
         consecutive_missed_attestations: number;
-        current_missed_streak_start_slot: number | null;
         last_observed_slot: number | null;
         last_attested_slot: number | null;
         last_missed_attestation_slot: number | null;
@@ -391,8 +410,10 @@ describe('Snapshot - New Validator Detection', () => {
     const row = rows[0];
     expect(row).not.toBeNull();
     expect(row!.status).toBe('active'); // starts as active
+    expect(row!.is_inactive).toBe(false);
+    expect(row!.inactive_since_slot).toBeNull();
+    expect(row!.active_since_slot).toBeNull();
     expect(row!.consecutive_missed_attestations).toBe(0); // no current streak
-    expect(row!.current_missed_streak_start_slot).toBeNull();
     expect(row!.last_observed_slot).toBeNull();
     expect(row!.last_attested_slot).toBeNull();
     expect(row!.last_missed_attestation_slot).toBeNull();

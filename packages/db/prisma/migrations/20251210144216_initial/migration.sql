@@ -261,8 +261,14 @@ VALUES (1, NULL, NULL, NULL);
 CREATE TABLE "public"."validators_snapshot_stats" (
     "validator_index" INTEGER NOT NULL,
     "status" VARCHAR(10) NOT NULL,
+    "is_inactive" BOOLEAN NOT NULL DEFAULT false,
     "inactive_since_slot" INTEGER,
     "active_since_slot" INTEGER,
+    "consecutive_missed_attestations" INTEGER NOT NULL DEFAULT 0,
+    "last_observed_slot" INTEGER,
+    "last_attested_slot" INTEGER,
+    "last_missed_attestation_slot" INTEGER,
+    "rewards_processed_through_slot" INTEGER,
     "attestations_total" INTEGER NOT NULL,
     "attestations_missed" INTEGER NOT NULL,
     "attestation_count_h" SMALLINT NOT NULL DEFAULT 0,
@@ -274,7 +280,6 @@ CREATE TABLE "public"."validators_snapshot_stats" (
     "attestation_count_m" SMALLINT NOT NULL DEFAULT 0,
     "missed_attestation_count_m" SMALLINT NOT NULL DEFAULT 0,
     "missed_attestation_slots_h" INTEGER[] NOT NULL DEFAULT '{}',
-    "is_inactive" BOOLEAN NOT NULL DEFAULT false,
     "effective_balance" BIGINT NOT NULL DEFAULT 0,
     "performance_h" DECIMAL,
     "performance_d" DECIMAL,
@@ -361,6 +366,8 @@ CREATE TABLE "public"."cluster_incident" (
     "duration_slots" INTEGER,
     "duration_seconds" INTEGER,
     "missed_consensus_rewards" BIGINT,
+    "rewards_finalized" BOOLEAN NOT NULL DEFAULT false,
+    "rewards_finalized_at" TIMESTAMP,
     "opened_notification_queued_at" TIMESTAMP,
     "closed_notification_queued_at" TIMESTAMP,
     "created_at" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -387,6 +394,15 @@ CREATE TABLE "public"."cluster" (
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT "cluster_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "public"."incident_processor_state" (
+    "processor" VARCHAR(64) NOT NULL,
+    "last_processed_slot" INTEGER NOT NULL,
+    "updated_at" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "incident_processor_state_pkey" PRIMARY KEY ("processor")
 );
 
 -- CreateTable

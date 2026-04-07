@@ -1,15 +1,6 @@
 import { VALIDATOR_STATUS } from '@beacon-indexer/beacon-utils';
 import { Prisma, PrismaClient } from '@beacon-indexer/db';
 
-type RewardTotalsSnapshot = Record<
-  string,
-  {
-    missedConsensusRewardsTotal: string;
-    missedSyncRewardsTotal: string;
-    missedAttestationsRewardsTotal: string;
-  }
->;
-
 const INCIDENT_TRACKED_BEACON_STATUSES = [
   VALIDATOR_STATUS.pending_initialized,
   VALIDATOR_STATUS.pending_queued,
@@ -41,195 +32,6 @@ export class IncidentStorage {
     return user.telegramId !== null && user.hasBlockedBot === false;
   }
 
-  private parseRewardTotalsSnapshot(value: Prisma.JsonValue | null): RewardTotalsSnapshot {
-    if (value === null || typeof value !== 'object' || Array.isArray(value)) {
-      return {};
-    }
-
-    return value as RewardTotalsSnapshot;
-  }
-
-  private async getRewardTotalsSnapshot(
-    tx: Prisma.TransactionClient,
-    validatorIndexes: number[],
-  ): Promise<RewardTotalsSnapshot> {
-    if (validatorIndexes.length === 0) {
-      return {};
-    }
-
-    const snapshots = await tx.validatorsSnapshotStats.findMany({
-      where: {
-        validatorIndex: { in: validatorIndexes },
-      },
-      select: {
-        validatorIndex: true,
-        missedConsensusRewardsTotal: true,
-        missedSyncRewardsTotal: true,
-        missedAttestationsRewardsTotal: true,
-      },
-    });
-
-    return Object.fromEntries(
-      snapshots.map((snapshot) => [
-        String(snapshot.validatorIndex),
-        {
-          missedConsensusRewardsTotal: snapshot.missedConsensusRewardsTotal.toString(),
-          missedSyncRewardsTotal: snapshot.missedSyncRewardsTotal.toString(),
-          missedAttestationsRewardsTotal: snapshot.missedAttestationsRewardsTotal.toString(),
-        },
-      ]),
-    );
-  }
-
-  private calculateIncidentMissedConsensusRewards(params: {
-    openedTotals: RewardTotalsSnapshot;
-    closedTotals: RewardTotalsSnapshot;
-  }): bigint {
-    const validatorIndexes = new Set([
-      ...Object.keys(params.openedTotals),
-      ...Object.keys(params.closedTotals),
-    ]);
-
-    let total = BigInt(0);
-    for (const validatorIndex of validatorIndexes) {
-      const openedTotal = BigInt(
-        params.openedTotals[validatorIndex]?.missedConsensusRewardsTotal ?? '0',
-      );
-      const closedTotal = BigInt(
-        params.closedTotals[validatorIndex]?.missedConsensusRewardsTotal ?? '0',
-      );
-      total += closedTotal - openedTotal;
-    }
-
-    return total;
-  }
-
-  private async queueClosedNotification(
-    tx: Prisma.TransactionClient,
-    incident: {
-      id: string;
-      clusterId: string;
-      closedAt: Date | null;
-      closedSlot: number | null;
-      durationSeconds: number | null;
-      durationSlots: number | null;
-      missedConsensusRewards: bigint | null;
-      cluster: {
-        id: string;
-        name: string;
-        ownerId: string;
-        owner: {
-          telegramId: bigint | null;
-          hasBlockedBot: boolean;
-        };
-      };
-    },
-    queuedAt: Date,
-  ): Promise<void> {
-    if (!this.canQueueNotification(incident.cluster.owner)) {
-      return;
-    }
-
-    await tx.notificationQueue.create({
-      data: {
-        userId: incident.cluster.ownerId,
-        type: 'incident_closed',
-        payload: {
-          clusterId: incident.clusterId,
-          clusterName: incident.cluster.name,
-          incidentId: incident.id,
-          closedAt: incident.closedAt?.toISOString() ?? null,
-          closedSlot: incident.closedSlot,
-          durationSeconds: incident.durationSeconds,
-          durationSlots: incident.durationSlots,
-          missedConsensusRewards: incident.missedConsensusRewards?.toString() ?? null,
-        },
-        delivered: false,
-        createdAt: queuedAt,
-      },
-    });
-  }
-
-  private async finalizeClosedIncidentIfReady(
-    tx: Prisma.TransactionClient,
-    incidentId: string,
-    finalizedAt: Date,
-  ) {
-    const incident = await tx.clusterIncident.findUniqueOrThrow({
-      where: { id: incidentId },
-      include: {
-        cluster: {
-          include: { owner: true },
-        },
-      },
-    });
-
-    if (
-      incident.status !== 'closed' ||
-      incident.closedSlot === null ||
-      incident.rewardsFinalized ||
-      incident.openedValidatorRewardTotals === null
-    ) {
-      return incident;
-    }
-
-    const snapshotRows = await tx.validatorsSnapshotStats.findMany({
-      where: {
-        validatorIndex: { in: incident.validatorIndexes },
-      },
-      select: {
-        validatorIndex: true,
-        rewardsProcessedThroughSlot: true,
-      },
-    });
-
-    const allCaughtUp = snapshotRows.every(
-      (snapshot) => (snapshot.rewardsProcessedThroughSlot ?? -1) >= incident.closedSlot!,
-    );
-
-    if (!allCaughtUp) {
-      return incident;
-    }
-
-    const closedValidatorRewardTotals = await this.getRewardTotalsSnapshot(
-      tx,
-      incident.validatorIndexes,
-    );
-    const openedValidatorRewardTotals = this.parseRewardTotalsSnapshot(
-      incident.openedValidatorRewardTotals,
-    );
-    const missedConsensusRewards = this.calculateIncidentMissedConsensusRewards({
-      openedTotals: openedValidatorRewardTotals,
-      closedTotals: closedValidatorRewardTotals,
-    });
-
-    const closedNotificationQueuedAt = this.canQueueNotification(incident.cluster.owner)
-      ? finalizedAt
-      : null;
-
-    const finalizedIncident = await tx.clusterIncident.update({
-      where: { id: incident.id },
-      data: {
-        closedValidatorRewardTotals,
-        missedConsensusRewards,
-        rewardsFinalized: true,
-        rewardsFinalizedAt: finalizedAt,
-        closedNotificationQueuedAt,
-      },
-      include: {
-        cluster: {
-          include: { owner: true },
-        },
-      },
-    });
-
-    if (closedNotificationQueuedAt !== null) {
-      await this.queueClosedNotification(tx, finalizedIncident, finalizedAt);
-    }
-
-    return finalizedIncident;
-  }
-
   async openIncidentIfMissing(
     tx: Prisma.TransactionClient,
     params: { clusterId: string; openedSlot: number; validatorIndexes: number[] },
@@ -242,32 +44,12 @@ export class IncidentStorage {
       },
     });
 
-    const currentRewardTotals = await this.getRewardTotalsSnapshot(tx, validatorIndexes);
-
     if (existing) {
       const mergedValidatorIndexes = [
         ...new Set([...existing.validatorIndexes, ...validatorIndexes]),
       ].sort((a, b) => a - b);
-      const openedValidatorRewardTotals = this.parseRewardTotalsSnapshot(
-        existing.openedValidatorRewardTotals,
-      );
 
-      for (const validatorIndex of validatorIndexes) {
-        const key = String(validatorIndex);
-        if (openedValidatorRewardTotals[key] === undefined) {
-          openedValidatorRewardTotals[key] = currentRewardTotals[key] ?? {
-            missedConsensusRewardsTotal: '0',
-            missedSyncRewardsTotal: '0',
-            missedAttestationsRewardsTotal: '0',
-          };
-        }
-      }
-
-      if (
-        JSON.stringify(existing.validatorIndexes) === JSON.stringify(mergedValidatorIndexes) &&
-        JSON.stringify(existing.openedValidatorRewardTotals ?? null) ===
-          JSON.stringify(openedValidatorRewardTotals)
-      ) {
+      if (JSON.stringify(existing.validatorIndexes) === JSON.stringify(mergedValidatorIndexes)) {
         return existing;
       }
 
@@ -275,7 +57,6 @@ export class IncidentStorage {
         where: { id: existing.id },
         data: {
           validatorIndexes: mergedValidatorIndexes,
-          openedValidatorRewardTotals,
           updatedAt: this.getSlotDate(params.openedSlot),
         },
       });
@@ -296,13 +77,12 @@ export class IncidentStorage {
         openedAt,
         openedSlot: params.openedSlot,
         validatorIndexes,
-        openedValidatorRewardTotals: currentRewardTotals,
         openedNotificationQueuedAt,
         updatedAt: openedAt,
       },
     });
 
-    if (openedNotificationQueuedAt !== null) {
+    if (openedNotificationQueuedAt) {
       await tx.notificationQueue.create({
         data: {
           userId: cluster.ownerId,
@@ -348,7 +128,7 @@ export class IncidentStorage {
       0,
     );
 
-    await tx.clusterIncident.update({
+    const closedIncident = await tx.clusterIncident.update({
       where: { id: incident.id },
       data: {
         status: 'closed',
@@ -360,31 +140,12 @@ export class IncidentStorage {
       },
     });
 
-    return this.finalizeClosedIncidentIfReady(tx, incident.id, closedAt);
-  }
-
-  async finalizeClosedIncidentsIfReady(): Promise<void> {
-    const finalizableIncidents = await this.prisma.clusterIncident.findMany({
-      where: {
-        status: 'closed',
-        rewardsFinalized: false,
-        closedSlot: { not: null },
-      },
-      select: { id: true, openedValidatorRewardTotals: true },
-    });
-
-    for (const incident of finalizableIncidents) {
-      if (incident.openedValidatorRewardTotals === null) {
-        continue;
-      }
-
-      await this.prisma.$transaction(async (tx) => {
-        await this.finalizeClosedIncidentIfReady(tx, incident.id, new Date());
-      });
-    }
+    return closedIncident;
   }
 
   async syncIncidents(params: { observedAt: Date; observedSlot: number }): Promise<void> {
+    const { observedSlot } = params;
+
     await this.prisma.$transaction(async (tx) => {
       const clusterStates = await tx.cluster.findMany({
         include: {
@@ -402,65 +163,47 @@ export class IncidentStorage {
       });
 
       for (const cluster of clusterStates) {
-        const qualifyingValidatorIndexes = cluster.validators
+        const trackedValidatorIndexes = cluster.validators
           .filter((clusterValidator) => {
             const validatorStatus =
               clusterValidator.validator.status ?? VALIDATOR_STATUS.pending_initialized;
 
-            return INCIDENT_TRACKED_BEACON_STATUSES.some((trackedStatus) => {
-              return trackedStatus === validatorStatus;
-            });
+            return INCIDENT_TRACKED_BEACON_STATUSES.some(
+              (trackedStatus) => trackedStatus === validatorStatus,
+            );
           })
           .map((clusterValidator) => clusterValidator.validatorIndex);
 
         const snapshots = await tx.validatorsSnapshotStats.findMany({
           where: {
-            validatorIndex: { in: qualifyingValidatorIndexes },
+            validatorIndex: { in: trackedValidatorIndexes },
           },
           select: {
             validatorIndex: true,
-            consecutiveMissedAttestations: true,
-            currentMissedStreakStartSlot: true,
+            isInactive: true,
+            inactiveSinceSlot: true,
           },
         });
 
-        const currentlyQualifyingValidators = snapshots
-          .filter(
-            (snapshot) =>
-              snapshot.currentMissedStreakStartSlot !== null &&
-              snapshot.consecutiveMissedAttestations >= cluster.missedAttestationThreshold,
-          )
-          .map((snapshot) => snapshot.validatorIndex);
-
+        const inactiveSnapshots = snapshots.filter(
+          (snapshot) => snapshot.isInactive && snapshot.inactiveSinceSlot !== null,
+        );
         const openIncident = cluster.incidents[0] ?? null;
 
-        if (currentlyQualifyingValidators.length === 0) {
+        if (inactiveSnapshots.length === 0) {
           if (openIncident !== null) {
             await this.closeIncident(tx, {
               incidentId: openIncident.id,
-              closedSlot: params.observedSlot,
+              closedSlot: observedSlot,
             });
           }
           continue;
         }
 
-        const openedSlot = Math.min(
-          ...snapshots
-            .filter(
-              (snapshot) =>
-                snapshot.currentMissedStreakStartSlot !== null &&
-                snapshot.consecutiveMissedAttestations >= cluster.missedAttestationThreshold,
-            )
-            .map(
-              (snapshot) =>
-                snapshot.currentMissedStreakStartSlot! + cluster.missedAttestationThreshold - 1,
-            ),
-        );
-
         await this.openIncidentIfMissing(tx, {
           clusterId: cluster.id,
-          openedSlot,
-          validatorIndexes: currentlyQualifyingValidators,
+          openedSlot: Math.min(...inactiveSnapshots.map((snapshot) => snapshot.inactiveSinceSlot!)),
+          validatorIndexes: inactiveSnapshots.map((snapshot) => snapshot.validatorIndex),
         });
       }
     });

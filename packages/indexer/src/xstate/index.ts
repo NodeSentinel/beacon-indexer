@@ -8,23 +8,23 @@ import {
 } from './archive/index.js';
 import { getChainStatsActor } from './chainStats/index.js';
 import { getCreateEpochActor, getEpochOrchestratorActor } from './epoch/index.js';
+import { getIncidentRewardsActor } from './incidentRewards/index.js';
 import { getIncidentTrackerActor } from './incidentTracker/index.js';
 import { getLagAlertingActor } from './lagAlerting/index.js';
 import { getSnapshotActor } from './snapshot/index.js';
 import { getValidatorActivityStatusActor } from './validatorActivityStatus/index.js';
-import { getValidatorRewardsProgressActor } from './validatorRewardsProgress/index.js';
 
 import { ChainStatsController } from '@/src/services/consensus/controllers/chainStats.js';
 import { DailyArchiveController } from '@/src/services/consensus/controllers/dailyArchive.js';
 import { EpochController } from '@/src/services/consensus/controllers/epoch.js';
 import { HourlyArchiveController } from '@/src/services/consensus/controllers/hourlyArchive.js';
+import { IncidentRewardsController } from '@/src/services/consensus/controllers/incidentRewards.js';
 import { IncidentTrackerController } from '@/src/services/consensus/controllers/incidentTracker.js';
 import { MonthlyArchiveController } from '@/src/services/consensus/controllers/monthlyArchive.js';
 import { PartitionController } from '@/src/services/consensus/controllers/partition.js';
 import { SlotController } from '@/src/services/consensus/controllers/slot.js';
 import { SnapshotController } from '@/src/services/consensus/controllers/snapshot.js';
 import { ValidatorActivityStatusController } from '@/src/services/consensus/controllers/validatorActivityStatus.js';
-import { ValidatorRewardsProgressController } from '@/src/services/consensus/controllers/validatorRewardsProgress.js';
 import { ValidatorsController } from '@/src/services/consensus/controllers/validators.js';
 export default function initXstateMachines(
   epochController: EpochController,
@@ -40,7 +40,7 @@ export default function initXstateMachines(
   chainStatsController: ChainStatsController,
   snapshotController: SnapshotController,
   incidentTrackerController: IncidentTrackerController,
-  validatorRewardsProgressController: ValidatorRewardsProgressController,
+  incidentRewardsController: IncidentRewardsController,
   validatorActivityStatusController: ValidatorActivityStatusController,
   chain: Chain,
   maxAttestationDelay: number,
@@ -86,6 +86,7 @@ export default function initXstateMachines(
     slotDuration,
     6,
     maxAttestationDelay,
+    missedAttestationsForInactivity,
   );
   validatorActivityStatusActor.start();
 
@@ -94,14 +95,12 @@ export default function initXstateMachines(
     slotController,
     slotDuration,
     maxAttestationDelay,
+    missedAttestationsForInactivity,
   );
   incidentTrackerActor.start();
 
-  const validatorRewardsProgressActor = getValidatorRewardsProgressActor(
-    validatorRewardsProgressController,
-    slotController,
-  );
-  validatorRewardsProgressActor.start();
+  const incidentRewardsActor = getIncidentRewardsActor(incidentRewardsController, slotController);
+  incidentRewardsActor.start();
 
   const snapshotActor = getSnapshotActor(
     snapshotController,
