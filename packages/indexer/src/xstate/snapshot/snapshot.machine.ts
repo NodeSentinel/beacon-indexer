@@ -63,16 +63,7 @@ const runTick = fromPromise(async ({ input }: { input: { context: SnapshotContex
     lastNewValidatorCheck = now;
   }
 
-  // Level 1: Attestations + inactivity (every tick)
-  await controller.updateAttestationsAndStatus({
-    slotsPerEpoch: ctx.slotsPerEpoch,
-    maxAttestationDelay: ctx.maxAttestationDelay,
-    delaySlotsToHead: ctx.delaySlotsToHead,
-    missedAttestationsForInactivity: ctx.missedAttestationsForInactivity,
-  });
-  updatedLevels.push('attestations');
-
-  // Level 2 + 3: Balances + h performance (every new epoch)
+  // Level 1: Balances and hourly metrics (every new epoch)
   if (lastEpochUpdate === null || currentEpoch > lastEpochUpdate) {
     await controller.updateBalances();
     updatedLevels.push('balances');
@@ -180,7 +171,7 @@ export const snapshotMachine = setup({
             sendTo(({ context }) => context.incidentsActor, { type: 'SNAPSHOT_UPDATED' as const }),
             pinoLog(({ event }) => {
               const levels = event.output.updatedLevels;
-              return `Snapshot tick: updated [${levels.join(', ')}]`;
+              return `Snapshot tick: updated balances/rewards/metrics [${levels.join(', ')}]`;
             }, 'Snapshot'),
           ],
         },

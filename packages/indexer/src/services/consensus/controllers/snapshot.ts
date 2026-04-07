@@ -22,54 +22,6 @@ export class SnapshotController {
   }
 
   /**
-   * Update attestation stats and inactivity status.
-   *
-   * Only evaluates attestations up to maxSlotToQuery, which accounts for
-   * delaySlotsToHead and maxAttestationDelay to avoid false positives on
-   * slots whose attestations might still arrive.
-   */
-  async updateAttestationsAndStatus(params: {
-    slotsPerEpoch: number;
-    maxAttestationDelay: number;
-    delaySlotsToHead: number;
-    missedAttestationsForInactivity: number;
-  }) {
-    const {
-      slotsPerEpoch,
-      maxAttestationDelay,
-      delaySlotsToHead,
-      missedAttestationsForInactivity,
-    } = params;
-
-    const currentTimestamp = Date.now();
-    const currentSlot = this.beaconTime.getSlotNumberFromTimestamp(currentTimestamp);
-    const maxQueryableSlot = currentSlot - delaySlotsToHead - maxAttestationDelay;
-    const slotFromOneHourAgo = this.beaconTime.getSlotNumberFromTimestamp(
-      currentTimestamp - ms('1h'),
-    );
-    const maxSlotToQuery = maxQueryableSlot;
-
-    const inactivityCheckStartSlot =
-      maxSlotToQuery -
-      missedAttestationsForInactivity -
-      slotsPerEpoch * missedAttestationsForInactivity;
-
-    try {
-      await this.snapshotStorage.updateAttestationsAndStatus({
-        minSlotHour: slotFromOneHourAgo,
-        maxSlotToQuery,
-        inactivityCheckStartSlot,
-        maxAttestationDelay,
-        inactiveMissedCount: missedAttestationsForInactivity,
-      });
-      this.logger.info('Updated attestations and status snapshot');
-    } catch (error) {
-      this.logger.error('Error updating attestations and status', error);
-      throw error;
-    }
-  }
-
-  /**
    * Update balance fields from the validator table.
    */
   async updateBalances() {
