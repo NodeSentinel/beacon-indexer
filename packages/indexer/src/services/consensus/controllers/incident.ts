@@ -13,6 +13,8 @@ export class IncidentController {
   ) {}
 
   async syncOpenIncidents(maxAttestationDelay: number): Promise<void> {
+    // Legacy snapshot-triggered path kept only for compatibility with the
+    // existing focused storage/controller tests. Production uses IncidentTracker.
     const observedSlot = Math.max(0, this.beaconTime.getChainCurrentSlot() - maxAttestationDelay);
     const observedAt = new Date(this.beaconTime.getTimestampFromSlotNumber(observedSlot));
 

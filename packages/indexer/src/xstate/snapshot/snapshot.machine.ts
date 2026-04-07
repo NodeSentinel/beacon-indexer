@@ -1,13 +1,11 @@
 import type { Chain } from '@beacon-indexer/beacon-utils';
-import { setup, fromPromise, assign, sendTo, ActorRefFrom } from 'xstate';
+import { setup, fromPromise, assign } from 'xstate';
 
 import { SnapshotController } from '@/src/services/consensus/controllers/snapshot.js';
-import { incidentsMachine } from '@/src/xstate/incidents/incidents.machine.js';
 import { pinoLog } from '@/src/xstate/pinoLog.js';
 
 type SnapshotContext = {
   snapshotController: SnapshotController;
-  incidentsActor: ActorRefFrom<typeof incidentsMachine>;
   slotDuration: number;
   slotsPerEpoch: number;
   chain: Chain;
@@ -111,7 +109,6 @@ export const snapshotMachine = setup({
     context: SnapshotContext;
     input: {
       snapshotController: SnapshotController;
-      incidentsActor: ActorRefFrom<typeof incidentsMachine>;
       slotDuration: number;
       slotsPerEpoch: number;
       chain: Chain;
@@ -131,7 +128,6 @@ export const snapshotMachine = setup({
   initial: 'waiting',
   context: ({ input }) => ({
     snapshotController: input.snapshotController,
-    incidentsActor: input.incidentsActor,
     slotDuration: input.slotDuration,
     slotsPerEpoch: input.slotsPerEpoch,
     chain: input.chain,
@@ -168,7 +164,6 @@ export const snapshotMachine = setup({
               lastMUpdate: ({ event }) => event.output.lastMUpdate,
               lastNewValidatorCheck: ({ event }) => event.output.lastNewValidatorCheck,
             }),
-            sendTo(({ context }) => context.incidentsActor, { type: 'SNAPSHOT_UPDATED' as const }),
             pinoLog(({ event }) => {
               const levels = event.output.updatedLevels;
               return `Snapshot tick: updated balances/rewards/metrics [${levels.join(', ')}]`;

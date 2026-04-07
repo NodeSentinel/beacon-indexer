@@ -24,26 +24,55 @@ export class ValidatorActivityStatusStorage {
         WHERE c.slot <= ${safeObservedSlot}::int
           AND c.slot > ${safeObservedSlot}::int - (${inactiveMissedCount}::int * 40)
       ),
+      ranked_committees AS (
+        SELECT
+          rc.validator_index,
+          rc.slot,
+          rc.attestation_delay,
+          ROW_NUMBER() OVER (
+            PARTITION BY rc.validator_index
+            ORDER BY rc.slot DESC
+          )::int AS duty_rank,
+          (
+            rc.attestation_delay IS NULL OR
+            rc.attestation_delay > ${maxAttestationDelay}::int
+          ) AS is_missed
+        FROM recent_committees rc
+      ),
+      streak_bounds AS (
+        SELECT
+          rc.validator_index,
+          MIN(rc.duty_rank) FILTER (
+            WHERE rc.is_missed = false
+          )::int AS first_attested_rank,
+          MAX(rc.slot)::int AS last_observed_slot,
+          MAX(rc.slot) FILTER (
+            WHERE rc.is_missed = false
+          )::int AS last_attested_slot
+        FROM ranked_committees rc
+        GROUP BY rc.validator_index
+      ),
       current_activity AS (
         SELECT
           vss.validator_index,
           COUNT(*) FILTER (
-            WHERE rc.slot IS NOT NULL
-              AND (rc.attestation_delay IS NULL OR rc.attestation_delay > ${maxAttestationDelay}::int)
-          )::int AS missed_count,
-          MAX(rc.slot)::int AS last_observed_slot,
-          MAX(rc.slot) FILTER (
-            WHERE rc.attestation_delay IS NOT NULL
-              AND rc.attestation_delay <= ${maxAttestationDelay}::int
-          )::int AS last_attested_slot
+            WHERE rc.is_missed = true
+              AND (
+                sb.first_attested_rank IS NULL OR
+                rc.duty_rank < sb.first_attested_rank
+              )
+          )::int AS missed_streak,
+          sb.last_observed_slot,
+          sb.last_attested_slot
         FROM validators_snapshot_stats vss
-        LEFT JOIN recent_committees rc ON rc.validator_index = vss.validator_index
-        GROUP BY vss.validator_index
+        LEFT JOIN ranked_committees rc ON rc.validator_index = vss.validator_index
+        LEFT JOIN streak_bounds sb ON sb.validator_index = vss.validator_index
+        GROUP BY vss.validator_index, sb.first_attested_rank, sb.last_observed_slot, sb.last_attested_slot
       )
       UPDATE validators_snapshot_stats vss
       SET
-        is_inactive = ca.missed_count >= ${inactiveMissedCount}::int,
-        consecutive_missed_attestations = ca.missed_count,
+        is_inactive = ca.missed_streak >= ${inactiveMissedCount}::int,
+        consecutive_missed_attestations = ca.missed_streak,
         last_observed_slot = ca.last_observed_slot,
         last_attested_slot = ca.last_attested_slot,
         updated_at = NOW()

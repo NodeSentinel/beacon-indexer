@@ -8,7 +8,7 @@ import {
 } from './archive/index.js';
 import { getChainStatsActor } from './chainStats/index.js';
 import { getCreateEpochActor, getEpochOrchestratorActor } from './epoch/index.js';
-import { getIncidentsActor } from './incidents/index.js';
+import { getIncidentTrackerActor } from './incidentTracker/index.js';
 import { getLagAlertingActor } from './lagAlerting/index.js';
 import { getSnapshotActor } from './snapshot/index.js';
 import { getValidatorActivityStatusActor } from './validatorActivityStatus/index.js';
@@ -17,7 +17,7 @@ import { ChainStatsController } from '@/src/services/consensus/controllers/chain
 import { DailyArchiveController } from '@/src/services/consensus/controllers/dailyArchive.js';
 import { EpochController } from '@/src/services/consensus/controllers/epoch.js';
 import { HourlyArchiveController } from '@/src/services/consensus/controllers/hourlyArchive.js';
-import { IncidentController } from '@/src/services/consensus/controllers/incident.js';
+import { IncidentTrackerController } from '@/src/services/consensus/controllers/incidentTracker.js';
 import { MonthlyArchiveController } from '@/src/services/consensus/controllers/monthlyArchive.js';
 import { PartitionController } from '@/src/services/consensus/controllers/partition.js';
 import { SlotController } from '@/src/services/consensus/controllers/slot.js';
@@ -37,7 +37,7 @@ export default function initXstateMachines(
   monthlyArchiveController: MonthlyArchiveController,
   chainStatsController: ChainStatsController,
   snapshotController: SnapshotController,
-  incidentController: IncidentController,
+  incidentTrackerController: IncidentTrackerController,
   validatorActivityStatusController: ValidatorActivityStatusController,
   chain: Chain,
   maxAttestationDelay: number,
@@ -77,10 +77,6 @@ export default function initXstateMachines(
     chainStatsActor,
   ).start();
 
-  // Create and start snapshot actor (runs independently with its own timer)
-  const incidentsActor = getIncidentsActor(incidentController, maxAttestationDelay);
-  incidentsActor.start();
-
   const validatorActivityStatusActor = getValidatorActivityStatusActor(
     validatorActivityStatusController,
     slotController,
@@ -91,9 +87,17 @@ export default function initXstateMachines(
   );
   validatorActivityStatusActor.start();
 
+  const incidentTrackerActor = getIncidentTrackerActor(
+    incidentTrackerController,
+    slotController,
+    slotDuration,
+    maxAttestationDelay,
+    missedAttestationsForInactivity,
+  );
+  incidentTrackerActor.start();
+
   const snapshotActor = getSnapshotActor(
     snapshotController,
-    incidentsActor,
     slotDuration,
     slotsPerEpoch,
     chain,

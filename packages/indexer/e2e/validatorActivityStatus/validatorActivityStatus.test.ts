@@ -44,6 +44,7 @@ describe('Validator Activity Status Updater', () => {
     controller = new ValidatorActivityStatusController(storage, beaconTime);
 
     // Remove only the data touched by this suite, keeping the setup isolated and deterministic.
+    await prisma.incidentProcessorState.deleteMany({});
     await prisma.$executeRawUnsafe(`DELETE FROM "validators_snapshot_stats"`);
     await prisma.$executeRawUnsafe(`DELETE FROM "committee"`);
 
@@ -198,5 +199,36 @@ describe('Validator Activity Status Updater', () => {
     expect(row.activeSinceSlot).toBe(90);
     expect(row.inactiveSinceSlot).toBeNull();
     expect(row.rewardsProcessedThroughSlot).toBe(80);
+  });
+
+  // This scenario proves the updater uses the trailing missed streak, not total misses in the window.
+  it('resets the missed streak after an attested duty inside the observation window', async () => {
+    // Seed the validator row and a mixed sequence ordered oldest->newest as miss, attested, miss, miss.
+    await seedSnapshotValidator(101);
+    await prisma.$executeRaw`
+      INSERT INTO committee (slot, "index", validator_index, aggregation_bits_index, attestation_delay)
+      VALUES
+        (120, 0, 101, 0, ${null}),
+        (121, 1, 101, 1, ${1}),
+        (122, 2, 101, 2, ${null}),
+        (123, 3, 101, 3, ${null})
+    `;
+
+    // Keep the indexed window fresh and include the newest duty in the safe observation slot.
+    vi.spyOn(beaconTime, 'getChainCurrentSlot').mockReturnValue(129);
+
+    await controller.syncCurrentActivityStatus({
+      lastIndexedSlot: 124,
+      maxIndexerLagSlotsForAlerts: 6,
+      maxAttestationDelay: 1,
+      inactiveMissedCount: 3,
+    });
+
+    // Only the trailing misses after the attested duty should count toward inactivity.
+    const row = await getSnapshot(101);
+    expect(row.consecutiveMissedAttestations).toBe(2);
+    expect(row.isInactive).toBe(false);
+    expect(row.lastObservedSlot).toBe(123);
+    expect(row.lastAttestedSlot).toBe(121);
   });
 });

@@ -9,7 +9,7 @@ import { ChainStatsController } from '@/src/services/consensus/controllers/chain
 import { DailyArchiveController } from '@/src/services/consensus/controllers/dailyArchive.js';
 import { EpochController } from '@/src/services/consensus/controllers/epoch.js';
 import { HourlyArchiveController } from '@/src/services/consensus/controllers/hourlyArchive.js';
-import { IncidentController } from '@/src/services/consensus/controllers/incident.js';
+import { IncidentTrackerController } from '@/src/services/consensus/controllers/incidentTracker.js';
 import { IndexerConfigController } from '@/src/services/consensus/controllers/indexerConfig.js';
 import { MonthlyArchiveController } from '@/src/services/consensus/controllers/monthlyArchive.js';
 import { PartitionController } from '@/src/services/consensus/controllers/partition.js';
@@ -22,6 +22,7 @@ import { DailyArchiveStorage } from '@/src/services/consensus/storage/dailyArchi
 import { EpochStorage } from '@/src/services/consensus/storage/epoch.js';
 import { HourlyArchiveStorage } from '@/src/services/consensus/storage/hourlyArchive.js';
 import { IncidentStorage } from '@/src/services/consensus/storage/incident.js';
+import { IncidentTrackerStorage } from '@/src/services/consensus/storage/incidentTracker.js';
 import { IndexerConfigStorage } from '@/src/services/consensus/storage/indexerConfig.js';
 import { MonthlyArchiveStorage } from '@/src/services/consensus/storage/monthlyArchive.js';
 import { PartitionStorage } from '@/src/services/consensus/storage/partition.js';
@@ -190,13 +191,14 @@ async function main() {
   const snapshotStorage = new SnapshotStorage(prisma);
   const snapshotController = new SnapshotController(snapshotStorage, beaconTime);
 
-  // Create incident storage and controller
+  // Create incident storage and tracker controller
   const incidentStorage = new IncidentStorage(prisma, {
     genesisTimeSec: Math.floor(chainConfig.beacon.genesisTimestamp / 1000),
     secPerSlot: Math.floor(chainConfig.beacon.slotDuration / 1000),
     slotsPerEpoch: chainConfig.beacon.slotsPerEpoch,
   });
-  const incidentController = new IncidentController(incidentStorage, beaconTime);
+  const incidentTrackerStorage = new IncidentTrackerStorage(prisma, incidentStorage);
+  const incidentTrackerController = new IncidentTrackerController(incidentTrackerStorage);
 
   const validatorActivityStatusStorage = new ValidatorActivityStatusStorage(prisma);
   const validatorActivityStatusController = new ValidatorActivityStatusController(
@@ -221,7 +223,7 @@ async function main() {
     monthlyArchiveController,
     chainStatsController,
     snapshotController,
-    incidentController,
+    incidentTrackerController,
     validatorActivityStatusController,
     env.CHAIN,
     chainConfig.beacon.maxAttestationDelay,
