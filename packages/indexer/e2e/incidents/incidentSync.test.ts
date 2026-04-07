@@ -239,6 +239,14 @@ describe('Incident Sync Process', () => {
     expect(incident.status).toBe('closed');
     expect(incident.missedConsensusRewards).toBe(BigInt(15));
 
+    // The recovery slot is consumed by the incident close and should not remain
+    // hanging in snapshot after the incident has been finalized.
+    const snapshot = await prisma.validatorsSnapshotStats.findUniqueOrThrow({
+      where: { validatorIndex: VALIDATOR_INDEX },
+    });
+    expect(snapshot.inactiveSinceSlot).toBeNull();
+    expect(snapshot.activeSinceSlot).toBeNull();
+
     // The close notification should be queued for delivery.
     const notification = await prisma.notificationQueue.findFirstOrThrow({
       where: { type: 'incident_closed' },

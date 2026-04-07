@@ -516,6 +516,19 @@ export class IncidentStorage {
             ci.closed_notification_queued_at
         ),
 
+        -- The recovery slot markers in snapshot are only needed to compute the
+        -- incident close boundary. Once the incident is closed, clear them so
+        -- snapshot reflects only currently pending transitions.
+        cleared_snapshot_transition_slots AS (
+          UPDATE validators_snapshot_stats vss
+          SET
+            inactive_since_slot = NULL,
+            active_since_slot = NULL
+          FROM closed_incidents ci
+          JOIN LATERAL unnest(ci.validator_indexes) AS affected_validator(validator_index) ON true
+          WHERE vss.validator_index = affected_validator.validator_index
+        ),
+
         -- Enqueue notifications for incidents that were closed in this sync tick.
         closed_notifications AS (
           INSERT INTO notification_queue (
