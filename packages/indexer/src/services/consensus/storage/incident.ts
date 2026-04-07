@@ -82,7 +82,9 @@ export class IncidentStorage {
             c.owner_id,
             MIN(icv.inactive_since_slot) AS inactive_since_slot,
             COALESCE(
-              ARRAY_AGG(icv.validator_index ORDER BY icv.validator_index),
+              ARRAY_AGG(icv.validator_index ORDER BY icv.validator_index) FILTER (
+                WHERE icv.validator_index IS NOT NULL
+              ),
               ARRAY[]::int[]
             ) AS inactive_validator_indexes
           FROM target_clusters tc
