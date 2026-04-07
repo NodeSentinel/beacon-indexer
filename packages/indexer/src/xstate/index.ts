@@ -11,6 +11,7 @@ import { getCreateEpochActor, getEpochOrchestratorActor } from './epoch/index.js
 import { getIncidentsActor } from './incidents/index.js';
 import { getLagAlertingActor } from './lagAlerting/index.js';
 import { getSnapshotActor } from './snapshot/index.js';
+import { getValidatorActivityStatusActor } from './validatorActivityStatus/index.js';
 
 import { ChainStatsController } from '@/src/services/consensus/controllers/chainStats.js';
 import { DailyArchiveController } from '@/src/services/consensus/controllers/dailyArchive.js';
@@ -21,6 +22,7 @@ import { MonthlyArchiveController } from '@/src/services/consensus/controllers/m
 import { PartitionController } from '@/src/services/consensus/controllers/partition.js';
 import { SlotController } from '@/src/services/consensus/controllers/slot.js';
 import { SnapshotController } from '@/src/services/consensus/controllers/snapshot.js';
+import { ValidatorActivityStatusController } from '@/src/services/consensus/controllers/validatorActivityStatus.js';
 import { ValidatorsController } from '@/src/services/consensus/controllers/validators.js';
 export default function initXstateMachines(
   epochController: EpochController,
@@ -36,6 +38,7 @@ export default function initXstateMachines(
   chainStatsController: ChainStatsController,
   snapshotController: SnapshotController,
   incidentController: IncidentController,
+  validatorActivityStatusController: ValidatorActivityStatusController,
   chain: Chain,
   maxAttestationDelay: number,
   delaySlotsToHead: number,
@@ -77,6 +80,16 @@ export default function initXstateMachines(
   // Create and start snapshot actor (runs independently with its own timer)
   const incidentsActor = getIncidentsActor(incidentController, maxAttestationDelay);
   incidentsActor.start();
+
+  const validatorActivityStatusActor = getValidatorActivityStatusActor(
+    validatorActivityStatusController,
+    slotController,
+    slotDuration,
+    6,
+    maxAttestationDelay,
+    missedAttestationsForInactivity,
+  );
+  validatorActivityStatusActor.start();
 
   const snapshotActor = getSnapshotActor(
     snapshotController,

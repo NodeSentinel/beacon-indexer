@@ -15,6 +15,7 @@ import { MonthlyArchiveController } from '@/src/services/consensus/controllers/m
 import { PartitionController } from '@/src/services/consensus/controllers/partition.js';
 import { SlotController } from '@/src/services/consensus/controllers/slot.js';
 import { SnapshotController } from '@/src/services/consensus/controllers/snapshot.js';
+import { ValidatorActivityStatusController } from '@/src/services/consensus/controllers/validatorActivityStatus.js';
 import { ValidatorsController } from '@/src/services/consensus/controllers/validators.js';
 import { ChainStatsStorage } from '@/src/services/consensus/storage/chainStats.js';
 import { DailyArchiveStorage } from '@/src/services/consensus/storage/dailyArchive.js';
@@ -26,6 +27,7 @@ import { MonthlyArchiveStorage } from '@/src/services/consensus/storage/monthlyA
 import { PartitionStorage } from '@/src/services/consensus/storage/partition.js';
 import { SlotStorage } from '@/src/services/consensus/storage/slot.js';
 import { SnapshotStorage } from '@/src/services/consensus/storage/snapshot.js';
+import { ValidatorActivityStatusStorage } from '@/src/services/consensus/storage/validatorActivityStatus.js';
 import { ValidatorsStorage } from '@/src/services/consensus/storage/validators.js';
 import { ExecutionClient } from '@/src/services/execution/execution.js';
 import initXstateMachines from '@/src/xstate/index.js';
@@ -196,6 +198,12 @@ async function main() {
   });
   const incidentController = new IncidentController(incidentStorage, beaconTime);
 
+  const validatorActivityStatusStorage = new ValidatorActivityStatusStorage(prisma);
+  const validatorActivityStatusController = new ValidatorActivityStatusController(
+    validatorActivityStatusStorage,
+    beaconTime,
+  );
+
   // Start indexing the beacon chain
   await validatorsController.initValidatorsWithWait(env.CONSENSUS_LOOKBACK_SLOT);
 
@@ -214,6 +222,7 @@ async function main() {
     chainStatsController,
     snapshotController,
     incidentController,
+    validatorActivityStatusController,
     env.CHAIN,
     chainConfig.beacon.maxAttestationDelay,
     chainConfig.beacon.delaySlotsToHead,
