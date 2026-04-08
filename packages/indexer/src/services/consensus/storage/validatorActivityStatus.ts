@@ -1,5 +1,17 @@
 import { PrismaClient } from '@beacon-indexer/db';
 
+type SyncCurrentActivityStatusParams = {
+  // Last slot whose attestation outcome is old enough to be judged final for the
+  // current activity snapshot. Newer slots may still receive valid inclusions.
+  safeObservedSlot: number;
+  // Minimum trailing missed-attestation streak required to mark a validator as
+  // currently inactive in the fast snapshot.
+  inactiveMissedCount: number;
+  // Largest attestation delay still considered successful before a duty counts
+  // as missed for the current activity streak.
+  maxAttestationDelay: number;
+};
+
 /**
  * Owns the fast-path snapshot columns that reflect current validator activity.
  * Historical lifecycle fields remain outside this storage's responsibility.
@@ -7,11 +19,7 @@ import { PrismaClient } from '@beacon-indexer/db';
 export class ValidatorActivityStatusStorage {
   constructor(private readonly prisma: PrismaClient) {}
 
-  async syncCurrentActivityStatus(params: {
-    safeObservedSlot: number;
-    inactiveMissedCount: number;
-    maxAttestationDelay: number;
-  }): Promise<void> {
+  async syncCurrentActivityStatus(params: SyncCurrentActivityStatusParams): Promise<void> {
     const { safeObservedSlot, inactiveMissedCount, maxAttestationDelay } = params;
 
     // Recompute the current missed-attestation streak from the recent committee

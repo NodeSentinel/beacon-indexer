@@ -1,5 +1,40 @@
 import { PrismaClient } from '@beacon-indexer/db';
 
+type SnapshotValidatorFilterParams = {
+  // Optional subset of validators to update. When omitted, the query updates all
+  // validators that currently have snapshot rows.
+  validatorIndexes?: number[];
+};
+
+type UpdatePerformanceHParams = SnapshotValidatorFilterParams & {
+  // Inclusive slot range for the raw committee and slot tables that feeds the
+  // rolling hourly snapshot metrics.
+  minSlot: number;
+  // Inclusive upper slot bound for the hourly raw-data window.
+  maxSlot: number;
+  // Inclusive epoch range for epoch_rewards rows that line up with the slot
+  // window being aggregated into hourly snapshot metrics.
+  minEpoch: number;
+  // Inclusive upper epoch bound for hourly reward aggregation.
+  maxEpoch: number;
+  // Largest attestation delay that still counts as successful before a duty is
+  // treated as missed in the hourly snapshot.
+  maxAttestationDelay: number;
+};
+
+type UpdatePerformanceDParams = SnapshotValidatorFilterParams & {
+  // Beacon-chain genesis timestamp in seconds, used in SQL to convert archive and
+  // wall-clock boundaries back into slot and epoch ranges.
+  genesisTimeSec: number;
+  // Slot duration in seconds, used with genesis time for timestamp-to-slot math.
+  secPerSlot: number;
+  // Slots per epoch, used with slot bounds to derive epoch reward windows.
+  slotsPerEpoch: number;
+  // Largest attestation delay still considered successful in the live portion of
+  // the daily snapshot aggregation.
+  maxAttestationDelay: number;
+};
+
 /**
  * SnapshotStorage - Database persistence layer for validator snapshot operations.
  *
@@ -28,14 +63,7 @@ export class SnapshotStorage {
   /**
    * Update h performance metrics from raw committee and epoch_rewards tables.
    */
-  async updatePerformanceH(params: {
-    minSlot: number;
-    maxSlot: number;
-    minEpoch: number;
-    maxEpoch: number;
-    maxAttestationDelay: number;
-    validatorIndexes?: number[];
-  }): Promise<void> {
+  async updatePerformanceH(params: UpdatePerformanceHParams): Promise<void> {
     const { minSlot, maxSlot, minEpoch, maxEpoch, maxAttestationDelay, validatorIndexes } = params;
 
     await this.prisma.$executeRaw`
@@ -150,13 +178,7 @@ export class SnapshotStorage {
    *
    * Chain params are needed to convert timestamps to slot/epoch ranges in SQL.
    */
-  async updatePerformanceD(params: {
-    genesisTimeSec: number;
-    secPerSlot: number;
-    slotsPerEpoch: number;
-    maxAttestationDelay: number;
-    validatorIndexes?: number[];
-  }): Promise<void> {
+  async updatePerformanceD(params: UpdatePerformanceDParams): Promise<void> {
     const { genesisTimeSec, secPerSlot, slotsPerEpoch, maxAttestationDelay, validatorIndexes } =
       params;
 
@@ -403,7 +425,7 @@ export class SnapshotStorage {
    * Uses the 7 most recent archived days to ensure a full week of data.
    * APY is adjusted by the actual number of days covered (365.25 / days_covered * 100).
    */
-  async updatePerformanceW(params?: { validatorIndexes?: number[] }): Promise<void> {
+  async updatePerformanceW(params?: SnapshotValidatorFilterParams): Promise<void> {
     const validatorIndexes = params?.validatorIndexes;
 
     await this.prisma.$executeRaw`
@@ -484,7 +506,7 @@ export class SnapshotStorage {
    * Uses the 30 most recent archived days to ensure a full month of data.
    * APY is adjusted by the actual number of days covered (365.25 / days_covered * 100).
    */
-  async updatePerformanceM(params?: { validatorIndexes?: number[] }): Promise<void> {
+  async updatePerformanceM(params?: SnapshotValidatorFilterParams): Promise<void> {
     const validatorIndexes = params?.validatorIndexes;
 
     await this.prisma.$executeRaw`

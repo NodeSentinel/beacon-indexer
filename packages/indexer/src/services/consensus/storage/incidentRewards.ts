@@ -1,11 +1,22 @@
 import { PrismaClient } from '@beacon-indexer/db';
 
+type IncidentRewardsChainTiming = {
+  // Number of slots in one epoch, used to translate slot ranges into the epoch
+  // ranges needed for attestation reward aggregation.
+  slotsPerEpoch: number;
+};
+
+type SyncOpenIncidentRewardsParams = {
+  // Furthest indexed slot whose incident rewards are allowed to be applied in
+  // this run. Open incidents accrue through this slot, closed incidents stop at
+  // their own closed slot even if it is earlier.
+  processThroughSlot: number;
+};
+
 export class IncidentRewardsStorage {
   constructor(
     private readonly prisma: PrismaClient,
-    private readonly chainTiming: {
-      slotsPerEpoch: number;
-    },
+    private readonly chainTiming: IncidentRewardsChainTiming,
   ) {}
 
   private sumMissedAttestationRewards(
@@ -58,7 +69,7 @@ export class IncidentRewardsStorage {
     }, BigInt(0));
   }
 
-  async syncOpenIncidentRewards(params: { processThroughSlot: number }): Promise<void> {
+  async syncOpenIncidentRewards(params: SyncOpenIncidentRewardsParams): Promise<void> {
     // Keep incident totals, validator cursors, and closed-incident finalization in
     // one transaction so partial failures cannot double-apply missed rewards.
     await this.prisma.$transaction(async (tx) => {

@@ -3,6 +3,12 @@ import type { SlotStorage } from '../storage/slot.js';
 
 import createLogger from '@/src/lib/pino.js';
 
+type SyncOpenIncidentRewardsParams = {
+  // Furthest durable slot whose missed rewards should be folded into open or
+  // newly closed incidents during this controller pass.
+  processThroughSlot: number;
+};
+
 export class IncidentRewardsController {
   private readonly logger = createLogger('IncidentRewardsController');
 
@@ -25,7 +31,7 @@ export class IncidentRewardsController {
     });
   }
 
-  async syncOpenIncidentRewards(params: { processThroughSlot: number }): Promise<void> {
+  async syncOpenIncidentRewards(params: SyncOpenIncidentRewardsParams): Promise<void> {
     // Rewards are synced independently from open/close detection so incidents can
     // advance on the duty timeline first and finalize their missed rewards later.
     await this.storage.syncOpenIncidentRewards({

@@ -36,6 +36,11 @@ export class SnapshotController {
 
   /**
    * Update h performance metrics from raw data.
+   *
+   * @param maxAttestationDelay Largest attestation delay still treated as a
+   * successful inclusion before the hourly snapshot counts the duty as missed.
+   * @param validatorIndexes Optional subset of validators to refresh. When
+   * omitted, the hourly snapshot is recomputed for every validator row.
    */
   async updatePerformanceH(maxAttestationDelay: number, validatorIndexes?: number[]) {
     const currentTimestamp = Date.now();
@@ -66,6 +71,11 @@ export class SnapshotController {
 
   /**
    * Update d performance metrics combining hourly archives + live data.
+   *
+   * @param maxAttestationDelay Largest attestation delay still treated as a
+   * successful inclusion in the live, non-archived portion of the daily window.
+   * @param validatorIndexes Optional subset of validators to refresh. When
+   * omitted, the daily snapshot is recomputed for every validator row.
    */
   async updatePerformanceD(maxAttestationDelay: number, validatorIndexes?: number[]) {
     const genesisTimeSec = Math.floor(this.beaconTime.getTimestampFromSlotNumber(0) / 1000);
@@ -93,6 +103,9 @@ export class SnapshotController {
 
   /**
    * Update w performance metrics from daily archives.
+   *
+   * @param validatorIndexes Optional subset of validators to refresh. When
+   * omitted, the weekly snapshot is recomputed for every validator row.
    */
   async updatePerformanceW(validatorIndexes?: number[]) {
     try {
@@ -108,6 +121,9 @@ export class SnapshotController {
 
   /**
    * Update m performance metrics from daily archives.
+   *
+   * @param validatorIndexes Optional subset of validators to refresh. When
+   * omitted, the monthly snapshot is recomputed for every validator row.
    */
   async updatePerformanceM(validatorIndexes?: number[]) {
     try {
@@ -124,6 +140,9 @@ export class SnapshotController {
   /**
    * Detect validators in clusters that don't have snapshot rows yet,
    * insert base rows, and backfill all performance metrics for them.
+   *
+   * @param maxAttestationDelay Largest attestation delay still treated as a
+   * successful inclusion while backfilling hourly and daily snapshot metrics.
    */
   async detectAndBackfillNewValidators(maxAttestationDelay: number): Promise<number> {
     const newIndexes = await this.snapshotStorage.findNewValidators();
