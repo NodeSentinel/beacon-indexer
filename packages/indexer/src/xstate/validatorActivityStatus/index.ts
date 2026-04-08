@@ -16,6 +16,8 @@ export const getValidatorActivityStatusActor = (
   maxAttestationDelay: number,
   inactiveMissedCount: number,
 ) => {
+  // Create a dedicated actor that periodically refreshes the fast validator
+  // activity snapshot using the latest fully indexed committee data.
   const actor = createActor(validatorActivityStatusMachine, {
     input: {
       validatorActivityStatusController,
@@ -27,6 +29,8 @@ export const getValidatorActivityStatusActor = (
     },
   });
 
+  // Mirror the machine state into the shared multi-machine logger for debugging
+  // and operational visibility.
   actor.subscribe((snapshot) => {
     logMachine('validatorActivityStatus', `State: ${JSON.stringify(snapshot.value)}`);
   });

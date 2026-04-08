@@ -35,3 +35,7 @@ A developer should be able to fully understand the intent and flow of the test b
 ## GitHub workflow
 
 - When creating pull requests, do **not** prefix the title with `[codex]`.
+
+## Best practices
+
+- Every code block must include clear comments explaining its purpose. Comments should be sufficient for a developer to understand the logic without reading the code itself.

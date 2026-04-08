@@ -8,6 +8,8 @@ export class IncidentRewardsController {
   constructor(private readonly storage: IncidentRewardsStorage) {}
 
   async syncOpenIncidentRewards(params: { processThroughSlot: number }): Promise<void> {
+    // Rewards are synced independently from open/close detection so incidents can
+    // advance on the duty timeline first and finalize their missed rewards later.
     await this.storage.syncOpenIncidentRewards({
       processThroughSlot: params.processThroughSlot,
     });

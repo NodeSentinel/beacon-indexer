@@ -14,6 +14,9 @@ export class ValidatorActivityStatusStorage {
   }): Promise<void> {
     const { safeObservedSlot, inactiveMissedCount, maxAttestationDelay } = params;
 
+    // Recompute the current missed-attestation streak from the recent committee
+    // window only. This keeps the snapshot update cheap while still preserving
+    // enough history to decide whether the validator is currently inactive.
     await this.prisma.$executeRaw`
       WITH recent_committees AS (
         SELECT
@@ -25,6 +28,8 @@ export class ValidatorActivityStatusStorage {
           AND c.slot > ${safeObservedSlot}::int - (${inactiveMissedCount}::int * 40)
       ),
       ranked_committees AS (
+        -- Rank duties newest-first so we can stop the streak at the first attested
+        -- duty and count only the trailing misses that still matter "right now".
         SELECT
           rc.validator_index,
           rc.slot,
@@ -40,6 +45,8 @@ export class ValidatorActivityStatusStorage {
         FROM recent_committees rc
       ),
       streak_bounds AS (
+        -- Capture the newest successful attestation in the window so the next step
+        -- can ignore misses that happened before the validator became active again.
         SELECT
           rc.validator_index,
           MIN(rc.duty_rank) FILTER (
@@ -52,6 +59,8 @@ export class ValidatorActivityStatusStorage {
         GROUP BY rc.validator_index
       ),
       current_activity AS (
+        -- Project one row per snapshot validator with the size of its current missed
+        -- streak and the last attested slot that is still visible in the window.
         SELECT
           vss.validator_index,
           COUNT(*) FILTER (
@@ -67,6 +76,7 @@ export class ValidatorActivityStatusStorage {
         LEFT JOIN streak_bounds sb ON sb.validator_index = vss.validator_index
         GROUP BY vss.validator_index, sb.first_attested_rank, sb.last_attested_slot
       )
+      -- Persist only the fast-moving activity fields owned by this storage.
       UPDATE validators_snapshot_stats vss
       SET
         is_inactive = ca.missed_streak >= ${inactiveMissedCount}::int,

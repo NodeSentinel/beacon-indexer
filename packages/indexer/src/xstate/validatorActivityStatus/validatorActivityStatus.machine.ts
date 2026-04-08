@@ -16,11 +16,15 @@ const runSync = fromPromise(
       inactiveMissedCount: number;
     };
   }) => {
+    // Skip the run entirely until the slot processor has indexed at least one
+    // slot, because there is no durable committee window to evaluate before then.
     const lastIndexedSlot = await input.slotController.getLastProcessedSlot();
     if (lastIndexedSlot === null) {
       return;
     }
 
+    // Delegate the freshness gate and safe-slot calculation to the controller so
+    // the machine remains orchestration-only.
     await input.validatorActivityStatusController.syncCurrentActivityStatus({
       lastIndexedSlot,
       skipValidatorStatusUpdateWhenBehindHeadSlots:
@@ -51,6 +55,8 @@ export const validatorActivityStatusMachine = setup({
     };
   },
   delays: {
+    // Poll at slot cadence so validator activity state tracks the latest safe slot
+    // as soon as new committee data becomes final.
     tickInterval: ({ context }) => context.slotDuration,
   },
   actors: {
@@ -70,6 +76,7 @@ export const validatorActivityStatusMachine = setup({
   }),
   states: {
     waiting: {
+      // Sleep until the next slot-sized tick before attempting another refresh.
       after: {
         tickInterval: {
           target: 'syncing',
@@ -78,6 +85,8 @@ export const validatorActivityStatusMachine = setup({
     },
     syncing: {
       invoke: {
+        // Execute one refresh pass and always return to the waiting state whether
+        // the pass succeeded or failed.
         src: 'runSync',
         input: ({ context }) => ({
           validatorActivityStatusController: context.validatorActivityStatusController,

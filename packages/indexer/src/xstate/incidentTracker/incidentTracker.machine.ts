@@ -15,11 +15,15 @@ const runSync = fromPromise(
       inactiveMissedCount: number;
     };
   }) => {
+    // Wait for the slot processor to publish a durable cursor before trying to
+    // open or close incidents from committee data.
     const lastIndexedSlot = await input.slotController.getLastProcessedSlot();
     if (lastIndexedSlot === null) {
       return;
     }
 
+    // Keep the machine orchestration-only by delegating all duty-window logic to
+    // the controller and storage layers.
     await input.incidentTrackerController.syncTrackedIncidents({
       lastIndexedSlot,
       maxAttestationDelay: input.maxAttestationDelay,
@@ -46,6 +50,8 @@ export const incidentTrackerMachine = setup({
     };
   },
   delays: {
+    // Poll once per slot so incident openings and closures stay near real time
+    // without busy-looping.
     tickInterval: ({ context }) => context.slotDuration,
   },
   actors: {
@@ -63,6 +69,8 @@ export const incidentTrackerMachine = setup({
   }),
   states: {
     waiting: {
+      // Sleep until the next slot-sized tick before checking whether more duties
+      // became safe to process.
       after: {
         tickInterval: {
           target: 'syncing',
@@ -71,6 +79,8 @@ export const incidentTrackerMachine = setup({
     },
     syncing: {
       invoke: {
+        // Run a single durable incident-tracker pass and always transition back
+        // to waiting, regardless of success or failure.
         src: 'runSync',
         input: ({ context }) => ({
           incidentTrackerController: context.incidentTrackerController,

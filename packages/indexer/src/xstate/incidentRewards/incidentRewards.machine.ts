@@ -13,11 +13,15 @@ const runSync = fromPromise(
       slotController: SlotController;
     };
   }) => {
+    // Rewards can only advance up to the latest indexed slot, because both
+    // attestation and sync reward tables are populated by the slot pipeline.
     const lastIndexedSlot = await input.slotController.getLastProcessedSlot();
     if (lastIndexedSlot === null) {
       return;
     }
 
+    // Delegate reward accumulation and finalization rules to the controller so
+    // the machine stays focused on scheduling.
     await input.incidentRewardsController.syncOpenIncidentRewards({
       processThroughSlot: lastIndexedSlot,
     });
@@ -36,6 +40,8 @@ export const incidentRewardsMachine = setup({
     };
   },
   delays: {
+    // Reward finalization is less latency-sensitive than incident detection, so a
+    // coarse periodic sweep is enough.
     syncInterval: () => 30 * 60 * 1000,
   },
   actors: {
@@ -50,6 +56,7 @@ export const incidentRewardsMachine = setup({
   }),
   states: {
     waiting: {
+      // Sleep until the next periodic reward sweep.
       after: {
         syncInterval: {
           target: 'syncing',
@@ -58,6 +65,8 @@ export const incidentRewardsMachine = setup({
     },
     syncing: {
       invoke: {
+        // Run a single reward sync pass and always return to waiting, whether the
+        // pass completed normally or failed.
         src: 'runSync',
         input: ({ context }) => ({
           incidentRewardsController: context.incidentRewardsController,

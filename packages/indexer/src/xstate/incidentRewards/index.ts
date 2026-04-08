@@ -12,6 +12,8 @@ export const getIncidentRewardsActor = (
   incidentRewardsController: IncidentRewardsController,
   slotController: SlotController,
 ) => {
+  // Create a background actor that periodically advances missed rewards for open
+  // and recently closed incidents.
   const actor = createActor(incidentRewardsMachine, {
     input: {
       incidentRewardsController,
@@ -19,6 +21,8 @@ export const getIncidentRewardsActor = (
     },
   });
 
+  // Emit machine state transitions to the shared logger so reward sync cadence
+  // and failures are visible in the same stream as the other workers.
   actor.subscribe((snapshot) => {
     logMachine('incidentRewards', `State: ${JSON.stringify(snapshot.value)}`);
   });

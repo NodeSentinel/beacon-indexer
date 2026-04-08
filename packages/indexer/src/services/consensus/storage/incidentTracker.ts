@@ -44,6 +44,8 @@ export class IncidentTrackerStorage {
   }): Promise<void> {
     const { processor, safeUpperBound, maxAttestationDelay, inactiveMissedCount } = params;
 
+    // Keep a durable processor cursor so each run advances from the last finished
+    // slot instead of reconstructing cluster incidents from genesis every time.
     await this.prisma.$transaction(async (tx) => {
       const state = await tx.incidentProcessorState.upsert({
         where: { processor },
@@ -56,6 +58,7 @@ export class IncidentTrackerStorage {
         return;
       }
 
+      // Replay only the slot range that became newly safe since the previous run.
       await this.syncIncidentsForSlotRange(tx, {
         fromSlot,
         toSlot: safeUpperBound,
@@ -83,11 +86,15 @@ export class IncidentTrackerStorage {
       inactiveMissedCount: number;
     },
   ): Promise<void> {
+    // Load current open incidents first so their validators stay in scope even if
+    // they have no new duties in the slot window being processed right now.
     const openIncidents = await tx.clusterIncident.findMany({
       where: { status: 'open' },
       select: { id: true, clusterId: true, validatorIndexes: true },
     });
 
+    // Limit all downstream work to validators that either have relevant duties in
+    // the historical window or are already part of an open incident.
     const historyStartSlot = Math.max(0, params.fromSlot - params.inactiveMissedCount * 40);
     const validatorsWithRelevantDuties = await tx.$queryRaw<Array<{ validator_index: number }>>`
       SELECT DISTINCT c.validator_index
@@ -105,6 +112,8 @@ export class IncidentTrackerStorage {
       return;
     }
 
+    // Load only memberships for validators that can actually affect incident state
+    // in this run, instead of scanning the full cluster-validator relation table.
     const memberships =
       relevantValidatorIndexes.length > 0
         ? await tx.$queryRaw<Array<{ cluster_id: string; validator_index: number }>>`
@@ -120,6 +129,8 @@ export class IncidentTrackerStorage {
       return;
     }
 
+    // Build the per-validator and per-cluster in-memory state that the slot replay
+    // mutates as it walks through the confirmed duty sequence.
     const validatorToClusters = new Map<number, string[]>();
     const clusterStates = new Map<string, ClusterState>();
     for (const membership of memberships) {
@@ -135,6 +146,8 @@ export class IncidentTrackerStorage {
       }
     }
 
+    // Preserve knowledge of already-open incidents so clusters without current
+    // memberships can still be closed cleanly when they empty out.
     for (const incident of openIncidents) {
       if (!clusterStates.has(incident.clusterId)) {
         clusterStates.set(incident.clusterId, {
@@ -148,6 +161,8 @@ export class IncidentTrackerStorage {
     }
 
     const validatorIndexes = [...validatorToClusters.keys()].sort((a, b) => a - b);
+    // Fetch the complete duty history required to reconstruct each validator's
+    // starting streak at `fromSlot`, plus the duties that will be replayed forward.
     const duties =
       validatorIndexes.length > 0
         ? await tx.$queryRaw<DutyRow[]>`
@@ -159,6 +174,8 @@ export class IncidentTrackerStorage {
           `
         : [];
 
+    // Split duties by validator for initial streak reconstruction and by slot for
+    // the forward replay that opens/closes incidents in chronological order.
     const dutiesByValidator = new Map<number, DutyRow[]>();
     const dutiesBySlot = new Map<number, DutyRow[]>();
     for (const duty of duties) {
@@ -173,6 +190,8 @@ export class IncidentTrackerStorage {
       }
     }
 
+    // Reconstruct each validator's state immediately before `fromSlot` so the
+    // forward replay starts from the same durable state the chain would have had.
     const validatorStates = new Map<number, ValidatorState>();
     for (const validatorIndex of validatorIndexes) {
       const priorDuties = (dutiesByValidator.get(validatorIndex) ?? []).filter(
@@ -200,6 +219,8 @@ export class IncidentTrackerStorage {
       });
     }
 
+    // Seed cluster state with validators that were already inactive when the
+    // replay window starts, so existing incidents remain consistent.
     for (const [validatorIndex, state] of validatorStates) {
       if (!state.inactive || state.inactiveSinceSlot === null) {
         continue;
@@ -212,6 +233,8 @@ export class IncidentTrackerStorage {
       }
     }
 
+    // Reconcile any cluster that was already open at the start boundary before we
+    // begin replaying newer slots one by one.
     for (const [clusterId, clusterState] of clusterStates) {
       if (clusterState.openIncident && clusterState.inactiveValidators.size === 0) {
         await this.incidentStorage.closeIncident(tx, {
@@ -234,6 +257,8 @@ export class IncidentTrackerStorage {
       clusterState.openIncident = { id: incident.id };
     }
 
+    // Replay the slot range in order so incident openings, additions, removals,
+    // and closures follow the exact chronology of the indexed duties.
     const orderedSlots = [...dutiesBySlot.keys()].sort((a, b) => a - b);
     for (const slot of orderedSlots) {
       const additionsByCluster = new Map<
@@ -242,6 +267,8 @@ export class IncidentTrackerStorage {
       >();
       const removalsByCluster = new Map<string, number[]>();
 
+      // First compute all validator transitions that happened on this slot before
+      // mutating cluster state, so each cluster sees a coherent slot-level delta.
       for (const duty of dutiesBySlot.get(slot) ?? []) {
         const state = validatorStates.get(duty.validator_index)!;
         const wasInactive = state.inactive;
@@ -279,6 +306,8 @@ export class IncidentTrackerStorage {
         }
       }
 
+      // Then apply the accumulated additions/removals to each affected cluster and
+      // reconcile the incident row that should exist after this slot.
       const affectedClusters = new Set([...additionsByCluster.keys(), ...removalsByCluster.keys()]);
 
       for (const clusterId of affectedClusters) {

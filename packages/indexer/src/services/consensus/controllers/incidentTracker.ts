@@ -12,11 +12,15 @@ export class IncidentTrackerController {
     maxAttestationDelay: number;
     inactiveMissedCount: number;
   }): Promise<void> {
+    // Reuse the same "safe slot" rule as activity status so the tracker only
+    // opens or closes incidents from duties whose inclusion outcome is final.
     const safeUpperBound = params.lastIndexedSlot - params.maxAttestationDelay;
     if (safeUpperBound < 0) {
       return;
     }
 
+    // Advance the durable incident processor cursor through the confirmed slot
+    // range and let storage handle the cluster/validator transitions.
     await this.storage.processSlotsThrough({
       processor: 'incident-tracker',
       safeUpperBound,

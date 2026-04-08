@@ -21,6 +21,8 @@ export class IncidentRewardsStorage {
     startEpoch: number,
     endEpoch: number,
   ): bigint {
+    // Sum only the attestation reward rows that belong to the target validator and
+    // fall inside the epoch range currently being applied to the incident.
     return rows.reduce((sum, row) => {
       if (row.validatorIndex !== validatorIndex || row.epoch < startEpoch || row.epoch > endEpoch) {
         return sum;
@@ -40,6 +42,8 @@ export class IncidentRewardsStorage {
     lowerBound: number,
     upperBound: number,
   ): bigint {
+    // Count only negative sync committee rewards because those are the missed
+    // rewards/penalties we attribute to the incident's inactive window.
     return rows.reduce((sum, row) => {
       if (
         row.validatorIndex !== validatorIndex ||
@@ -55,7 +59,11 @@ export class IncidentRewardsStorage {
   }
 
   async syncOpenIncidentRewards(params: { processThroughSlot: number }): Promise<void> {
+    // Keep incident totals, validator cursors, and closed-incident finalization in
+    // one transaction so partial failures cannot double-apply missed rewards.
     await this.prisma.$transaction(async (tx) => {
+      // Consider both open incidents and closed-but-not-finalized incidents, since
+      // a closed incident may still need its final reward tranche applied.
       const candidates = await tx.clusterIncident.findMany({
         where: {
           OR: [{ status: 'open' }, { status: 'closed', rewardsFinalized: false }],
@@ -72,6 +80,8 @@ export class IncidentRewardsStorage {
         return;
       }
 
+      // Load the per-validator reward cursor once so each incident can advance from
+      // the last processed slot instead of rescanning older rewards every run.
       const validatorIndexes = [
         ...new Set(candidates.flatMap((incident) => incident.validatorIndexes)),
       ];
@@ -86,9 +96,13 @@ export class IncidentRewardsStorage {
         snapshots.map((snapshot) => [snapshot.validatorIndex, snapshot] as const),
       );
 
+      // Track the furthest slot processed for each validator across all incidents
+      // handled in this transaction, then persist the final cursor once at the end.
       const processedThroughByValidator = new Map<number, number>();
 
       for (const incident of candidates) {
+        // Closed incidents stop accruing rewards at their closed slot; open ones
+        // can continue accruing up to the process-through slot for this run.
         const upperBound =
           incident.status === 'closed' && incident.closedSlot !== null
             ? Math.min(incident.closedSlot, params.processThroughSlot)
@@ -98,6 +112,7 @@ export class IncidentRewardsStorage {
           continue;
         }
 
+        // Build the unprocessed reward range for each validator in this incident.
         const ranges = incident.validatorIndexes
           .map((validatorIndex) => {
             const snapshot = snapshotByValidator.get(validatorIndex);
@@ -119,6 +134,8 @@ export class IncidentRewardsStorage {
           continue;
         }
 
+        // Batch both reward sources once per incident, then slice them in memory by
+        // validator/range to avoid issuing one query per validator.
         const [epochRewardRows, syncRewardRows] = await Promise.all([
           tx.epochRewards.findMany({
             where: {
@@ -153,6 +170,8 @@ export class IncidentRewardsStorage {
           }),
         ]);
 
+        // Apply each validator's newly processed rewards onto the incident total
+        // and advance the in-memory cursor snapshot to the same upper bound.
         let incidentDelta = BigInt(0);
 
         for (const range of ranges) {
@@ -190,6 +209,8 @@ export class IncidentRewardsStorage {
         }
       }
 
+      // Persist the furthest processed slot per validator only after every
+      // incident update in this transaction has succeeded.
       for (const [validatorIndex, processedThroughSlot] of processedThroughByValidator) {
         await tx.validatorsSnapshotStats.update({
           where: { validatorIndex },
@@ -199,6 +220,8 @@ export class IncidentRewardsStorage {
         });
       }
 
+      // Only finalized closed incidents should queue the closing notification,
+      // because the notification payload depends on the final missed reward total.
       const finalizableClosedIncidents = candidates.filter(
         (incident) =>
           incident.status === 'closed' &&
@@ -209,6 +232,8 @@ export class IncidentRewardsStorage {
 
       const finalizedAt = new Date();
       for (const incident of finalizableClosedIncidents) {
+        // Finalize only when every validator in the incident has processed rewards
+        // through the incident's closed slot.
         const allCaughtUp = incident.validatorIndexes.every((validatorIndex) => {
           const snapshot = snapshotByValidator.get(validatorIndex);
 
@@ -235,6 +260,8 @@ export class IncidentRewardsStorage {
           },
         });
 
+        // Queue the close notification only for users that can currently receive
+        // Telegram messages, mirroring the incident-open behavior.
         if (
           incident.cluster.owner.telegramId !== null &&
           !incident.cluster.owner.hasBlockedBot &&
