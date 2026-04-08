@@ -1,6 +1,5 @@
 import { setup, fromPromise } from 'xstate';
 
-import type { SlotController } from '@/src/services/consensus/controllers/slot.js';
 import { ValidatorActivityStatusController } from '@/src/services/consensus/controllers/validatorActivityStatus.js';
 import { pinoLog } from '@/src/xstate/pinoLog.js';
 
@@ -10,23 +9,14 @@ const runSync = fromPromise(
   }: {
     input: {
       validatorActivityStatusController: ValidatorActivityStatusController;
-      slotController: SlotController;
       skipValidatorStatusUpdateWhenBehindHeadSlots: number;
       maxAttestationDelay: number;
       inactiveMissedCount: number;
     };
   }) => {
-    // Skip the run entirely until the slot processor has indexed at least one
-    // slot, because there is no durable committee window to evaluate before then.
-    const lastIndexedSlot = await input.slotController.getLastProcessedSlot();
-    if (lastIndexedSlot === null) {
-      return;
-    }
-
-    // Delegate the freshness gate and safe-slot calculation to the controller so
-    // the machine remains orchestration-only.
-    await input.validatorActivityStatusController.syncCurrentActivityStatus({
-      lastIndexedSlot,
+    // Delegate the entire refresh pass to the controller so the machine stays
+    // orchestration-only.
+    await input.validatorActivityStatusController.runSync({
       skipValidatorStatusUpdateWhenBehindHeadSlots:
         input.skipValidatorStatusUpdateWhenBehindHeadSlots,
       maxAttestationDelay: input.maxAttestationDelay,
@@ -39,7 +29,6 @@ export const validatorActivityStatusMachine = setup({
   types: {} as {
     context: {
       validatorActivityStatusController: ValidatorActivityStatusController;
-      slotController: SlotController;
       slotDuration: number;
       skipValidatorStatusUpdateWhenBehindHeadSlots: number;
       maxAttestationDelay: number;
@@ -47,7 +36,6 @@ export const validatorActivityStatusMachine = setup({
     };
     input: {
       validatorActivityStatusController: ValidatorActivityStatusController;
-      slotController: SlotController;
       slotDuration: number;
       skipValidatorStatusUpdateWhenBehindHeadSlots: number;
       maxAttestationDelay: number;
@@ -67,7 +55,6 @@ export const validatorActivityStatusMachine = setup({
   initial: 'waiting',
   context: ({ input }) => ({
     validatorActivityStatusController: input.validatorActivityStatusController,
-    slotController: input.slotController,
     slotDuration: input.slotDuration,
     skipValidatorStatusUpdateWhenBehindHeadSlots:
       input.skipValidatorStatusUpdateWhenBehindHeadSlots,
@@ -90,7 +77,6 @@ export const validatorActivityStatusMachine = setup({
         src: 'runSync',
         input: ({ context }) => ({
           validatorActivityStatusController: context.validatorActivityStatusController,
-          slotController: context.slotController,
           skipValidatorStatusUpdateWhenBehindHeadSlots:
             context.skipValidatorStatusUpdateWhenBehindHeadSlots,
           maxAttestationDelay: context.maxAttestationDelay,

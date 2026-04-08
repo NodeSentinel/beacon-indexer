@@ -4,6 +4,7 @@ import { PrismaClient } from '@beacon-indexer/db';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { ValidatorActivityStatusController } from '@/src/services/consensus/controllers/validatorActivityStatus.js';
+import type { SlotStorage } from '@/src/services/consensus/storage/slot.js';
 import { ValidatorActivityStatusStorage } from '@/src/services/consensus/storage/validatorActivityStatus.js';
 
 // This suite verifies the fast validator activity updater against a real database.
@@ -12,6 +13,7 @@ describe('Validator Activity Status Updater', () => {
   let beaconTime: BeaconTime;
   let storage: ValidatorActivityStatusStorage;
   let controller: ValidatorActivityStatusController;
+  let slotStorage: SlotStorage;
 
   beforeAll(async () => {
     // The e2e suite uses the same live PostgreSQL setup as the other indexer integration tests.
@@ -48,7 +50,12 @@ describe('Validator Activity Status Updater', () => {
       delaySlotsToHead: gnosisConfig.beacon.delaySlotsToHead,
     });
     storage = new ValidatorActivityStatusStorage(prisma);
-    controller = new ValidatorActivityStatusController(storage, beaconTime);
+
+    // Provide the controller dependency required by the new controller-level runSync boundary.
+    slotStorage = {
+      getLastProcessedSlot: vi.fn(),
+    } as unknown as SlotStorage;
+    controller = new ValidatorActivityStatusController(storage, slotStorage, beaconTime);
 
     // Remove only the data touched by this suite, keeping the setup isolated and deterministic.
     await prisma.incidentProcessorState.deleteMany({});

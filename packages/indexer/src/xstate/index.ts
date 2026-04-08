@@ -82,7 +82,6 @@ export default function initXstateMachines(
 
   const validatorActivityStatusActor = getValidatorActivityStatusActor(
     validatorActivityStatusController,
-    slotController,
     slotDuration,
     slotsPerEpoch,
     maxAttestationDelay,
@@ -92,14 +91,13 @@ export default function initXstateMachines(
 
   const incidentTrackerActor = getIncidentTrackerActor(
     incidentTrackerController,
-    slotController,
     slotDuration,
     maxAttestationDelay,
     missedAttestationsForInactivity,
   );
   incidentTrackerActor.start();
 
-  const incidentRewardsActor = getIncidentRewardsActor(incidentRewardsController, slotController);
+  const incidentRewardsActor = getIncidentRewardsActor(incidentRewardsController);
   incidentRewardsActor.start();
 
   const snapshotActor = getSnapshotActor(

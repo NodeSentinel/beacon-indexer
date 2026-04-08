@@ -1,11 +1,34 @@
 import { IncidentTrackerStorage } from '../storage/incidentTracker.js';
+import type { SlotStorage } from '../storage/slot.js';
 
 import createLogger from '@/src/lib/pino.js';
 
 export class IncidentTrackerController {
   private readonly logger = createLogger('IncidentTrackerController');
 
-  constructor(private readonly storage: IncidentTrackerStorage) {}
+  constructor(
+    private readonly storage: IncidentTrackerStorage,
+    private readonly slotStorage: SlotStorage,
+  ) {}
+
+  async runSync(params: {
+    maxAttestationDelay: number;
+    inactiveMissedCount: number;
+  }): Promise<void> {
+    // Wait until the slot pipeline has produced a durable cursor before trying
+    // to open or close incidents from committee outcomes.
+    const lastIndexedSlot = await this.slotStorage.getLastProcessedSlot();
+    if (lastIndexedSlot === null) {
+      return;
+    }
+
+    // Reuse the controller's incident-sync logic once a safe cursor exists.
+    await this.syncTrackedIncidents({
+      lastIndexedSlot,
+      maxAttestationDelay: params.maxAttestationDelay,
+      inactiveMissedCount: params.inactiveMissedCount,
+    });
+  }
 
   async syncTrackedIncidents(params: {
     lastIndexedSlot: number;

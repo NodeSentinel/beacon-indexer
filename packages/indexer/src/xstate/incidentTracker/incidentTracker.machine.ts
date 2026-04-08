@@ -1,7 +1,6 @@
 import { setup, fromPromise } from 'xstate';
 
 import { IncidentTrackerController } from '@/src/services/consensus/controllers/incidentTracker.js';
-import type { SlotController } from '@/src/services/consensus/controllers/slot.js';
 import { pinoLog } from '@/src/xstate/pinoLog.js';
 
 const runSync = fromPromise(
@@ -10,22 +9,13 @@ const runSync = fromPromise(
   }: {
     input: {
       incidentTrackerController: IncidentTrackerController;
-      slotController: SlotController;
       maxAttestationDelay: number;
       inactiveMissedCount: number;
     };
   }) => {
-    // Wait for the slot processor to publish a durable cursor before trying to
-    // open or close incidents from committee data.
-    const lastIndexedSlot = await input.slotController.getLastProcessedSlot();
-    if (lastIndexedSlot === null) {
-      return;
-    }
-
-    // Keep the machine orchestration-only by delegating all duty-window logic to
-    // the controller and storage layers.
-    await input.incidentTrackerController.syncTrackedIncidents({
-      lastIndexedSlot,
+    // Keep the machine orchestration-only by delegating the entire sync pass to
+    // the controller layer.
+    await input.incidentTrackerController.runSync({
       maxAttestationDelay: input.maxAttestationDelay,
       inactiveMissedCount: input.inactiveMissedCount,
     });
@@ -36,14 +26,12 @@ export const incidentTrackerMachine = setup({
   types: {} as {
     context: {
       incidentTrackerController: IncidentTrackerController;
-      slotController: SlotController;
       slotDuration: number;
       maxAttestationDelay: number;
       inactiveMissedCount: number;
     };
     input: {
       incidentTrackerController: IncidentTrackerController;
-      slotController: SlotController;
       slotDuration: number;
       maxAttestationDelay: number;
       inactiveMissedCount: number;
@@ -62,7 +50,6 @@ export const incidentTrackerMachine = setup({
   initial: 'waiting',
   context: ({ input }) => ({
     incidentTrackerController: input.incidentTrackerController,
-    slotController: input.slotController,
     slotDuration: input.slotDuration,
     maxAttestationDelay: input.maxAttestationDelay,
     inactiveMissedCount: input.inactiveMissedCount,
@@ -84,7 +71,6 @@ export const incidentTrackerMachine = setup({
         src: 'runSync',
         input: ({ context }) => ({
           incidentTrackerController: context.incidentTrackerController,
-          slotController: context.slotController,
           maxAttestationDelay: context.maxAttestationDelay,
           inactiveMissedCount: context.inactiveMissedCount,
         }),

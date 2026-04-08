@@ -1,7 +1,6 @@
 import { setup, fromPromise } from 'xstate';
 
 import { IncidentRewardsController } from '@/src/services/consensus/controllers/incidentRewards.js';
-import type { SlotController } from '@/src/services/consensus/controllers/slot.js';
 import { pinoLog } from '@/src/xstate/pinoLog.js';
 
 const runSync = fromPromise(
@@ -10,21 +9,11 @@ const runSync = fromPromise(
   }: {
     input: {
       incidentRewardsController: IncidentRewardsController;
-      slotController: SlotController;
     };
   }) => {
-    // Rewards can only advance up to the latest indexed slot, because both
-    // attestation and sync reward tables are populated by the slot pipeline.
-    const lastIndexedSlot = await input.slotController.getLastProcessedSlot();
-    if (lastIndexedSlot === null) {
-      return;
-    }
-
-    // Delegate reward accumulation and finalization rules to the controller so
-    // the machine stays focused on scheduling.
-    await input.incidentRewardsController.syncOpenIncidentRewards({
-      processThroughSlot: lastIndexedSlot,
-    });
+    // Delegate the entire sweep to the controller so the machine stays focused
+    // on scheduling only.
+    await input.incidentRewardsController.runSync();
   },
 );
 
@@ -32,11 +21,9 @@ export const incidentRewardsMachine = setup({
   types: {} as {
     context: {
       incidentRewardsController: IncidentRewardsController;
-      slotController: SlotController;
     };
     input: {
       incidentRewardsController: IncidentRewardsController;
-      slotController: SlotController;
     };
   },
   delays: {
@@ -52,7 +39,6 @@ export const incidentRewardsMachine = setup({
   initial: 'waiting',
   context: ({ input }) => ({
     incidentRewardsController: input.incidentRewardsController,
-    slotController: input.slotController,
   }),
   states: {
     waiting: {
@@ -70,7 +56,6 @@ export const incidentRewardsMachine = setup({
         src: 'runSync',
         input: ({ context }) => ({
           incidentRewardsController: context.incidentRewardsController,
-          slotController: context.slotController,
         }),
         onDone: {
           target: 'waiting',

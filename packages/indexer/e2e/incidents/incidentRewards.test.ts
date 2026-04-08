@@ -9,6 +9,7 @@ import { ValidatorActivityStatusController } from '@/src/services/consensus/cont
 import { IncidentStorage } from '@/src/services/consensus/storage/incident.js';
 import { IncidentRewardsStorage } from '@/src/services/consensus/storage/incidentRewards.js';
 import { IncidentTrackerStorage } from '@/src/services/consensus/storage/incidentTracker.js';
+import type { SlotStorage } from '@/src/services/consensus/storage/slot.js';
 import { ValidatorActivityStatusStorage } from '@/src/services/consensus/storage/validatorActivityStatus.js';
 
 // This suite verifies reward finalization and close notifications on the new tracker path.
@@ -18,6 +19,7 @@ describe('Incident Rewards', () => {
   let validatorActivityStatusController: ValidatorActivityStatusController;
   let incidentTrackerController: IncidentTrackerController;
   let incidentRewardsController: IncidentRewardsController;
+  let slotStorage: SlotStorage;
 
   const VALIDATOR_INDEX = 101;
   const CLUSTER_ID = 'cluster-a';
@@ -60,6 +62,11 @@ describe('Incident Rewards', () => {
       delaySlotsToHead: gnosisConfig.beacon.delaySlotsToHead,
     });
 
+    // Provide the controller dependency required by the new controller-level runSync boundary.
+    slotStorage = {
+      getLastProcessedSlot: vi.fn(),
+    } as unknown as SlotStorage;
+
     const incidentStorage = new IncidentStorage(prisma, {
       genesisTimeSec: Math.floor(gnosisConfig.beacon.genesisTimestamp / 1000),
       secPerSlot: Math.floor(gnosisConfig.beacon.slotDuration / 1000),
@@ -68,17 +75,20 @@ describe('Incident Rewards', () => {
 
     validatorActivityStatusController = new ValidatorActivityStatusController(
       new ValidatorActivityStatusStorage(prisma),
+      slotStorage,
       beaconTime,
     );
 
     incidentTrackerController = new IncidentTrackerController(
       new IncidentTrackerStorage(prisma, incidentStorage),
+      slotStorage,
     );
 
     incidentRewardsController = new IncidentRewardsController(
       new IncidentRewardsStorage(prisma, {
         slotsPerEpoch: gnosisConfig.beacon.slotsPerEpoch,
       }),
+      slotStorage,
     );
 
     // Clear only the tables this suite touches.

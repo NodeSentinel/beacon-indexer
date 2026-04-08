@@ -200,15 +200,22 @@ async function main() {
     slotsPerEpoch: chainConfig.beacon.slotsPerEpoch,
   });
   const incidentTrackerStorage = new IncidentTrackerStorage(prisma, incidentStorage);
-  const incidentTrackerController = new IncidentTrackerController(incidentTrackerStorage);
+  const incidentTrackerController = new IncidentTrackerController(
+    incidentTrackerStorage,
+    slotStorage,
+  );
   const incidentRewardsStorage = new IncidentRewardsStorage(prisma, {
     slotsPerEpoch: chainConfig.beacon.slotsPerEpoch,
   });
-  const incidentRewardsController = new IncidentRewardsController(incidentRewardsStorage);
+  const incidentRewardsController = new IncidentRewardsController(
+    incidentRewardsStorage,
+    slotStorage,
+  );
 
   const validatorActivityStatusStorage = new ValidatorActivityStatusStorage(prisma);
   const validatorActivityStatusController = new ValidatorActivityStatusController(
     validatorActivityStatusStorage,
+    slotStorage,
     beaconTime,
   );
 

@@ -7,6 +7,7 @@ import { IncidentTrackerController } from '@/src/services/consensus/controllers/
 import { ValidatorActivityStatusController } from '@/src/services/consensus/controllers/validatorActivityStatus.js';
 import { IncidentStorage } from '@/src/services/consensus/storage/incident.js';
 import { IncidentTrackerStorage } from '@/src/services/consensus/storage/incidentTracker.js';
+import type { SlotStorage } from '@/src/services/consensus/storage/slot.js';
 import { ValidatorActivityStatusStorage } from '@/src/services/consensus/storage/validatorActivityStatus.js';
 
 // This suite verifies the new sequential incident tracker path end to end.
@@ -15,6 +16,7 @@ describe('Incident Tracker', () => {
   let beaconTime: BeaconTime;
   let validatorActivityStatusController: ValidatorActivityStatusController;
   let incidentTrackerController: IncidentTrackerController;
+  let slotStorage: SlotStorage;
 
   const VALIDATOR_INDEX = 101;
   const CLUSTER_ID = 'cluster-a';
@@ -52,8 +54,14 @@ describe('Incident Tracker', () => {
       delaySlotsToHead: gnosisConfig.beacon.delaySlotsToHead,
     });
 
+    // Provide the controller dependency required by the new controller-level runSync boundary.
+    slotStorage = {
+      getLastProcessedSlot: vi.fn(),
+    } as unknown as SlotStorage;
+
     validatorActivityStatusController = new ValidatorActivityStatusController(
       new ValidatorActivityStatusStorage(prisma),
+      slotStorage,
       beaconTime,
     );
 
@@ -66,6 +74,7 @@ describe('Incident Tracker', () => {
           slotsPerEpoch: gnosisConfig.beacon.slotsPerEpoch,
         }),
       ),
+      slotStorage,
     );
 
     await prisma.notificationQueue.deleteMany({});

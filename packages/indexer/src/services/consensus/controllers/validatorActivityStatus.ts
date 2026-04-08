@@ -1,5 +1,6 @@
 import { BeaconTime } from '@beacon-indexer/beacon-utils/beaconTime';
 
+import type { SlotStorage } from '../storage/slot.js';
 import { ValidatorActivityStatusStorage } from '../storage/validatorActivityStatus.js';
 
 import createLogger from '@/src/lib/pino.js';
@@ -9,8 +10,31 @@ export class ValidatorActivityStatusController {
 
   constructor(
     private readonly storage: ValidatorActivityStatusStorage,
+    private readonly slotStorage: SlotStorage,
     private readonly beaconTime: BeaconTime,
   ) {}
+
+  async runSync(params: {
+    skipValidatorStatusUpdateWhenBehindHeadSlots: number;
+    maxAttestationDelay: number;
+    inactiveMissedCount: number;
+  }): Promise<void> {
+    // Skip the refresh entirely until the slot pipeline has indexed at least one
+    // committee window that can be evaluated safely.
+    const lastIndexedSlot = await this.slotStorage.getLastProcessedSlot();
+    if (lastIndexedSlot === null) {
+      return;
+    }
+
+    // Reuse the controller's freshness and safe-slot rules once the cursor exists.
+    await this.syncCurrentActivityStatus({
+      lastIndexedSlot,
+      skipValidatorStatusUpdateWhenBehindHeadSlots:
+        params.skipValidatorStatusUpdateWhenBehindHeadSlots,
+      maxAttestationDelay: params.maxAttestationDelay,
+      inactiveMissedCount: params.inactiveMissedCount,
+    });
+  }
 
   async syncCurrentActivityStatus(params: {
     lastIndexedSlot: number;
