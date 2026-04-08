@@ -236,7 +236,7 @@ describe('Incident Tracker', () => {
     // First update the current validator activity state from the indexed committee data.
     await validatorActivityStatusController.syncCurrentActivityStatus({
       lastIndexedSlot: 105,
-      maxActivityStatusIndexerLagSlots: gnosisConfig.beacon.slotsPerEpoch,
+      skipValidatorStatusUpdateWhenBehindHeadSlots: gnosisConfig.beacon.slotsPerEpoch,
       maxAttestationDelay: 1,
       inactiveMissedCount: 4,
     });

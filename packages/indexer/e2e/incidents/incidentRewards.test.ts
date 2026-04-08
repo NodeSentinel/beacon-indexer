@@ -241,7 +241,7 @@ describe('Incident Rewards', () => {
     // Refresh current liveness state from the indexed committee data.
     await validatorActivityStatusController.syncCurrentActivityStatus({
       lastIndexedSlot: 105,
-      maxActivityStatusIndexerLagSlots: gnosisConfig.beacon.slotsPerEpoch,
+      skipValidatorStatusUpdateWhenBehindHeadSlots: gnosisConfig.beacon.slotsPerEpoch,
       maxAttestationDelay: 1,
       inactiveMissedCount: 4,
     });

@@ -12,7 +12,7 @@ export const getValidatorActivityStatusActor = (
   validatorActivityStatusController: ValidatorActivityStatusController,
   slotController: SlotController,
   slotDuration: number,
-  maxActivityStatusIndexerLagSlots: number,
+  skipValidatorStatusUpdateWhenBehindHeadSlots: number,
   maxAttestationDelay: number,
   inactiveMissedCount: number,
 ) => {
@@ -21,7 +21,7 @@ export const getValidatorActivityStatusActor = (
       validatorActivityStatusController,
       slotController,
       slotDuration,
-      maxActivityStatusIndexerLagSlots,
+      skipValidatorStatusUpdateWhenBehindHeadSlots,
       maxAttestationDelay,
       inactiveMissedCount,
     },

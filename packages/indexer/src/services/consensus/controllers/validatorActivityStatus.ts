@@ -14,19 +14,20 @@ export class ValidatorActivityStatusController {
 
   async syncCurrentActivityStatus(params: {
     lastIndexedSlot: number;
-    maxActivityStatusIndexerLagSlots: number;
+    skipValidatorStatusUpdateWhenBehindHeadSlots: number;
     maxAttestationDelay: number;
     inactiveMissedCount: number;
   }): Promise<void> {
     const headSlot = this.beaconTime.getChainCurrentSlot();
 
-    if (headSlot - params.lastIndexedSlot > params.maxActivityStatusIndexerLagSlots) {
+    if (headSlot - params.lastIndexedSlot > params.skipValidatorStatusUpdateWhenBehindHeadSlots) {
       this.logger.warn(
         'Skipping validator activity status sync because indexed committee data is stale',
         {
           headSlot,
           lastIndexedSlot: params.lastIndexedSlot,
-          maxActivityStatusIndexerLagSlots: params.maxActivityStatusIndexerLagSlots,
+          skipValidatorStatusUpdateWhenBehindHeadSlots:
+            params.skipValidatorStatusUpdateWhenBehindHeadSlots,
         },
       );
       return;

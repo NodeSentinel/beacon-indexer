@@ -34,7 +34,7 @@ describe('ValidatorActivityStatusController', () => {
 
     await controller.syncCurrentActivityStatus({
       lastIndexedSlot: 183,
-      maxActivityStatusIndexerLagSlots: gnosisConfig.beacon.slotsPerEpoch,
+      skipValidatorStatusUpdateWhenBehindHeadSlots: gnosisConfig.beacon.slotsPerEpoch,
       maxAttestationDelay: 3,
       inactiveMissedCount: 4,
     });
@@ -55,7 +55,7 @@ describe('ValidatorActivityStatusController', () => {
 
     await controller.syncCurrentActivityStatus({
       lastIndexedSlot: 198,
-      maxActivityStatusIndexerLagSlots: gnosisConfig.beacon.slotsPerEpoch,
+      skipValidatorStatusUpdateWhenBehindHeadSlots: gnosisConfig.beacon.slotsPerEpoch,
       maxAttestationDelay: 3,
       inactiveMissedCount: 4,
     });

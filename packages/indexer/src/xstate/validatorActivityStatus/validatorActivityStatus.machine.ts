@@ -11,7 +11,7 @@ const runSync = fromPromise(
     input: {
       validatorActivityStatusController: ValidatorActivityStatusController;
       slotController: SlotController;
-      maxActivityStatusIndexerLagSlots: number;
+      skipValidatorStatusUpdateWhenBehindHeadSlots: number;
       maxAttestationDelay: number;
       inactiveMissedCount: number;
     };
@@ -23,7 +23,8 @@ const runSync = fromPromise(
 
     await input.validatorActivityStatusController.syncCurrentActivityStatus({
       lastIndexedSlot,
-      maxActivityStatusIndexerLagSlots: input.maxActivityStatusIndexerLagSlots,
+      skipValidatorStatusUpdateWhenBehindHeadSlots:
+        input.skipValidatorStatusUpdateWhenBehindHeadSlots,
       maxAttestationDelay: input.maxAttestationDelay,
       inactiveMissedCount: input.inactiveMissedCount,
     });
@@ -36,7 +37,7 @@ export const validatorActivityStatusMachine = setup({
       validatorActivityStatusController: ValidatorActivityStatusController;
       slotController: SlotController;
       slotDuration: number;
-      maxActivityStatusIndexerLagSlots: number;
+      skipValidatorStatusUpdateWhenBehindHeadSlots: number;
       maxAttestationDelay: number;
       inactiveMissedCount: number;
     };
@@ -44,7 +45,7 @@ export const validatorActivityStatusMachine = setup({
       validatorActivityStatusController: ValidatorActivityStatusController;
       slotController: SlotController;
       slotDuration: number;
-      maxActivityStatusIndexerLagSlots: number;
+      skipValidatorStatusUpdateWhenBehindHeadSlots: number;
       maxAttestationDelay: number;
       inactiveMissedCount: number;
     };
@@ -62,7 +63,8 @@ export const validatorActivityStatusMachine = setup({
     validatorActivityStatusController: input.validatorActivityStatusController,
     slotController: input.slotController,
     slotDuration: input.slotDuration,
-    maxActivityStatusIndexerLagSlots: input.maxActivityStatusIndexerLagSlots,
+    skipValidatorStatusUpdateWhenBehindHeadSlots:
+      input.skipValidatorStatusUpdateWhenBehindHeadSlots,
     maxAttestationDelay: input.maxAttestationDelay,
     inactiveMissedCount: input.inactiveMissedCount,
   }),
@@ -80,7 +82,8 @@ export const validatorActivityStatusMachine = setup({
         input: ({ context }) => ({
           validatorActivityStatusController: context.validatorActivityStatusController,
           slotController: context.slotController,
-          maxActivityStatusIndexerLagSlots: context.maxActivityStatusIndexerLagSlots,
+          skipValidatorStatusUpdateWhenBehindHeadSlots:
+            context.skipValidatorStatusUpdateWhenBehindHeadSlots,
           maxAttestationDelay: context.maxAttestationDelay,
           inactiveMissedCount: context.inactiveMissedCount,
         }),
