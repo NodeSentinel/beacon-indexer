@@ -33,8 +33,8 @@ describe('ValidatorActivityStatusController', () => {
     vi.spyOn(beaconTime, 'getChainCurrentSlot').mockReturnValue(200);
 
     await controller.syncCurrentActivityStatus({
-      lastIndexedSlot: 193,
-      maxIndexerLagSlotsForAlerts: 6,
+      lastIndexedSlot: 183,
+      maxActivityStatusIndexerLagSlots: gnosisConfig.beacon.slotsPerEpoch,
       maxAttestationDelay: 3,
       inactiveMissedCount: 4,
     });
@@ -55,7 +55,7 @@ describe('ValidatorActivityStatusController', () => {
 
     await controller.syncCurrentActivityStatus({
       lastIndexedSlot: 198,
-      maxIndexerLagSlotsForAlerts: 6,
+      maxActivityStatusIndexerLagSlots: gnosisConfig.beacon.slotsPerEpoch,
       maxAttestationDelay: 3,
       inactiveMissedCount: 4,
     });

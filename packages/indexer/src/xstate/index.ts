@@ -84,7 +84,7 @@ export default function initXstateMachines(
     validatorActivityStatusController,
     slotController,
     slotDuration,
-    6,
+    slotsPerEpoch,
     maxAttestationDelay,
     missedAttestationsForInactivity,
   );

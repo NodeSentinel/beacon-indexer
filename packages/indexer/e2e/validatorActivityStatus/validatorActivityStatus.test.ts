@@ -155,12 +155,12 @@ describe('Validator Activity Status Updater', () => {
     await seedCommitteeMisses([120, 121, 122, 123], 101);
 
     // Simulate the chain head being too far ahead of the indexed slot.
-    vi.spyOn(beaconTime, 'getChainCurrentSlot').mockReturnValue(130);
+    vi.spyOn(beaconTime, 'getChainCurrentSlot').mockReturnValue(140);
 
     // Run the updater with a freshness threshold that the indexed slot fails.
     await controller.syncCurrentActivityStatus({
       lastIndexedSlot: 123,
-      maxIndexerLagSlotsForAlerts: 6,
+      maxActivityStatusIndexerLagSlots: gnosisConfig.beacon.slotsPerEpoch,
       maxAttestationDelay: 1,
       inactiveMissedCount: 4,
     });
@@ -186,7 +186,7 @@ describe('Validator Activity Status Updater', () => {
     // Run the updater using the same indexed slot, now treated as fresh.
     await controller.syncCurrentActivityStatus({
       lastIndexedSlot: 124,
-      maxIndexerLagSlotsForAlerts: 6,
+      maxActivityStatusIndexerLagSlots: gnosisConfig.beacon.slotsPerEpoch,
       maxAttestationDelay: 1,
       inactiveMissedCount: 4,
     });
@@ -221,7 +221,7 @@ describe('Validator Activity Status Updater', () => {
 
     await controller.syncCurrentActivityStatus({
       lastIndexedSlot: 124,
-      maxIndexerLagSlotsForAlerts: 6,
+      maxActivityStatusIndexerLagSlots: gnosisConfig.beacon.slotsPerEpoch,
       maxAttestationDelay: 1,
       inactiveMissedCount: 3,
     });
