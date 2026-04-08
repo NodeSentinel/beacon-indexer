@@ -1,6 +1,7 @@
 import { VALIDATOR_STATUS } from '@beacon-indexer/beacon-utils';
 import { Prisma, PrismaClient } from '@beacon-indexer/db';
 
+import { getActivityLookbackSlots } from './activityLookback.js';
 import { IncidentStorage } from './incident.js';
 
 const INCIDENT_TRACKED_BEACON_STATUSES = [
@@ -34,6 +35,7 @@ export class IncidentTrackerStorage {
   constructor(
     private readonly prisma: PrismaClient,
     private readonly incidentStorage: IncidentStorage,
+    private readonly slotsPerEpoch: number,
   ) {}
 
   async processSlotsThrough(params: {
@@ -95,7 +97,12 @@ export class IncidentTrackerStorage {
 
     // Limit all downstream work to validators that either have relevant duties in
     // the historical window or are already part of an open incident.
-    const historyStartSlot = Math.max(0, params.fromSlot - params.inactiveMissedCount * 40);
+    const lookbackSlots = getActivityLookbackSlots(this.slotsPerEpoch, params.inactiveMissedCount);
+    const historyStartSlot = Math.max(0, params.fromSlot - lookbackSlots);
+
+    // Query 1: find every validator that had at least one committee duty inside
+    // the replay window. DISTINCT keeps the result at one row per validator
+    // because the later steps only need the validator ids, not every duty row yet.
     const validatorsWithRelevantDuties = await tx.$queryRaw<Array<{ validator_index: number }>>`
       SELECT DISTINCT c.validator_index
       FROM committee c
@@ -166,6 +173,9 @@ export class IncidentTrackerStorage {
     const duties =
       validatorIndexes.length > 0
         ? await tx.$queryRaw<DutyRow[]>`
+            -- Query 2: load every duty for the validators in scope across the full
+            -- historical window. The chronological ORDER BY is important because
+            -- the replay loop below walks duties from oldest to newest.
             SELECT c.slot, c.validator_index, c.attestation_delay
             FROM committee c
             WHERE c.validator_index = ANY(${validatorIndexes}::int[])

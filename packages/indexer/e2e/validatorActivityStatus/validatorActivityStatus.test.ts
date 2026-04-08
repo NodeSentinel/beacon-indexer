@@ -49,7 +49,7 @@ describe('Validator Activity Status Updater', () => {
       lookbackSlot: 0,
       delaySlotsToHead: gnosisConfig.beacon.delaySlotsToHead,
     });
-    storage = new ValidatorActivityStatusStorage(prisma);
+    storage = new ValidatorActivityStatusStorage(prisma, gnosisConfig.beacon.slotsPerEpoch);
 
     // Provide the controller dependency required by the new controller-level runSync boundary.
     slotStorage = {

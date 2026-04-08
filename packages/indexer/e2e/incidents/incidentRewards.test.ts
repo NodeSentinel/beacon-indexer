@@ -74,13 +74,13 @@ describe('Incident Rewards', () => {
     });
 
     validatorActivityStatusController = new ValidatorActivityStatusController(
-      new ValidatorActivityStatusStorage(prisma),
+      new ValidatorActivityStatusStorage(prisma, gnosisConfig.beacon.slotsPerEpoch),
       slotStorage,
       beaconTime,
     );
 
     incidentTrackerController = new IncidentTrackerController(
-      new IncidentTrackerStorage(prisma, incidentStorage),
+      new IncidentTrackerStorage(prisma, incidentStorage, gnosisConfig.beacon.slotsPerEpoch),
       slotStorage,
     );
 

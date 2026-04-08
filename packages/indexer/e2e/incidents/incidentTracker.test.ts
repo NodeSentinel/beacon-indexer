@@ -60,7 +60,7 @@ describe('Incident Tracker', () => {
     } as unknown as SlotStorage;
 
     validatorActivityStatusController = new ValidatorActivityStatusController(
-      new ValidatorActivityStatusStorage(prisma),
+      new ValidatorActivityStatusStorage(prisma, gnosisConfig.beacon.slotsPerEpoch),
       slotStorage,
       beaconTime,
     );
@@ -73,6 +73,7 @@ describe('Incident Tracker', () => {
           secPerSlot: Math.floor(gnosisConfig.beacon.slotDuration / 1000),
           slotsPerEpoch: gnosisConfig.beacon.slotsPerEpoch,
         }),
+        gnosisConfig.beacon.slotsPerEpoch,
       ),
       slotStorage,
     );

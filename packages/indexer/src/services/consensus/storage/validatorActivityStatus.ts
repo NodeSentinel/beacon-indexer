@@ -1,5 +1,7 @@
 import { PrismaClient } from '@beacon-indexer/db';
 
+import { getActivityLookbackSlots } from './activityLookback.js';
+
 type SyncCurrentActivityStatusParams = {
   // Last slot whose attestation outcome is old enough to be judged final for the
   // current activity snapshot. Newer slots may still receive valid inclusions.
@@ -17,27 +19,36 @@ type SyncCurrentActivityStatusParams = {
  * Historical lifecycle fields remain outside this storage's responsibility.
  */
 export class ValidatorActivityStatusStorage {
-  constructor(private readonly prisma: PrismaClient) {}
+  constructor(
+    private readonly prisma: PrismaClient,
+    private readonly slotsPerEpoch: number,
+  ) {}
 
   async syncCurrentActivityStatus(params: SyncCurrentActivityStatusParams): Promise<void> {
     const { safeObservedSlot, inactiveMissedCount, maxAttestationDelay } = params;
+    const lookbackSlots = getActivityLookbackSlots(this.slotsPerEpoch, inactiveMissedCount);
 
-    // Recompute the current missed-attestation streak from the recent committee
-    // window only. This keeps the snapshot update cheap while still preserving
-    // enough history to decide whether the validator is currently inactive.
+    // Recompute the current missed-attestation streak from a bounded recent
+    // committee window only. The window is long enough to include the last N
+    // attestation opportunities for each validator, where N is the inactivity
+    // threshold, plus a small boundary buffer for validators assigned near epoch
+    // edges. Keeping the window bounded prevents scanning unnecessary history.
     await this.prisma.$executeRaw`
       WITH recent_committees AS (
+        -- Step 1: load only the recent duties that are old enough to judge.
+        -- This is the raw "attendance sheet" we care about for the current run.
         SELECT
           c.validator_index,
           c.slot,
           c.attestation_delay
         FROM committee c
         WHERE c.slot <= ${safeObservedSlot}::int
-          AND c.slot > ${safeObservedSlot}::int - (${inactiveMissedCount}::int * 40)
+          AND c.slot > ${safeObservedSlot}::int - ${lookbackSlots}::int
       ),
       ranked_committees AS (
-        -- Rank duties newest-first so we can stop the streak at the first attested
-        -- duty and count only the trailing misses that still matter "right now".
+        -- Step 2: for each validator, order duties from newest to oldest and
+        -- mark whether each duty counts as "missed" under the attestation-delay
+        -- rule. duty_rank = 1 always means "this validator's newest duty".
         SELECT
           rc.validator_index,
           rc.slot,
@@ -53,8 +64,9 @@ export class ValidatorActivityStatusStorage {
         FROM recent_committees rc
       ),
       streak_bounds AS (
-        -- Capture the newest successful attestation in the window so the next step
-        -- can ignore misses that happened before the validator became active again.
+        -- Step 3: find the newest successful duty in the window for each
+        -- validator. Once we know where the latest success is, we can ignore any
+        -- older misses because they belong to a finished streak, not the current one.
         SELECT
           rc.validator_index,
           MIN(rc.duty_rank) FILTER (
@@ -67,8 +79,13 @@ export class ValidatorActivityStatusStorage {
         GROUP BY rc.validator_index
       ),
       current_activity AS (
-        -- Project one row per snapshot validator with the size of its current missed
-        -- streak and the last attested slot that is still visible in the window.
+        -- Step 4: collapse the duty rows back down to one row per validator in
+        -- the snapshot table. The filtered COUNT keeps only the trailing misses:
+        -- misses newer than the latest success, or all misses if no success exists.
+        --
+        -- Starting from validators_snapshot_stats instead of committee preserves
+        -- validators that had no duty in this recent window, so they still get a
+        -- deterministic snapshot row in the final UPDATE.
         SELECT
           vss.validator_index,
           COUNT(*) FILTER (
@@ -84,7 +101,8 @@ export class ValidatorActivityStatusStorage {
         LEFT JOIN streak_bounds sb ON sb.validator_index = vss.validator_index
         GROUP BY vss.validator_index, sb.first_attested_rank, sb.last_attested_slot
       )
-      -- Persist only the fast-moving activity fields owned by this storage.
+      -- Step 5: write the computed streak back into the snapshot table. This
+      -- touches only the fast-moving activity columns owned by this storage.
       UPDATE validators_snapshot_stats vss
       SET
         is_inactive = ca.missed_streak >= ${inactiveMissedCount}::int,
