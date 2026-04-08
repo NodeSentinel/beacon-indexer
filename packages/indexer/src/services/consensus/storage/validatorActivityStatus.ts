@@ -45,7 +45,6 @@ export class ValidatorActivityStatusStorage {
           MIN(rc.duty_rank) FILTER (
             WHERE rc.is_missed = false
           )::int AS first_attested_rank,
-          MAX(rc.slot)::int AS last_observed_slot,
           MAX(rc.slot) FILTER (
             WHERE rc.is_missed = false
           )::int AS last_attested_slot
@@ -62,18 +61,16 @@ export class ValidatorActivityStatusStorage {
                 rc.duty_rank < sb.first_attested_rank
               )
           )::int AS missed_streak,
-          sb.last_observed_slot,
           sb.last_attested_slot
         FROM validators_snapshot_stats vss
         LEFT JOIN ranked_committees rc ON rc.validator_index = vss.validator_index
         LEFT JOIN streak_bounds sb ON sb.validator_index = vss.validator_index
-        GROUP BY vss.validator_index, sb.first_attested_rank, sb.last_observed_slot, sb.last_attested_slot
+        GROUP BY vss.validator_index, sb.first_attested_rank, sb.last_attested_slot
       )
       UPDATE validators_snapshot_stats vss
       SET
         is_inactive = ca.missed_streak >= ${inactiveMissedCount}::int,
         consecutive_missed_attestations = ca.missed_streak,
-        last_observed_slot = ca.last_observed_slot,
         last_attested_slot = ca.last_attested_slot,
         updated_at = NOW()
       FROM current_activity ca

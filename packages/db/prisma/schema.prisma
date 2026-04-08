@@ -383,10 +383,9 @@ model ValidatorsSnapshotStats {
   inactiveSinceSlot             Int?    @map("inactive_since_slot")
   activeSinceSlot               Int?    @map("active_since_slot")
   consecutiveMissedAttestations Int     @default(0) @map("consecutive_missed_attestations")
-  lastObservedSlot              Int?    @map("last_observed_slot")
   lastAttestedSlot              Int?    @map("last_attested_slot")
   lastMissedAttestationSlot     Int?    @map("last_missed_attestation_slot")
-  rewardsProcessedThroughSlot   Int?    @map("rewards_processed_through_slot")
+  missedRewardsProcessedThroughSlot Int? @map("missed_rewards_processed_through_slot")
 
   // Balances
   balance          BigInt @map("balance")

@@ -79,7 +79,7 @@ export class IncidentRewardsStorage {
         where: { validatorIndex: { in: validatorIndexes } },
         select: {
           validatorIndex: true,
-          rewardsProcessedThroughSlot: true,
+          missedRewardsProcessedThroughSlot: true,
         },
       });
       const snapshotByValidator = new Map(
@@ -102,7 +102,7 @@ export class IncidentRewardsStorage {
           .map((validatorIndex) => {
             const snapshot = snapshotByValidator.get(validatorIndex);
             const processedThrough =
-              snapshot?.rewardsProcessedThroughSlot ?? incident.openedSlot - 1;
+              snapshot?.missedRewardsProcessedThroughSlot ?? incident.openedSlot - 1;
             const lowerBound = Math.max(incident.openedSlot, processedThrough + 1);
 
             return {
@@ -175,7 +175,7 @@ export class IncidentRewardsStorage {
           );
           snapshotByValidator.set(range.validatorIndex, {
             validatorIndex: range.validatorIndex,
-            rewardsProcessedThroughSlot: upperBound,
+            missedRewardsProcessedThroughSlot: upperBound,
           });
         }
 
@@ -194,7 +194,7 @@ export class IncidentRewardsStorage {
         await tx.validatorsSnapshotStats.update({
           where: { validatorIndex },
           data: {
-            rewardsProcessedThroughSlot: processedThroughSlot,
+            missedRewardsProcessedThroughSlot: processedThroughSlot,
           },
         });
       }
@@ -214,7 +214,7 @@ export class IncidentRewardsStorage {
 
           return (
             incident.closedSlot !== null &&
-            (snapshot?.rewardsProcessedThroughSlot ?? incident.openedSlot - 1) >=
+            (snapshot?.missedRewardsProcessedThroughSlot ?? incident.openedSlot - 1) >=
               incident.closedSlot
           );
         });

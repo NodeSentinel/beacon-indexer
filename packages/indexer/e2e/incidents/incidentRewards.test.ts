@@ -151,10 +151,9 @@ describe('Incident Rewards', () => {
         inactiveSinceSlot: null,
         activeSinceSlot: null,
         consecutiveMissedAttestations: 0,
-        lastObservedSlot: null,
         lastAttestedSlot: null,
         lastMissedAttestationSlot: null,
-        rewardsProcessedThroughSlot: null,
+        missedRewardsProcessedThroughSlot: null,
         balance: BigInt(32_000_000_000),
         effectiveBalance: BigInt(32_000_000_000),
         beaconStatus: 3,
@@ -285,12 +284,12 @@ describe('Incident Rewards', () => {
     expect(incident.missedConsensusRewards).toBe(BigInt(15));
     expect(incident.rewardsFinalized).toBe(true);
     expect(incident.rewardsFinalizedAt).not.toBeNull();
-    expect(snapshot.rewardsProcessedThroughSlot).toBe(104);
+    expect(snapshot.missedRewardsProcessedThroughSlot).toBe(104);
     expect((notification.payload as Record<string, unknown>).missedConsensusRewards).toBe('15');
   });
 
   // This scenario proves the reward cursor only applies the unprocessed reward range.
-  it('advances incident rewards from rewardsProcessedThroughSlot without reapplying older rewards', async () => {
+  it('advances incident rewards from missedRewardsProcessedThroughSlot without reapplying older rewards', async () => {
     const slotsPerEpoch = gnosisConfig.beacon.slotsPerEpoch;
     const openedSlot = 3 * slotsPerEpoch;
     const processedThroughSlot = 4 * slotsPerEpoch - 1;
@@ -313,7 +312,7 @@ describe('Incident Rewards', () => {
     await prisma.validatorsSnapshotStats.update({
       where: { validatorIndex: VALIDATOR_INDEX },
       data: {
-        rewardsProcessedThroughSlot: processedThroughSlot,
+        missedRewardsProcessedThroughSlot: processedThroughSlot,
       },
     });
 
@@ -379,6 +378,6 @@ describe('Incident Rewards', () => {
     });
 
     expect(incident.missedConsensusRewards).toBe(BigInt(35));
-    expect(snapshot.rewardsProcessedThroughSlot).toBe(processThroughSlot);
+    expect(snapshot.missedRewardsProcessedThroughSlot).toBe(processThroughSlot);
   });
 });

@@ -135,7 +135,6 @@ describe('Snapshot - Balance and Metrics Updates', () => {
         inactive_since_slot = 100,
         active_since_slot = 90,
         consecutive_missed_attestations = 3,
-        last_observed_slot = 102,
         last_attested_slot = 99,
         last_missed_attestation_slot = 102
       WHERE validator_index = ${validatorIndex}
@@ -172,7 +171,6 @@ describe('Snapshot - Balance and Metrics Updates', () => {
         inactive_since_slot: number | null;
         active_since_slot: number | null;
         consecutive_missed_attestations: number;
-        last_observed_slot: number | null;
         last_attested_slot: number | null;
         last_missed_attestation_slot: number | null;
         balance: bigint;
@@ -222,7 +220,6 @@ describe('Snapshot - Balance and Metrics Updates', () => {
     expect(row!.inactive_since_slot).toBe(100);
     expect(row!.active_since_slot).toBe(90);
     expect(row!.consecutive_missed_attestations).toBe(3);
-    expect(row!.last_observed_slot).toBe(102);
     expect(row!.last_attested_slot).toBe(99);
     expect(row!.last_missed_attestation_slot).toBe(102);
   });
@@ -257,7 +254,6 @@ describe('Snapshot - Balance and Metrics Updates', () => {
     expect(row!.inactive_since_slot).toBe(100);
     expect(row!.active_since_slot).toBe(90);
     expect(row!.consecutive_missed_attestations).toBe(3);
-    expect(row!.last_observed_slot).toBe(102);
     expect(row!.last_attested_slot).toBe(99);
     expect(row!.last_missed_attestation_slot).toBe(102);
   });
@@ -301,7 +297,6 @@ describe('Snapshot - Balance and Metrics Updates', () => {
     expect(row!.inactive_since_slot).toBeNull();
     expect(row!.active_since_slot).toBeNull();
     expect(row!.consecutive_missed_attestations).toBe(0);
-    expect(row!.last_observed_slot).toBeNull();
     expect(row!.last_attested_slot).toBeNull();
     expect(row!.last_missed_attestation_slot).toBeNull();
   });
@@ -399,7 +394,6 @@ describe('Snapshot - New Validator Detection', () => {
         inactive_since_slot: number | null;
         active_since_slot: number | null;
         consecutive_missed_attestations: number;
-        last_observed_slot: number | null;
         last_attested_slot: number | null;
         last_missed_attestation_slot: number | null;
         attestations_total: number;
@@ -414,7 +408,6 @@ describe('Snapshot - New Validator Detection', () => {
     expect(row!.inactive_since_slot).toBeNull();
     expect(row!.active_since_slot).toBeNull();
     expect(row!.consecutive_missed_attestations).toBe(0); // no current streak
-    expect(row!.last_observed_slot).toBeNull();
     expect(row!.last_attested_slot).toBeNull();
     expect(row!.last_missed_attestation_slot).toBeNull();
     expect(row!.attestations_total).toBe(0); // no attestations yet

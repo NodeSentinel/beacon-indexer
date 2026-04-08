@@ -59,7 +59,7 @@ describe('IncidentRewardsStorage', () => {
         findMany: vi.fn().mockResolvedValue([
           {
             validatorIndex: 101,
-            rewardsProcessedThroughSlot: 12,
+            missedRewardsProcessedThroughSlot: 12,
           },
         ]),
         update: vi.fn(),

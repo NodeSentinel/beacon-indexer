@@ -74,10 +74,9 @@ describe('Validator Activity Status Updater', () => {
         inactiveSinceSlot: null,
         activeSinceSlot: 90,
         consecutiveMissedAttestations: 0,
-        lastObservedSlot: 90,
         lastAttestedSlot: 90,
         lastMissedAttestationSlot: null,
-        rewardsProcessedThroughSlot: 80,
+        missedRewardsProcessedThroughSlot: 80,
         balance: BigInt(32_000_000_000),
         effectiveBalance: BigInt(32_000_000_000),
         beaconStatus: 3,
@@ -115,10 +114,9 @@ describe('Validator Activity Status Updater', () => {
         inactiveSinceSlot: null,
         activeSinceSlot: 42,
         consecutiveMissedAttestations: 0,
-        lastObservedSlot: 42,
         lastAttestedSlot: 41,
         lastMissedAttestationSlot: null,
-        rewardsProcessedThroughSlot: 88,
+        missedRewardsProcessedThroughSlot: 88,
         balance: BigInt(32_000_000_000),
         effectiveBalance: BigInt(32_000_000_000),
         beaconStatus: 3,
@@ -144,10 +142,9 @@ describe('Validator Activity Status Updater', () => {
     });
 
     expect(snapshot.consecutiveMissedAttestations).toBe(0);
-    expect(snapshot.lastObservedSlot).toBe(42);
     expect(snapshot.lastAttestedSlot).toBe(41);
     expect(snapshot.lastMissedAttestationSlot).toBeNull();
-    expect(snapshot.rewardsProcessedThroughSlot).toBe(88);
+    expect(snapshot.missedRewardsProcessedThroughSlot).toBe(88);
     expect(processorState.lastProcessedSlot).toBe(9001);
   });
 
@@ -172,7 +169,6 @@ describe('Validator Activity Status Updater', () => {
     const row = await getSnapshot(101);
     expect(row.isInactive).toBe(false);
     expect(row.consecutiveMissedAttestations).toBe(0);
-    expect(row.lastObservedSlot).toBe(90);
     expect(row.lastAttestedSlot).toBe(90);
     expect(row.activeSinceSlot).toBe(90);
     expect(row.inactiveSinceSlot).toBeNull();
@@ -199,13 +195,12 @@ describe('Validator Activity Status Updater', () => {
     const row = await getSnapshot(101);
     expect(row.isInactive).toBe(true);
     expect(row.consecutiveMissedAttestations).toBe(4);
-    expect(row.lastObservedSlot).toBe(123);
     expect(row.lastAttestedSlot).toBeNull();
     expect(row.lastMissedAttestationSlot).toBeNull();
     expect(row.status).toBe('active');
     expect(row.activeSinceSlot).toBe(90);
     expect(row.inactiveSinceSlot).toBeNull();
-    expect(row.rewardsProcessedThroughSlot).toBe(80);
+    expect(row.missedRewardsProcessedThroughSlot).toBe(80);
   });
 
   // This scenario proves the updater uses the trailing missed streak, not total misses in the window.
@@ -235,7 +230,6 @@ describe('Validator Activity Status Updater', () => {
     const row = await getSnapshot(101);
     expect(row.consecutiveMissedAttestations).toBe(2);
     expect(row.isInactive).toBe(false);
-    expect(row.lastObservedSlot).toBe(123);
     expect(row.lastAttestedSlot).toBe(121);
   });
 });
