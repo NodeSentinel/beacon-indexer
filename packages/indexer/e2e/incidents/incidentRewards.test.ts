@@ -4,20 +4,17 @@ import { PrismaClient } from '@beacon-indexer/db';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { IncidentRewardsController } from '@/src/services/consensus/controllers/incidentRewards.js';
-import { IncidentTrackerController } from '@/src/services/consensus/controllers/incidentTracker.js';
 import { ValidatorActivityStatusController } from '@/src/services/consensus/controllers/validatorActivityStatus.js';
 import { IncidentStorage } from '@/src/services/consensus/storage/incident.js';
 import { IncidentRewardsStorage } from '@/src/services/consensus/storage/incidentRewards.js';
-import { IncidentTrackerStorage } from '@/src/services/consensus/storage/incidentTracker.js';
 import type { SlotStorage } from '@/src/services/consensus/storage/slot.js';
 import { ValidatorActivityStatusStorage } from '@/src/services/consensus/storage/validatorActivityStatus.js';
 
-// This suite verifies reward finalization and close notifications on the new tracker path.
+// This suite verifies reward finalization and close notifications on the activity-owned incident path.
 describe('Incident Rewards', () => {
   let prisma: PrismaClient;
   let beaconTime: BeaconTime;
   let validatorActivityStatusController: ValidatorActivityStatusController;
-  let incidentTrackerController: IncidentTrackerController;
   let incidentRewardsController: IncidentRewardsController;
   let slotStorage: SlotStorage;
 
@@ -74,14 +71,13 @@ describe('Incident Rewards', () => {
     });
 
     validatorActivityStatusController = new ValidatorActivityStatusController(
-      new ValidatorActivityStatusStorage(prisma, gnosisConfig.beacon.slotsPerEpoch),
+      new ValidatorActivityStatusStorage(
+        prisma,
+        incidentStorage,
+        gnosisConfig.beacon.slotsPerEpoch,
+      ),
       slotStorage,
       beaconTime,
-    );
-
-    incidentTrackerController = new IncidentTrackerController(
-      new IncidentTrackerStorage(prisma, incidentStorage, gnosisConfig.beacon.slotsPerEpoch),
-      slotStorage,
     );
 
     incidentRewardsController = new IncidentRewardsController(
@@ -110,13 +106,13 @@ describe('Incident Rewards', () => {
       `DO $$ DECLARE r RECORD; BEGIN FOR r IN SELECT inhrelid::regclass AS child FROM pg_inherits WHERE inhparent = 'committee'::regclass LOOP EXECUTE 'DROP TABLE ' || r.child || ' CASCADE'; END LOOP; END $$`,
     );
     await prisma.$executeRawUnsafe(
-      `CREATE TABLE IF NOT EXISTS committee_test_partition PARTITION OF committee FOR VALUES FROM (0) TO (100000000)`,
+      `CREATE TABLE IF NOT EXISTS committee_test_partition PARTITION OF committee FOR VALUES FROM (0) TO (1000)`,
     );
     await prisma.$executeRawUnsafe(
       `DO $$ DECLARE r RECORD; BEGIN FOR r IN SELECT inhrelid::regclass AS child FROM pg_inherits WHERE inhparent = 'epoch_rewards'::regclass LOOP EXECUTE 'DROP TABLE ' || r.child || ' CASCADE'; END LOOP; END $$`,
     );
     await prisma.$executeRawUnsafe(
-      `CREATE TABLE IF NOT EXISTS epoch_rewards_test_partition PARTITION OF epoch_rewards FOR VALUES FROM (0) TO (100000000)`,
+      `CREATE TABLE IF NOT EXISTS epoch_rewards_test_partition PARTITION OF epoch_rewards FOR VALUES FROM (0) TO (100)`,
     );
 
     // Seed the shared user, cluster, validator, and snapshot row.
@@ -256,14 +252,7 @@ describe('Incident Rewards', () => {
       inactiveMissedCount: 4,
     });
 
-    // Advance the tracker so it opens and closes the incident on the durable path.
-    await incidentTrackerController.syncTrackedIncidents({
-      lastIndexedSlot: 105,
-      maxAttestationDelay: 1,
-      inactiveMissedCount: 4,
-    });
-
-    // Confirm the incident is closed but still waiting for reward finalization and close notification enqueueing.
+    // Confirm the activity processor already closed the incident before rewards are finalized.
     const closedBeforeRewards = await prisma.clusterIncident.findFirstOrThrow({
       where: { clusterId: CLUSTER_ID },
     });

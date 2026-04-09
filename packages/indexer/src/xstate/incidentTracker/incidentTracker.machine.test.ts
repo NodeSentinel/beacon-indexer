@@ -16,7 +16,7 @@ describe('incidentTrackerMachine', () => {
     vi.restoreAllMocks();
   });
 
-  it('delegates each sync tick to the controller runSync method', async () => {
+  it('does not replay committee history once incident ownership moves to activity processing', async () => {
     // Use fake timers so the machine can be advanced deterministically.
     vi.useFakeTimers();
 
@@ -35,13 +35,10 @@ describe('incidentTrackerMachine', () => {
 
     actor.start();
 
-    // Advance one tick so the machine enters syncing and invokes the controller.
+    // Advance one tick so the disabled machine loops back to waiting.
     await vi.advanceTimersByTimeAsync(1);
 
-    expect(runSync).toHaveBeenCalledWith({
-      maxAttestationDelay: 2,
-      inactiveMissedCount: 3,
-    });
+    expect(runSync).not.toHaveBeenCalled();
 
     actor.stop();
   });

@@ -9,7 +9,6 @@ import {
 import { getChainStatsActor } from './chainStats/index.js';
 import { getCreateEpochActor, getEpochOrchestratorActor } from './epoch/index.js';
 import { getIncidentRewardsActor } from './incidentRewards/index.js';
-import { getIncidentTrackerActor } from './incidentTracker/index.js';
 import { getLagAlertingActor } from './lagAlerting/index.js';
 import { getSnapshotActor } from './snapshot/index.js';
 import { getValidatorActivityStatusActor } from './validatorActivityStatus/index.js';
@@ -19,7 +18,6 @@ import { DailyArchiveController } from '@/src/services/consensus/controllers/dai
 import { EpochController } from '@/src/services/consensus/controllers/epoch.js';
 import { HourlyArchiveController } from '@/src/services/consensus/controllers/hourlyArchive.js';
 import { IncidentRewardsController } from '@/src/services/consensus/controllers/incidentRewards.js';
-import { IncidentTrackerController } from '@/src/services/consensus/controllers/incidentTracker.js';
 import { MonthlyArchiveController } from '@/src/services/consensus/controllers/monthlyArchive.js';
 import { PartitionController } from '@/src/services/consensus/controllers/partition.js';
 import { SlotController } from '@/src/services/consensus/controllers/slot.js';
@@ -39,7 +37,6 @@ export default function initXstateMachines(
   monthlyArchiveController: MonthlyArchiveController,
   chainStatsController: ChainStatsController,
   snapshotController: SnapshotController,
-  incidentTrackerController: IncidentTrackerController,
   incidentRewardsController: IncidentRewardsController,
   validatorActivityStatusController: ValidatorActivityStatusController,
   chain: Chain,
@@ -88,14 +85,6 @@ export default function initXstateMachines(
     missedAttestationsForInactivity,
   );
   validatorActivityStatusActor.start();
-
-  const incidentTrackerActor = getIncidentTrackerActor(
-    incidentTrackerController,
-    slotDuration,
-    maxAttestationDelay,
-    missedAttestationsForInactivity,
-  );
-  incidentTrackerActor.start();
 
   const incidentRewardsActor = getIncidentRewardsActor(incidentRewardsController);
   incidentRewardsActor.start();

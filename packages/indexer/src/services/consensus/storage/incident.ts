@@ -149,4 +149,66 @@ export class IncidentStorage {
 
     return closedIncident;
   }
+
+  async reconcileOpenIncident(
+    tx: Prisma.TransactionClient,
+    params: {
+      clusterId: string;
+      slot: number;
+      additions: number[];
+      removals: number[];
+    },
+  ) {
+    // Load the currently open incident so reconciliation always starts from the
+    // latest durable validator membership for the cluster.
+    const openIncident = await tx.clusterIncident.findFirst({
+      where: {
+        clusterId: params.clusterId,
+        status: 'open',
+      },
+    });
+
+    // Normalize the requested delta so the stored validator list stays ordered
+    // and deterministic regardless of duplicate inputs.
+    const mergedValidatorIndexes = [
+      ...new Set([...(openIncident?.validatorIndexes ?? []), ...params.additions]),
+    ]
+      .filter((validatorIndex) => !params.removals.includes(validatorIndex))
+      .sort((a, b) => a - b);
+
+    // Open a brand-new incident only when the cluster just became non-empty.
+    if (openIncident === null) {
+      if (mergedValidatorIndexes.length === 0) {
+        return null;
+      }
+
+      return this.openIncidentIfMissing(tx, {
+        clusterId: params.clusterId,
+        openedSlot: params.slot,
+        validatorIndexes: mergedValidatorIndexes,
+      });
+    }
+
+    // Close the open incident immediately once every validator has recovered.
+    if (mergedValidatorIndexes.length === 0) {
+      return this.closeIncident(tx, {
+        incidentId: openIncident.id,
+        closedSlot: params.slot,
+      });
+    }
+
+    // Skip the write entirely when the cluster membership did not actually change.
+    if (JSON.stringify(openIncident.validatorIndexes) === JSON.stringify(mergedValidatorIndexes)) {
+      return openIncident;
+    }
+
+    // Persist the new validator membership while keeping the existing opened slot.
+    return tx.clusterIncident.update({
+      where: { id: openIncident.id },
+      data: {
+        validatorIndexes: mergedValidatorIndexes,
+        updatedAt: this.getSlotDate(params.slot),
+      },
+    });
+  }
 }
