@@ -107,8 +107,6 @@ describe('Validator Activity Status Updater', () => {
         activeSinceSlot: 90,
         consecutiveMissedAttestations: 0,
         missedStreakStartedAtSlot: null,
-        lastAttestedSlot: 90,
-        lastMissedAttestationSlot: null,
         missedRewardsProcessedThroughSlot: 80,
         balance: BigInt(32_000_000_000),
         effectiveBalance: BigInt(32_000_000_000),
@@ -235,8 +233,6 @@ describe('Validator Activity Status Updater', () => {
         activeSinceSlot: 42,
         consecutiveMissedAttestations: 0,
         missedStreakStartedAtSlot: null,
-        lastAttestedSlot: 41,
-        lastMissedAttestationSlot: null,
         missedRewardsProcessedThroughSlot: 88,
         balance: BigInt(32_000_000_000),
         effectiveBalance: BigInt(32_000_000_000),
@@ -263,8 +259,6 @@ describe('Validator Activity Status Updater', () => {
     });
 
     expect(snapshot.consecutiveMissedAttestations).toBe(0);
-    expect(snapshot.lastAttestedSlot).toBe(41);
-    expect(snapshot.lastMissedAttestationSlot).toBeNull();
     expect(snapshot.missedRewardsProcessedThroughSlot).toBe(88);
     expect(processorState.lastProcessedSlot).toBe(9001);
   });
@@ -290,8 +284,6 @@ describe('Validator Activity Status Updater', () => {
     const row = await getSnapshot(101);
     expect(row.isInactive).toBe(true);
     expect(row.consecutiveMissedAttestations).toBe(4);
-    expect(row.lastAttestedSlot).toBeNull();
-    expect(row.lastMissedAttestationSlot).toBe(123);
     expect(row.activeSinceSlot).toBe(90);
     expect(row.inactiveSinceSlot).toBe(120);
   });
@@ -317,8 +309,6 @@ describe('Validator Activity Status Updater', () => {
     const row = await getSnapshot(101);
     expect(row.isInactive).toBe(true);
     expect(row.consecutiveMissedAttestations).toBe(4);
-    expect(row.lastAttestedSlot).toBeNull();
-    expect(row.lastMissedAttestationSlot).toBe(123);
     expect(row.status).toBe('active');
     expect(row.activeSinceSlot).toBe(90);
     expect(row.inactiveSinceSlot).toBe(120);
@@ -352,8 +342,6 @@ describe('Validator Activity Status Updater', () => {
     const row = await getSnapshot(101);
     expect(row.consecutiveMissedAttestations).toBe(2);
     expect(row.isInactive).toBe(false);
-    expect(row.lastAttestedSlot).toBe(121);
-    expect(row.lastMissedAttestationSlot).toBe(123);
   });
 
   // This scenario locks the exact slot where the activity processor should open a cluster incident.
@@ -393,7 +381,6 @@ describe('Validator Activity Status Updater', () => {
         inactiveSinceSlot: 120,
         consecutiveMissedAttestations: 3,
         missedStreakStartedAtSlot: 120,
-        lastAttestedSlot: null,
         activeSinceSlot: null,
       },
     });

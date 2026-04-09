@@ -79,11 +79,6 @@ export class IncidentRewardsStorage {
         where: {
           OR: [{ status: 'open' }, { status: 'closed', rewardsFinalized: false }],
         },
-        include: {
-          cluster: {
-            include: { owner: true },
-          },
-        },
         orderBy: { openedSlot: 'asc' },
       });
 
@@ -231,8 +226,8 @@ export class IncidentRewardsStorage {
         });
       }
 
-      // Only finalized closed incidents should queue the closing notification,
-      // because the notification payload depends on the final missed reward total.
+      // Finalizing the reward total is still the responsibility of this worker,
+      // but notification delivery now belongs to the API/Telegram layers.
       const finalizableClosedIncidents = candidates.filter(
         (incident) =>
           incident.status === 'closed' &&
@@ -259,44 +254,13 @@ export class IncidentRewardsStorage {
           continue;
         }
 
-        const updatedIncident = await tx.clusterIncident.update({
+        await tx.clusterIncident.update({
           where: { id: incident.id },
           data: {
             rewardsFinalized: true,
             rewardsFinalizedAt: finalizedAt,
-            closedNotificationQueuedAt:
-              incident.cluster.owner.telegramId !== null && !incident.cluster.owner.hasBlockedBot
-                ? finalizedAt
-                : null,
           },
         });
-
-        // Queue the close notification only for users that can currently receive
-        // Telegram messages, mirroring the incident-open behavior.
-        if (
-          incident.cluster.owner.telegramId !== null &&
-          !incident.cluster.owner.hasBlockedBot &&
-          updatedIncident.closedNotificationQueuedAt
-        ) {
-          await tx.notificationQueue.create({
-            data: {
-              userId: incident.cluster.ownerId,
-              type: 'incident_closed',
-              payload: {
-                clusterId: incident.clusterId,
-                clusterName: incident.cluster.name,
-                incidentId: incident.id,
-                closedAt: incident.closedAt?.toISOString() ?? null,
-                closedSlot: incident.closedSlot,
-                durationSeconds: incident.durationSeconds,
-                durationSlots: incident.durationSlots,
-                missedConsensusRewards: updatedIncident.missedConsensusRewards?.toString() ?? null,
-              },
-              delivered: false,
-              createdAt: finalizedAt,
-            },
-          });
-        }
       }
     });
   }

@@ -19,13 +19,16 @@ export class IncidentStorage {
     );
   }
 
-  private canQueueNotification(user: {
-    telegramId: bigint | null;
-    hasBlockedBot: boolean;
-  }): boolean {
-    // Gate notification queue writes to users that are currently eligible to
-    // receive Telegram messages.
-    return user.telegramId !== null && user.hasBlockedBot === false;
+  private getSqlTimestampForExpression(slotExpression: Prisma.Sql): Prisma.Sql {
+    // Reproduce the same slot -> timestamp mapping the JS helpers use, but let
+    // SQL provide the slot expression so set-based incident reconciliation can
+    // derive opened/updated/closed timestamps per cluster row.
+    return Prisma.sql`
+      TIMESTAMP 'epoch' + (
+        (${this.chainTiming.genesisTimeSec}::bigint + (${slotExpression})::bigint * ${this.chainTiming.secPerSlot}::bigint) *
+        INTERVAL '1 second'
+      )
+    `;
   }
 
   async openIncidentIfMissing(
@@ -65,15 +68,7 @@ export class IncidentStorage {
       });
     }
 
-    // Creating a new incident also decides whether the opening notification can be
-    // queued immediately for the cluster owner.
-    const cluster = await tx.cluster.findUniqueOrThrow({
-      where: { id: params.clusterId },
-      include: { owner: true },
-    });
-
     const openedAt = this.getSlotDate(openedSlot);
-    const openedNotificationQueuedAt = this.canQueueNotification(cluster.owner) ? openedAt : null;
 
     const incident = await tx.clusterIncident.create({
       data: {
@@ -82,141 +77,133 @@ export class IncidentStorage {
         openedAt,
         openedSlot,
         validatorIndexes,
-        openedNotificationQueuedAt,
         updatedAt: openedAt,
       },
     });
 
-    if (openedNotificationQueuedAt) {
-      await tx.notificationQueue.create({
-        data: {
-          userId: cluster.ownerId,
-          type: 'incident_opened',
-          payload: {
-            clusterId: cluster.id,
-            clusterName: cluster.name,
-            incidentId: incident.id,
-            openedAt: openedAt.toISOString(),
-            openedSlot: incident.openedSlot,
-            validatorIndexes: incident.validatorIndexes,
-          },
-          delivered: false,
-          createdAt: openedAt,
-        },
-      });
-    }
-
     return incident;
   }
 
-  async closeIncident(
-    tx: Prisma.TransactionClient,
-    params: { incidentId: string; closedSlot: number },
-  ) {
-    const closedSlot = Number(params.closedSlot);
-    // Re-read the incident inside the transaction so close decisions always use
-    // the latest durable incident state.
-    const incident = await tx.clusterIncident.findUniqueOrThrow({
-      where: { id: params.incidentId },
-      include: {
-        cluster: {
-          include: { owner: true },
-        },
-      },
-    });
-
-    // Preserve idempotency for callers that may attempt to close an incident that
-    // was already closed by an earlier slot or worker run.
-    if (incident.status !== 'open') {
-      return incident;
-    }
-
-    // Derive the persisted duration fields from the slot-based close boundary so
-    // downstream consumers do not need to recompute them.
-    const closedAt = this.getSlotDate(closedSlot);
-    const durationSlots = Math.max(closedSlot - incident.openedSlot, 0);
-    const durationSeconds = Math.max(
-      Math.floor((closedAt.getTime() - incident.openedAt.getTime()) / 1000),
-      0,
+  async reconcileOpenIncidents(tx: Prisma.TransactionClient, params: { processedSlot: number }) {
+    const processedSlot = Number(params.processedSlot);
+    const processedSlotTimestamp = this.getSqlTimestampForExpression(
+      Prisma.sql`${processedSlot}::int`,
     );
 
-    const closedIncident = await tx.clusterIncident.update({
-      where: { id: incident.id },
-      data: {
-        status: 'closed',
-        closedAt,
-        closedSlot,
-        durationSlots,
-        durationSeconds,
-        updatedAt: closedAt,
-      },
-    });
-
-    return closedIncident;
-  }
-
-  async reconcileOpenIncident(
-    tx: Prisma.TransactionClient,
-    params: {
-      clusterId: string;
-      slot: number;
-      additions: number[];
-      removals: number[];
-    },
-  ) {
-    const slot = Number(params.slot);
-    const additions = params.additions.map((validatorIndex) => Number(validatorIndex));
-    const removals = params.removals.map((validatorIndex) => Number(validatorIndex));
-    // Load the currently open incident so reconciliation always starts from the
-    // latest durable validator membership for the cluster.
-    const openIncident = await tx.clusterIncident.findFirst({
-      where: {
-        clusterId: params.clusterId,
-        status: 'open',
-      },
-    });
-
-    // Normalize the requested delta so the stored validator list stays ordered
-    // and deterministic regardless of duplicate inputs.
-    const mergedValidatorIndexes = [
-      ...new Set([...(openIncident?.validatorIndexes ?? []), ...additions]),
-    ]
-      .filter((validatorIndex) => !removals.includes(validatorIndex))
-      .sort((a, b) => a - b);
-
-    // Open a brand-new incident only when the cluster just became non-empty.
-    if (openIncident === null) {
-      if (mergedValidatorIndexes.length === 0) {
-        return null;
-      }
-
-      return this.openIncidentIfMissing(tx, {
-        clusterId: params.clusterId,
-        openedSlot: slot,
-        validatorIndexes: mergedValidatorIndexes,
-      });
-    }
-
-    // Close the open incident immediately once every validator has recovered.
-    if (mergedValidatorIndexes.length === 0) {
-      return this.closeIncident(tx, {
-        incidentId: openIncident.id,
-        closedSlot: slot,
-      });
-    }
-
-    // Skip the write entirely when the cluster membership did not actually change.
-    if (JSON.stringify(openIncident.validatorIndexes) === JSON.stringify(mergedValidatorIndexes)) {
-      return openIncident;
-    }
-
-    // Persist the new validator membership while keeping the existing opened slot.
-    return tx.clusterIncident.update({
-      where: { id: openIncident.id },
-      data: {
-        validatorIndexes: mergedValidatorIndexes,
-        updatedAt: this.getSlotDate(slot),
-      },
-    });
+    // Compare two durable states only:
+    // 1. the clusters that currently have registered validators marked inactive,
+    // 2. the clusters that currently have an open incident.
+    // From that diff SQL can insert missing incidents, update changed membership,
+    // and close incidents whose cluster no longer has inactive validators.
+    await tx.$executeRaw`
+      WITH current_inactive_clusters AS (
+        -- Read only registered validators that are currently inactive and group
+        -- them into one ordered validator list per cluster.
+        SELECT
+          cv.cluster_id,
+          MIN(vss.inactive_since_slot) AS first_inactive_slot,
+          array_agg(DISTINCT cv.validator_index ORDER BY cv.validator_index) AS inactive_validator_indexes
+        FROM cluster_validator cv
+        JOIN validators_snapshot_stats vss ON vss.validator_index = cv.validator_index
+        WHERE vss.is_inactive = TRUE
+          AND vss.inactive_since_slot IS NOT NULL
+        GROUP BY cv.cluster_id
+      ),
+      open_incidents AS (
+        -- Read the currently open incident per cluster so reconciliation can
+        -- diff the persisted validator set against the current inactive set.
+        SELECT
+          id,
+          cluster_id,
+          opened_at,
+          opened_slot,
+          validator_indexes
+        FROM cluster_incident
+        WHERE status = 'open'
+      ),
+      recomputed AS (
+        -- Join the live inactive set with the currently open incidents. Every
+        -- touched cluster now has both its previous incident state and its next
+        -- validator membership in one row.
+        SELECT
+          COALESCE(current_inactive_clusters.cluster_id, open_incidents.cluster_id) AS cluster_id,
+          open_incidents.id AS open_incident_id,
+          open_incidents.opened_at AS current_opened_at,
+          open_incidents.opened_slot AS current_opened_slot,
+          COALESCE(open_incidents.validator_indexes, ARRAY[]::int[]) AS current_validator_indexes,
+          current_inactive_clusters.first_inactive_slot,
+          COALESCE(current_inactive_clusters.inactive_validator_indexes, ARRAY[]::int[]) AS next_validator_indexes
+        FROM current_inactive_clusters
+        FULL OUTER JOIN open_incidents
+          ON open_incidents.cluster_id = current_inactive_clusters.cluster_id
+      ),
+      to_insert AS (
+        -- If a cluster has inactive validators but no open incident, create one
+        -- backdated to the earliest inactive validator in the cluster.
+        SELECT
+          ('incident-' || md5(cluster_id || ':' || first_inactive_slot::text || ':' || txid_current()::text)) AS incident_id,
+          cluster_id,
+          first_inactive_slot,
+          next_validator_indexes
+        FROM recomputed
+        WHERE open_incident_id IS NULL
+          AND first_inactive_slot IS NOT NULL
+          AND cardinality(next_validator_indexes) > 0
+      ),
+      inserted_incidents AS (
+        INSERT INTO cluster_incident (
+          id,
+          status,
+          cluster_id,
+          opened_at,
+          opened_slot,
+          validator_indexes,
+          updated_at
+        )
+        SELECT
+          to_insert.incident_id,
+          'open'::"ClusterIncidentStatus",
+          to_insert.cluster_id,
+          ${this.getSqlTimestampForExpression(Prisma.sql`to_insert.first_inactive_slot`)},
+          to_insert.first_inactive_slot,
+          to_insert.next_validator_indexes,
+          ${processedSlotTimestamp}
+        FROM to_insert
+        RETURNING id
+      ),
+      updated_incidents AS (
+        -- Open incidents that stay non-empty only need their membership and
+        -- updated_at boundary refreshed to the slot we just processed.
+        UPDATE cluster_incident AS incident
+        SET
+          validator_indexes = recomputed.next_validator_indexes,
+          updated_at = ${processedSlotTimestamp}
+        FROM recomputed
+        WHERE incident.id = recomputed.open_incident_id
+          AND cardinality(recomputed.next_validator_indexes) > 0
+          AND recomputed.next_validator_indexes <> recomputed.current_validator_indexes
+        RETURNING incident.id
+      ),
+      closed_incidents AS (
+        -- Any open incident whose cluster no longer has inactive validators
+        -- closes on the slot we just processed.
+        UPDATE cluster_incident AS incident
+        SET
+          status = 'closed',
+          closed_at = ${processedSlotTimestamp},
+          closed_slot = ${processedSlot}::int,
+          duration_slots = GREATEST(${processedSlot}::int - incident.opened_slot, 0),
+          duration_seconds = GREATEST(
+            FLOOR(EXTRACT(EPOCH FROM (${processedSlotTimestamp} - incident.opened_at)))::int,
+            0
+          ),
+          updated_at = ${processedSlotTimestamp}
+        FROM recomputed
+        WHERE incident.id = recomputed.open_incident_id
+          AND cardinality(recomputed.next_validator_indexes) = 0
+        RETURNING incident.id
+      )
+      SELECT 1
+    `;
   }
 }

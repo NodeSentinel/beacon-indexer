@@ -10,7 +10,7 @@ import { IncidentRewardsStorage } from '@/src/services/consensus/storage/inciden
 import type { SlotStorage } from '@/src/services/consensus/storage/slot.js';
 import { ValidatorActivityStatusStorage } from '@/src/services/consensus/storage/validatorActivityStatus.js';
 
-// This suite verifies reward finalization and close notifications on the activity-owned incident path.
+// This suite verifies reward finalization on the activity-owned incident path.
 describe('Incident Rewards', () => {
   let prisma: PrismaClient;
   let beaconTime: BeaconTime;
@@ -158,8 +158,6 @@ describe('Incident Rewards', () => {
         activeSinceSlot: null,
         consecutiveMissedAttestations: 0,
         missedStreakStartedAtSlot: null,
-        lastAttestedSlot: null,
-        lastMissedAttestationSlot: null,
         missedRewardsProcessedThroughSlot: null,
         balance: BigInt(32_000_000_000),
         effectiveBalance: BigInt(32_000_000_000),
@@ -201,8 +199,8 @@ describe('Incident Rewards', () => {
     }
   }
 
-  // This scenario proves the close notification is deferred until the reward worker finalizes the incident.
-  it('finalizes closed incidents and queues close notifications with reward values', async () => {
+  // This scenario proves the reward worker finalizes closed incidents without queuing notifications.
+  it('finalizes closed incidents without enqueuing close notifications', async () => {
     // Create an inactivity streak that opens an incident and a later hit that closes it.
     await seedCommitteeMisses([100, 101, 102, 103]);
     await seedCommitteeHit(104);
@@ -265,27 +263,25 @@ describe('Incident Rewards', () => {
       }),
     ).toBe(0);
 
-    // Run the reward worker through the closing slot so it finalizes totals and queues the close notification.
+    // Run the reward worker through the closing slot so it finalizes totals for the closed incident.
     await incidentRewardsController.syncOpenIncidentRewards({
       processThroughSlot: 104,
     });
 
-    // Load the finalized incident, validator snapshot cursor, and queued notification for assertions.
+    // Load the finalized incident and validator snapshot cursor for assertions.
     const incident = await prisma.clusterIncident.findFirstOrThrow({
       where: { clusterId: CLUSTER_ID },
     });
     const snapshot = await prisma.validatorsSnapshotStats.findUniqueOrThrow({
       where: { validatorIndex: VALIDATOR_INDEX },
     });
-    const notification = await prisma.notificationQueue.findFirstOrThrow({
-      where: { type: 'incident_closed' },
-    });
 
     expect(incident.missedConsensusRewards).toBe(BigInt(15));
     expect(incident.rewardsFinalized).toBe(true);
     expect(incident.rewardsFinalizedAt).not.toBeNull();
+    expect(incident.closedNotificationQueuedAt).toBeNull();
     expect(snapshot.missedRewardsProcessedThroughSlot).toBe(104);
-    expect((notification.payload as Record<string, unknown>).missedConsensusRewards).toBe('15');
+    expect(await prisma.notificationQueue.count()).toBe(0);
   });
 
   // This scenario proves the reward cursor only applies the unprocessed reward range.

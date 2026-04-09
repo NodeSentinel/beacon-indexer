@@ -266,8 +266,6 @@ CREATE TABLE "public"."validators_snapshot_stats" (
     "active_since_slot" INTEGER,
     "consecutive_missed_attestations" INTEGER NOT NULL DEFAULT 0,
     "missed_streak_started_at_slot" INTEGER,
-    "last_attested_slot" INTEGER,
-    "last_missed_attestation_slot" INTEGER,
     "missed_rewards_processed_through_slot" INTEGER,
     "attestations_total" INTEGER NOT NULL,
     "attestations_missed" INTEGER NOT NULL,
