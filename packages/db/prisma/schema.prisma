@@ -383,6 +383,7 @@ model ValidatorsSnapshotStats {
   inactiveSinceSlot             Int?    @map("inactive_since_slot")
   activeSinceSlot               Int?    @map("active_since_slot")
   consecutiveMissedAttestations Int     @default(0) @map("consecutive_missed_attestations")
+  missedStreakStartedAtSlot     Int?    @map("missed_streak_started_at_slot")
   lastAttestedSlot              Int?    @map("last_attested_slot")
   lastMissedAttestationSlot     Int?    @map("last_missed_attestation_slot")
   missedRewardsProcessedThroughSlot Int? @map("missed_rewards_processed_through_slot")

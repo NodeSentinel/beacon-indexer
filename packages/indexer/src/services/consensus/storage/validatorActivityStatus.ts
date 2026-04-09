@@ -4,31 +4,29 @@ import { getActivityLookbackSlots } from './activityLookback.js';
 import { IncidentStorage } from './incident.js';
 
 type SyncCurrentActivityStatusParams = {
-  // Last slot whose attestation outcome is old enough to be judged final for the
-  // current activity snapshot. Newer slots may still receive valid inclusions.
+  // We only judge validator activity on slots that are already "safe enough":
+  // if an attestation could still arrive later and be considered valid, that
+  // slot must wait for a future run.
   safeObservedSlot: number;
-  // Minimum trailing missed-attestation streak required to mark a validator as
-  // currently inactive in the fast snapshot.
+  // A validator becomes currently inactive only after missing this many duties
+  // in a row inside the rolling activity window.
   inactiveMissedCount: number;
-  // Largest attestation delay still considered successful before a duty counts
-  // as missed for the current activity streak.
+  // Duties included later than this threshold are treated as misses for the
+  // purpose of the current activity streak.
   maxAttestationDelay: number;
 };
 
-type DutyRow = {
-  validator_index: number;
-  slot: number;
-  attestation_delay: number | null;
+type SnapshotTransitionRow = {
+  validator_index: number | bigint;
+  is_inactive: boolean | null;
+  transition_slot: number | bigint | null;
 };
 
-type SnapshotSeedRow = {
-  validatorIndex: number;
-  isInactive: boolean;
-  inactiveSinceSlot: number | null;
-  activeSinceSlot: number | null;
-  consecutiveMissedAttestations: number;
-  lastAttestedSlot: number | null;
-  lastMissedAttestationSlot: number | null;
+type ClusterTransitionBatchRow = {
+  slot: number | bigint;
+  cluster_id: string;
+  additions: Array<number | bigint>;
+  removals: Array<number | bigint>;
 };
 
 type ValidatorTransition = {
@@ -37,21 +35,19 @@ type ValidatorTransition = {
   transitionSlot: number;
 };
 
-type NextSnapshotState = {
-  validatorIndex: number;
-  isInactive: boolean;
-  inactiveSinceSlot: number | null;
-  activeSinceSlot: number | null;
-  consecutiveMissedAttestations: number;
-  lastAttestedSlot: number | null;
-  lastMissedAttestationSlot: number | null;
-};
-
 const VALIDATOR_ACTIVITY_PROCESSOR = 'validator-activity-status';
 
 /**
- * Owns the fast-path snapshot columns that reflect current validator activity
- * and now also advances the authoritative incident-reconciliation cursor.
+ * This storage pass is the bridge between raw attestation outcomes and the two
+ * user-facing consequences we care about:
+ * 1. keep each validator's "current activity" snapshot up to date, and
+ * 2. open or close cluster incidents when registered validators cross the
+ *    active/inactive boundary.
+ *
+ * The core scaling rule is that we now process one safe slot at a time. The
+ * snapshot stores just enough streak state to continue incrementally, so each
+ * run only needs the duties of the current slot instead of a large historical
+ * committee window.
  */
 export class ValidatorActivityStatusStorage {
   constructor(
@@ -60,25 +56,214 @@ export class ValidatorActivityStatusStorage {
     private readonly slotsPerEpoch: number,
   ) {}
 
-  private isMissedDuty(duty: DutyRow, maxAttestationDelay: number): boolean {
-    return duty.attestation_delay === null || duty.attestation_delay > maxAttestationDelay;
+  private async updateSlotSnapshotsAndReturnTransitions(
+    tx: Prisma.TransactionClient,
+    slot: number,
+    inactiveMissedCount: number,
+    maxAttestationDelay: number,
+  ): Promise<ValidatorTransition[]> {
+    // The whole validator snapshot transition for one slot is local to the
+    // current duty row plus the compact rolling state already stored in the
+    // snapshot table, so SQL can update the slot in one set-based pass.
+    const rows = await tx.$queryRaw<SnapshotTransitionRow[]>`
+      -- 1. Read only the committee duties for the slot we are processing and
+      --    enrich each one with the compact "before" snapshot state already
+      --    stored on the validator row.
+      WITH slot_duties AS (
+        SELECT
+          c.validator_index,
+          c.slot,
+          (c.attestation_delay IS NULL OR c.attestation_delay > ${maxAttestationDelay}::int) AS duty_was_missed,
+          vss.is_inactive AS starting_is_inactive,
+          vss.active_since_slot AS starting_active_since_slot,
+          vss.consecutive_missed_attestations AS starting_consecutive_missed_attestations,
+          vss.missed_streak_started_at_slot AS starting_missed_streak_started_at_slot,
+          vss.last_attested_slot AS starting_last_attested_slot,
+          vss.last_missed_attestation_slot AS starting_last_missed_attestation_slot
+        FROM committee c
+        JOIN validators_snapshot_stats vss ON vss.validator_index = c.validator_index
+        WHERE c.slot = ${slot}::int
+      ),
+      -- 2. Compute the complete "after" state for each touched validator.
+      --    This is the pure transition function:
+      --    current snapshot + current duty -> next snapshot + optional transition.
+      recomputed AS (
+        SELECT
+          validator_index,
+          slot,
+          duty_was_missed,
+          starting_is_inactive,
+          -- If the current duty was missed, the streak grows by one.
+          -- Any successful duty resets the streak immediately.
+          CASE
+            WHEN duty_was_missed THEN starting_consecutive_missed_attestations + 1
+            ELSE 0
+          END AS next_consecutive_missed_attestations,
+          -- The streak start is the first missed slot of the current missed run.
+          -- A brand-new miss starts on this slot; otherwise we keep carrying
+          -- forward the first missed slot that was already stored before.
+          CASE
+            WHEN duty_was_missed THEN
+              CASE
+                WHEN starting_consecutive_missed_attestations = 0 THEN slot
+                ELSE COALESCE(starting_missed_streak_started_at_slot, slot)
+              END
+            ELSE NULL
+          END AS next_missed_streak_started_at_slot,
+          -- A validator stays inactive while it keeps missing, or becomes
+          -- inactive exactly when the missed streak reaches the threshold.
+          -- Any successful duty makes it active again immediately.
+          CASE
+            WHEN duty_was_missed THEN
+              starting_is_inactive OR
+              starting_consecutive_missed_attestations + 1 >= ${inactiveMissedCount}::int
+            ELSE FALSE
+          END AS next_is_inactive,
+          -- active_since_slot only changes on recovery: the attested slot is
+          -- the exact point where the validator became active again.
+          CASE
+            WHEN duty_was_missed THEN starting_active_since_slot
+            ELSE slot
+          END AS next_active_since_slot,
+          -- last_attested_slot keeps the most recent successful duty only while
+          -- the validator is still currently active. Once the missed streak has
+          -- crossed the inactivity threshold, the snapshot must expose that
+          -- there is no fresh attestation in the current inactive run.
+          CASE
+            WHEN duty_was_missed
+              AND (
+                starting_is_inactive OR
+                starting_consecutive_missed_attestations + 1 >= ${inactiveMissedCount}::int
+              )
+            THEN NULL
+            WHEN duty_was_missed THEN starting_last_attested_slot
+            ELSE slot
+          END AS next_last_attested_slot,
+          -- The "last missed" marker only moves forward on misses.
+          CASE
+            WHEN duty_was_missed THEN slot
+            ELSE starting_last_missed_attestation_slot
+          END AS next_last_missed_attestation_slot,
+          -- We emit a transition only on the exact boundary crossing:
+          -- active -> inactive when the threshold is first reached,
+          -- inactive -> active on the first successful duty.
+          -- TRUE means "opened inactivity", FALSE means "closed inactivity".
+          CASE
+            WHEN NOT starting_is_inactive
+              AND duty_was_missed
+              AND starting_consecutive_missed_attestations + 1 >= ${inactiveMissedCount}::int
+            THEN TRUE
+            WHEN starting_is_inactive AND NOT duty_was_missed
+            THEN FALSE
+            ELSE NULL
+          END AS transition_is_inactive,
+          -- Opening transitions point back to the first miss of the streak,
+          -- not the slot where the threshold was detected. Closing transitions
+          -- happen on the successful duty slot itself.
+          CASE
+            WHEN NOT starting_is_inactive
+              AND duty_was_missed
+              AND starting_consecutive_missed_attestations + 1 >= ${inactiveMissedCount}::int
+            THEN
+              CASE
+                WHEN starting_consecutive_missed_attestations = 0 THEN slot
+                ELSE COALESCE(starting_missed_streak_started_at_slot, slot)
+              END
+            WHEN starting_is_inactive AND NOT duty_was_missed
+            THEN slot
+            ELSE NULL
+          END AS transition_slot
+        FROM slot_duties
+      ),
+      -- 3. Persist the next snapshot in one UPDATE and keep only the validators
+      --    that actually crossed the active/inactive boundary, because only
+      --    those rows can affect cluster incidents.
+      updated AS (
+        UPDATE validators_snapshot_stats AS vss
+        SET
+          is_inactive = recomputed.next_is_inactive,
+          inactive_since_slot = CASE
+            WHEN recomputed.next_is_inactive THEN recomputed.next_missed_streak_started_at_slot
+            ELSE NULL
+          END,
+          active_since_slot = recomputed.next_active_since_slot,
+          consecutive_missed_attestations = recomputed.next_consecutive_missed_attestations,
+          missed_streak_started_at_slot = recomputed.next_missed_streak_started_at_slot,
+          last_attested_slot = recomputed.next_last_attested_slot,
+          last_missed_attestation_slot = recomputed.next_last_missed_attestation_slot,
+          updated_at = NOW()
+        FROM recomputed
+        WHERE vss.validator_index = recomputed.validator_index
+        RETURNING
+          recomputed.validator_index,
+          recomputed.transition_is_inactive AS is_inactive,
+          recomputed.transition_slot
+      )
+      SELECT
+        validator_index,
+        is_inactive,
+        transition_slot
+      FROM updated
+      WHERE is_inactive IS NOT NULL AND transition_slot IS NOT NULL
+      ORDER BY transition_slot ASC, validator_index ASC
+    `;
+
+    return rows.map((row) => ({
+      validatorIndex: Number(row.validator_index),
+      isInactive: row.is_inactive ?? false,
+      transitionSlot: Number(row.transition_slot ?? slot),
+    }));
   }
 
-  private async loadTouchedValidatorMemberships(
+  private async loadClusterTransitionBatches(
     tx: Prisma.TransactionClient,
-    validatorIndexes: number[],
-  ) {
-    if (validatorIndexes.length === 0) {
+    transitions: ValidatorTransition[],
+  ): Promise<Array<{ slot: number; clusterId: string; additions: number[]; removals: number[] }>> {
+    if (transitions.length === 0) {
       return [];
     }
 
-    // Read cluster memberships only for validators whose inactive/active flag
-    // changed in this batch so incident reconciliation stays tightly scoped.
-    return tx.$queryRaw<Array<{ cluster_id: string; validator_index: number }>>`
-      SELECT cv.cluster_id, cv.validator_index
-      FROM cluster_validator cv
-      WHERE cv.validator_index = ANY(${validatorIndexes}::int[])
+    const transitionValues = Prisma.join(
+      transitions.map(
+        (transition) => Prisma.sql`
+        (
+          ${transition.validatorIndex},
+          ${transition.isInactive},
+          ${transition.transitionSlot}
+        )
+      `,
+      ),
+    );
+
+    // Once transitions are reduced to validator + direction + effective slot,
+    // SQL can expand memberships and group them into one cluster delta per slot.
+    const rows = await tx.$queryRaw<ClusterTransitionBatchRow[]>`
+      -- 1. Materialize the validator transitions produced by the snapshot query
+      --    as a tiny in-memory SQL table for this slot.
+      WITH transitions(validator_index, is_inactive, transition_slot) AS (
+        VALUES
+          ${transitionValues}
+      )
+      -- 2. Expand each validator transition to every registered cluster that
+      --    contains that validator, then collapse everything into one delta per
+      --    cluster and effective transition slot.
+      SELECT
+        t.transition_slot AS slot,
+        cv.cluster_id,
+        COALESCE(array_agg(t.validator_index ORDER BY t.validator_index) FILTER (WHERE t.is_inactive), ARRAY[]::int[]) AS additions,
+        COALESCE(array_agg(t.validator_index ORDER BY t.validator_index) FILTER (WHERE NOT t.is_inactive), ARRAY[]::int[]) AS removals
+      FROM transitions t
+      JOIN cluster_validator cv ON cv.validator_index = t.validator_index
+      GROUP BY t.transition_slot, cv.cluster_id
+      ORDER BY t.transition_slot ASC, cv.cluster_id ASC
     `;
+
+    return rows.map((row) => ({
+      slot: Number(row.slot),
+      clusterId: row.cluster_id,
+      additions: row.additions.map((validatorIndex) => Number(validatorIndex)),
+      removals: row.removals.map((validatorIndex) => Number(validatorIndex)),
+    }));
   }
 
   async syncCurrentActivityStatus(params: SyncCurrentActivityStatusParams): Promise<void> {
@@ -86,8 +271,9 @@ export class ValidatorActivityStatusStorage {
     const lookbackSlots = getActivityLookbackSlots(this.slotsPerEpoch, inactiveMissedCount);
 
     await this.prisma.$transaction(async (tx) => {
-      // Keep a durable cursor so each run processes only the duties that became
-      // newly safe since the previous successful activity pass.
+      // The processor state is the durable bookmark for this whole pipeline.
+      // On the first run we bootstrap only the recent lookback range; after that
+      // every run continues incrementally from the last committed safe slot.
       const processorState = await tx.incidentProcessorState.upsert({
         where: { processor: VALIDATOR_ACTIVITY_PROCESSOR },
         update: {},
@@ -106,185 +292,29 @@ export class ValidatorActivityStatusStorage {
         return;
       }
 
-      // Load only the duties that became newly safe for the activity pipeline.
-      const duties = await tx.$queryRaw<DutyRow[]>`
-        SELECT
-          c.validator_index,
-          c.slot,
-          c.attestation_delay
-        FROM committee c
-        WHERE c.slot > ${lowerExclusiveSlot}::int
-          AND c.slot <= ${safeObservedSlot}::int
-        ORDER BY c.validator_index ASC, c.slot ASC
-      `;
+      // Walk slot by slot through the safe boundary. This keeps the working set
+      // bounded by one slot's committee instead of a large historical window.
+      for (let slot = lowerExclusiveSlot + 1; slot <= safeObservedSlot; slot += 1) {
+        const transitions = await this.updateSlotSnapshotsAndReturnTransitions(
+          tx,
+          slot,
+          inactiveMissedCount,
+          maxAttestationDelay,
+        );
+        const clusterTransitionBatches = await this.loadClusterTransitionBatches(tx, transitions);
 
-      const touchedValidatorIndexes = [...new Set(duties.map((duty) => duty.validator_index))];
-
-      // Advance the durable cursor even when no new duties became safe.
-      if (touchedValidatorIndexes.length === 0) {
-        await tx.incidentProcessorState.update({
-          where: { processor: VALIDATOR_ACTIVITY_PROCESSOR },
-          data: { lastProcessedSlot: safeObservedSlot },
-        });
-        return;
-      }
-
-      // Seed the incremental transition logic from the current authoritative
-      // snapshot state for only the validators touched by the new duties.
-      const seedRows = await tx.validatorsSnapshotStats.findMany({
-        where: {
-          validatorIndex: {
-            in: touchedValidatorIndexes,
-          },
-        },
-        select: {
-          validatorIndex: true,
-          isInactive: true,
-          inactiveSinceSlot: true,
-          activeSinceSlot: true,
-          consecutiveMissedAttestations: true,
-          lastAttestedSlot: true,
-          lastMissedAttestationSlot: true,
-        },
-      });
-
-      const seedByValidator = new Map<number, SnapshotSeedRow>(
-        seedRows.map((row) => [row.validatorIndex, row]),
-      );
-      const dutiesByValidator = new Map<number, DutyRow[]>();
-      for (const duty of duties) {
-        const validatorDuties = dutiesByValidator.get(duty.validator_index) ?? [];
-        validatorDuties.push(duty);
-        dutiesByValidator.set(duty.validator_index, validatorDuties);
-      }
-
-      const nextStates: NextSnapshotState[] = [];
-      const transitions: ValidatorTransition[] = [];
-
-      // Replay only the newly safe duties for each touched validator, starting
-      // from the current snapshot row that already reflects earlier safe slots.
-      for (const validatorIndex of touchedValidatorIndexes) {
-        const seed = seedByValidator.get(validatorIndex);
-        if (!seed) {
-          continue;
-        }
-
-        let isInactive = seed.isInactive;
-        let inactiveSinceSlot = seed.inactiveSinceSlot;
-        let activeSinceSlot = seed.activeSinceSlot;
-        let consecutiveMissedAttestations = seed.consecutiveMissedAttestations;
-        let lastAttestedSlot = seed.lastAttestedSlot;
-        const lastMissedAttestationSlot = seed.lastMissedAttestationSlot;
-        const validatorDuties = dutiesByValidator.get(validatorIndex) ?? [];
-        for (const duty of validatorDuties) {
-          const wasInactive = isInactive;
-
-          if (this.isMissedDuty(duty, maxAttestationDelay)) {
-            // Start a new missed-duty streak from this slot only when the prior
-            // consecutive streak was empty.
-            if (consecutiveMissedAttestations === 0) {
-              inactiveSinceSlot = duty.slot;
-            }
-
-            consecutiveMissedAttestations += 1;
-            lastAttestedSlot = null;
-
-            if (consecutiveMissedAttestations >= inactiveMissedCount) {
-              isInactive = true;
-
-              if (!wasInactive && inactiveSinceSlot !== null) {
-                transitions.push({
-                  validatorIndex,
-                  isInactive: true,
-                  transitionSlot: inactiveSinceSlot,
-                });
-              }
-            }
-          } else {
-            // Any successful duty resets the missed streak and closes the
-            // inactivity period immediately on that attested slot.
-            consecutiveMissedAttestations = 0;
-            isInactive = false;
-            inactiveSinceSlot = null;
-            activeSinceSlot = duty.slot;
-            lastAttestedSlot = duty.slot;
-
-            if (wasInactive) {
-              transitions.push({
-                validatorIndex,
-                isInactive: false,
-                transitionSlot: duty.slot,
-              });
-            }
-          }
-        }
-
-        // Preserve the existing "current window only" contract for
-        // lastAttestedSlot by deriving it from the newest successful duty that
-        // appeared in this newly safe batch.
-        const lastSuccessfulDuty = [...validatorDuties]
-          .reverse()
-          .find((duty) => !this.isMissedDuty(duty, maxAttestationDelay));
-
-        if (lastSuccessfulDuty) {
-          lastAttestedSlot = lastSuccessfulDuty.slot;
-        } else if (validatorDuties.length > 0) {
-          lastAttestedSlot = null;
-        }
-
-        nextStates.push({
-          validatorIndex,
-          isInactive,
-          inactiveSinceSlot: isInactive ? inactiveSinceSlot : null,
-          activeSinceSlot,
-          consecutiveMissedAttestations,
-          lastAttestedSlot,
-          lastMissedAttestationSlot,
-        });
-      }
-
-      // Update only the validators touched by newly safe duties instead of
-      // rewriting the full snapshot table each time.
-      for (const nextState of nextStates) {
-        await tx.validatorsSnapshotStats.update({
-          where: { validatorIndex: nextState.validatorIndex },
-          data: {
-            isInactive: nextState.isInactive,
-            inactiveSinceSlot: nextState.inactiveSinceSlot,
-            activeSinceSlot: nextState.activeSinceSlot,
-            consecutiveMissedAttestations: nextState.consecutiveMissedAttestations,
-            lastAttestedSlot: nextState.lastAttestedSlot,
-            lastMissedAttestationSlot: nextState.lastMissedAttestationSlot,
-          },
-        });
-      }
-
-      const memberships = await this.loadTouchedValidatorMemberships(tx, [
-        ...new Set(transitions.map((transition) => transition.validatorIndex)),
-      ]);
-
-      const membershipsByValidator = new Map<number, string[]>();
-      for (const membership of memberships) {
-        const validatorMemberships = membershipsByValidator.get(membership.validator_index) ?? [];
-        validatorMemberships.push(membership.cluster_id);
-        membershipsByValidator.set(membership.validator_index, validatorMemberships);
-      }
-
-      // Reconcile incidents from the exact validator transitions produced by the
-      // activity replay so open/close slots stay aligned with snapshot state.
-      for (const transition of transitions) {
-        for (const clusterId of membershipsByValidator.get(transition.validatorIndex) ?? []) {
+        for (const batch of clusterTransitionBatches) {
           await this.incidentStorage.reconcileOpenIncident(tx, {
-            clusterId,
-            slot: transition.transitionSlot,
-            additions: transition.isInactive ? [transition.validatorIndex] : [],
-            removals: transition.isInactive ? [] : [transition.validatorIndex],
+            clusterId: batch.clusterId,
+            slot: batch.slot,
+            additions: batch.additions,
+            removals: batch.removals,
           });
         }
       }
 
-      // Persist the new safe boundary only after both snapshot rows and cluster
-      // incidents have been reconciled successfully in the same transaction.
+      // Only after snapshot rows and incident history are both settled do we
+      // advance the durable bookmark to the newest safe slot.
       await tx.incidentProcessorState.update({
         where: { processor: VALIDATOR_ACTIVITY_PROCESSOR },
         data: { lastProcessedSlot: safeObservedSlot },

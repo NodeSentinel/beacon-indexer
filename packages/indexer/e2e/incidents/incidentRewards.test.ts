@@ -157,6 +157,7 @@ describe('Incident Rewards', () => {
         inactiveSinceSlot: null,
         activeSinceSlot: null,
         consecutiveMissedAttestations: 0,
+        missedStreakStartedAtSlot: null,
         lastAttestedSlot: null,
         lastMissedAttestationSlot: null,
         missedRewardsProcessedThroughSlot: null,

@@ -106,6 +106,7 @@ describe('Validator Activity Status Updater', () => {
         inactiveSinceSlot: null,
         activeSinceSlot: 90,
         consecutiveMissedAttestations: 0,
+        missedStreakStartedAtSlot: null,
         lastAttestedSlot: 90,
         lastMissedAttestationSlot: null,
         missedRewardsProcessedThroughSlot: 80,
@@ -233,6 +234,7 @@ describe('Validator Activity Status Updater', () => {
         inactiveSinceSlot: null,
         activeSinceSlot: 42,
         consecutiveMissedAttestations: 0,
+        missedStreakStartedAtSlot: null,
         lastAttestedSlot: 41,
         lastMissedAttestationSlot: null,
         missedRewardsProcessedThroughSlot: 88,
@@ -289,6 +291,7 @@ describe('Validator Activity Status Updater', () => {
     expect(row.isInactive).toBe(true);
     expect(row.consecutiveMissedAttestations).toBe(4);
     expect(row.lastAttestedSlot).toBeNull();
+    expect(row.lastMissedAttestationSlot).toBe(123);
     expect(row.activeSinceSlot).toBe(90);
     expect(row.inactiveSinceSlot).toBe(120);
   });
@@ -315,7 +318,7 @@ describe('Validator Activity Status Updater', () => {
     expect(row.isInactive).toBe(true);
     expect(row.consecutiveMissedAttestations).toBe(4);
     expect(row.lastAttestedSlot).toBeNull();
-    expect(row.lastMissedAttestationSlot).toBeNull();
+    expect(row.lastMissedAttestationSlot).toBe(123);
     expect(row.status).toBe('active');
     expect(row.activeSinceSlot).toBe(90);
     expect(row.inactiveSinceSlot).toBe(120);
@@ -350,6 +353,7 @@ describe('Validator Activity Status Updater', () => {
     expect(row.consecutiveMissedAttestations).toBe(2);
     expect(row.isInactive).toBe(false);
     expect(row.lastAttestedSlot).toBe(121);
+    expect(row.lastMissedAttestationSlot).toBe(123);
   });
 
   // This scenario locks the exact slot where the activity processor should open a cluster incident.
@@ -388,6 +392,7 @@ describe('Validator Activity Status Updater', () => {
         isInactive: true,
         inactiveSinceSlot: 120,
         consecutiveMissedAttestations: 3,
+        missedStreakStartedAtSlot: 120,
         lastAttestedSlot: null,
         activeSinceSlot: null,
       },

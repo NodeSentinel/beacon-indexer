@@ -10,11 +10,12 @@ export class IncidentStorage {
     },
   ) {}
 
-  private getSlotDate(slot: number): Date {
+  private getSlotDate(slot: number | bigint): Date {
     // Convert a consensus slot into a wall-clock timestamp using the configured
     // genesis time and slot duration for the active chain.
+    const normalizedSlot = Number(slot);
     return new Date(
-      this.chainTiming.genesisTimeSec * 1000 + slot * this.chainTiming.secPerSlot * 1000,
+      this.chainTiming.genesisTimeSec * 1000 + normalizedSlot * this.chainTiming.secPerSlot * 1000,
     );
   }
 
@@ -31,9 +32,12 @@ export class IncidentStorage {
     tx: Prisma.TransactionClient,
     params: { clusterId: string; openedSlot: number; validatorIndexes: number[] },
   ) {
+    const openedSlot = Number(params.openedSlot);
     // Normalize validator membership so the persisted incident payload stays
     // deterministic even if callers pass duplicates or unsorted indexes.
-    const validatorIndexes = [...new Set(params.validatorIndexes)].sort((a, b) => a - b);
+    const validatorIndexes = [
+      ...new Set(params.validatorIndexes.map((validatorIndex) => Number(validatorIndex))),
+    ].sort((a, b) => a - b);
     const existing = await tx.clusterIncident.findFirst({
       where: {
         clusterId: params.clusterId,
@@ -56,7 +60,7 @@ export class IncidentStorage {
         where: { id: existing.id },
         data: {
           validatorIndexes: mergedValidatorIndexes,
-          updatedAt: this.getSlotDate(params.openedSlot),
+          updatedAt: this.getSlotDate(openedSlot),
         },
       });
     }
@@ -68,7 +72,7 @@ export class IncidentStorage {
       include: { owner: true },
     });
 
-    const openedAt = this.getSlotDate(params.openedSlot);
+    const openedAt = this.getSlotDate(openedSlot);
     const openedNotificationQueuedAt = this.canQueueNotification(cluster.owner) ? openedAt : null;
 
     const incident = await tx.clusterIncident.create({
@@ -76,7 +80,7 @@ export class IncidentStorage {
         clusterId: params.clusterId,
         status: 'open',
         openedAt,
-        openedSlot: params.openedSlot,
+        openedSlot,
         validatorIndexes,
         openedNotificationQueuedAt,
         updatedAt: openedAt,
@@ -109,6 +113,7 @@ export class IncidentStorage {
     tx: Prisma.TransactionClient,
     params: { incidentId: string; closedSlot: number },
   ) {
+    const closedSlot = Number(params.closedSlot);
     // Re-read the incident inside the transaction so close decisions always use
     // the latest durable incident state.
     const incident = await tx.clusterIncident.findUniqueOrThrow({
@@ -128,8 +133,8 @@ export class IncidentStorage {
 
     // Derive the persisted duration fields from the slot-based close boundary so
     // downstream consumers do not need to recompute them.
-    const closedAt = this.getSlotDate(params.closedSlot);
-    const durationSlots = Math.max(params.closedSlot - incident.openedSlot, 0);
+    const closedAt = this.getSlotDate(closedSlot);
+    const durationSlots = Math.max(closedSlot - incident.openedSlot, 0);
     const durationSeconds = Math.max(
       Math.floor((closedAt.getTime() - incident.openedAt.getTime()) / 1000),
       0,
@@ -140,7 +145,7 @@ export class IncidentStorage {
       data: {
         status: 'closed',
         closedAt,
-        closedSlot: params.closedSlot,
+        closedSlot,
         durationSlots,
         durationSeconds,
         updatedAt: closedAt,
@@ -159,6 +164,9 @@ export class IncidentStorage {
       removals: number[];
     },
   ) {
+    const slot = Number(params.slot);
+    const additions = params.additions.map((validatorIndex) => Number(validatorIndex));
+    const removals = params.removals.map((validatorIndex) => Number(validatorIndex));
     // Load the currently open incident so reconciliation always starts from the
     // latest durable validator membership for the cluster.
     const openIncident = await tx.clusterIncident.findFirst({
@@ -171,9 +179,9 @@ export class IncidentStorage {
     // Normalize the requested delta so the stored validator list stays ordered
     // and deterministic regardless of duplicate inputs.
     const mergedValidatorIndexes = [
-      ...new Set([...(openIncident?.validatorIndexes ?? []), ...params.additions]),
+      ...new Set([...(openIncident?.validatorIndexes ?? []), ...additions]),
     ]
-      .filter((validatorIndex) => !params.removals.includes(validatorIndex))
+      .filter((validatorIndex) => !removals.includes(validatorIndex))
       .sort((a, b) => a - b);
 
     // Open a brand-new incident only when the cluster just became non-empty.
@@ -184,7 +192,7 @@ export class IncidentStorage {
 
       return this.openIncidentIfMissing(tx, {
         clusterId: params.clusterId,
-        openedSlot: params.slot,
+        openedSlot: slot,
         validatorIndexes: mergedValidatorIndexes,
       });
     }
@@ -193,7 +201,7 @@ export class IncidentStorage {
     if (mergedValidatorIndexes.length === 0) {
       return this.closeIncident(tx, {
         incidentId: openIncident.id,
-        closedSlot: params.slot,
+        closedSlot: slot,
       });
     }
 
@@ -207,7 +215,7 @@ export class IncidentStorage {
       where: { id: openIncident.id },
       data: {
         validatorIndexes: mergedValidatorIndexes,
-        updatedAt: this.getSlotDate(params.slot),
+        updatedAt: this.getSlotDate(slot),
       },
     });
   }
