@@ -42,24 +42,6 @@ export class ValidatorActivityStatusController {
     maxAttestationDelay: number;
     inactiveMissedCount: number;
   }): Promise<void> {
-    // Compare the live head slot with the last fully indexed slot before trusting
-    // committee data for activity updates. When the indexer is too far behind,
-    // the safest behavior is to leave the existing snapshot state unchanged.
-    const headSlot = this.beaconTime.getChainCurrentSlot();
-
-    if (headSlot - params.lastIndexedSlot > params.skipValidatorStatusUpdateWhenBehindHeadSlots) {
-      this.logger.warn(
-        'Skipping validator activity status sync because indexed committee data is stale',
-        {
-          headSlot,
-          lastIndexedSlot: params.lastIndexedSlot,
-          skipValidatorStatusUpdateWhenBehindHeadSlots:
-            params.skipValidatorStatusUpdateWhenBehindHeadSlots,
-        },
-      );
-      return;
-    }
-
     // Ignore the most recent duties until they are old enough to exceed the
     // attestation inclusion delay, so we do not classify "not yet included"
     // attestations as missed.

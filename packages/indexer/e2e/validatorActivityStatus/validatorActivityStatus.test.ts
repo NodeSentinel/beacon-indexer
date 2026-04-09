@@ -267,30 +267,30 @@ describe('Validator Activity Status Updater', () => {
     expect(processorState.lastProcessedSlot).toBe(9001);
   });
 
-  // This scenario proves stale indexed data aborts early and leaves current activity untouched.
-  it('aborts without mutating snapshot state when the indexed committee window is stale', async () => {
-    // Seed the validator row and enough committee misses that a fresh run would mark it inactive.
+  // This scenario proves the processor still advances through already-safe duties even when head is far ahead.
+  it('keeps processing safe indexed duties when the indexer is behind head', async () => {
+    // Seed the validator row and enough committee misses that a safe run should mark it inactive.
     await seedSnapshotValidator(101);
     await seedCommitteeMisses([120, 121, 122, 123], 101);
 
-    // Simulate the chain head being too far ahead of the indexed slot.
+    // Simulate the chain head being far ahead of the indexed slot.
     vi.spyOn(beaconTime, 'getChainCurrentSlot').mockReturnValue(140);
 
-    // Run the updater with a freshness threshold that the indexed slot fails.
+    // Run the updater even though the live head is well ahead of the indexed boundary.
     await controller.syncCurrentActivityStatus({
-      lastIndexedSlot: 123,
+      lastIndexedSlot: 124,
       skipValidatorStatusUpdateWhenBehindHeadSlots: gnosisConfig.beacon.slotsPerEpoch,
       maxAttestationDelay: 1,
       inactiveMissedCount: 4,
     });
 
-    // Confirm the liveness columns remain exactly as they were before the stale run.
+    // Confirm the safe duties were still applied to the activity snapshot.
     const row = await getSnapshot(101);
-    expect(row.isInactive).toBe(false);
-    expect(row.consecutiveMissedAttestations).toBe(0);
-    expect(row.lastAttestedSlot).toBe(90);
+    expect(row.isInactive).toBe(true);
+    expect(row.consecutiveMissedAttestations).toBe(4);
+    expect(row.lastAttestedSlot).toBeNull();
     expect(row.activeSinceSlot).toBe(90);
-    expect(row.inactiveSinceSlot).toBeNull();
+    expect(row.inactiveSinceSlot).toBe(120);
   });
 
   // This scenario proves fresh indexed committee data updates the current activity owner columns.
