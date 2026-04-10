@@ -96,6 +96,7 @@ describe('Incident Rewards', () => {
         slotsPerEpoch: gnosisConfig.beacon.slotsPerEpoch,
       }),
       slotStorage,
+      beaconTime,
     );
 
     // Clear only the tables this suite touches.
@@ -412,6 +413,71 @@ describe('Incident Rewards', () => {
     });
 
     expect(incident.missedConsensusRewards).toBe(BigInt(35));
+    expect(snapshot.missedRewardsProcessedThroughSlot).toBe(processThroughSlot);
+  });
+
+  // This scenario proves validator-centric accounting starts from the validator's
+  // own inactive-since slot even when the cluster incident opened earlier.
+  it('uses inactiveSinceSlot as the lower bound before falling back to the incident window', async () => {
+    const openedSlot = 64;
+    const validatorInactiveSinceSlot = 96;
+    const processThroughSlot = 100;
+
+    // Seed an already-open incident whose cluster window started before this
+    // validator actually became inactive.
+    await prisma.clusterIncident.create({
+      data: {
+        clusterId: CLUSTER_ID,
+        status: 'open',
+        openedAt: new Date(beaconTime.getTimestampFromSlotNumber(openedSlot)),
+        openedSlot,
+        validatorIndexes: [VALIDATOR_INDEX],
+      },
+    });
+
+    // Mark the validator as currently inactive starting at a later slot than
+    // the incident's opening slot.
+    await prisma.validatorsSnapshotStats.update({
+      where: { validatorIndex: VALIDATOR_INDEX },
+      data: {
+        isInactive: true,
+        inactiveSinceSlot: validatorInactiveSinceSlot,
+        consecutiveMissedAttestations: 4,
+        missedStreakStartedAtSlot: validatorInactiveSinceSlot,
+      },
+    });
+
+    // Seed one sync penalty before the validator became inactive and one after
+    // it so the lower-bound choice is observable in the final total.
+    await prisma.validatorSyncRewards.createMany({
+      data: [
+        {
+          slot: 80,
+          validatorIndex: VALIDATOR_INDEX,
+          syncCommittee: BigInt(-100),
+        },
+        {
+          slot: 97,
+          validatorIndex: VALIDATOR_INDEX,
+          syncCommittee: BigInt(-5),
+        },
+      ],
+    });
+
+    // Run the reward worker through the later slot boundary.
+    await incidentRewardsController.syncOpenIncidentRewards({
+      processThroughSlot,
+    });
+
+    // Only the penalty inside the validator's own inactive window should be applied.
+    const incident = await prisma.clusterIncident.findFirstOrThrow({
+      where: { clusterId: CLUSTER_ID },
+    });
+    const snapshot = await prisma.validatorsSnapshotStats.findUniqueOrThrow({
+      where: { validatorIndex: VALIDATOR_INDEX },
+    });
+
+    expect(incident.missedConsensusRewards).toBe(BigInt(5));
     expect(snapshot.missedRewardsProcessedThroughSlot).toBe(processThroughSlot);
   });
 

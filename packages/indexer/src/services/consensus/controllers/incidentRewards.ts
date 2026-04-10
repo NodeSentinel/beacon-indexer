@@ -1,3 +1,5 @@
+import { BeaconTime } from '@beacon-indexer/beacon-utils/beaconTime';
+
 import { IncidentRewardsStorage } from '../storage/incidentRewards.js';
 import type { SlotStorage } from '../storage/slot.js';
 
@@ -15,6 +17,7 @@ export class IncidentRewardsController {
   constructor(
     private readonly storage: IncidentRewardsStorage,
     private readonly slotStorage: SlotStorage,
+    private readonly beaconTime: BeaconTime,
   ) {}
 
   async runSync(): Promise<void> {
@@ -25,9 +28,23 @@ export class IncidentRewardsController {
       return;
     }
 
+    // Attestation rewards arrive per epoch, so never advance beyond the last
+    // epoch whose rewards have already been persisted.
+    const lastRewardsFetchedEpoch = await this.storage.getLastRewardsFetchedEpoch();
+    if (lastRewardsFetchedEpoch === null) {
+      return;
+    }
+
+    const lastRewardsFetchedSlot = this.beaconTime.getEpochSlots(lastRewardsFetchedEpoch).endSlot;
+    const safeProcessThroughSlot = Math.min(lastIndexedSlot, lastRewardsFetchedSlot);
+
+    if (safeProcessThroughSlot < 0) {
+      return;
+    }
+
     // Delegate the actual reward reconciliation once the upper bound is known.
     await this.syncOpenIncidentRewards({
-      processThroughSlot: lastIndexedSlot,
+      processThroughSlot: safeProcessThroughSlot,
     });
   }
 

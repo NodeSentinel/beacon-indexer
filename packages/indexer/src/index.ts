@@ -197,6 +197,7 @@ async function main() {
   const incidentRewardsController = new IncidentRewardsController(
     incidentRewardsStorage,
     slotStorage,
+    beaconTime,
   );
 
   const validatorActivityStatusStorage = new ValidatorActivityStatusStorage(
