@@ -538,10 +538,12 @@ model ClusterIncident {
   closedNotificationQueuedAt DateTime? @map("closed_notification_queued_at") @db.Timestamp
 
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamp
-  updatedAt DateTime @default(now()) @map("updated_at") @db.Timestamp
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamp
 
   cluster Cluster @relation(fields: [clusterId], references: [id], onDelete: Cascade)
 
+  // The database migration also adds a partial unique index on cluster_id where
+  // status = 'open', so each cluster can have at most one open incident row.
   @@index([clusterId])
   @@index([status, openedAt(sort: Desc)])
   @@map("cluster_incident")

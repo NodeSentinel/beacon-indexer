@@ -21,6 +21,26 @@ describe('Incident Rewards', () => {
   const VALIDATOR_INDEX = 101;
   const CLUSTER_ID = 'cluster-a';
   const USER_ID = 'incident-user';
+  const DROP_COMMITTEE_PARTITIONS_SQL = `DO $$ DECLARE r RECORD; BEGIN FOR r IN SELECT inhrelid::regclass AS child FROM pg_inherits WHERE inhparent = 'committee'::regclass LOOP EXECUTE 'DROP TABLE ' || r.child || ' CASCADE'; END LOOP; END $$`;
+  const DROP_EPOCH_REWARD_PARTITIONS_SQL = `DO $$ DECLARE r RECORD; BEGIN FOR r IN SELECT inhrelid::regclass AS child FROM pg_inherits WHERE inhparent = 'epoch_rewards'::regclass LOOP EXECUTE 'DROP TABLE ' || r.child || ' CASCADE'; END LOOP; END $$`;
+
+  // This helper removes all temporary test partitions so each scenario starts
+  // from the same clean partition layout.
+  async function dropRawTestPartitions() {
+    await prisma.$executeRawUnsafe(DROP_COMMITTEE_PARTITIONS_SQL);
+    await prisma.$executeRawUnsafe(DROP_EPOCH_REWARD_PARTITIONS_SQL);
+  }
+
+  // This helper recreates broad partitions so seeded raw rows always have a
+  // valid partition destination inside the isolated E2E database.
+  async function createRawTestPartitions() {
+    await prisma.$executeRawUnsafe(
+      `CREATE TABLE IF NOT EXISTS committee_test_partition PARTITION OF committee FOR VALUES FROM (0) TO (1000)`,
+    );
+    await prisma.$executeRawUnsafe(
+      `CREATE TABLE IF NOT EXISTS epoch_rewards_test_partition PARTITION OF epoch_rewards FOR VALUES FROM (0) TO (100)`,
+    );
+  }
 
   beforeAll(async () => {
     // This suite requires the real PostgreSQL test database.
@@ -40,12 +60,7 @@ describe('Incident Rewards', () => {
 
   afterEach(async () => {
     // Remove the broad raw-table partitions so later suites can create real ranges.
-    await prisma.$executeRawUnsafe(
-      `DO $$ DECLARE r RECORD; BEGIN FOR r IN SELECT inhrelid::regclass AS child FROM pg_inherits WHERE inhparent = 'committee'::regclass LOOP EXECUTE 'DROP TABLE ' || r.child || ' CASCADE'; END LOOP; END $$`,
-    );
-    await prisma.$executeRawUnsafe(
-      `DO $$ DECLARE r RECORD; BEGIN FOR r IN SELECT inhrelid::regclass AS child FROM pg_inherits WHERE inhparent = 'epoch_rewards'::regclass LOOP EXECUTE 'DROP TABLE ' || r.child || ' CASCADE'; END LOOP; END $$`,
-    );
+    await dropRawTestPartitions();
   });
 
   beforeEach(async () => {
@@ -102,18 +117,8 @@ describe('Incident Rewards', () => {
     await prisma.validator.deleteMany({});
 
     // Recreate broad partitions so raw inserts succeed for every seeded slot and epoch.
-    await prisma.$executeRawUnsafe(
-      `DO $$ DECLARE r RECORD; BEGIN FOR r IN SELECT inhrelid::regclass AS child FROM pg_inherits WHERE inhparent = 'committee'::regclass LOOP EXECUTE 'DROP TABLE ' || r.child || ' CASCADE'; END LOOP; END $$`,
-    );
-    await prisma.$executeRawUnsafe(
-      `CREATE TABLE IF NOT EXISTS committee_test_partition PARTITION OF committee FOR VALUES FROM (0) TO (1000)`,
-    );
-    await prisma.$executeRawUnsafe(
-      `DO $$ DECLARE r RECORD; BEGIN FOR r IN SELECT inhrelid::regclass AS child FROM pg_inherits WHERE inhparent = 'epoch_rewards'::regclass LOOP EXECUTE 'DROP TABLE ' || r.child || ' CASCADE'; END LOOP; END $$`,
-    );
-    await prisma.$executeRawUnsafe(
-      `CREATE TABLE IF NOT EXISTS epoch_rewards_test_partition PARTITION OF epoch_rewards FOR VALUES FROM (0) TO (100)`,
-    );
+    await dropRawTestPartitions();
+    await createRawTestPartitions();
 
     // Seed the shared user, cluster, validator, and snapshot row.
     await prisma.user.create({
