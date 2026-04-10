@@ -23,14 +23,17 @@ export class IncidentRewardsController {
   async runSync(): Promise<void> {
     // Rewards can only advance through slots that the slot pipeline has already
     // indexed into the reward tables.
-    const lastIndexedSlot = await this.slotStorage.getLastProcessedSlot();
+    const [lastIndexedSlot, lastRewardsFetchedEpoch] = await Promise.all([
+      this.slotStorage.getLastProcessedSlot(),
+      this.storage.getLastRewardsFetchedEpoch(),
+    ]);
+
     if (lastIndexedSlot === null) {
       return;
     }
 
     // Attestation rewards arrive per epoch, so never advance beyond the last
     // epoch whose rewards have already been persisted.
-    const lastRewardsFetchedEpoch = await this.storage.getLastRewardsFetchedEpoch();
     if (lastRewardsFetchedEpoch === null) {
       return;
     }
