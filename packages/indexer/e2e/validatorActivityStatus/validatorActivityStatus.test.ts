@@ -52,7 +52,6 @@ describe('Validator Activity Status Updater', () => {
       {
         genesisTimeSec: Math.floor(gnosisConfig.beacon.genesisTimestamp / 1000),
         secPerSlot: Math.floor(gnosisConfig.beacon.slotDuration / 1000),
-        slotsPerEpoch: gnosisConfig.beacon.slotsPerEpoch,
       },
       gnosisConfig.beacon.slotsPerEpoch,
     );
@@ -145,21 +144,6 @@ describe('Validator Activity Status Updater', () => {
         },
       });
     }
-  }
-
-  // This helper seeds an already-open incident for the shared cluster.
-  async function seedOpenIncidentForCluster(
-    clusterId: string,
-    validatorIndexes: number[],
-    openedSlot: number,
-  ) {
-    await prisma.$transaction(async (tx) => {
-      await storage.openIncidentIfMissing(tx, {
-        clusterId,
-        openedSlot,
-        validatorIndexes,
-      });
-    });
   }
 
   // This helper creates or updates only the snapshot state that incident
@@ -291,10 +275,10 @@ describe('Validator Activity Status Updater', () => {
       },
     });
 
-    // Seed the dedicated incident processor cursor row used by the tracker.
+    // Seed the dedicated processor cursor row used by the activity-status updater.
     await prisma.incidentProcessorState.create({
       data: {
-        processor: 'incident-tracker',
+        processor: 'validator-activity-status',
         lastProcessedSlot: 9001,
       },
     });
@@ -304,7 +288,7 @@ describe('Validator Activity Status Updater', () => {
       where: { validatorIndex: 101 },
     });
     const processorState = await prisma.incidentProcessorState.findUniqueOrThrow({
-      where: { processor: 'incident-tracker' },
+      where: { processor: 'validator-activity-status' },
     });
 
     expect(snapshot.consecutiveMissedAttestations).toBe(0);
@@ -435,12 +419,15 @@ describe('Validator Activity Status Updater', () => {
     });
 
     // Seed an open incident so the recovery run has something to close.
-    await prisma.$transaction(async (tx) => {
-      await storage.openIncidentIfMissing(tx, {
+    await prisma.clusterIncident.create({
+      data: {
         clusterId: 'cluster-a',
+        status: 'open',
+        openedAt: new Date(beaconTime.getTimestampFromSlotNumber(120)),
         openedSlot: 120,
         validatorIndexes: [101],
-      });
+        updatedAt: new Date(beaconTime.getTimestampFromSlotNumber(120)),
+      },
     });
 
     // Seed the successful duty that resets the missed-attestation streak.
@@ -502,7 +489,16 @@ describe('Validator Activity Status Updater', () => {
     await seedClusterMembership('cluster-a', [101]);
 
     // Seed the first open incident for the shared cluster.
-    await seedOpenIncidentForCluster('cluster-a', [101], 120);
+    await prisma.clusterIncident.create({
+      data: {
+        clusterId: 'cluster-a',
+        status: 'open',
+        openedAt: new Date(beaconTime.getTimestampFromSlotNumber(120)),
+        openedSlot: 120,
+        validatorIndexes: [101],
+        updatedAt: new Date(beaconTime.getTimestampFromSlotNumber(120)),
+      },
+    });
 
     // Try to create a second open incident directly through Prisma.
     await expect(
@@ -567,7 +563,16 @@ describe('Validator Activity Status Updater', () => {
     await seedClusterMembership('cluster-a', [101, 102]);
 
     // Seed the pre-existing open incident that currently tracks validator 101.
-    await seedOpenIncidentForCluster('cluster-a', [101], 119);
+    await prisma.clusterIncident.create({
+      data: {
+        clusterId: 'cluster-a',
+        status: 'open',
+        openedAt: new Date(beaconTime.getTimestampFromSlotNumber(119)),
+        openedSlot: 119,
+        validatorIndexes: [101],
+        updatedAt: new Date(beaconTime.getTimestampFromSlotNumber(119)),
+      },
+    });
 
     // Keep validator 102 inactive while validator 101 has already recovered.
     await seedIncidentSnapshotState(101, {

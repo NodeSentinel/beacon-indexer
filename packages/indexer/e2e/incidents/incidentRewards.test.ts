@@ -84,7 +84,6 @@ describe('Incident Rewards', () => {
         {
           genesisTimeSec: Math.floor(gnosisConfig.beacon.genesisTimestamp / 1000),
           secPerSlot: Math.floor(gnosisConfig.beacon.slotDuration / 1000),
-          slotsPerEpoch: gnosisConfig.beacon.slotsPerEpoch,
         },
         gnosisConfig.beacon.slotsPerEpoch,
       ),

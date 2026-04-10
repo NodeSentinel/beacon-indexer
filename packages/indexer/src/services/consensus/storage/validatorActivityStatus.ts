@@ -19,7 +19,6 @@ const VALIDATOR_ACTIVITY_PROCESSOR = 'validator-activity-status';
 type IncidentTiming = {
   genesisTimeSec: number;
   secPerSlot: number;
-  slotsPerEpoch: number;
 };
 
 /**
@@ -41,16 +40,6 @@ export class ValidatorActivityStatusStorage {
     private readonly slotsPerEpoch: number,
   ) {}
 
-  private getSlotDate(slot: number | bigint): Date {
-    // Convert a consensus slot into a wall-clock timestamp using the configured
-    // genesis time and slot duration for the active chain.
-    const normalizedSlot = Number(slot);
-    return new Date(
-      this.incidentTiming.genesisTimeSec * 1000 +
-        normalizedSlot * this.incidentTiming.secPerSlot * 1000,
-    );
-  }
-
   private getSqlTimestampForExpression(slotExpression: Prisma.Sql): Prisma.Sql {
     // Reproduce the same slot -> timestamp mapping the JS helpers use, but let
     // SQL provide the slot expression so set-based incident reconciliation can
@@ -61,57 +50,6 @@ export class ValidatorActivityStatusStorage {
         INTERVAL '1 second'
       )
     `;
-  }
-
-  async openIncidentIfMissing(
-    tx: Prisma.TransactionClient,
-    params: { clusterId: string; openedSlot: number; validatorIndexes: number[] },
-  ) {
-    const openedSlot = Number(params.openedSlot);
-    // Normalize validator membership so the persisted incident payload stays
-    // deterministic even if callers pass duplicates or unsorted indexes.
-    const validatorIndexes = [
-      ...new Set(params.validatorIndexes.map((validatorIndex) => Number(validatorIndex))),
-    ].sort((a, b) => a - b);
-    const existing = await tx.clusterIncident.findFirst({
-      where: {
-        clusterId: params.clusterId,
-        status: 'open',
-      },
-    });
-
-    // Reuse the existing open incident for the cluster when one already exists,
-    // widening the validator set only when new inactive validators joined it.
-    if (existing) {
-      const mergedValidatorIndexes = [
-        ...new Set([...existing.validatorIndexes, ...validatorIndexes]),
-      ].sort((a, b) => a - b);
-
-      if (JSON.stringify(existing.validatorIndexes) === JSON.stringify(mergedValidatorIndexes)) {
-        return existing;
-      }
-
-      return tx.clusterIncident.update({
-        where: { id: existing.id },
-        data: {
-          validatorIndexes: mergedValidatorIndexes,
-          updatedAt: this.getSlotDate(openedSlot),
-        },
-      });
-    }
-
-    const openedAt = this.getSlotDate(openedSlot);
-
-    return tx.clusterIncident.create({
-      data: {
-        clusterId: params.clusterId,
-        status: 'open',
-        openedAt,
-        openedSlot,
-        validatorIndexes,
-        updatedAt: openedAt,
-      },
-    });
   }
 
   async reconcileOpenIncidents(tx: Prisma.TransactionClient, params: { processedSlot: number }) {

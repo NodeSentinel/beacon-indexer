@@ -204,7 +204,6 @@ async function main() {
     {
       genesisTimeSec: Math.floor(chainConfig.beacon.genesisTimestamp / 1000),
       secPerSlot: Math.floor(chainConfig.beacon.slotDuration / 1000),
-      slotsPerEpoch: chainConfig.beacon.slotsPerEpoch,
     },
     chainConfig.beacon.slotsPerEpoch,
   );
