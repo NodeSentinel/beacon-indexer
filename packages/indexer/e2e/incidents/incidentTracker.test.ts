@@ -214,9 +214,9 @@ describe('Incident Tracker', () => {
     expect(await prisma.notificationQueue.count()).toBe(0);
   });
 
-  // This scenario proves the set-based reconciler can add one inactive validator and remove another
-  // from the same open incident inside one sync run without closing the incident incorrectly.
-  it('keeps an incident open when one validator joins and another leaves in the same reconciliation run', async () => {
+  // This scenario proves the set-based reconciler can add one inactive validator and observe another
+  // recover without shrinking the cumulative validator set stored on the open incident.
+  it('keeps an incident open with the cumulative affected validator set when one validator recovers and another remains inactive', async () => {
     // Seed a second validator and attach it to the shared cluster for the new inactive member.
     await prisma.validator.create({
       data: {
@@ -259,10 +259,10 @@ describe('Incident Tracker', () => {
       orderBy: { openedSlot: 'asc' },
     });
 
-    // The original incident stays open and its validator membership reflects the net result.
+    // The original incident stays open and still keeps both validators for later reward attribution.
     expect(incidents).toHaveLength(1);
     expect(incidents[0]?.status).toBe('open');
     expect(incidents[0]?.openedSlot).toBe(119);
-    expect(incidents[0]?.validatorIndexes).toEqual([102]);
+    expect(incidents[0]?.validatorIndexes).toEqual([101, 102]);
   });
 });

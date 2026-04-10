@@ -186,6 +186,43 @@ describe('Incident Rewards', () => {
     `;
   }
 
+  // This helper seeds an additional validator and attaches it to the shared cluster.
+  async function seedClusterValidator(validatorIndex: number) {
+    await prisma.validator.create({
+      data: {
+        id: validatorIndex,
+        balance: BigInt(32_000_000_000),
+        effectiveBalance: BigInt(32_000_000_000),
+        status: 3,
+      },
+    });
+
+    await prisma.clusterValidator.create({
+      data: {
+        clusterId: CLUSTER_ID,
+        validatorIndex,
+      },
+    });
+
+    await prisma.validatorsSnapshotStats.create({
+      data: {
+        validatorIndex,
+        status: 'active',
+        isInactive: false,
+        inactiveSinceSlot: null,
+        activeSinceSlot: null,
+        consecutiveMissedAttestations: 0,
+        missedStreakStartedAtSlot: null,
+        missedRewardsProcessedThroughSlot: null,
+        balance: BigInt(32_000_000_000),
+        effectiveBalance: BigInt(32_000_000_000),
+        beaconStatus: 3,
+        attestationsTotal: 0,
+        attestationsMissed: 0,
+      },
+    });
+  }
+
   // This helper marks slots as indexed so both workers can advance.
   async function seedIndexedSlots(fromSlot: number, toSlot: number) {
     for (let slot = fromSlot; slot <= toSlot; slot += 1) {
@@ -375,5 +412,89 @@ describe('Incident Rewards', () => {
 
     expect(incident.missedConsensusRewards).toBe(BigInt(35));
     expect(snapshot.missedRewardsProcessedThroughSlot).toBe(processThroughSlot);
+  });
+
+  // This scenario proves a recovered validator remains part of the incident reward accounting
+  // until the last inactive validator recovers and the incident closes.
+  it('keeps attributing missed rewards for recovered validators while the incident remains open', async () => {
+    const recoveredValidatorIndex = VALIDATOR_INDEX;
+    const stillInactiveValidatorIndex = 102;
+
+    // Seed a second validator so the cluster incident can remain open after the first validator recovers.
+    await seedClusterValidator(stillInactiveValidatorIndex);
+
+    // Seed an already-open incident that has observed both validators during its lifetime.
+    await prisma.clusterIncident.create({
+      data: {
+        clusterId: CLUSTER_ID,
+        status: 'open',
+        openedAt: new Date(beaconTime.getTimestampFromSlotNumber(100)),
+        openedSlot: 100,
+        validatorIndexes: [recoveredValidatorIndex, stillInactiveValidatorIndex],
+      },
+    });
+
+    // Mark one validator as recovered and the other as still inactive so the incident should stay open.
+    await prisma.validatorsSnapshotStats.update({
+      where: { validatorIndex: recoveredValidatorIndex },
+      data: {
+        isInactive: false,
+        inactiveSinceSlot: null,
+      },
+    });
+    await prisma.validatorsSnapshotStats.update({
+      where: { validatorIndex: stillInactiveValidatorIndex },
+      data: {
+        isInactive: true,
+        inactiveSinceSlot: 100,
+        consecutiveMissedAttestations: 4,
+        missedStreakStartedAtSlot: 100,
+      },
+    });
+
+    // Seed missed consensus rewards for the recovered validator during the still-open incident window.
+    await prisma.epochRewards.create({
+      data: {
+        epoch: Math.floor(100 / gnosisConfig.beacon.slotsPerEpoch),
+        validatorIndex: recoveredValidatorIndex,
+        head: BigInt(0),
+        target: BigInt(0),
+        source: BigInt(0),
+        inactivity: BigInt(0),
+        missedHead: BigInt(4),
+        missedTarget: BigInt(3),
+        missedSource: BigInt(2),
+        missedInactivity: BigInt(1),
+      },
+    });
+
+    // Reconcile the live inactive set without shrinking the incident validator membership.
+    await validatorActivityStatusController.syncCurrentActivityStatus({
+      lastIndexedSlot: 103,
+      skipValidatorStatusUpdateWhenBehindHeadSlots: gnosisConfig.beacon.slotsPerEpoch,
+      maxAttestationDelay: 1,
+      inactiveMissedCount: 4,
+    });
+
+    // Run the reward worker through the same slot boundary.
+    await incidentRewardsController.syncOpenIncidentRewards({
+      processThroughSlot: 103,
+    });
+
+    // The incident should remain open and still include the recovered validator's missed rewards.
+    const incident = await prisma.clusterIncident.findFirstOrThrow({
+      where: { clusterId: CLUSTER_ID },
+    });
+    const recoveredSnapshot = await prisma.validatorsSnapshotStats.findUniqueOrThrow({
+      where: { validatorIndex: recoveredValidatorIndex },
+    });
+
+    expect(incident.status).toBe('open');
+    expect(incident.validatorIndexes).toEqual([
+      recoveredValidatorIndex,
+      stillInactiveValidatorIndex,
+    ]);
+    expect(incident.missedConsensusRewards).toBe(BigInt(10));
+    expect(recoveredSnapshot.missedRewardsProcessedThroughSlot).toBe(103);
   });
 });

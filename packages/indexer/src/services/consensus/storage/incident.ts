@@ -93,8 +93,9 @@ export class IncidentStorage {
     // Compare two durable states only:
     // 1. the clusters that currently have registered validators marked inactive,
     // 2. the clusters that currently have an open incident.
-    // From that diff SQL can insert missing incidents, update changed membership,
-    // and close incidents whose cluster no longer has inactive validators.
+    // From that diff SQL can insert missing incidents, widen the cumulative
+    // validator set when new validators join the incident, and close incidents
+    // only when no validators in the cluster remain inactive.
     await tx.$executeRaw`
       WITH current_inactive_clusters AS (
         -- Read only registered validators that are currently inactive and group
@@ -123,8 +124,8 @@ export class IncidentStorage {
       ),
       recomputed AS (
         -- Join the live inactive set with the currently open incidents. Every
-        -- touched cluster now has both its previous incident state and its next
-        -- validator membership in one row.
+        -- touched cluster now has both its previous incident state and its live
+        -- inactive membership in one row.
         SELECT
           COALESCE(current_inactive_clusters.cluster_id, open_incidents.cluster_id) AS cluster_id,
           open_incidents.id AS open_incident_id,
@@ -132,7 +133,18 @@ export class IncidentStorage {
           open_incidents.opened_slot AS current_opened_slot,
           COALESCE(open_incidents.validator_indexes, ARRAY[]::int[]) AS current_validator_indexes,
           current_inactive_clusters.first_inactive_slot,
-          COALESCE(current_inactive_clusters.inactive_validator_indexes, ARRAY[]::int[]) AS next_validator_indexes
+          COALESCE(current_inactive_clusters.inactive_validator_indexes, ARRAY[]::int[]) AS current_inactive_validator_indexes,
+          cardinality(
+            COALESCE(current_inactive_clusters.inactive_validator_indexes, ARRAY[]::int[])
+          ) AS current_inactive_count,
+          ARRAY(
+            SELECT DISTINCT validator_index
+            FROM unnest(
+              COALESCE(open_incidents.validator_indexes, ARRAY[]::int[]) ||
+              COALESCE(current_inactive_clusters.inactive_validator_indexes, ARRAY[]::int[])
+            ) AS validator_index
+            ORDER BY validator_index
+          ) AS next_validator_indexes
         FROM current_inactive_clusters
         FULL OUTER JOIN open_incidents
           ON open_incidents.cluster_id = current_inactive_clusters.cluster_id
@@ -172,15 +184,15 @@ export class IncidentStorage {
         RETURNING id
       ),
       updated_incidents AS (
-        -- Open incidents that stay non-empty only need their membership and
-        -- updated_at boundary refreshed to the slot we just processed.
+        -- Open incidents widen their stored validator set when new inactive
+        -- validators join the same incident later.
         UPDATE cluster_incident AS incident
         SET
           validator_indexes = recomputed.next_validator_indexes,
           updated_at = ${processedSlotTimestamp}
         FROM recomputed
         WHERE incident.id = recomputed.open_incident_id
-          AND cardinality(recomputed.next_validator_indexes) > 0
+          AND recomputed.current_inactive_count > 0
           AND recomputed.next_validator_indexes <> recomputed.current_validator_indexes
         RETURNING incident.id
       ),
@@ -200,7 +212,7 @@ export class IncidentStorage {
           updated_at = ${processedSlotTimestamp}
         FROM recomputed
         WHERE incident.id = recomputed.open_incident_id
-          AND cardinality(recomputed.next_validator_indexes) = 0
+          AND recomputed.current_inactive_count = 0
         RETURNING incident.id
       )
       SELECT 1
