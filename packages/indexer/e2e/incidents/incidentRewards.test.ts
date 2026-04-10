@@ -5,7 +5,6 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
 
 import { IncidentRewardsController } from '@/src/services/consensus/controllers/incidentRewards.js';
 import { ValidatorActivityStatusController } from '@/src/services/consensus/controllers/validatorActivityStatus.js';
-import { IncidentStorage } from '@/src/services/consensus/storage/incident.js';
 import { IncidentRewardsStorage } from '@/src/services/consensus/storage/incidentRewards.js';
 import type { SlotStorage } from '@/src/services/consensus/storage/slot.js';
 import { ValidatorActivityStatusStorage } from '@/src/services/consensus/storage/validatorActivityStatus.js';
@@ -79,16 +78,14 @@ describe('Incident Rewards', () => {
       getLastProcessedSlot: vi.fn(),
     } as unknown as SlotStorage;
 
-    const incidentStorage = new IncidentStorage(prisma, {
-      genesisTimeSec: Math.floor(gnosisConfig.beacon.genesisTimestamp / 1000),
-      secPerSlot: Math.floor(gnosisConfig.beacon.slotDuration / 1000),
-      slotsPerEpoch: gnosisConfig.beacon.slotsPerEpoch,
-    });
-
     validatorActivityStatusController = new ValidatorActivityStatusController(
       new ValidatorActivityStatusStorage(
         prisma,
-        incidentStorage,
+        {
+          genesisTimeSec: Math.floor(gnosisConfig.beacon.genesisTimestamp / 1000),
+          secPerSlot: Math.floor(gnosisConfig.beacon.slotDuration / 1000),
+          slotsPerEpoch: gnosisConfig.beacon.slotsPerEpoch,
+        },
         gnosisConfig.beacon.slotsPerEpoch,
       ),
       slotStorage,

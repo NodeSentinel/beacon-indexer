@@ -4,7 +4,6 @@ import { PrismaClient } from '@beacon-indexer/db';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { ValidatorActivityStatusController } from '@/src/services/consensus/controllers/validatorActivityStatus.js';
-import { IncidentStorage } from '@/src/services/consensus/storage/incident.js';
 import type { SlotStorage } from '@/src/services/consensus/storage/slot.js';
 import { ValidatorActivityStatusStorage } from '@/src/services/consensus/storage/validatorActivityStatus.js';
 
@@ -14,7 +13,6 @@ describe('Validator Activity Status Updater', () => {
   let beaconTime: BeaconTime;
   let storage: ValidatorActivityStatusStorage;
   let controller: ValidatorActivityStatusController;
-  let incidentStorage: IncidentStorage;
   let slotStorage: SlotStorage;
 
   beforeAll(async () => {
@@ -49,14 +47,13 @@ describe('Validator Activity Status Updater', () => {
       lookbackSlot: 0,
       delaySlotsToHead: gnosisConfig.beacon.delaySlotsToHead,
     });
-    incidentStorage = new IncidentStorage(prisma, {
-      genesisTimeSec: Math.floor(gnosisConfig.beacon.genesisTimestamp / 1000),
-      secPerSlot: Math.floor(gnosisConfig.beacon.slotDuration / 1000),
-      slotsPerEpoch: gnosisConfig.beacon.slotsPerEpoch,
-    });
     storage = new ValidatorActivityStatusStorage(
       prisma,
-      incidentStorage,
+      {
+        genesisTimeSec: Math.floor(gnosisConfig.beacon.genesisTimestamp / 1000),
+        secPerSlot: Math.floor(gnosisConfig.beacon.slotDuration / 1000),
+        slotsPerEpoch: gnosisConfig.beacon.slotsPerEpoch,
+      },
       gnosisConfig.beacon.slotsPerEpoch,
     );
 
@@ -67,6 +64,7 @@ describe('Validator Activity Status Updater', () => {
     controller = new ValidatorActivityStatusController(storage, slotStorage, beaconTime);
 
     // Remove only the data touched by this suite, keeping the setup isolated and deterministic.
+    await prisma.notificationQueue.deleteMany({});
     await prisma.incidentProcessorState.deleteMany({});
     await prisma.clusterIncident.deleteMany({});
     await prisma.clusterValidator.deleteMany({});
@@ -147,6 +145,57 @@ describe('Validator Activity Status Updater', () => {
         },
       });
     }
+  }
+
+  // This helper seeds an already-open incident for the shared cluster.
+  async function seedOpenIncidentForCluster(
+    clusterId: string,
+    validatorIndexes: number[],
+    openedSlot: number,
+  ) {
+    await prisma.$transaction(async (tx) => {
+      await storage.openIncidentIfMissing(tx, {
+        clusterId,
+        openedSlot,
+        validatorIndexes,
+      });
+    });
+  }
+
+  // This helper creates or updates only the snapshot state that incident
+  // reconciliation reads directly from the durable validator snapshot table.
+  async function seedIncidentSnapshotState(
+    validatorIndex: number,
+    params: {
+      isInactive: boolean;
+      inactiveSinceSlot: number | null;
+    },
+  ) {
+    await prisma.validatorsSnapshotStats.upsert({
+      where: { validatorIndex },
+      update: {
+        isInactive: params.isInactive,
+        inactiveSinceSlot: params.inactiveSinceSlot,
+        activeSinceSlot: params.isInactive ? null : 90,
+        consecutiveMissedAttestations: params.isInactive ? 4 : 0,
+        missedStreakStartedAtSlot: params.inactiveSinceSlot,
+      },
+      create: {
+        validatorIndex,
+        status: 'active',
+        isInactive: params.isInactive,
+        inactiveSinceSlot: params.inactiveSinceSlot,
+        activeSinceSlot: params.isInactive ? null : 90,
+        consecutiveMissedAttestations: params.isInactive ? 4 : 0,
+        missedStreakStartedAtSlot: params.inactiveSinceSlot,
+        missedRewardsProcessedThroughSlot: null,
+        balance: BigInt(32_000_000_000),
+        effectiveBalance: BigInt(32_000_000_000),
+        beaconStatus: 3,
+        attestationsTotal: 0,
+        attestationsMissed: 0,
+      },
+    });
   }
 
   // This helper inserts recent committee duties that were all missed for one validator.
@@ -387,7 +436,7 @@ describe('Validator Activity Status Updater', () => {
 
     // Seed an open incident so the recovery run has something to close.
     await prisma.$transaction(async (tx) => {
-      await incidentStorage.openIncidentIfMissing(tx, {
+      await storage.openIncidentIfMissing(tx, {
         clusterId: 'cluster-a',
         openedSlot: 120,
         validatorIndexes: [101],
@@ -444,5 +493,111 @@ describe('Validator Activity Status Updater', () => {
     // The incident should open at the first threshold-crossing slot and close only after the final recovery.
     expect(incidents[0]?.openedSlot).toBe(120);
     expect(incidents[0]?.closedSlot).toBe(125);
+  });
+
+  // This scenario locks the database invariant that each cluster can have only one open incident.
+  it('allows at most one open incident per cluster', async () => {
+    // Seed the validator and cluster rows needed for the incident foreign keys.
+    await seedSnapshotValidator(101);
+    await seedClusterMembership('cluster-a', [101]);
+
+    // Seed the first open incident for the shared cluster.
+    await seedOpenIncidentForCluster('cluster-a', [101], 120);
+
+    // Try to create a second open incident directly through Prisma.
+    await expect(
+      prisma.clusterIncident.create({
+        data: {
+          clusterId: 'cluster-a',
+          status: 'open',
+          openedAt: new Date(beaconTime.getTimestampFromSlotNumber(130)),
+          openedSlot: 130,
+          validatorIndexes: [102],
+        },
+      }),
+    ).rejects.toThrow();
+  });
+
+  // This scenario proves the set-based reconciler opens one incident at the first inactive slot
+  // even when additional validators join the same incident in later batches of the same sync run.
+  it('opens one incident at the earliest addition slot and keeps the final validator set', async () => {
+    // Seed two validators and attach both of them to the shared cluster.
+    await seedSnapshotValidator(101);
+    await seedSnapshotValidator(102);
+    await seedClusterMembership('cluster-a', [101, 102]);
+
+    // Mark both validators inactive with different first-miss slots.
+    await seedIncidentSnapshotState(101, {
+      isInactive: true,
+      inactiveSinceSlot: 120,
+    });
+    await seedIncidentSnapshotState(102, {
+      isInactive: true,
+      inactiveSinceSlot: 121,
+    });
+
+    // Reconcile from the current snapshot state after processing slot 121.
+    await prisma.$transaction(async (tx) => {
+      await storage.reconcileOpenIncidents(tx, {
+        processedSlot: 121,
+      });
+    });
+
+    // Load the single incident row after both batches are applied.
+    const incident = await prisma.clusterIncident.findFirstOrThrow({
+      where: { clusterId: 'cluster-a' },
+    });
+
+    // The incident opens on the first slot and ends up containing both validators after both batches apply.
+    expect(incident.status).toBe('open');
+    expect(incident.openedSlot).toBe(120);
+    expect(incident.validatorIndexes).toEqual([101, 102]);
+    expect(incident.openedNotificationQueuedAt).toBeNull();
+
+    // The indexer no longer enqueues Telegram notifications directly.
+    expect(await prisma.notificationQueue.count()).toBe(0);
+  });
+
+  // This scenario proves the set-based reconciler can add one inactive validator and observe another
+  // recover without shrinking the cumulative validator set stored on the open incident.
+  it('keeps an incident open with the cumulative affected validator set when one validator recovers and another remains inactive', async () => {
+    // Seed two validators and attach both of them to the shared cluster.
+    await seedSnapshotValidator(101);
+    await seedSnapshotValidator(102);
+    await seedClusterMembership('cluster-a', [101, 102]);
+
+    // Seed the pre-existing open incident that currently tracks validator 101.
+    await seedOpenIncidentForCluster('cluster-a', [101], 119);
+
+    // Keep validator 102 inactive while validator 101 has already recovered.
+    await seedIncidentSnapshotState(101, {
+      isInactive: false,
+      inactiveSinceSlot: null,
+    });
+    await seedIncidentSnapshotState(102, {
+      isInactive: true,
+      inactiveSinceSlot: 120,
+    });
+
+    // Reconcile from the current snapshot state after processing the recovery slot.
+    await prisma.$transaction(async (tx) => {
+      await storage.reconcileOpenIncidents(tx, {
+        processedSlot: 123,
+      });
+    });
+
+    // Read back the cluster incidents after both deltas are applied.
+    const incidents = await prisma.clusterIncident.findMany({
+      where: { clusterId: 'cluster-a' },
+      orderBy: {
+        openedSlot: 'asc',
+      },
+    });
+
+    // The original incident stays open and still keeps both validators for later reward attribution.
+    expect(incidents).toHaveLength(1);
+    expect(incidents[0]?.status).toBe('open');
+    expect(incidents[0]?.openedSlot).toBe(119);
+    expect(incidents[0]?.validatorIndexes).toEqual([101, 102]);
   });
 });

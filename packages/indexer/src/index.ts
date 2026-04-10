@@ -21,7 +21,6 @@ import { ChainStatsStorage } from '@/src/services/consensus/storage/chainStats.j
 import { DailyArchiveStorage } from '@/src/services/consensus/storage/dailyArchive.js';
 import { EpochStorage } from '@/src/services/consensus/storage/epoch.js';
 import { HourlyArchiveStorage } from '@/src/services/consensus/storage/hourlyArchive.js';
-import { IncidentStorage } from '@/src/services/consensus/storage/incident.js';
 import { IncidentRewardsStorage } from '@/src/services/consensus/storage/incidentRewards.js';
 import { IndexerConfigStorage } from '@/src/services/consensus/storage/indexerConfig.js';
 import { MonthlyArchiveStorage } from '@/src/services/consensus/storage/monthlyArchive.js';
@@ -192,11 +191,6 @@ async function main() {
   const snapshotController = new SnapshotController(snapshotStorage, beaconTime);
 
   // Create incident storage and tracker controller
-  const incidentStorage = new IncidentStorage(prisma, {
-    genesisTimeSec: Math.floor(chainConfig.beacon.genesisTimestamp / 1000),
-    secPerSlot: Math.floor(chainConfig.beacon.slotDuration / 1000),
-    slotsPerEpoch: chainConfig.beacon.slotsPerEpoch,
-  });
   const incidentRewardsStorage = new IncidentRewardsStorage(prisma, {
     slotsPerEpoch: chainConfig.beacon.slotsPerEpoch,
   });
@@ -207,7 +201,11 @@ async function main() {
 
   const validatorActivityStatusStorage = new ValidatorActivityStatusStorage(
     prisma,
-    incidentStorage,
+    {
+      genesisTimeSec: Math.floor(chainConfig.beacon.genesisTimestamp / 1000),
+      secPerSlot: Math.floor(chainConfig.beacon.slotDuration / 1000),
+      slotsPerEpoch: chainConfig.beacon.slotsPerEpoch,
+    },
     chainConfig.beacon.slotsPerEpoch,
   );
   const validatorActivityStatusController = new ValidatorActivityStatusController(
