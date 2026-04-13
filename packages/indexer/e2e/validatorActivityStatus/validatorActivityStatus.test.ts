@@ -65,6 +65,7 @@ describe('Validator Activity Status Updater', () => {
     // Remove only the data touched by this suite, keeping the setup isolated and deterministic.
     await prisma.notificationQueue.deleteMany({});
     await prisma.incidentProcessorState.deleteMany({});
+    await prisma.clusterIncidentValidator.deleteMany({});
     await prisma.clusterIncident.deleteMany({});
     await prisma.clusterValidator.deleteMany({});
     await prisma.cluster.deleteMany({});
@@ -234,6 +235,15 @@ describe('Validator Activity Status Updater', () => {
     });
   }
 
+  // This helper reads the incident-validator intervals in a stable order so tests
+  // can assert the historical validator participation captured on each incident.
+  async function getIncidentValidatorIntervals(incidentId: string) {
+    return prisma.clusterIncidentValidator.findMany({
+      where: { incidentId },
+      orderBy: [{ validatorIndex: 'asc' }, { inactiveFromSlot: 'asc' }],
+    });
+  }
+
   // This helper keeps the activity-sync call sites short in the slot-driven scenarios below.
   async function runActivitySyncThrough(
     lastIndexedSlot: number,
@@ -397,7 +407,11 @@ describe('Validator Activity Status Updater', () => {
     expect(snapshot.isInactive).toBe(true);
     expect(snapshot.inactiveSinceSlot).toBe(120);
     expect(incident?.openedSlot).toBe(120);
-    expect(incident?.validatorIndexes).toEqual([101]);
+    expect(
+      incident
+        ? (await getIncidentValidatorIntervals(incident.id)).map((row) => row.validatorIndex)
+        : [],
+    ).toEqual([101]);
   });
 
   // This scenario locks the exact slot where the activity processor should close the active incident.
@@ -425,8 +439,14 @@ describe('Validator Activity Status Updater', () => {
         status: 'open',
         openedAt: new Date(beaconTime.getTimestampFromSlotNumber(120)),
         openedSlot: 120,
-        validatorIndexes: [101],
         updatedAt: new Date(beaconTime.getTimestampFromSlotNumber(120)),
+      },
+    });
+    await prisma.clusterIncidentValidator.create({
+      data: {
+        incidentId: (await getOpenIncident('cluster-a'))!.id,
+        validatorIndex: 101,
+        inactiveFromSlot: 120,
       },
     });
 
@@ -495,7 +515,6 @@ describe('Validator Activity Status Updater', () => {
         status: 'open',
         openedAt: new Date(beaconTime.getTimestampFromSlotNumber(120)),
         openedSlot: 120,
-        validatorIndexes: [101],
         updatedAt: new Date(beaconTime.getTimestampFromSlotNumber(120)),
       },
     });
@@ -508,7 +527,6 @@ describe('Validator Activity Status Updater', () => {
           status: 'open',
           openedAt: new Date(beaconTime.getTimestampFromSlotNumber(130)),
           openedSlot: 130,
-          validatorIndexes: [102],
         },
       }),
     ).rejects.toThrow();
@@ -547,7 +565,9 @@ describe('Validator Activity Status Updater', () => {
     // The incident opens on the first slot and ends up containing both validators after both batches apply.
     expect(incident.status).toBe('open');
     expect(incident.openedSlot).toBe(120);
-    expect(incident.validatorIndexes).toEqual([101, 102]);
+    expect(
+      (await getIncidentValidatorIntervals(incident.id)).map((row) => row.validatorIndex),
+    ).toEqual([101, 102]);
     expect(incident.openedNotificationQueuedAt).toBeNull();
 
     // The indexer no longer enqueues Telegram notifications directly.
@@ -569,8 +589,14 @@ describe('Validator Activity Status Updater', () => {
         status: 'open',
         openedAt: new Date(beaconTime.getTimestampFromSlotNumber(119)),
         openedSlot: 119,
-        validatorIndexes: [101],
         updatedAt: new Date(beaconTime.getTimestampFromSlotNumber(119)),
+      },
+    });
+    await prisma.clusterIncidentValidator.create({
+      data: {
+        incidentId: (await getOpenIncident('cluster-a'))!.id,
+        validatorIndex: 101,
+        inactiveFromSlot: 119,
       },
     });
 
@@ -603,6 +629,10 @@ describe('Validator Activity Status Updater', () => {
     expect(incidents).toHaveLength(1);
     expect(incidents[0]?.status).toBe('open');
     expect(incidents[0]?.openedSlot).toBe(119);
-    expect(incidents[0]?.validatorIndexes).toEqual([101, 102]);
+    expect(
+      incidents[0]
+        ? (await getIncidentValidatorIntervals(incidents[0].id)).map((row) => row.validatorIndex)
+        : [],
+    ).toEqual([101, 102]);
   });
 });

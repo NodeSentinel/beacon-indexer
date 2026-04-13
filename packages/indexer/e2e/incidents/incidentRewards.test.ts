@@ -101,6 +101,7 @@ describe('Incident Rewards', () => {
 
     // Clear only the tables this suite touches.
     await prisma.notificationQueue.deleteMany({});
+    await prisma.clusterIncidentValidator.deleteMany({});
     await prisma.clusterIncident.deleteMany({});
     await prisma.incidentProcessorState.deleteMany({});
     await prisma.clusterValidator.deleteMany({});
@@ -238,6 +239,31 @@ describe('Incident Rewards', () => {
     }
   }
 
+  // This helper seeds one inactivity interval row for a validator inside an incident.
+  async function seedIncidentInterval(params: {
+    incidentId: string;
+    validatorIndex: number;
+    inactiveFromSlot: number;
+    inactiveToSlot?: number | null;
+    rewardsProcessedThroughSlot?: number | null;
+    missedAttestationRewards?: bigint;
+    missedSyncRewards?: bigint;
+    missedConsensusRewards?: bigint;
+  }) {
+    await prisma.clusterIncidentValidator.create({
+      data: {
+        incidentId: params.incidentId,
+        validatorIndex: params.validatorIndex,
+        inactiveFromSlot: params.inactiveFromSlot,
+        inactiveToSlot: params.inactiveToSlot ?? null,
+        rewardsProcessedThroughSlot: params.rewardsProcessedThroughSlot ?? null,
+        missedAttestationRewards: params.missedAttestationRewards ?? BigInt(0),
+        missedSyncRewards: params.missedSyncRewards ?? BigInt(0),
+        missedConsensusRewards: params.missedConsensusRewards ?? BigInt(0),
+      },
+    });
+  }
+
   // This scenario proves the reward worker finalizes closed incidents without queuing notifications.
   it('finalizes closed incidents without enqueuing close notifications', async () => {
     // Create an inactivity streak that opens an incident and a later hit that closes it.
@@ -307,19 +333,26 @@ describe('Incident Rewards', () => {
       processThroughSlot: 104,
     });
 
-    // Load the finalized incident and validator snapshot cursor for assertions.
+    // Load the finalized incident and interval cursor for assertions.
     const incident = await prisma.clusterIncident.findFirstOrThrow({
       where: { clusterId: CLUSTER_ID },
     });
-    const snapshot = await prisma.validatorsSnapshotStats.findUniqueOrThrow({
-      where: { validatorIndex: VALIDATOR_INDEX },
+    const incidentValidator = await prisma.clusterIncidentValidator.findFirstOrThrow({
+      where: { incidentId: incident.id, validatorIndex: VALIDATOR_INDEX },
     });
 
+    expect(incident.missedAttestationRewards).toBe(BigInt(10));
+    expect(incident.missedSyncRewards).toBe(BigInt(5));
     expect(incident.missedConsensusRewards).toBe(BigInt(15));
+    expect(incidentValidator.missedAttestationRewards).toBe(BigInt(10));
+    expect(incidentValidator.missedSyncRewards).toBe(BigInt(5));
+    expect(incidentValidator.missedConsensusRewards).toBe(BigInt(15));
     expect(incident.rewardsFinalized).toBe(true);
     expect(incident.rewardsFinalizedAt).not.toBeNull();
     expect(incident.closedNotificationQueuedAt).toBeNull();
-    expect(snapshot.missedRewardsProcessedThroughSlot).toBe(104);
+    expect(incidentValidator.rewardsProcessedThroughSlot).toBe(104);
+    expect(incidentValidator.inactiveFromSlot).toBe(100);
+    expect(incidentValidator.inactiveToSlot).toBe(104);
     expect(await prisma.notificationQueue.count()).toBe(0);
   });
 
@@ -332,23 +365,22 @@ describe('Incident Rewards', () => {
     const processThroughSlot = firstUnprocessedSlot + Math.floor(slotsPerEpoch / 2);
 
     // Seed an already-open incident with a previously accumulated reward total.
-    await prisma.clusterIncident.create({
+    const incident = await prisma.clusterIncident.create({
       data: {
         clusterId: CLUSTER_ID,
         status: 'open',
         openedAt: new Date(beaconTime.getTimestampFromSlotNumber(openedSlot)),
         openedSlot,
-        validatorIndexes: [VALIDATOR_INDEX],
-        missedConsensusRewards: BigInt(20),
       },
     });
-
-    // Mark rewards through the end of epoch 3 as already processed for this validator.
-    await prisma.validatorsSnapshotStats.update({
-      where: { validatorIndex: VALIDATOR_INDEX },
-      data: {
-        missedRewardsProcessedThroughSlot: processedThroughSlot,
-      },
+    await seedIncidentInterval({
+      incidentId: incident.id,
+      validatorIndex: VALIDATOR_INDEX,
+      inactiveFromSlot: openedSlot,
+      rewardsProcessedThroughSlot: processedThroughSlot,
+      missedAttestationRewards: BigInt(8),
+      missedSyncRewards: BigInt(12),
+      missedConsensusRewards: BigInt(20),
     });
 
     // Seed an older epoch reward that must be ignored because it is already behind the cursor.
@@ -405,46 +437,43 @@ describe('Incident Rewards', () => {
     });
 
     // Confirm only the new epoch reward and the in-range sync penalty were applied.
-    const incident = await prisma.clusterIncident.findFirstOrThrow({
+    const refreshedIncident = await prisma.clusterIncident.findFirstOrThrow({
       where: { clusterId: CLUSTER_ID },
     });
-    const snapshot = await prisma.validatorsSnapshotStats.findUniqueOrThrow({
-      where: { validatorIndex: VALIDATOR_INDEX },
+    const incidentValidator = await prisma.clusterIncidentValidator.findFirstOrThrow({
+      where: { incidentId: incident.id, validatorIndex: VALIDATOR_INDEX },
     });
 
-    expect(incident.missedConsensusRewards).toBe(BigInt(35));
-    expect(snapshot.missedRewardsProcessedThroughSlot).toBe(processThroughSlot);
+    expect(refreshedIncident.missedAttestationRewards).toBe(BigInt(18));
+    expect(refreshedIncident.missedSyncRewards).toBe(BigInt(17));
+    expect(refreshedIncident.missedConsensusRewards).toBe(BigInt(35));
+    expect(incidentValidator.missedAttestationRewards).toBe(BigInt(18));
+    expect(incidentValidator.missedSyncRewards).toBe(BigInt(17));
+    expect(incidentValidator.missedConsensusRewards).toBe(BigInt(35));
+    expect(incidentValidator.rewardsProcessedThroughSlot).toBe(processThroughSlot);
   });
 
-  // This scenario proves validator-centric accounting starts from the validator's
-  // own inactive-since slot even when the cluster incident opened earlier.
-  it('uses inactiveSinceSlot as the lower bound before falling back to the incident window', async () => {
+  // This scenario proves interval-based accounting starts from the validator's
+  // own interval start even when the cluster incident opened earlier.
+  it('uses inactiveFromSlot as the lower bound even when the incident opened earlier', async () => {
     const openedSlot = 64;
     const validatorInactiveSinceSlot = 96;
     const processThroughSlot = 100;
 
     // Seed an already-open incident whose cluster window started before this
     // validator actually became inactive.
-    await prisma.clusterIncident.create({
+    const incident = await prisma.clusterIncident.create({
       data: {
         clusterId: CLUSTER_ID,
         status: 'open',
         openedAt: new Date(beaconTime.getTimestampFromSlotNumber(openedSlot)),
         openedSlot,
-        validatorIndexes: [VALIDATOR_INDEX],
       },
     });
-
-    // Mark the validator as currently inactive starting at a later slot than
-    // the incident's opening slot.
-    await prisma.validatorsSnapshotStats.update({
-      where: { validatorIndex: VALIDATOR_INDEX },
-      data: {
-        isInactive: true,
-        inactiveSinceSlot: validatorInactiveSinceSlot,
-        consecutiveMissedAttestations: 4,
-        missedStreakStartedAtSlot: validatorInactiveSinceSlot,
-      },
+    await seedIncidentInterval({
+      incidentId: incident.id,
+      validatorIndex: VALIDATOR_INDEX,
+      inactiveFromSlot: validatorInactiveSinceSlot,
     });
 
     // Seed one sync penalty before the validator became inactive and one after
@@ -470,20 +499,25 @@ describe('Incident Rewards', () => {
     });
 
     // Only the penalty inside the validator's own inactive window should be applied.
-    const incident = await prisma.clusterIncident.findFirstOrThrow({
+    const refreshedIncident = await prisma.clusterIncident.findFirstOrThrow({
       where: { clusterId: CLUSTER_ID },
     });
-    const snapshot = await prisma.validatorsSnapshotStats.findUniqueOrThrow({
-      where: { validatorIndex: VALIDATOR_INDEX },
+    const incidentValidator = await prisma.clusterIncidentValidator.findFirstOrThrow({
+      where: { incidentId: incident.id, validatorIndex: VALIDATOR_INDEX },
     });
 
-    expect(incident.missedConsensusRewards).toBe(BigInt(5));
-    expect(snapshot.missedRewardsProcessedThroughSlot).toBe(processThroughSlot);
+    expect(refreshedIncident.missedAttestationRewards).toBe(BigInt(0));
+    expect(refreshedIncident.missedSyncRewards).toBe(BigInt(5));
+    expect(refreshedIncident.missedConsensusRewards).toBe(BigInt(5));
+    expect(incidentValidator.missedAttestationRewards).toBe(BigInt(0));
+    expect(incidentValidator.missedSyncRewards).toBe(BigInt(5));
+    expect(incidentValidator.missedConsensusRewards).toBe(BigInt(5));
+    expect(incidentValidator.rewardsProcessedThroughSlot).toBe(processThroughSlot);
   });
 
-  // This scenario proves a recovered validator remains part of the incident reward accounting
-  // until the last inactive validator recovers and the incident closes.
-  it('keeps attributing missed rewards for recovered validators while the incident remains open', async () => {
+  // This scenario proves a recovered validator's closed interval still contributes
+  // to reward accounting while the incident stays open for another validator.
+  it('keeps attributing missed rewards from closed validator intervals while the incident remains open', async () => {
     const recoveredValidatorIndex = VALIDATOR_INDEX;
     const stillInactiveValidatorIndex = 102;
 
@@ -491,32 +525,24 @@ describe('Incident Rewards', () => {
     await seedClusterValidator(stillInactiveValidatorIndex);
 
     // Seed an already-open incident that has observed both validators during its lifetime.
-    await prisma.clusterIncident.create({
+    const incident = await prisma.clusterIncident.create({
       data: {
         clusterId: CLUSTER_ID,
         status: 'open',
         openedAt: new Date(beaconTime.getTimestampFromSlotNumber(100)),
         openedSlot: 100,
-        validatorIndexes: [recoveredValidatorIndex, stillInactiveValidatorIndex],
       },
     });
-
-    // Mark one validator as recovered and the other as still inactive so the incident should stay open.
-    await prisma.validatorsSnapshotStats.update({
-      where: { validatorIndex: recoveredValidatorIndex },
-      data: {
-        isInactive: false,
-        inactiveSinceSlot: null,
-      },
+    await seedIncidentInterval({
+      incidentId: incident.id,
+      validatorIndex: recoveredValidatorIndex,
+      inactiveFromSlot: 100,
+      inactiveToSlot: 103,
     });
-    await prisma.validatorsSnapshotStats.update({
-      where: { validatorIndex: stillInactiveValidatorIndex },
-      data: {
-        isInactive: true,
-        inactiveSinceSlot: 100,
-        consecutiveMissedAttestations: 4,
-        missedStreakStartedAtSlot: 100,
-      },
+    await seedIncidentInterval({
+      incidentId: incident.id,
+      validatorIndex: stillInactiveValidatorIndex,
+      inactiveFromSlot: 100,
     });
 
     // Seed missed consensus rewards for the recovered validator during the still-open incident window.
@@ -535,33 +561,34 @@ describe('Incident Rewards', () => {
       },
     });
 
-    // Reconcile the live inactive set without shrinking the incident validator membership.
-    await validatorActivityStatusController.syncCurrentActivityStatus({
-      lastIndexedSlot: 103,
-      skipValidatorStatusUpdateWhenBehindHeadSlots: gnosisConfig.beacon.slotsPerEpoch,
-      maxAttestationDelay: 1,
-      inactiveMissedCount: 4,
-    });
-
     // Run the reward worker through the same slot boundary.
     await incidentRewardsController.syncOpenIncidentRewards({
       processThroughSlot: 103,
     });
 
     // The incident should remain open and still include the recovered validator's missed rewards.
-    const incident = await prisma.clusterIncident.findFirstOrThrow({
+    const refreshedIncident = await prisma.clusterIncident.findFirstOrThrow({
       where: { clusterId: CLUSTER_ID },
     });
-    const recoveredSnapshot = await prisma.validatorsSnapshotStats.findUniqueOrThrow({
-      where: { validatorIndex: recoveredValidatorIndex },
+    const incidentValidators = await prisma.clusterIncidentValidator.findMany({
+      where: { incidentId: incident.id },
+      orderBy: [{ validatorIndex: 'asc' }, { inactiveFromSlot: 'asc' }],
     });
 
-    expect(incident.status).toBe('open');
-    expect(incident.validatorIndexes).toEqual([
+    expect(refreshedIncident.status).toBe('open');
+    expect(incidentValidators.map((row) => row.validatorIndex)).toEqual([
       recoveredValidatorIndex,
       stillInactiveValidatorIndex,
     ]);
-    expect(incident.missedConsensusRewards).toBe(BigInt(10));
-    expect(recoveredSnapshot.missedRewardsProcessedThroughSlot).toBe(103);
+    expect(incidentValidators[0]?.inactiveToSlot).toBe(103);
+    expect(refreshedIncident.missedAttestationRewards).toBe(BigInt(10));
+    expect(refreshedIncident.missedSyncRewards).toBe(BigInt(0));
+    expect(refreshedIncident.missedConsensusRewards).toBe(BigInt(10));
+    expect(incidentValidators[0]?.missedAttestationRewards).toBe(BigInt(10));
+    expect(incidentValidators[0]?.missedSyncRewards).toBe(BigInt(0));
+    expect(incidentValidators[0]?.missedConsensusRewards).toBe(BigInt(10));
+    expect(incidentValidators[1]?.missedAttestationRewards).toBe(BigInt(0));
+    expect(incidentValidators[1]?.missedSyncRewards).toBe(BigInt(0));
+    expect(incidentValidators[1]?.missedConsensusRewards).toBe(BigInt(0));
   });
 });

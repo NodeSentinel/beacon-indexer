@@ -38,6 +38,11 @@ Follow this order: **XState → Controllers → Storage → Database**.
 - **Use raw SQL** for performance-critical operations.
 - For data organization, partitions, and archival, see **`packages/db/AGENTS.md`**.
 
+## Business logic clarity
+
+- When business logic is unclear, incomplete, or open to multiple reasonable
+  interpretations, do not assume a path. Stop and ask before implementing.
+
 ## E2E tests
 
 Location: `packages/indexer/e2e/`

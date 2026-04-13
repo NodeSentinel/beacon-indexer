@@ -358,11 +358,12 @@ CREATE TABLE "public"."cluster_incident" (
     "cluster_id" TEXT NOT NULL,
     "opened_at" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "opened_slot" INTEGER NOT NULL,
-    "validator_indexes" INTEGER[] NOT NULL DEFAULT '{}',
     "closed_at" TIMESTAMP,
     "closed_slot" INTEGER,
     "duration_slots" INTEGER,
     "duration_seconds" INTEGER,
+    "missed_attestation_rewards" BIGINT,
+    "missed_sync_rewards" BIGINT,
     "missed_consensus_rewards" BIGINT,
     "rewards_finalized" BOOLEAN NOT NULL DEFAULT false,
     "rewards_finalized_at" TIMESTAMP,
@@ -372,6 +373,23 @@ CREATE TABLE "public"."cluster_incident" (
     "updated_at" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT "cluster_incident_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "public"."cluster_incident_validator" (
+    "id" TEXT NOT NULL,
+    "incident_id" TEXT NOT NULL,
+    "validator_index" INTEGER NOT NULL,
+    "inactive_from_slot" INTEGER NOT NULL,
+    "inactive_to_slot" INTEGER,
+    "rewards_processed_through_slot" INTEGER,
+    "missed_attestation_rewards" BIGINT NOT NULL DEFAULT 0,
+    "missed_sync_rewards" BIGINT NOT NULL DEFAULT 0,
+    "missed_consensus_rewards" BIGINT NOT NULL DEFAULT 0,
+    "created_at" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "cluster_incident_validator_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
@@ -467,6 +485,23 @@ CREATE INDEX "cluster_incident_cluster_id_idx" ON "public"."cluster_incident"("c
 CREATE INDEX "cluster_incident_status_opened_at_idx" ON "public"."cluster_incident"("status", "opened_at" DESC);
 
 -- CreateIndex
+CREATE INDEX "cluster_incident_validator_incident_id_idx" ON "public"."cluster_incident_validator"("incident_id");
+
+-- CreateIndex
+CREATE INDEX "cluster_incident_validator_incident_id_validator_index_idx" ON "public"."cluster_incident_validator"("incident_id", "validator_index");
+
+-- CreateIndex
+CREATE INDEX "cluster_incident_validator_incident_id_inactive_to_slot_idx" ON "public"."cluster_incident_validator"("incident_id", "inactive_to_slot");
+
+-- CreateIndex
+CREATE INDEX "cluster_incident_validator_validator_index_idx" ON "public"."cluster_incident_validator"("validator_index");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "cluster_incident_validator_open_interval_unique_idx"
+ON "public"."cluster_incident_validator"("incident_id", "validator_index")
+WHERE "inactive_to_slot" IS NULL;
+
+-- CreateIndex
 CREATE UNIQUE INDEX "cluster_incident_cluster_id_open_unique_idx"
 ON "public"."cluster_incident"("cluster_id")
 WHERE "status" = 'open';
@@ -488,6 +523,12 @@ ALTER TABLE "public"."notification_queue" ADD CONSTRAINT "notification_queue_use
 
 -- AddForeignKey
 ALTER TABLE "public"."cluster_incident" ADD CONSTRAINT "cluster_incident_cluster_id_fkey" FOREIGN KEY ("cluster_id") REFERENCES "public"."cluster"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "public"."cluster_incident_validator" ADD CONSTRAINT "cluster_incident_validator_incident_id_fkey" FOREIGN KEY ("incident_id") REFERENCES "public"."cluster_incident"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "public"."cluster_incident_validator" ADD CONSTRAINT "cluster_incident_validator_validator_index_fkey" FOREIGN KEY ("validator_index") REFERENCES "public"."validator"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "public"."_user_to_fee_reward_address" ADD CONSTRAINT "_user_to_fee_reward_address_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "public"."user"("id") ON DELETE CASCADE ON UPDATE CASCADE;

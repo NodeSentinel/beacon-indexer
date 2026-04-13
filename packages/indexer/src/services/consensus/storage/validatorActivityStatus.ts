@@ -58,77 +58,65 @@ export class ValidatorActivityStatusStorage {
       Prisma.sql`${processedSlot}::int`,
     );
 
-    // Compare two durable states only:
-    // 1. the clusters that currently have registered validators marked inactive,
-    // 2. the clusters that currently have an open incident.
-    // From that diff SQL can insert missing incidents, widen the cumulative
-    // validator set when new validators join the incident, and close incidents
-    // only when no validators in the cluster remain inactive.
+    // Compare the durable current inactive snapshot against the currently open
+    // incidents, then materialize the validator participation history directly
+    // into cluster_incident_validator rows.
     await tx.$executeRaw`
-      WITH current_inactive_clusters AS (
-        -- Read only registered validators that are currently inactive and group
-        -- them into one ordered validator list per cluster.
+      WITH current_inactive_cluster_validators AS (
+        -- Read only registered validators that are currently inactive. Each row
+        -- is the current durable truth for one cluster-validator pair.
         SELECT
           cv.cluster_id,
-          MIN(vss.inactive_since_slot) AS first_inactive_slot,
-          array_agg(DISTINCT cv.validator_index ORDER BY cv.validator_index) AS inactive_validator_indexes
+          cv.validator_index,
+          vss.inactive_since_slot
         FROM cluster_validator cv
         JOIN validators_snapshot_stats vss ON vss.validator_index = cv.validator_index
         WHERE vss.is_inactive = TRUE
           AND vss.inactive_since_slot IS NOT NULL
-        GROUP BY cv.cluster_id
+      ),
+      current_inactive_clusters AS (
+        -- Reduce the live inactive rows to one cluster-level summary so the
+        -- incident table can still open and close one row per cluster.
+        SELECT
+          current_inactive_cluster_validators.cluster_id,
+          MIN(current_inactive_cluster_validators.inactive_since_slot) AS first_inactive_slot,
+          COUNT(*)::int AS current_inactive_count
+        FROM current_inactive_cluster_validators
+        GROUP BY current_inactive_cluster_validators.cluster_id
       ),
       open_incidents AS (
-        -- Read the currently open incident per cluster so reconciliation can
-        -- diff the persisted validator set against the current inactive set.
+        -- Read the currently open incident per cluster. The partial unique index
+        -- on cluster_incident guarantees at most one such row exists.
         SELECT
           id,
           cluster_id,
-          opened_at,
-          opened_slot,
-          validator_indexes
+          opened_slot
         FROM cluster_incident
         WHERE status = 'open'
       ),
-      recomputed AS (
-        -- Join the live inactive set with the currently open incidents. Every
-        -- touched cluster now has both its previous incident state and its live
-        -- inactive membership in one row.
+      recomputed_clusters AS (
+        -- Join the current inactive summary with the existing open incidents so
+        -- SQL can decide whether to insert, keep open, or close each cluster.
         SELECT
           COALESCE(current_inactive_clusters.cluster_id, open_incidents.cluster_id) AS cluster_id,
           open_incidents.id AS open_incident_id,
-          open_incidents.opened_at AS current_opened_at,
-          open_incidents.opened_slot AS current_opened_slot,
-          COALESCE(open_incidents.validator_indexes, ARRAY[]::int[]) AS current_validator_indexes,
           current_inactive_clusters.first_inactive_slot,
-          COALESCE(current_inactive_clusters.inactive_validator_indexes, ARRAY[]::int[]) AS current_inactive_validator_indexes,
-          cardinality(
-            COALESCE(current_inactive_clusters.inactive_validator_indexes, ARRAY[]::int[])
-          ) AS current_inactive_count,
-          ARRAY(
-            SELECT DISTINCT validator_index
-            FROM unnest(
-              COALESCE(open_incidents.validator_indexes, ARRAY[]::int[]) ||
-              COALESCE(current_inactive_clusters.inactive_validator_indexes, ARRAY[]::int[])
-            ) AS validator_index
-            ORDER BY validator_index
-          ) AS next_validator_indexes
+          COALESCE(current_inactive_clusters.current_inactive_count, 0) AS current_inactive_count
         FROM current_inactive_clusters
         FULL OUTER JOIN open_incidents
           ON open_incidents.cluster_id = current_inactive_clusters.cluster_id
       ),
       to_insert AS (
         -- If a cluster has inactive validators but no open incident, create one
-        -- backdated to the earliest inactive validator in the cluster.
+        -- backdated to the earliest currently inactive validator in the cluster.
         SELECT
           ('incident-' || md5(cluster_id || ':' || first_inactive_slot::text || ':' || txid_current()::text)) AS incident_id,
           cluster_id,
-          first_inactive_slot,
-          next_validator_indexes
-        FROM recomputed
+          first_inactive_slot
+        FROM recomputed_clusters
         WHERE open_incident_id IS NULL
           AND first_inactive_slot IS NOT NULL
-          AND cardinality(next_validator_indexes) > 0
+          AND current_inactive_count > 0
       ),
       inserted_incidents AS (
         INSERT INTO cluster_incident (
@@ -137,7 +125,6 @@ export class ValidatorActivityStatusStorage {
           cluster_id,
           opened_at,
           opened_slot,
-          validator_indexes,
           updated_at
         )
         SELECT
@@ -146,23 +133,71 @@ export class ValidatorActivityStatusStorage {
           to_insert.cluster_id,
           ${this.getSqlTimestampForExpression(Prisma.sql`to_insert.first_inactive_slot`)},
           to_insert.first_inactive_slot,
-          to_insert.next_validator_indexes,
           ${processedSlotTimestamp}
         FROM to_insert
+        RETURNING id, cluster_id, opened_slot
+      ),
+      active_incidents AS (
+        -- Treat newly inserted incidents exactly like previously open incidents
+        -- for interval maintenance in the remaining CTEs.
+        SELECT open_incidents.id, open_incidents.cluster_id, open_incidents.opened_slot
+        FROM open_incidents
+        UNION ALL
+        SELECT inserted_incidents.id, inserted_incidents.cluster_id, inserted_incidents.opened_slot
+        FROM inserted_incidents
+      ),
+      inserted_incident_validators AS (
+        -- Open a new interval whenever a validator is currently inactive in a
+        -- cluster incident and there is no open interval for that validator yet.
+        INSERT INTO cluster_incident_validator (
+          id,
+          incident_id,
+          validator_index,
+          inactive_from_slot,
+          created_at,
+          updated_at
+        )
+        SELECT
+          'incident-validator-' || md5(
+            active_incidents.id || ':' ||
+            current_inactive_cluster_validators.validator_index::text || ':' ||
+            current_inactive_cluster_validators.inactive_since_slot::text || ':' ||
+            txid_current()::text
+          ),
+          active_incidents.id,
+          current_inactive_cluster_validators.validator_index,
+          current_inactive_cluster_validators.inactive_since_slot,
+          ${processedSlotTimestamp},
+          ${processedSlotTimestamp}
+        FROM active_incidents
+        JOIN current_inactive_cluster_validators
+          ON current_inactive_cluster_validators.cluster_id = active_incidents.cluster_id
+        LEFT JOIN cluster_incident_validator
+          ON cluster_incident_validator.incident_id = active_incidents.id
+          AND cluster_incident_validator.validator_index =
+            current_inactive_cluster_validators.validator_index
+          AND cluster_incident_validator.inactive_to_slot IS NULL
+        WHERE cluster_incident_validator.id IS NULL
         RETURNING id
       ),
-      updated_incidents AS (
-        -- Open incidents widen their stored validator set when new inactive
-        -- validators join the same incident later.
-        UPDATE cluster_incident AS incident
+      closed_incident_validators AS (
+        -- Close any open validator interval whose validator is no longer
+        -- currently inactive in that cluster on this processed slot.
+        UPDATE cluster_incident_validator AS cluster_incident_validator
         SET
-          validator_indexes = recomputed.next_validator_indexes,
+          inactive_to_slot = ${processedSlot}::int,
           updated_at = ${processedSlotTimestamp}
-        FROM recomputed
-        WHERE incident.id = recomputed.open_incident_id
-          AND recomputed.current_inactive_count > 0
-          AND recomputed.next_validator_indexes <> recomputed.current_validator_indexes
-        RETURNING incident.id
+        FROM active_incidents
+        WHERE cluster_incident_validator.incident_id = active_incidents.id
+          AND cluster_incident_validator.inactive_to_slot IS NULL
+          AND NOT EXISTS (
+            SELECT 1
+            FROM current_inactive_cluster_validators
+            WHERE current_inactive_cluster_validators.cluster_id = active_incidents.cluster_id
+              AND current_inactive_cluster_validators.validator_index =
+                cluster_incident_validator.validator_index
+          )
+        RETURNING cluster_incident_validator.id
       ),
       closed_incidents AS (
         -- Any open incident whose cluster no longer has inactive validators
@@ -174,13 +209,13 @@ export class ValidatorActivityStatusStorage {
           closed_slot = ${processedSlot}::int,
           duration_slots = GREATEST(${processedSlot}::int - incident.opened_slot, 0),
           duration_seconds = GREATEST(
-            FLOOR(EXTRACT(EPOCH FROM (${processedSlotTimestamp} - incident.opened_at)))::int,
+          FLOOR(EXTRACT(EPOCH FROM (${processedSlotTimestamp} - incident.opened_at)))::int,
             0
           ),
           updated_at = ${processedSlotTimestamp}
-        FROM recomputed
-        WHERE incident.id = recomputed.open_incident_id
-          AND recomputed.current_inactive_count = 0
+        FROM recomputed_clusters
+        WHERE incident.id = recomputed_clusters.open_incident_id
+          AND recomputed_clusters.current_inactive_count = 0
         RETURNING incident.id
       )
       SELECT 1
