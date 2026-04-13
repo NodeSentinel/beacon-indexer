@@ -313,47 +313,42 @@ export class ValidatorActivityStatusStorage {
     const { safeObservedSlot, inactiveMissedCount, maxAttestationDelay } = params;
     const lookbackSlots = getActivityLookbackSlots(this.slotsPerEpoch, inactiveMissedCount);
 
-    await this.prisma.$transaction(async (tx) => {
-      // The processor state is the durable bookmark for this whole pipeline.
-      // On the first run we bootstrap only the recent lookback range; after that
-      // every run continues incrementally from the last committed safe slot.
-      const processorState = await tx.incidentProcessorState.upsert({
-        where: { processor: VALIDATOR_ACTIVITY_PROCESSOR },
-        update: {},
-        create: {
-          processor: VALIDATOR_ACTIVITY_PROCESSOR,
-          lastProcessedSlot: Math.max(safeObservedSlot - lookbackSlots - 1, -1),
-        },
-      });
+    // Gets or creates the current processor cursor so this run knows where to start.
+    const processorState = await this.prisma.incidentProcessorState.upsert({
+      where: { processor: VALIDATOR_ACTIVITY_PROCESSOR },
+      update: {},
+      create: {
+        processor: VALIDATOR_ACTIVITY_PROCESSOR,
+        lastProcessedSlot: Math.max(safeObservedSlot - lookbackSlots - 1, -1),
+      },
+    });
 
-      const lowerExclusiveSlot = Math.max(
-        processorState.lastProcessedSlot,
-        safeObservedSlot - lookbackSlots - 1,
-      );
+    const lowerExclusiveSlot = Math.max(
+      processorState.lastProcessedSlot,
+      safeObservedSlot - lookbackSlots - 1,
+    );
 
-      if (lowerExclusiveSlot >= safeObservedSlot) {
-        return;
-      }
+    if (lowerExclusiveSlot >= safeObservedSlot) {
+      return;
+    }
 
-      // Walk slot by slot through the safe boundary. This keeps the working set
-      // bounded by one slot's committee instead of a large historical window.
-      for (let slot = lowerExclusiveSlot + 1; slot <= safeObservedSlot; slot += 1) {
+    // Walk slot by slot through the safe boundary. Each slot commits in its own
+    // transaction so backlog catch-up never holds one long-lived transaction.
+    for (let slot = lowerExclusiveSlot + 1; slot <= safeObservedSlot; slot += 1) {
+      await this.prisma.$transaction(async (tx) => {
         await this.updateSlotSnapshots(tx, slot, inactiveMissedCount, maxAttestationDelay);
-        // Incident reconciliation no longer receives derived deltas from JS.
-        // After the snapshot update is durable for this slot, SQL compares the
-        // current inactive registered validators against the currently open
-        // incidents and opens, updates, or closes rows from that diff alone.
+
+        // Compares current inactive validators against open incidents.
         await this.reconcileOpenIncidents(tx, {
           processedSlot: slot,
         });
-      }
 
-      // Only after snapshot rows and incident history are both settled do we
-      // advance the durable bookmark to the newest safe slot.
-      await tx.incidentProcessorState.update({
-        where: { processor: VALIDATOR_ACTIVITY_PROCESSOR },
-        data: { lastProcessedSlot: safeObservedSlot },
+        // Updates the processor cursor for this slot.
+        await tx.incidentProcessorState.update({
+          where: { processor: VALIDATOR_ACTIVITY_PROCESSOR },
+          data: { lastProcessedSlot: slot },
+        });
       });
-    });
+    }
   }
 }

@@ -43,6 +43,15 @@ Follow this order: **XState → Controllers → Storage → Database**.
 - When business logic is unclear, incomplete, or open to multiple reasonable
   interpretations, do not assume a path. Stop and ask before implementing.
 
+## Comment style
+
+- Every function must start with a short summary comment.
+- Keep comments simple and easy to scan.
+- Comment the code in front of you, not the conversation or refactor history.
+- Prefer short comments that describe the local action directly.
+- Avoid vague phrasing like "after this", "at this point", or "this now".
+- If a shorter and more literal comment works, use it.
+
 ## E2E tests
 
 Location: `packages/indexer/e2e/`
