@@ -6,6 +6,7 @@ import { ValidatorControllerHelpers } from './helpers/validatorControllerHelpers
 import createLogger from '@/src/lib/pino.js';
 import { BeaconClient } from '@/src/services/consensus/beacon.js';
 import { ValidatorsStorage } from '@/src/services/consensus/storage/validators.js';
+import type { GetValidators } from '@/src/services/consensus/types.js';
 
 export class ValidatorsController {
   private readonly logger = createLogger('ValidatorsController');
@@ -148,28 +149,24 @@ export class ValidatorsController {
   }
 
   /**
+   * Save the full validator state for an epoch.
+   */
+  async saveValidatorsForEpoch(validatorsData: GetValidators['data'], epoch: number) {
+    return this.validatorsStorage.saveValidatorsForEpoch(validatorsData, epoch);
+  }
+
+  /**
    * Update validators with new data
    */
-  async updateValidators(
-    validatorsData: Array<{
-      index: string;
-      status: string;
-      balance: string;
-      validator: {
-        withdrawal_credentials: string;
-        effective_balance: string;
-        activation_epoch: string;
-      };
-    }>,
-  ): Promise<void> {
+  async updateValidators(validatorsData: GetValidators['data']): Promise<void> {
     return this.validatorsStorage.updateValidators(validatorsData);
   }
 
   /**
-   * Fetch validator balances for a specific slot and persist them.
+   * Fetch validator state for a specific slot and persist it for the epoch.
    * The caller must provide the epoch corresponding to the slot to avoid coupling with time utils.
    */
-  async fetchValidatorsBalances(slot: number, epoch: number) {
+  async fetchValidatorsState(slot: number, epoch: number) {
     const totalValidators = await this.validatorsStorage.getMaxValidatorIndex();
     if (totalValidators === 0) {
       return;
@@ -184,22 +181,19 @@ export class ValidatorsController {
 
     const batchSize = 1_000_000;
     const batches = chunk(allValidatorIndexes, batchSize);
-    let allValidatorBalances: Array<{ index: string; balance: string }> = [];
+    let allValidatorsData: GetValidators['data'] = [];
 
     for (const batchIds of batches) {
-      const batchResult = await this.beaconClient.getValidatorsBalances(
-        slot,
-        batchIds.map((id) => String(id)),
-      );
+      const batchResult = await this.beaconClient.getValidators(slot, batchIds.map(String), null);
 
-      allValidatorBalances = [...allValidatorBalances, ...batchResult];
+      allValidatorsData = [...allValidatorsData, ...batchResult];
 
       if (batchResult.length < batchSize) {
         break;
       }
     }
 
-    await this.validatorsStorage.saveValidatorBalances(allValidatorBalances, epoch);
+    await this.validatorsStorage.saveValidatorsForEpoch(allValidatorsData, epoch);
   }
 
   /**

@@ -35,7 +35,7 @@ import { GetCommittees, GetValidators } from '@/src/services/consensus/types.js'
 //
 // fetching.validatorsBalances parallel state:
 // - validatorsBalances.waitingForEpochStart: test waiting for EPOCH_STARTED event
-// - validatorsBalances.fetchingValidatorsBalances: test fetchValidatorsBalances actor (already fetched vs not fetched)
+// - validatorsBalances.fetchingValidatorsBalances: test fetchValidatorsState actor (already fetched vs not fetched)
 // - validatorsBalances.validatorsBalancesFetched: test VALIDATORS_BALANCES_FETCHED event is raised and sync state updated
 //
 // fetching.trackingValidatorsActivation parallel state:
