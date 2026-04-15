@@ -1,27 +1,25 @@
 import { Prisma, PrismaClient } from '@beacon-indexer/db';
 
 type IncidentRewardsChainTiming = {
-  // Number of slots in one epoch, used to translate slot ranges into the epoch
-  // ranges needed for attestation reward aggregation.
+  // Slots in one epoch.
   slotsPerEpoch: number;
 };
 
 type SyncOpenIncidentRewardsParams = {
-  // Furthest indexed slot whose incident rewards are allowed to be applied in
-  // this run. Open incidents accrue through this slot, closed incidents stop at
-  // their own closed slot even if it is earlier.
+  // Newest slot whose rewards can be applied in this run.
   processThroughSlot: number;
 };
 
+/** Updates incident rewards from the saved interval rows. */
 export class IncidentRewardsStorage {
   constructor(
     private readonly prisma: PrismaClient,
     private readonly chainTiming: IncidentRewardsChainTiming,
   ) {}
 
+  /** Gets the newest epoch that already has rewards. */
   async getLastRewardsFetchedEpoch(): Promise<number | null> {
-    // The reward worker can only advance through epochs whose attestation
-    // rewards are already materialized in epoch_rewards.
+    // Reads the newest epoch that is ready to use.
     const lastRewardsFetchedEpoch = await this.prisma.epoch.findFirst({
       where: { rewardsFetched: true },
       orderBy: { epoch: 'desc' },
@@ -31,19 +29,17 @@ export class IncidentRewardsStorage {
     return lastRewardsFetchedEpoch?.epoch ?? null;
   }
 
+  /** Updates interval rewards, incident totals, and finalization. */
   async syncOpenIncidentRewards(params: SyncOpenIncidentRewardsParams): Promise<void> {
     const finalizedAt = new Date();
     const slotsPerEpoch = this.chainTiming.slotsPerEpoch;
 
-    // Keep the interval reconciliation, incident aggregate refresh, and
-    // closed-incident finalization inside one transaction so a partial failure
-    // cannot advance interval cursors ahead of the persisted totals.
+    // Keeps all reward updates in one transaction.
     await this.prisma.$transaction(async (tx) => {
       await tx.$executeRaw(
         Prisma.sql`
           WITH candidate_intervals AS (
-            -- One row in cluster_incident_validator is one inactivity interval
-            -- inside one incident. Rewards are reconciled interval-by-interval.
+            -- Gets intervals that still need rewards.
             SELECT
               cluster_incident_validator.id AS interval_id,
               incident.id AS incident_id,
@@ -61,7 +57,7 @@ export class IncidentRewardsStorage {
               )
           ),
           interval_ranges AS (
-            -- Each interval advances only across its own slot window.
+            -- Gets the part of each interval we still need to process.
             SELECT
               candidate_intervals.interval_id,
               candidate_intervals.validator_index,
@@ -92,8 +88,7 @@ export class IncidentRewardsStorage {
             )
           ),
           attestation_sums AS (
-            -- Count only the missed attestation columns because those are the
-            -- rewards and penalties attributable to inactive intervals.
+            -- Sums missed attestation rewards for each interval.
             SELECT
               interval_ranges.interval_id,
               COALESCE(
@@ -112,8 +107,7 @@ export class IncidentRewardsStorage {
             GROUP BY interval_ranges.interval_id
           ),
           sync_sums AS (
-            -- Sync committee rewards are slot-granular, so clip them directly
-            -- to the interval slot window and count only penalties.
+            -- Sums missed sync rewards for each interval.
             SELECT
               interval_ranges.interval_id,
               COALESCE(
@@ -128,8 +122,7 @@ export class IncidentRewardsStorage {
             GROUP BY interval_ranges.interval_id
           ),
           interval_deltas AS (
-            -- Merge both reward sources back onto the interval row and advance
-            -- its own cursor to the slot just processed.
+            -- Combines both reward sources into one row per interval.
             SELECT
               interval_ranges.interval_id,
               interval_ranges.upper_bound,
@@ -146,6 +139,7 @@ export class IncidentRewardsStorage {
               ON sync_sums.interval_id = interval_ranges.interval_id
           ),
           updated_intervals AS (
+            -- Saves the new rewards and moves the interval cursor forward.
             UPDATE cluster_incident_validator AS cluster_incident_validator
             SET
               missed_attestation_rewards =
@@ -164,8 +158,7 @@ export class IncidentRewardsStorage {
         `,
       );
 
-      // Refresh incident totals from the interval rows after the interval-level
-      // updates are durable so the aggregate remains a pure projection.
+      // Recalculates incident totals from their interval rows.
       await tx.$executeRaw(
         Prisma.sql`
           WITH candidate_incidents AS (
@@ -198,6 +191,7 @@ export class IncidentRewardsStorage {
         `,
       );
 
+      // Writes zero totals for incidents with no interval rows.
       await tx.$executeRaw(
         Prisma.sql`
           WITH zero_total_incidents AS (
@@ -228,6 +222,7 @@ export class IncidentRewardsStorage {
         `,
       );
 
+      // Marks closed incidents as done once all their rewards were processed.
       await tx.$executeRaw(
         Prisma.sql`
           WITH finalizable_closed_incidents AS (

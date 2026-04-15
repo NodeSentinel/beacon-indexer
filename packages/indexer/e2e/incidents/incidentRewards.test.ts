@@ -305,8 +305,8 @@ describe('Incident Rewards', () => {
       ],
     });
 
-    // Keep the validator activity updater inside the freshness gate.
-    vi.spyOn(beaconTime, 'getChainCurrentSlot').mockReturnValue(106);
+    // Keep enough distance from head so slot 104 is still safe to judge.
+    vi.spyOn(beaconTime, 'getChainCurrentSlot').mockReturnValue(121);
 
     // Refresh current liveness state from the indexed committee data.
     await validatorActivityStatusController.syncCurrentActivityStatus({

@@ -42,21 +42,31 @@ export class ValidatorActivityStatusController {
     maxAttestationDelay: number;
     inactiveMissedCount: number;
   }): Promise<void> {
-    // Ignore the most recent duties until they are old enough to exceed the
-    // attestation inclusion delay, so we do not classify "not yet included"
-    // attestations as missed.
-    const safeObservedSlot = params.lastIndexedSlot - params.maxAttestationDelay;
-    if (safeObservedSlot < 0) {
+    // Reads the current chain head to avoid judging slots too close to it.
+    const headSlot = this.beaconTime.getChainCurrentSlot();
+
+    // Keeps a small gap from head so the node has time to expose fresh data.
+    const lastSlotSafeToReadFromNode =
+      headSlot - params.skipValidatorStatusUpdateWhenBehindHeadSlots;
+
+    // Uses the smaller limit between what we already indexed and what is safe
+    // to read from the node.
+    const lastIndexedSlotSafeToUse = Math.min(params.lastIndexedSlot, lastSlotSafeToReadFromNode);
+
+    // Gets the newest slot we can process in this iteration.
+    const newestProcessableSlot = lastIndexedSlotSafeToUse - params.maxAttestationDelay;
+    if (newestProcessableSlot < 0) {
       return;
     }
 
-    // Delegate the actual snapshot update to storage once the observed window is
-    // both fresh enough and old enough to judge safely.
+    // Replays the snapshot only up to the newest safe slot.
     await this.storage.syncCurrentActivityStatus({
-      safeObservedSlot,
+      newestProcessableSlot,
       inactiveMissedCount: params.inactiveMissedCount,
       maxAttestationDelay: params.maxAttestationDelay,
     });
-    this.logger.info('Synchronized current validator activity status', { safeObservedSlot });
+    this.logger.info('Synchronized current validator activity status', {
+      newestProcessableSlot,
+    });
   }
 }

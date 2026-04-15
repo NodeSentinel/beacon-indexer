@@ -3,15 +3,11 @@ import { Prisma, PrismaClient } from '@beacon-indexer/db';
 import { getActivityLookbackSlots } from './activityLookback.js';
 
 type SyncCurrentActivityStatusParams = {
-  // We only judge validator activity on slots that are already "safe enough":
-  // if an attestation could still arrive later and be considered valid, that
-  // slot must wait for a future run.
-  safeObservedSlot: number;
-  // A validator becomes currently inactive only after missing this many duties
-  // in a row inside the rolling activity window.
+  // Newest slot we can process in this run.
+  newestProcessableSlot: number;
+  // Missed duties in a row needed to mark a validator inactive.
   inactiveMissedCount: number;
-  // Duties included later than this threshold are treated as misses for the
-  // purpose of the current activity streak.
+  // Attestations later than this delay count as missed.
   maxAttestationDelay: number;
 };
 
@@ -21,18 +17,7 @@ type IncidentTiming = {
   secPerSlot: number;
 };
 
-/**
- * This storage pass is the bridge between raw attestation outcomes and the two
- * user-facing consequences we care about:
- * 1. keep each validator's "current activity" snapshot up to date, and
- * 2. open or close cluster incidents when registered validators cross the
- *    active/inactive boundary.
- *
- * The core scaling rule is that we now process one safe slot at a time. The
- * snapshot stores just enough streak state to continue incrementally, so each
- * run only needs the duties of the current slot instead of a large historical
- * committee window.
- */
+/** Keeps validator activity snapshots and cluster incidents in sync. */
 export class ValidatorActivityStatusStorage {
   constructor(
     private readonly prisma: PrismaClient,
@@ -40,10 +25,9 @@ export class ValidatorActivityStatusStorage {
     private readonly slotsPerEpoch: number,
   ) {}
 
+  /** Gets the SQL timestamp for a slot expression. */
   private getSqlTimestampForExpression(slotExpression: Prisma.Sql): Prisma.Sql {
-    // Reproduce the same slot -> timestamp mapping the JS helpers use, but let
-    // SQL provide the slot expression so set-based incident reconciliation can
-    // derive opened/updated/closed timestamps per cluster row.
+    // Converts a slot expression into its chain timestamp inside SQL.
     return Prisma.sql`
       TIMESTAMP 'epoch' + (
         (${this.incidentTiming.genesisTimeSec}::bigint + (${slotExpression})::bigint * ${this.incidentTiming.secPerSlot}::bigint) *
@@ -52,19 +36,17 @@ export class ValidatorActivityStatusStorage {
     `;
   }
 
+  /** Opens and closes incidents from the current inactive snapshot. */
   async reconcileOpenIncidents(tx: Prisma.TransactionClient, params: { processedSlot: number }) {
     const processedSlot = Number(params.processedSlot);
     const processedSlotTimestamp = this.getSqlTimestampForExpression(
       Prisma.sql`${processedSlot}::int`,
     );
 
-    // Compare the durable current inactive snapshot against the currently open
-    // incidents, then materialize the validator participation history directly
-    // into cluster_incident_validator rows.
+    // Syncs open incidents with the current inactive snapshot.
     await tx.$executeRaw`
       WITH current_inactive_cluster_validators AS (
-        -- Read only registered validators that are currently inactive. Each row
-        -- is the current durable truth for one cluster-validator pair.
+        -- Gets the validators that are inactive right now.
         SELECT
           cv.cluster_id,
           cv.validator_index,
@@ -75,8 +57,7 @@ export class ValidatorActivityStatusStorage {
           AND vss.inactive_since_slot IS NOT NULL
       ),
       current_inactive_clusters AS (
-        -- Reduce the live inactive rows to one cluster-level summary so the
-        -- incident table can still open and close one row per cluster.
+        -- Collapses inactive validators into one row per cluster.
         SELECT
           current_inactive_cluster_validators.cluster_id,
           MIN(current_inactive_cluster_validators.inactive_since_slot) AS first_inactive_slot,
@@ -85,8 +66,7 @@ export class ValidatorActivityStatusStorage {
         GROUP BY current_inactive_cluster_validators.cluster_id
       ),
       open_incidents AS (
-        -- Read the currently open incident per cluster. The partial unique index
-        -- on cluster_incident guarantees at most one such row exists.
+        -- Gets clusters that already have an open incident.
         SELECT
           id,
           cluster_id,
@@ -95,8 +75,7 @@ export class ValidatorActivityStatusStorage {
         WHERE status = 'open'
       ),
       recomputed_clusters AS (
-        -- Join the current inactive summary with the existing open incidents so
-        -- SQL can decide whether to insert, keep open, or close each cluster.
+        -- Gets one row per cluster with both current state and open incident state.
         SELECT
           COALESCE(current_inactive_clusters.cluster_id, open_incidents.cluster_id) AS cluster_id,
           open_incidents.id AS open_incident_id,
@@ -107,10 +86,9 @@ export class ValidatorActivityStatusStorage {
           ON open_incidents.cluster_id = current_inactive_clusters.cluster_id
       ),
       to_insert AS (
-        -- If a cluster has inactive validators but no open incident, create one
-        -- backdated to the earliest currently inactive validator in the cluster.
+        -- Opens incidents for clusters that just became inactive.
         SELECT
-          ('incident-' || md5(cluster_id || ':' || first_inactive_slot::text || ':' || txid_current()::text)) AS incident_id,
+          gen_random_uuid() AS incident_id,
           cluster_id,
           first_inactive_slot
         FROM recomputed_clusters
@@ -138,8 +116,7 @@ export class ValidatorActivityStatusStorage {
         RETURNING id, cluster_id, opened_slot
       ),
       active_incidents AS (
-        -- Treat newly inserted incidents exactly like previously open incidents
-        -- for interval maintenance in the remaining CTEs.
+        -- Puts new incidents and existing open incidents in one list.
         SELECT open_incidents.id, open_incidents.cluster_id, open_incidents.opened_slot
         FROM open_incidents
         UNION ALL
@@ -147,8 +124,7 @@ export class ValidatorActivityStatusStorage {
         FROM inserted_incidents
       ),
       inserted_incident_validators AS (
-        -- Open a new interval whenever a validator is currently inactive in a
-        -- cluster incident and there is no open interval for that validator yet.
+        -- Opens missing validator rows for the incident.
         INSERT INTO cluster_incident_validator (
           id,
           incident_id,
@@ -158,12 +134,7 @@ export class ValidatorActivityStatusStorage {
           updated_at
         )
         SELECT
-          'incident-validator-' || md5(
-            active_incidents.id || ':' ||
-            current_inactive_cluster_validators.validator_index::text || ':' ||
-            current_inactive_cluster_validators.inactive_since_slot::text || ':' ||
-            txid_current()::text
-          ),
+          gen_random_uuid(),
           active_incidents.id,
           current_inactive_cluster_validators.validator_index,
           current_inactive_cluster_validators.inactive_since_slot,
@@ -181,8 +152,7 @@ export class ValidatorActivityStatusStorage {
         RETURNING id
       ),
       closed_incident_validators AS (
-        -- Close any open validator interval whose validator is no longer
-        -- currently inactive in that cluster on this processed slot.
+        -- Closes validator rows for validators that are no longer inactive.
         UPDATE cluster_incident_validator AS cluster_incident_validator
         SET
           inactive_to_slot = ${processedSlot}::int,
@@ -200,8 +170,7 @@ export class ValidatorActivityStatusStorage {
         RETURNING cluster_incident_validator.id
       ),
       closed_incidents AS (
-        -- Any open incident whose cluster no longer has inactive validators
-        -- closes on the slot we just processed.
+        -- Closes incidents for clusters that no longer have inactive validators.
         UPDATE cluster_incident AS incident
         SET
           status = 'closed',
@@ -222,80 +191,70 @@ export class ValidatorActivityStatusStorage {
     `;
   }
 
+  /** Updates validator activity snapshots for one slot. */
   private async updateSlotSnapshots(
     tx: Prisma.TransactionClient,
     slot: number,
     inactiveMissedCount: number,
     maxAttestationDelay: number,
   ): Promise<void> {
-    // The whole validator snapshot transition for one slot is local to the
-    // current duty row plus the compact rolling state already stored in the
-    // snapshot table, so SQL can update the slot in one set-based pass.
+    // Recomputes the activity snapshot for validators that had duty in this slot.
     await tx.$executeRaw`
-      -- 1. Read only the committee duties for the slot we are processing and
-      --    enrich each one with the compact "before" snapshot state already
-      --    stored on the validator row.
+      -- Reads duties for this slot together with the current snapshot state.
       WITH slot_duties AS (
         SELECT
           c.validator_index,
           c.slot,
+          -- Treats missing or late attestations as missed duties.
           (c.attestation_delay IS NULL OR c.attestation_delay > ${maxAttestationDelay}::int) AS duty_was_missed,
-          vss.is_inactive AS starting_is_inactive,
-          vss.active_since_slot AS starting_active_since_slot,
-          vss.consecutive_missed_attestations AS starting_consecutive_missed_attestations,
-          vss.missed_streak_started_at_slot AS starting_missed_streak_started_at_slot
+          vss.is_inactive AS snapshot_is_inactive,
+          vss.active_since_slot AS snapshot_active_since_slot,
+          vss.consecutive_missed_attestations AS snapshot_consecutive_missed_attestations,
+          vss.missed_streak_started_at_slot AS snapshot_missed_streak_started_at_slot
         FROM committee c
         JOIN validators_snapshot_stats vss ON vss.validator_index = c.validator_index
         WHERE c.slot = ${slot}::int
       ),
-      -- 2. Compute the complete "after" state for each touched validator.
-      --    This is the pure transition function:
-      --    current snapshot + current duty -> next snapshot.
+      -- Builds the next snapshot state for each touched validator.
       recomputed AS (
         SELECT
           validator_index,
           slot,
           duty_was_missed,
-          starting_is_inactive,
-          -- If the current duty was missed, the streak grows by one.
-          -- Any successful duty resets the streak immediately.
+          snapshot_is_inactive,
+          -- Miss grows the streak. Success resets it.
           CASE
-            WHEN duty_was_missed THEN starting_consecutive_missed_attestations + 1
+            WHEN duty_was_missed THEN snapshot_consecutive_missed_attestations + 1
             ELSE 0
           END AS next_consecutive_missed_attestations,
-          -- The streak start is the first missed slot of the current missed run.
-          -- A brand-new miss starts on this slot; otherwise we keep carrying
-          -- forward the first missed slot that was already stored before.
+          -- Keeps the first slot of the current missed streak.
           CASE
             WHEN duty_was_missed THEN
               CASE
-                WHEN starting_consecutive_missed_attestations = 0 THEN slot
-                ELSE COALESCE(starting_missed_streak_started_at_slot, slot)
+                WHEN snapshot_consecutive_missed_attestations = 0 THEN slot
+                ELSE COALESCE(snapshot_missed_streak_started_at_slot, slot)
               END
             ELSE NULL
           END AS next_missed_streak_started_at_slot,
-          -- A validator stays inactive while it keeps missing, or becomes
-          -- inactive exactly when the missed streak reaches the threshold.
-          -- Any successful duty makes it active again immediately.
+          -- Validator becomes inactive when the streak reaches the threshold.
           CASE
             WHEN duty_was_missed THEN
-              starting_is_inactive OR
-              starting_consecutive_missed_attestations + 1 >= ${inactiveMissedCount}::int
+              snapshot_is_inactive OR
+              snapshot_consecutive_missed_attestations + 1 >= ${inactiveMissedCount}::int
             ELSE FALSE
           END AS next_is_inactive,
-          -- active_since_slot only changes on recovery: the attested slot is
-          -- the exact point where the validator became active again.
+          -- Recovery sets the slot where the validator became active again.
           CASE
-            WHEN duty_was_missed THEN starting_active_since_slot
+            WHEN duty_was_missed THEN snapshot_active_since_slot
             ELSE slot
           END AS next_active_since_slot
         FROM slot_duties
       )
-      -- 3. Persist the next snapshot in one UPDATE. Incident reconciliation runs
-      --    afterwards by diffing the durable snapshot state against open incidents.
+      -- Writes the new snapshot state.
       UPDATE validators_snapshot_stats AS vss
       SET
         is_inactive = recomputed.next_is_inactive,
+        -- Keeps the first missed slot while the validator stays inactive.
         inactive_since_slot = CASE
           WHEN recomputed.next_is_inactive THEN recomputed.next_missed_streak_started_at_slot
           ELSE NULL
@@ -309,41 +268,45 @@ export class ValidatorActivityStatusStorage {
     `;
   }
 
+  /** Replays safe slots and keeps snapshots and incidents up to date. */
   async syncCurrentActivityStatus(params: SyncCurrentActivityStatusParams): Promise<void> {
-    const { safeObservedSlot, inactiveMissedCount, maxAttestationDelay } = params;
-    const lookbackSlots = getActivityLookbackSlots(this.slotsPerEpoch, inactiveMissedCount);
+    const { newestProcessableSlot, inactiveMissedCount, maxAttestationDelay } = params;
 
-    // Gets or creates the current processor cursor so this run knows where to start.
+    // Gets how many slots we need to look back.
+    const slotsToLookBack = getActivityLookbackSlots(this.slotsPerEpoch, inactiveMissedCount);
+
+    // Gets the oldest slot we need to process in this run.
+    const oldestProcessableSlot = newestProcessableSlot - slotsToLookBack;
+
+    // Gets or creates the slot cursor for this processor.
     const processorState = await this.prisma.incidentProcessorState.upsert({
       where: { processor: VALIDATOR_ACTIVITY_PROCESSOR },
       update: {},
       create: {
         processor: VALIDATOR_ACTIVITY_PROCESSOR,
-        lastProcessedSlot: Math.max(safeObservedSlot - lookbackSlots - 1, -1),
+        lastProcessedSlot: Math.max(oldestProcessableSlot - 1, -1),
       },
     });
 
-    const lowerExclusiveSlot = Math.max(
-      processorState.lastProcessedSlot,
-      safeObservedSlot - lookbackSlots - 1,
-    );
+    // Gets the last slot we already covered
+    const lastCoveredSlot = Math.max(processorState.lastProcessedSlot, oldestProcessableSlot - 1);
 
-    if (lowerExclusiveSlot >= safeObservedSlot) {
+    // Stops here when there are no new safe slots left to replay.
+    if (lastCoveredSlot >= newestProcessableSlot) {
       return;
     }
 
-    // Walk slot by slot through the safe boundary. Each slot commits in its own
-    // transaction so backlog catch-up never holds one long-lived transaction.
-    for (let slot = lowerExclusiveSlot + 1; slot <= safeObservedSlot; slot += 1) {
+    // Processes one slot at a time up to the newest safe slot.
+    for (let slot = lastCoveredSlot + 1; slot <= newestProcessableSlot; slot += 1) {
       await this.prisma.$transaction(async (tx) => {
         await this.updateSlotSnapshots(tx, slot, inactiveMissedCount, maxAttestationDelay);
 
-        // Compares current inactive validators against open incidents.
+        // Opens or closes incidents from the current snapshot state.
         await this.reconcileOpenIncidents(tx, {
           processedSlot: slot,
         });
 
-        // Updates the processor cursor for this slot.
+        // Saves the slot cursor after this slot is done.
         await tx.incidentProcessorState.update({
           where: { processor: VALIDATOR_ACTIVITY_PROCESSOR },
           data: { lastProcessedSlot: slot },

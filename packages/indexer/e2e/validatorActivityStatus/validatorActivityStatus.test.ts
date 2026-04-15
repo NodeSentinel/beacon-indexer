@@ -250,9 +250,9 @@ describe('Validator Activity Status Updater', () => {
     maxAttestationDelay: number,
     inactiveMissedCount: number,
   ) {
-    // Keep the indexed slot close enough to head so the freshness guard allows processing.
+    // Keep enough distance from head and still allow the newest indexed duty to be judged.
     vi.spyOn(beaconTime, 'getChainCurrentSlot').mockReturnValue(
-      lastIndexedSlot + maxAttestationDelay + 4,
+      lastIndexedSlot + maxAttestationDelay + gnosisConfig.beacon.slotsPerEpoch,
     );
 
     // Run the same controller entrypoint the production worker uses.
@@ -337,8 +337,8 @@ describe('Validator Activity Status Updater', () => {
     await seedSnapshotValidator(101);
     await seedCommitteeMisses([120, 121, 122, 123], 101);
 
-    // Keep the head close enough that the freshness guard allows the sync to run.
-    vi.spyOn(beaconTime, 'getChainCurrentSlot').mockReturnValue(129);
+    // Keep enough distance from head so slot 123 is still safe to judge.
+    vi.spyOn(beaconTime, 'getChainCurrentSlot').mockReturnValue(140);
 
     // Run the updater using the same indexed slot, now treated as fresh.
     await controller.syncCurrentActivityStatus({
@@ -371,8 +371,8 @@ describe('Validator Activity Status Updater', () => {
         (123, 3, 101, 3, ${null})
     `;
 
-    // Keep the indexed window fresh and include the newest duty in the safe observation slot.
-    vi.spyOn(beaconTime, 'getChainCurrentSlot').mockReturnValue(129);
+    // Keep enough distance from head so slot 123 is still safe to judge.
+    vi.spyOn(beaconTime, 'getChainCurrentSlot').mockReturnValue(140);
 
     await controller.syncCurrentActivityStatus({
       lastIndexedSlot: 124,

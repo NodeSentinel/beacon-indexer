@@ -70,7 +70,7 @@ describe('ValidatorActivityStatusStorage transaction scope', () => {
     // Process two pending slots so the test can observe whether storage keeps
     // one large transaction or commits each slot independently.
     await storage.syncCurrentActivityStatus({
-      safeObservedSlot: 6,
+      newestProcessableSlot: 6,
       inactiveMissedCount: 1,
       maxAttestationDelay: 1,
     });

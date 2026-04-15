@@ -516,7 +516,7 @@ model NotificationQueue {
 }
 
 model ClusterIncident {
-  id     String                @id @default(cuid()) @map("id")
+  id     String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid @map("id")
   status ClusterIncidentStatus @default(open) @map("status")
 
   clusterId String @map("cluster_id")
@@ -552,8 +552,8 @@ model ClusterIncident {
 }
 
 model ClusterIncidentValidator {
-  id             String @id @default(cuid()) @map("id")
-  incidentId     String @map("incident_id")
+  id             String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid @map("id")
+  incidentId     String @db.Uuid @map("incident_id")
   validatorIndex Int    @map("validator_index")
 
   inactiveFromSlot Int  @map("inactive_from_slot")

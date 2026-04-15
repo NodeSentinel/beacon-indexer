@@ -7,6 +7,9 @@ CREATE TYPE "public"."ClusterVisibility" AS ENUM ('private', 'shared');
 -- CreateEnum
 CREATE TYPE "public"."ClusterIncidentStatus" AS ENUM ('open', 'closed');
 
+-- CreateExtension
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
+
 -- CreateTable
 CREATE TABLE "public"."validator" (
     "id" INTEGER NOT NULL,
@@ -353,7 +356,7 @@ CREATE TABLE "public"."notification_queue" (
 
 -- CreateTable
 CREATE TABLE "public"."cluster_incident" (
-    "id" TEXT NOT NULL,
+    "id" UUID NOT NULL DEFAULT gen_random_uuid(),
     "status" "public"."ClusterIncidentStatus" NOT NULL DEFAULT 'open',
     "cluster_id" TEXT NOT NULL,
     "opened_at" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -377,8 +380,8 @@ CREATE TABLE "public"."cluster_incident" (
 
 -- CreateTable
 CREATE TABLE "public"."cluster_incident_validator" (
-    "id" TEXT NOT NULL,
-    "incident_id" TEXT NOT NULL,
+    "id" UUID NOT NULL DEFAULT gen_random_uuid(),
+    "incident_id" UUID NOT NULL,
     "validator_index" INTEGER NOT NULL,
     "inactive_from_slot" INTEGER NOT NULL,
     "inactive_to_slot" INTEGER,
