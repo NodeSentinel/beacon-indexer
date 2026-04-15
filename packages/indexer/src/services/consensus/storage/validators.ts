@@ -9,6 +9,7 @@ import { Pool } from 'pg';
 import { from as copyFrom } from 'pg-copy-streams';
 
 import { ValidatorControllerHelpers } from '../controllers/helpers/validatorControllerHelpers.js';
+import type { GetValidators } from '../types.js';
 
 export class ValidatorsStorage {
   private static pgPool: Pool | null = null;
@@ -228,16 +229,7 @@ export class ValidatorsStorage {
    * Updates validator fields and marks the epoch snapshot as fetched.
    */
   async saveValidatorsForEpoch(
-    validatorsData: Array<{
-      index: string;
-      status: string;
-      balance: string;
-      validator: {
-        withdrawal_credentials: string;
-        effective_balance: string;
-        activation_epoch: string;
-      };
-    }>,
+    validatorsData: GetValidators['data'],
     epoch: number,
   ): Promise<void> {
     await this.prisma.$transaction(async (tx) => {
@@ -270,18 +262,7 @@ export class ValidatorsStorage {
   /**
    * Update validators with new data
    */
-  async updateValidators(
-    validatorsData: Array<{
-      index: string;
-      status: string;
-      balance: string;
-      validator: {
-        withdrawal_credentials: string;
-        effective_balance: string;
-        activation_epoch: string;
-      };
-    }>,
-  ): Promise<void> {
+  async updateValidators(validatorsData: GetValidators['data']): Promise<void> {
     await this.prisma.$transaction(async (tx) => {
       for (const data of validatorsData) {
         const withdrawalAddress = data.validator.withdrawal_credentials.startsWith('0x')

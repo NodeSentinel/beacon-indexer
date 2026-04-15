@@ -6,6 +6,7 @@ import { ValidatorControllerHelpers } from './helpers/validatorControllerHelpers
 import createLogger from '@/src/lib/pino.js';
 import { BeaconClient } from '@/src/services/consensus/beacon.js';
 import { ValidatorsStorage } from '@/src/services/consensus/storage/validators.js';
+import type { GetValidators } from '@/src/services/consensus/types.js';
 
 export class ValidatorsController {
   private readonly logger = createLogger('ValidatorsController');
@@ -150,37 +151,14 @@ export class ValidatorsController {
   /**
    * Save the full validator state for an epoch.
    */
-  async saveValidatorsForEpoch(
-    validatorsData: Array<{
-      index: string;
-      status: string;
-      balance: string;
-      validator: {
-        withdrawal_credentials: string;
-        effective_balance: string;
-        activation_epoch: string;
-      };
-    }>,
-    epoch: number,
-  ) {
+  async saveValidatorsForEpoch(validatorsData: GetValidators['data'], epoch: number) {
     return this.validatorsStorage.saveValidatorsForEpoch(validatorsData, epoch);
   }
 
   /**
    * Update validators with new data
    */
-  async updateValidators(
-    validatorsData: Array<{
-      index: string;
-      status: string;
-      balance: string;
-      validator: {
-        withdrawal_credentials: string;
-        effective_balance: string;
-        activation_epoch: string;
-      };
-    }>,
-  ): Promise<void> {
+  async updateValidators(validatorsData: GetValidators['data']): Promise<void> {
     return this.validatorsStorage.updateValidators(validatorsData);
   }
 
@@ -203,16 +181,7 @@ export class ValidatorsController {
 
     const batchSize = 1_000_000;
     const batches = chunk(allValidatorIndexes, batchSize);
-    let allValidatorsData: Array<{
-      index: string;
-      status: string;
-      balance: string;
-      validator: {
-        withdrawal_credentials: string;
-        effective_balance: string;
-        activation_epoch: string;
-      };
-    }> = [];
+    let allValidatorsData: GetValidators['data'] = [];
 
     for (const batchIds of batches) {
       const batchResult = await this.beaconClient.getValidators(slot, batchIds.map(String), null);
