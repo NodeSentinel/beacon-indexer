@@ -48,6 +48,144 @@ export class ValidatorsStorage {
     }
   }
 
+  /**
+   * Maps one Beacon API validator payload to the database row shape.
+   */
+  private mapValidatorStateRow(validatorData: GetValidators['data'][number]) {
+    return {
+      id: +validatorData.index,
+      status: VALIDATOR_STATUS[validatorData.status as keyof typeof VALIDATOR_STATUS],
+      balance: validatorData.balance,
+      effectiveBalance: validatorData.validator.effective_balance,
+      withdrawalAddress: validatorData.validator.withdrawal_credentials.startsWith('0x')
+        ? '0x' + validatorData.validator.withdrawal_credentials.slice(-40)
+        : null,
+      activationEpoch: ValidatorControllerHelpers.parseEpoch(
+        validatorData.validator.activation_epoch,
+      ),
+    };
+  }
+
+  /**
+   * Serializes validator rows into CSV lines for COPY.
+   */
+  private buildValidatorStateCsvRows(validatorsData: GetValidators['data']): string[] {
+    return validatorsData.map((data) => {
+      const row = this.mapValidatorStateRow(data);
+      return [
+        row.id,
+        row.status,
+        row.balance,
+        row.effectiveBalance,
+        row.withdrawalAddress ?? '',
+        row.activationEpoch ?? '',
+      ].join(',');
+    });
+  }
+
+  /**
+   * Upserts validator state in one set-based SQL pass.
+   */
+  private async upsertValidatorState(
+    validatorsData: GetValidators['data'],
+    options?: { epoch?: number },
+  ): Promise<void> {
+    if (validatorsData.length === 0) {
+      if (options?.epoch !== undefined) {
+        await this.prisma.epoch.update({
+          where: { epoch: options.epoch },
+          data: {
+            validatorsBalancesFetched: true,
+          },
+        });
+      }
+
+      return;
+    }
+
+    const pool = this.getPgPool();
+    const client = await pool.connect();
+
+    try {
+      await client.query('BEGIN');
+
+      // Stores the current validator state batch before merging into the main table.
+      await client.query(`
+        CREATE TEMPORARY TABLE tmp_validator_state (
+          id INTEGER,
+          status INTEGER,
+          balance BIGINT,
+          effective_balance BIGINT,
+          withdrawal_address VARCHAR(42),
+          activation_epoch INTEGER
+        ) ON COMMIT DROP;
+      `);
+
+      // Streams the validator batch into PostgreSQL to avoid one statement per validator.
+      const copyStream = client.query(
+        copyFrom(`
+          COPY tmp_validator_state (
+            id,
+            status,
+            balance,
+            effective_balance,
+            withdrawal_address,
+            activation_epoch
+          )
+          FROM STDIN WITH (FORMAT csv, NULL '')
+        `),
+      );
+
+      const csvData = this.buildValidatorStateCsvRows(validatorsData).join('\n');
+      const readable = Readable.from(csvData);
+
+      // Pipes the serialized validator rows into the temp table.
+      await new Promise<void>((resolve, reject) => {
+        readable.pipe(copyStream).on('finish', resolve).on('error', reject);
+      });
+
+      // Merges the temp table into validator with one upsert statement.
+      await client.query(`
+        INSERT INTO validator (
+          id,
+          status,
+          balance,
+          effective_balance,
+          withdrawal_address,
+          activation_epoch
+        )
+        SELECT
+          id,
+          status,
+          balance,
+          effective_balance,
+          withdrawal_address,
+          activation_epoch
+        FROM tmp_validator_state
+        ON CONFLICT (id) DO UPDATE SET
+          status = EXCLUDED.status,
+          balance = EXCLUDED.balance,
+          effective_balance = EXCLUDED.effective_balance,
+          withdrawal_address = EXCLUDED.withdrawal_address,
+          activation_epoch = EXCLUDED.activation_epoch
+      `);
+
+      // Marks the epoch batch as fetched when this call came from epoch processing.
+      if (options?.epoch !== undefined) {
+        await client.query('UPDATE epoch SET validators_balances_fetched = true WHERE epoch = $1', [
+          options.epoch,
+        ]);
+      }
+
+      await client.query('COMMIT');
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
   async getValidatorsCount() {
     return this.prisma.validator.count();
   }
@@ -232,54 +370,13 @@ export class ValidatorsStorage {
     validatorsData: GetValidators['data'],
     epoch: number,
   ): Promise<void> {
-    await this.prisma.$transaction(async (tx) => {
-      for (const data of validatorsData) {
-        const withdrawalAddress = data.validator.withdrawal_credentials.startsWith('0x')
-          ? '0x' + data.validator.withdrawal_credentials.slice(-40)
-          : null;
-
-        await tx.validator.update({
-          where: { id: +data.index },
-          data: {
-            withdrawalAddress,
-            status: VALIDATOR_STATUS[data.status as keyof typeof VALIDATOR_STATUS],
-            balance: BigInt(data.balance),
-            effectiveBalance: BigInt(data.validator.effective_balance),
-            activationEpoch: ValidatorControllerHelpers.parseEpoch(data.validator.activation_epoch),
-          },
-        });
-      }
-
-      await tx.epoch.update({
-        where: { epoch },
-        data: {
-          validatorsBalancesFetched: true,
-        },
-      });
-    });
+    await this.upsertValidatorState(validatorsData, { epoch });
   }
 
   /**
    * Update validators with new data
    */
   async updateValidators(validatorsData: GetValidators['data']): Promise<void> {
-    await this.prisma.$transaction(async (tx) => {
-      for (const data of validatorsData) {
-        const withdrawalAddress = data.validator.withdrawal_credentials.startsWith('0x')
-          ? '0x' + data.validator.withdrawal_credentials.slice(-40)
-          : null;
-
-        await tx.validator.update({
-          where: { id: +data.index },
-          data: {
-            withdrawalAddress,
-            status: VALIDATOR_STATUS[data.status as keyof typeof VALIDATOR_STATUS],
-            balance: BigInt(data.balance),
-            effectiveBalance: BigInt(data.validator.effective_balance),
-            activationEpoch: ValidatorControllerHelpers.parseEpoch(data.validator.activation_epoch),
-          },
-        });
-      }
-    });
+    await this.upsertValidatorState(validatorsData);
   }
 }
