@@ -166,7 +166,7 @@ export class ValidatorsController {
    * Fetch validator state for a specific slot and persist it for the epoch.
    * The caller must provide the epoch corresponding to the slot to avoid coupling with time utils.
    */
-  async fetchValidatorsBalances(slot: number, epoch: number) {
+  async fetchValidatorsState(slot: number, epoch: number) {
     const totalValidators = await this.validatorsStorage.getMaxValidatorIndex();
     if (totalValidators === 0) {
       return;

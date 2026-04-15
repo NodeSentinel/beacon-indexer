@@ -41,7 +41,7 @@ describe('ValidatorsController', () => {
       {} as never,
     );
 
-    await controller.fetchValidatorsBalances(320, 10);
+    await controller.fetchValidatorsState(320, 10);
 
     expect(beaconClient.getValidators).toHaveBeenCalledWith(320, ['0', '1'], null);
     expect(beaconClient.getValidatorsBalances).not.toHaveBeenCalled();

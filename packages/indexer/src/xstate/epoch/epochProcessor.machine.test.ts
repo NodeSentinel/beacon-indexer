@@ -45,7 +45,7 @@ const mockEpochController = {
 } as unknown as EpochController;
 
 const mockValidatorsController = {
-  fetchValidatorsBalances: vi.fn(),
+  fetchValidatorsState: vi.fn(),
   trackTransitioningValidators: vi.fn(),
   discoverNewValidators: vi.fn(),
 } as unknown as ValidatorsController;
@@ -133,7 +133,7 @@ function resetMocks() {
   (
     mockEpochController.markValidatorsActivationFetched as ReturnType<typeof vi.fn>
   ).mockResolvedValue(undefined);
-  (mockValidatorsController.fetchValidatorsBalances as ReturnType<typeof vi.fn>).mockResolvedValue(
+  (mockValidatorsController.fetchValidatorsState as ReturnType<typeof vi.fn>).mockResolvedValue(
     undefined,
   );
   (
@@ -733,9 +733,9 @@ describe('epochProcessorMachine', () => {
         vi.setSystemTime(new Date(EPOCH_101_START_TIME + 50));
 
         const balancesPromise = createControllablePromise<void>();
-        (
-          mockValidatorsController.fetchValidatorsBalances as ReturnType<typeof vi.fn>
-        ).mockReturnValue(balancesPromise.promise);
+        (mockValidatorsController.fetchValidatorsState as ReturnType<typeof vi.fn>).mockReturnValue(
+          balancesPromise.promise,
+        );
 
         const { actor, stateTransitions, subscription } = createAndStartActor(
           epochProcessorMachine,
@@ -762,7 +762,7 @@ describe('epochProcessorMachine', () => {
           | string
           | null;
         expect(balancesState).toBe('validatorsBalancesFetched');
-        expect(mockValidatorsController.fetchValidatorsBalances).toHaveBeenCalled();
+        expect(mockValidatorsController.fetchValidatorsState).toHaveBeenCalled();
 
         actor.stop();
         subscription.unsubscribe();
@@ -791,9 +791,9 @@ describe('epochProcessorMachine', () => {
         vi.setSystemTime(new Date(EPOCH_101_START_TIME + 50));
 
         const balancesPromise = createControllablePromise<void>();
-        (
-          mockValidatorsController.fetchValidatorsBalances as ReturnType<typeof vi.fn>
-        ).mockReturnValue(balancesPromise.promise);
+        (mockValidatorsController.fetchValidatorsState as ReturnType<typeof vi.fn>).mockReturnValue(
+          balancesPromise.promise,
+        );
 
         const { actor, stateTransitions, subscription } = createAndStartActor(
           epochProcessorMachine,
@@ -919,7 +919,7 @@ describe('epochProcessorMachine', () => {
       expect(mockEpochController.updateSlotsFetched).toHaveBeenCalledWith(100);
       expect(mockEpochController.fetchEpochRewards).toHaveBeenCalledWith(100);
       expect(mockEpochController.markEpochAsProcessed).toHaveBeenCalledWith(100);
-      expect(mockValidatorsController.fetchValidatorsBalances).toHaveBeenCalled();
+      expect(mockValidatorsController.fetchValidatorsState).toHaveBeenCalled();
       expect(mockValidatorsController.trackTransitioningValidators).toHaveBeenCalled();
 
       // Verify EPOCH_COMPLETED was sent to parent with correct machineId

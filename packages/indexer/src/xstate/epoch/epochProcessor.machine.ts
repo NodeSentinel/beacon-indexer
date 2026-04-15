@@ -78,7 +78,7 @@ export const epochProcessorMachine = setup({
         await input.epochController.fetchSyncCommittees(input.epoch);
       },
     ),
-    fetchValidatorsBalances: fromPromise(
+    fetchValidatorsState: fromPromise(
       async ({
         input,
       }: {
@@ -95,7 +95,7 @@ export const epochProcessorMachine = setup({
           return;
         }
 
-        await input.validatorsController.fetchValidatorsBalances(input.startSlot, input.epoch);
+        await input.validatorsController.fetchValidatorsState(input.startSlot, input.epoch);
       },
     ),
     discoverNewValidators: fromPromise(
@@ -759,7 +759,7 @@ export const epochProcessorMachine = setup({
                     'EpochProcessor:validatorsBalances',
                   ),
                   invoke: {
-                    src: 'fetchValidatorsBalances',
+                    src: 'fetchValidatorsState',
                     input: ({ context }) => ({
                       validatorsController: context.services.validatorsController!,
                       epochController: context.services.epochController,
