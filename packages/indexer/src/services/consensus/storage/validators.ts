@@ -4,7 +4,7 @@ import { VALIDATOR_STATUS } from '@beacon-indexer/beacon-utils';
 import { PrismaClient, Validator } from '@beacon-indexer/db';
 import chunk from 'lodash/chunk.js';
 import ms from 'ms';
-import { Pool } from 'pg';
+import { Pool, PoolClient } from 'pg';
 // @ts-expect-error - pg-copy-streams doesn't have type definitions
 import { from as copyFrom } from 'pg-copy-streams';
 
@@ -86,20 +86,86 @@ export class ValidatorsStorage {
   /**
    * Upserts validator state in one set-based SQL pass.
    */
-  private async upsertValidatorState(
+  private async copyValidatorStateRows(
+    client: PoolClient,
     validatorsData: GetValidators['data'],
-    options?: { epoch?: number },
   ): Promise<void> {
     if (validatorsData.length === 0) {
-      if (options?.epoch !== undefined) {
-        await this.prisma.epoch.update({
-          where: { epoch: options.epoch },
-          data: {
-            validatorsBalancesFetched: true,
-          },
-        });
-      }
+      return;
+    }
 
+    // Stores the current validator state batch before merging into the main table.
+    await client.query(`
+      CREATE TEMPORARY TABLE tmp_validator_state (
+        id INTEGER,
+        status INTEGER,
+        balance BIGINT,
+        effective_balance BIGINT,
+        withdrawal_address VARCHAR(42),
+        activation_epoch INTEGER
+      ) ON COMMIT DROP;
+    `);
+
+    // Streams the validator batch into PostgreSQL to avoid one statement per validator.
+    const copyStream = client.query(
+      copyFrom(`
+        COPY tmp_validator_state (
+          id,
+          status,
+          balance,
+          effective_balance,
+          withdrawal_address,
+          activation_epoch
+        )
+        FROM STDIN WITH (FORMAT csv, NULL '')
+      `),
+    );
+
+    const csvData = this.buildValidatorStateCsvRows(validatorsData).join('\n');
+    const readable = Readable.from(csvData);
+
+    // Pipes the serialized validator rows into the temp table.
+    await new Promise<void>((resolve, reject) => {
+      readable.pipe(copyStream).on('finish', resolve).on('error', reject);
+    });
+  }
+
+  /**
+   * Upserts validator state from the temporary table in one SQL statement.
+   */
+  private async mergeCopiedValidatorState(client: PoolClient): Promise<void> {
+    // Merges the temp table into validator with one upsert statement.
+    await client.query(`
+      INSERT INTO validator (
+        id,
+        status,
+        balance,
+        effective_balance,
+        withdrawal_address,
+        activation_epoch
+      )
+      SELECT
+        id,
+        status,
+        balance,
+        effective_balance,
+        withdrawal_address,
+        activation_epoch
+      FROM tmp_validator_state
+      ON CONFLICT (id) DO UPDATE SET
+        status = EXCLUDED.status,
+        balance = EXCLUDED.balance,
+        effective_balance = EXCLUDED.effective_balance,
+        withdrawal_address = EXCLUDED.withdrawal_address,
+        activation_epoch = EXCLUDED.activation_epoch
+    `);
+  }
+
+  /**
+   * Upserts validator state in one set-based SQL pass.
+   */
+  private async upsertValidatorState(validatorsData: GetValidators['data']): Promise<void> {
+    if (validatorsData.length === 0) {
       return;
     }
 
@@ -108,75 +174,8 @@ export class ValidatorsStorage {
 
     try {
       await client.query('BEGIN');
-
-      // Stores the current validator state batch before merging into the main table.
-      await client.query(`
-        CREATE TEMPORARY TABLE tmp_validator_state (
-          id INTEGER,
-          status INTEGER,
-          balance BIGINT,
-          effective_balance BIGINT,
-          withdrawal_address VARCHAR(42),
-          activation_epoch INTEGER
-        ) ON COMMIT DROP;
-      `);
-
-      // Streams the validator batch into PostgreSQL to avoid one statement per validator.
-      const copyStream = client.query(
-        copyFrom(`
-          COPY tmp_validator_state (
-            id,
-            status,
-            balance,
-            effective_balance,
-            withdrawal_address,
-            activation_epoch
-          )
-          FROM STDIN WITH (FORMAT csv, NULL '')
-        `),
-      );
-
-      const csvData = this.buildValidatorStateCsvRows(validatorsData).join('\n');
-      const readable = Readable.from(csvData);
-
-      // Pipes the serialized validator rows into the temp table.
-      await new Promise<void>((resolve, reject) => {
-        readable.pipe(copyStream).on('finish', resolve).on('error', reject);
-      });
-
-      // Merges the temp table into validator with one upsert statement.
-      await client.query(`
-        INSERT INTO validator (
-          id,
-          status,
-          balance,
-          effective_balance,
-          withdrawal_address,
-          activation_epoch
-        )
-        SELECT
-          id,
-          status,
-          balance,
-          effective_balance,
-          withdrawal_address,
-          activation_epoch
-        FROM tmp_validator_state
-        ON CONFLICT (id) DO UPDATE SET
-          status = EXCLUDED.status,
-          balance = EXCLUDED.balance,
-          effective_balance = EXCLUDED.effective_balance,
-          withdrawal_address = EXCLUDED.withdrawal_address,
-          activation_epoch = EXCLUDED.activation_epoch
-      `);
-
-      // Marks the epoch batch as fetched when this call came from epoch processing.
-      if (options?.epoch !== undefined) {
-        await client.query('UPDATE epoch SET validators_balances_fetched = true WHERE epoch = $1', [
-          options.epoch,
-        ]);
-      }
-
+      await this.copyValidatorStateRows(client, validatorsData);
+      await this.mergeCopiedValidatorState(client);
       await client.query('COMMIT');
     } catch (error) {
       await client.query('ROLLBACK');
@@ -370,7 +369,30 @@ export class ValidatorsStorage {
     validatorsData: GetValidators['data'],
     epoch: number,
   ): Promise<void> {
-    await this.upsertValidatorState(validatorsData, { epoch });
+    const pool = this.getPgPool();
+    const client = await pool.connect();
+
+    try {
+      await client.query('BEGIN');
+
+      // Updates validator state first so the epoch flag only flips after the write succeeds.
+      if (validatorsData.length > 0) {
+        await this.copyValidatorStateRows(client, validatorsData);
+        await this.mergeCopiedValidatorState(client);
+      }
+
+      // Marks the epoch batch as fetched within the same transaction.
+      await client.query('UPDATE epoch SET validators_balances_fetched = true WHERE epoch = $1', [
+        epoch,
+      ]);
+
+      await client.query('COMMIT');
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
   }
 
   /**
