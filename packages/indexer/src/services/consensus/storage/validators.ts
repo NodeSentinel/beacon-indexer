@@ -1,7 +1,7 @@
 import { Readable } from 'stream';
 
 import { VALIDATOR_STATUS } from '@beacon-indexer/beacon-utils';
-import { PrismaClient, Validator, Decimal, Prisma } from '@beacon-indexer/db';
+import { PrismaClient, Validator } from '@beacon-indexer/db';
 import chunk from 'lodash/chunk.js';
 import ms from 'ms';
 import { Pool } from 'pg';
@@ -221,6 +221,50 @@ export class ValidatorsStorage {
     } finally {
       client.release();
     }
+  }
+
+  /**
+   * Save the full validator state for a processed epoch.
+   * Updates validator fields and marks the epoch snapshot as fetched.
+   */
+  async saveValidatorsForEpoch(
+    validatorsData: Array<{
+      index: string;
+      status: string;
+      balance: string;
+      validator: {
+        withdrawal_credentials: string;
+        effective_balance: string;
+        activation_epoch: string;
+      };
+    }>,
+    epoch: number,
+  ): Promise<void> {
+    await this.prisma.$transaction(async (tx) => {
+      for (const data of validatorsData) {
+        const withdrawalAddress = data.validator.withdrawal_credentials.startsWith('0x')
+          ? '0x' + data.validator.withdrawal_credentials.slice(-40)
+          : null;
+
+        await tx.validator.update({
+          where: { id: +data.index },
+          data: {
+            withdrawalAddress,
+            status: VALIDATOR_STATUS[data.status as keyof typeof VALIDATOR_STATUS],
+            balance: BigInt(data.balance),
+            effectiveBalance: BigInt(data.validator.effective_balance),
+            activationEpoch: ValidatorControllerHelpers.parseEpoch(data.validator.activation_epoch),
+          },
+        });
+      }
+
+      await tx.epoch.update({
+        where: { epoch },
+        data: {
+          validatorsBalancesFetched: true,
+        },
+      });
+    });
   }
 
   /**

@@ -148,6 +148,25 @@ export class ValidatorsController {
   }
 
   /**
+   * Save the full validator state for an epoch.
+   */
+  async saveValidatorsForEpoch(
+    validatorsData: Array<{
+      index: string;
+      status: string;
+      balance: string;
+      validator: {
+        withdrawal_credentials: string;
+        effective_balance: string;
+        activation_epoch: string;
+      };
+    }>,
+    epoch: number,
+  ) {
+    return this.validatorsStorage.saveValidatorsForEpoch(validatorsData, epoch);
+  }
+
+  /**
    * Update validators with new data
    */
   async updateValidators(
@@ -166,7 +185,7 @@ export class ValidatorsController {
   }
 
   /**
-   * Fetch validator balances for a specific slot and persist them.
+   * Fetch validator state for a specific slot and persist it for the epoch.
    * The caller must provide the epoch corresponding to the slot to avoid coupling with time utils.
    */
   async fetchValidatorsBalances(slot: number, epoch: number) {
@@ -184,22 +203,28 @@ export class ValidatorsController {
 
     const batchSize = 1_000_000;
     const batches = chunk(allValidatorIndexes, batchSize);
-    let allValidatorBalances: Array<{ index: string; balance: string }> = [];
+    let allValidatorsData: Array<{
+      index: string;
+      status: string;
+      balance: string;
+      validator: {
+        withdrawal_credentials: string;
+        effective_balance: string;
+        activation_epoch: string;
+      };
+    }> = [];
 
     for (const batchIds of batches) {
-      const batchResult = await this.beaconClient.getValidatorsBalances(
-        slot,
-        batchIds.map((id) => String(id)),
-      );
+      const batchResult = await this.beaconClient.getValidators(slot, batchIds.map(String), null);
 
-      allValidatorBalances = [...allValidatorBalances, ...batchResult];
+      allValidatorsData = [...allValidatorsData, ...batchResult];
 
       if (batchResult.length < batchSize) {
         break;
       }
     }
 
-    await this.validatorsStorage.saveValidatorBalances(allValidatorBalances, epoch);
+    await this.validatorsStorage.saveValidatorsForEpoch(allValidatorsData, epoch);
   }
 
   /**
