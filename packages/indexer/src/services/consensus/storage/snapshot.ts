@@ -1,5 +1,40 @@
 import { PrismaClient } from '@beacon-indexer/db';
 
+type SnapshotValidatorFilterParams = {
+  // Optional subset of validators to update. When omitted, the query updates all
+  // validators that currently have snapshot rows.
+  validatorIndexes?: number[];
+};
+
+type UpdatePerformanceHParams = SnapshotValidatorFilterParams & {
+  // Inclusive slot range for the raw committee and slot tables that feeds the
+  // rolling hourly snapshot metrics.
+  minSlot: number;
+  // Inclusive upper slot bound for the hourly raw-data window.
+  maxSlot: number;
+  // Inclusive epoch range for epoch_rewards rows that line up with the slot
+  // window being aggregated into hourly snapshot metrics.
+  minEpoch: number;
+  // Inclusive upper epoch bound for hourly reward aggregation.
+  maxEpoch: number;
+  // Largest attestation delay that still counts as successful before a duty is
+  // treated as missed in the hourly snapshot.
+  maxAttestationDelay: number;
+};
+
+type UpdatePerformanceDParams = SnapshotValidatorFilterParams & {
+  // Beacon-chain genesis timestamp in seconds, used in SQL to convert archive and
+  // wall-clock boundaries back into slot and epoch ranges.
+  genesisTimeSec: number;
+  // Slot duration in seconds, used with genesis time for timestamp-to-slot math.
+  secPerSlot: number;
+  // Slots per epoch, used with slot bounds to derive epoch reward windows.
+  slotsPerEpoch: number;
+  // Largest attestation delay still considered successful in the live portion of
+  // the daily snapshot aggregation.
+  maxAttestationDelay: number;
+};
+
 /**
  * SnapshotStorage - Database persistence layer for validator snapshot operations.
  *
@@ -8,125 +43,6 @@ import { PrismaClient } from '@beacon-indexer/db';
  */
 export class SnapshotStorage {
   constructor(private readonly prisma: PrismaClient) {}
-
-  /**
-   * Update attestation stats and inactivity status for all validators that have snapshot rows.
-   *
-   * A validator is considered "missed" if:
-   *   - attestation_delay IS NULL, OR
-   *   - attestation_delay > maxAttestationDelay
-   *
-   * A validator is "inactive" if the last N attestations (inactiveMissedCount)
-   * within the queryable range were ALL missed.
-   *
-   * IMPORTANT: Only slots up to maxSlotToQuery can be evaluated.
-   * maxSlotToQuery = currentProcessedSlot - delaySlotsToHead - maxAttestationDelay
-   * This ensures we don't mark validators as inactive for slots that haven't been
-   * fully processed yet (accounting for attestation delay windows).
-   */
-  async updateAttestationsAndStatus(params: {
-    minSlotHour: number;
-    maxSlotToQuery: number;
-    maxAttestationDelay: number;
-    inactiveMissedCount: number;
-    inactivityCheckStartSlot: number;
-  }): Promise<void> {
-    const {
-      minSlotHour,
-      maxSlotToQuery,
-      maxAttestationDelay,
-      inactiveMissedCount,
-      inactivityCheckStartSlot,
-    } = params;
-
-    await this.prisma.$executeRaw`
-      WITH
-        user_validators AS (
-          SELECT DISTINCT vss.validator_index
-          FROM validators_snapshot_stats vss
-        ),
-
-        attestations AS (
-          SELECT
-            c.validator_index,
-            c.slot,
-            (c.attestation_delay IS NULL
-              OR c.attestation_delay > ${maxAttestationDelay}::int
-            )::int AS is_missed
-          FROM user_validators uvs
-          JOIN committee c
-            ON c.validator_index = uvs.validator_index
-          WHERE c.slot BETWEEN ${minSlotHour}::int AND ${maxSlotToQuery}::int
-        ),
-
-        -- Attestations for inactivity check: only from the status range
-        status_attestations AS (
-          SELECT
-            a.validator_index,
-            a.slot,
-            a.is_missed,
-            ROW_NUMBER() OVER (
-              PARTITION BY a.validator_index
-              ORDER BY a.slot DESC
-            ) AS rn
-          FROM attestations a
-          WHERE a.slot >= ${inactivityCheckStartSlot}::int
-        ),
-
-        -- A validator is inactive if they missed ALL of the last N attestations
-        inactivity AS (
-          SELECT
-            sa.validator_index,
-            CASE
-              WHEN SUM(
-                CASE WHEN sa.rn <= ${inactiveMissedCount}::int THEN sa.is_missed ELSE 0 END
-              ) = ${inactiveMissedCount}::int
-              THEN true
-              ELSE false
-            END AS is_inactive
-          FROM status_attestations sa
-          GROUP BY sa.validator_index
-        ),
-
-        hourly AS (
-          SELECT
-            validator_index,
-            COUNT(*)::int       AS attestations_total,
-            SUM(is_missed)::int AS attestations_missed
-          FROM attestations
-          GROUP BY validator_index
-        ),
-
-        snapshot_data AS (
-          SELECT
-            uvs.validator_index,
-            CASE WHEN COALESCE(i.is_inactive, false) THEN 'inactive' ELSE 'active' END AS status,
-            COALESCE(i.is_inactive, false) AS is_inactive,
-            COALESCE(h.attestations_total, 0) AS attestations_total,
-            COALESCE(h.attestations_missed, 0) AS attestations_missed,
-            v.status AS beacon_status,
-            v.balance,
-            COALESCE(v.effective_balance, 0) AS effective_balance
-          FROM user_validators uvs
-          LEFT JOIN hourly h ON uvs.validator_index = h.validator_index
-          LEFT JOIN inactivity i ON uvs.validator_index = i.validator_index
-          JOIN validator v ON v.id = uvs.validator_index
-        )
-
-      UPDATE validators_snapshot_stats vss
-      SET
-        status = sd.status,
-        is_inactive = sd.is_inactive,
-        attestations_total = sd.attestations_total,
-        attestations_missed = sd.attestations_missed,
-        beacon_status = sd.beacon_status,
-        balance = sd.balance,
-        effective_balance = sd.effective_balance,
-        updated_at = NOW()
-      FROM snapshot_data sd
-      WHERE vss.validator_index = sd.validator_index
-    `;
-  }
 
   /**
    * Update balance fields from the validator table.
@@ -147,14 +63,7 @@ export class SnapshotStorage {
   /**
    * Update h performance metrics from raw committee and epoch_rewards tables.
    */
-  async updatePerformanceH(params: {
-    minSlot: number;
-    maxSlot: number;
-    minEpoch: number;
-    maxEpoch: number;
-    maxAttestationDelay: number;
-    validatorIndexes?: number[];
-  }): Promise<void> {
+  async updatePerformanceH(params: UpdatePerformanceHParams): Promise<void> {
     const { minSlot, maxSlot, minEpoch, maxEpoch, maxAttestationDelay, validatorIndexes } = params;
 
     await this.prisma.$executeRaw`
@@ -269,13 +178,7 @@ export class SnapshotStorage {
    *
    * Chain params are needed to convert timestamps to slot/epoch ranges in SQL.
    */
-  async updatePerformanceD(params: {
-    genesisTimeSec: number;
-    secPerSlot: number;
-    slotsPerEpoch: number;
-    maxAttestationDelay: number;
-    validatorIndexes?: number[];
-  }): Promise<void> {
+  async updatePerformanceD(params: UpdatePerformanceDParams): Promise<void> {
     const { genesisTimeSec, secPerSlot, slotsPerEpoch, maxAttestationDelay, validatorIndexes } =
       params;
 
@@ -522,7 +425,7 @@ export class SnapshotStorage {
    * Uses the 7 most recent archived days to ensure a full week of data.
    * APY is adjusted by the actual number of days covered (365.25 / days_covered * 100).
    */
-  async updatePerformanceW(params?: { validatorIndexes?: number[] }): Promise<void> {
+  async updatePerformanceW(params?: SnapshotValidatorFilterParams): Promise<void> {
     const validatorIndexes = params?.validatorIndexes;
 
     await this.prisma.$executeRaw`
@@ -603,7 +506,7 @@ export class SnapshotStorage {
    * Uses the 30 most recent archived days to ensure a full month of data.
    * APY is adjusted by the actual number of days covered (365.25 / days_covered * 100).
    */
-  async updatePerformanceM(params?: { validatorIndexes?: number[] }): Promise<void> {
+  async updatePerformanceM(params?: SnapshotValidatorFilterParams): Promise<void> {
     const validatorIndexes = params?.validatorIndexes;
 
     await this.prisma.$executeRaw`
@@ -704,14 +607,13 @@ export class SnapshotStorage {
 
     await this.prisma.$executeRaw`
       INSERT INTO validators_snapshot_stats (
-        validator_index, status, is_inactive,
+        validator_index, status,
         attestations_total, attestations_missed, beacon_status,
         balance, effective_balance, updated_at
       )
       SELECT
         v.id,
         'active',
-        false,
         0,
         0,
         v.status,

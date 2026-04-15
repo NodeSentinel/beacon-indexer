@@ -17,7 +17,8 @@ model Validator {
   pubkey            String? @map("pubkey") @db.VarChar(98)
   withdrawalAddress String? @map("withdrawal_address") @db.VarChar(42)
 
-  clusters ClusterValidator[]
+  clusters               ClusterValidator[]
+  clusterIncidentEntries ClusterIncidentValidator[]
 
   @@index([status])
   @@index([pubkey])
@@ -164,6 +165,11 @@ enum ValidatorExitEvent {
 enum ClusterVisibility {
   private
   shared
+}
+
+enum ClusterIncidentStatus {
+  open
+  closed
 }
 
 model validatorExits {
@@ -373,8 +379,13 @@ model ValidatorsSnapshotStats {
   validatorIndex Int @id(map: "validators_snapshot_stats_pkey") @map("validator_index")
 
   // State
-  status     String  @map("status") @db.VarChar(10)
-  isInactive Boolean @default(false) @map("is_inactive")
+  status                        String  @map("status") @db.VarChar(10)
+  isInactive                    Boolean @default(false) @map("is_inactive")
+  inactiveSinceSlot             Int?    @map("inactive_since_slot")
+  activeSinceSlot               Int?    @map("active_since_slot")
+  consecutiveMissedAttestations Int     @default(0) @map("consecutive_missed_attestations")
+  missedStreakStartedAtSlot     Int?    @map("missed_streak_started_at_slot")
+  missedRewardsProcessedThroughSlot Int? @map("missed_rewards_processed_through_slot")
 
   // Balances
   balance          BigInt @map("balance")
@@ -443,6 +454,14 @@ model ValidatorsSnapshotStats {
   @@map("validators_snapshot_stats")
 }
 
+model IncidentProcessorState {
+  processor         String   @id @map("processor") @db.VarChar(64)
+  lastProcessedSlot Int      @map("last_processed_slot")
+  updatedAt         DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamp
+
+  @@map("incident_processor_state")
+}
+
 model ChainEpochStats {
   epoch                   Int    @id @map("epoch")
   totalActiveValidators   Int    @map("total_active_validators")
@@ -496,6 +515,68 @@ model NotificationQueue {
   @@map("notification_queue")
 }
 
+model ClusterIncident {
+  id     String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid @map("id")
+  status ClusterIncidentStatus @default(open) @map("status")
+
+  clusterId String @map("cluster_id")
+
+  openedAt   DateTime @default(now()) @map("opened_at") @db.Timestamp
+  openedSlot Int      @map("opened_slot")
+
+  closedAt        DateTime? @map("closed_at") @db.Timestamp
+  closedSlot      Int?      @map("closed_slot")
+  durationSlots   Int?      @map("duration_slots")
+  durationSeconds Int?      @map("duration_seconds")
+
+  missedAttestationRewards BigInt? @map("missed_attestation_rewards")
+  missedSyncRewards        BigInt? @map("missed_sync_rewards")
+  missedConsensusRewards   BigInt? @map("missed_consensus_rewards")
+  rewardsFinalized       Boolean   @default(false) @map("rewards_finalized")
+  rewardsFinalizedAt     DateTime? @map("rewards_finalized_at") @db.Timestamp
+
+  openedNotificationQueuedAt DateTime? @map("opened_notification_queued_at") @db.Timestamp
+  closedNotificationQueuedAt DateTime? @map("closed_notification_queued_at") @db.Timestamp
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamp
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamp
+
+  cluster            Cluster                   @relation(fields: [clusterId], references: [id], onDelete: Cascade)
+  incidentValidators ClusterIncidentValidator[]
+
+  // The database migration also adds a partial unique index on cluster_id where
+  // status = 'open', so each cluster can have at most one open incident row.
+  @@index([clusterId])
+  @@index([status, openedAt(sort: Desc)])
+  @@map("cluster_incident")
+}
+
+model ClusterIncidentValidator {
+  id             String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid @map("id")
+  incidentId     String @db.Uuid @map("incident_id")
+  validatorIndex Int    @map("validator_index")
+
+  inactiveFromSlot Int  @map("inactive_from_slot")
+  inactiveToSlot   Int? @map("inactive_to_slot")
+
+  rewardsProcessedThroughSlot Int?   @map("rewards_processed_through_slot")
+  missedAttestationRewards    BigInt @default(0) @map("missed_attestation_rewards")
+  missedSyncRewards           BigInt @default(0) @map("missed_sync_rewards")
+  missedConsensusRewards      BigInt @default(0) @map("missed_consensus_rewards")
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamp
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamp
+
+  incident  ClusterIncident @relation(fields: [incidentId], references: [id], onDelete: Cascade)
+  validator Validator       @relation(fields: [validatorIndex], references: [id], onDelete: Cascade)
+
+  @@index([incidentId])
+  @@index([incidentId, validatorIndex])
+  @@index([incidentId, inactiveToSlot])
+  @@index([validatorIndex])
+  @@map("cluster_incident_validator")
+}
+
 model FeeRewardAddress {
   address String                   @id @map("address")
   users   UserToFeeRewardAddress[] @relation("user_to_fee_reward_address")
@@ -505,14 +586,15 @@ model FeeRewardAddress {
 }
 
 model Cluster {
-  id                  String            @id @default(cuid())
-  name                String
-  ownerId             String            @map("owner_id")
-  visibility          ClusterVisibility @default(private)
-  feeRecipientAddress String?           @map("fee_recipient_address") @db.VarChar(42)
-  createdAt           DateTime          @default(now()) @map("created_at")
+  id                         String            @id @default(cuid())
+  name                       String
+  ownerId                    String            @map("owner_id")
+  visibility                 ClusterVisibility @default(private)
+  feeRecipientAddress        String?           @map("fee_recipient_address") @db.VarChar(42)
+  createdAt                  DateTime          @default(now()) @map("created_at")
 
   owner      User               @relation(fields: [ownerId], references: [id], onDelete: Restrict)
+  incidents  ClusterIncident[]
   validators ClusterValidator[]
 
   @@map("cluster")

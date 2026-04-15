@@ -9,21 +9,25 @@ import { ChainStatsController } from '@/src/services/consensus/controllers/chain
 import { DailyArchiveController } from '@/src/services/consensus/controllers/dailyArchive.js';
 import { EpochController } from '@/src/services/consensus/controllers/epoch.js';
 import { HourlyArchiveController } from '@/src/services/consensus/controllers/hourlyArchive.js';
+import { IncidentRewardsController } from '@/src/services/consensus/controllers/incidentRewards.js';
 import { IndexerConfigController } from '@/src/services/consensus/controllers/indexerConfig.js';
 import { MonthlyArchiveController } from '@/src/services/consensus/controllers/monthlyArchive.js';
 import { PartitionController } from '@/src/services/consensus/controllers/partition.js';
 import { SlotController } from '@/src/services/consensus/controllers/slot.js';
 import { SnapshotController } from '@/src/services/consensus/controllers/snapshot.js';
+import { ValidatorActivityStatusController } from '@/src/services/consensus/controllers/validatorActivityStatus.js';
 import { ValidatorsController } from '@/src/services/consensus/controllers/validators.js';
 import { ChainStatsStorage } from '@/src/services/consensus/storage/chainStats.js';
 import { DailyArchiveStorage } from '@/src/services/consensus/storage/dailyArchive.js';
 import { EpochStorage } from '@/src/services/consensus/storage/epoch.js';
 import { HourlyArchiveStorage } from '@/src/services/consensus/storage/hourlyArchive.js';
+import { IncidentRewardsStorage } from '@/src/services/consensus/storage/incidentRewards.js';
 import { IndexerConfigStorage } from '@/src/services/consensus/storage/indexerConfig.js';
 import { MonthlyArchiveStorage } from '@/src/services/consensus/storage/monthlyArchive.js';
 import { PartitionStorage } from '@/src/services/consensus/storage/partition.js';
 import { SlotStorage } from '@/src/services/consensus/storage/slot.js';
 import { SnapshotStorage } from '@/src/services/consensus/storage/snapshot.js';
+import { ValidatorActivityStatusStorage } from '@/src/services/consensus/storage/validatorActivityStatus.js';
 import { ValidatorsStorage } from '@/src/services/consensus/storage/validators.js';
 import { ExecutionClient } from '@/src/services/execution/execution.js';
 import initXstateMachines from '@/src/xstate/index.js';
@@ -164,7 +168,7 @@ async function main() {
   );
 
   // Create daily archive storage and controller
-  const dailyArchiveStorage = new DailyArchiveStorage(prisma);
+  const dailyArchiveStorage = new DailyArchiveStorage(prisma, env.ARCHIVE_DETAIL_RETENTION_DAYS);
   const lookbackSlotTimestamp = beaconTime.getTimestampFromSlotNumber(env.CONSENSUS_LOOKBACK_SLOT);
   const dailyArchiveController = new DailyArchiveController(
     dailyArchiveStorage,
@@ -186,6 +190,30 @@ async function main() {
   const snapshotStorage = new SnapshotStorage(prisma);
   const snapshotController = new SnapshotController(snapshotStorage, beaconTime);
 
+  // Create incident storage and tracker controller
+  const incidentRewardsStorage = new IncidentRewardsStorage(prisma, {
+    slotsPerEpoch: chainConfig.beacon.slotsPerEpoch,
+  });
+  const incidentRewardsController = new IncidentRewardsController(
+    incidentRewardsStorage,
+    slotStorage,
+    beaconTime,
+  );
+
+  const validatorActivityStatusStorage = new ValidatorActivityStatusStorage(
+    prisma,
+    {
+      genesisTimeSec: Math.floor(chainConfig.beacon.genesisTimestamp / 1000),
+      secPerSlot: Math.floor(chainConfig.beacon.slotDuration / 1000),
+    },
+    chainConfig.beacon.slotsPerEpoch,
+  );
+  const validatorActivityStatusController = new ValidatorActivityStatusController(
+    validatorActivityStatusStorage,
+    slotStorage,
+    beaconTime,
+  );
+
   // Start indexing the beacon chain
   await validatorsController.initValidatorsWithWait(env.CONSENSUS_LOOKBACK_SLOT);
 
@@ -203,6 +231,8 @@ async function main() {
     monthlyArchiveController,
     chainStatsController,
     snapshotController,
+    incidentRewardsController,
+    validatorActivityStatusController,
     env.CHAIN,
     chainConfig.beacon.maxAttestationDelay,
     chainConfig.beacon.delaySlotsToHead,

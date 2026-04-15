@@ -10,7 +10,10 @@ import ms from 'ms';
  * Follows the same pattern as HourlyArchiveStorage.
  */
 export class DailyArchiveStorage {
-  constructor(private readonly prisma: PrismaClient) {}
+  constructor(
+    private readonly prisma: PrismaClient,
+    private readonly archiveDetailRetentionDays: number,
+  ) {}
 
   /**
    * Check if a daily archive already exists for a specific UTC day.
@@ -191,8 +194,10 @@ export class DailyArchiveStorage {
           data: { lastDay: dayStart },
         });
 
-        // 5. Clean JSON detail from daily partitions older than 8 days
-        const cleanupCutoff = new Date(dayStart.getTime() - 8 * 24 * 60 * 60 * 1000);
+        // 5. Clean JSON detail from daily partitions older than the configured retention window
+        const cleanupCutoff = new Date(
+          dayStart.getTime() - this.archiveDetailRetentionDays * 24 * 60 * 60 * 1000,
+        );
         await tx.$executeRaw`
           UPDATE validator_daily_archive
           SET data_by_slot = NULL, data_by_epoch = NULL

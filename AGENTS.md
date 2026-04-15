@@ -35,3 +35,13 @@ A developer should be able to fully understand the intent and flow of the test b
 ## GitHub workflow
 
 - When creating pull requests, do **not** prefix the title with `[codex]`.
+
+## Best practices
+
+- Every code block must include clear comments explaining its purpose. Comments should be sufficient for a developer to understand the logic without reading the code itself.
+- Every function must have a short comment summarizing what it does.
+- Comments must be simple and direct.
+- Comments must describe the local code only.
+- Do not move chat context, refactor history, or temporary reasoning into durable code comments.
+- Avoid vague phrasing like "after this", "at this point", or "now" when a literal comment would be clearer.
+- Prefer comments like "gets current cursor", "opens missing rows", or "updates the slot cursor".
