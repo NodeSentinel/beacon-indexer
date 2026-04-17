@@ -37,6 +37,121 @@ export const ClusterIdParamSchema = z.object({
 export type ClusterIdParam = z.infer<typeof ClusterIdParamSchema>;
 
 /**
+ * Shared pagination schema for cluster incident listings.
+ */
+export const ClusterIncidentPaginationSchema = z.object({
+  page: z.coerce.number().int().positive().default(1),
+  pageSize: z.coerce.number().int().positive().max(100).default(10),
+});
+
+export type ClusterIncidentPagination = z.infer<typeof ClusterIncidentPaginationSchema>;
+
+/**
+ * Incident ID path parameter schema.
+ */
+export const ClusterIncidentIdParamSchema = z.object({
+  incidentId: z.string().uuid(),
+});
+
+export type ClusterIncidentIdParam = z.infer<typeof ClusterIncidentIdParamSchema>;
+
+/**
+ * List incidents input schema.
+ */
+export const ClusterIncidentsInputSchema = ClusterIdParamSchema.extend(
+  ClusterIncidentPaginationSchema.shape,
+);
+
+export type ClusterIncidentsInput = z.infer<typeof ClusterIncidentsInputSchema>;
+
+/**
+ * Cluster incident response item schema.
+ */
+export const ClusterIncidentSchema = z.object({
+  id: z.string(),
+  status: z.enum(['open', 'closed']),
+  openedAt: z.string(),
+  openedSlot: z.number(),
+  closedAt: z.string().nullable(),
+  closedSlot: z.number().nullable(),
+  durationSlots: z.number().nullable(),
+  durationSeconds: z.number().nullable(),
+  missedAttestationRewards: z.string().nullable(),
+  missedSyncRewards: z.string().nullable(),
+  missedConsensusRewards: z.string().nullable(),
+  rewardsFinalized: z.boolean(),
+  rewardsFinalizedAt: z.string().nullable(),
+  openedNotificationQueuedAt: z.string().nullable(),
+  closedNotificationQueuedAt: z.string().nullable(),
+});
+
+export type ClusterIncident = z.infer<typeof ClusterIncidentSchema>;
+
+/**
+ * Paginated cluster incidents response schema.
+ */
+export const ClusterIncidentsResponseSchema = z.object({
+  incidents: z.array(ClusterIncidentSchema),
+  totalCount: z.number(),
+  page: z.number(),
+  pageSize: z.number(),
+});
+
+export type ClusterIncidentsResponse = z.infer<typeof ClusterIncidentsResponseSchema>;
+
+/**
+ * Incident notification update response schema.
+ */
+export const ClusterIncidentNotificationSchema = z.object({
+  incidentId: z.string(),
+  notifiedAt: z.string(),
+});
+
+export type ClusterIncidentNotification = z.infer<typeof ClusterIncidentNotificationSchema>;
+
+/**
+ * Affected validators list input schema.
+ */
+export const ClusterIncidentAffectedValidatorsInputSchema = ClusterIncidentIdParamSchema.extend(
+  ClusterIncidentPaginationSchema.shape,
+);
+
+export type ClusterIncidentAffectedValidatorsInput = z.infer<
+  typeof ClusterIncidentAffectedValidatorsInputSchema
+>;
+
+/**
+ * Affected validator response item schema.
+ */
+export const ClusterIncidentAffectedValidatorSchema = z.object({
+  validatorIndex: z.number(),
+  inactiveFromSlot: z.number(),
+  inactiveToSlot: z.number().nullable(),
+  rewardsProcessedThroughSlot: z.number().nullable(),
+  missedAttestationRewards: z.string(),
+  missedSyncRewards: z.string(),
+  missedConsensusRewards: z.string(),
+});
+
+export type ClusterIncidentAffectedValidator = z.infer<
+  typeof ClusterIncidentAffectedValidatorSchema
+>;
+
+/**
+ * Paginated affected validators response schema.
+ */
+export const ClusterIncidentAffectedValidatorsResponseSchema = z.object({
+  validators: z.array(ClusterIncidentAffectedValidatorSchema),
+  totalCount: z.number(),
+  page: z.number(),
+  pageSize: z.number(),
+});
+
+export type ClusterIncidentAffectedValidatorsResponse = z.infer<
+  typeof ClusterIncidentAffectedValidatorsResponseSchema
+>;
+
+/**
  * Update cluster input schema
  */
 export const UpdateClusterInputSchema = z.object({

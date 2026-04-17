@@ -1,3 +1,5 @@
+import crypto from 'node:crypto';
+
 /**
  * E2E test API token — must match API_TOKEN_SECRET env var.
  * Used to authenticate test requests that don't need a user in context.
@@ -28,6 +30,34 @@ export function userAuthHeaders(extra?: Record<string, string>): Record<string, 
   return {
     'ns-anonymous-id': E2E_SESSION_ID,
     Origin: process.env.ALLOWED_ORIGINS?.split(',')[0]?.trim() || 'http://localhost:3000',
+    ...extra,
+  };
+}
+
+/**
+ * Returns headers with bot-signature auth for endpoints called by the telegram bot.
+ * Uses the same HMAC format as the production bot client.
+ */
+export function botAuthHeaders(
+  telegramId: string,
+  extra?: Record<string, string>,
+): Record<string, string> {
+  const token = process.env.TELEGRAM_BOT_TOKEN;
+
+  if (!token) {
+    throw new Error('TELEGRAM_BOT_TOKEN is not set');
+  }
+
+  const timestamp = Math.floor(Date.now() / 1000).toString();
+  const signature = crypto
+    .createHmac('sha256', token)
+    .update(`${telegramId}:${timestamp}`)
+    .digest('hex');
+
+  return {
+    'bot-signature': signature,
+    'bot-user-id': telegramId,
+    'bot-timestamp': timestamp,
     ...extra,
   };
 }
