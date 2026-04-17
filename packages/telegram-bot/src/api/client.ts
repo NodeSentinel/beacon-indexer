@@ -9,28 +9,14 @@ import { env } from '@/src/env.js';
 export type AppRouter = RouterClient<typeof router>;
 
 /**
- * Module-level variable for the current telegramId.
- * Set before each API call in the scheduler loop.
- * Since the scheduler processes users sequentially, this is safe.
+ * Creates an RPC client whose auth headers are bound to a specific telegramId.
+ * Each caller gets its own client instance, so requests never share mutable auth state.
  */
-let currentTelegramId = '';
+export function getRpcClientForUser(telegramId: string): AppRouter {
+  const link = new RPCLink({
+    url: `${env.API_URL}/rpc`,
+    headers: () => createBotSignatureHeaders(env.BOT_TOKEN, telegramId),
+  });
 
-/**
- * Set the telegramId for the next API request(s).
- * Must be called before using the orpcClient for a specific user.
- */
-export function setCurrentTelegramId(telegramId: string): void {
-  currentTelegramId = telegramId;
+  return createORPCClient(link);
 }
-
-const link = new RPCLink({
-  url: `${env.API_URL}/rpc`,
-  headers: () => {
-    if (!currentTelegramId) {
-      throw new Error('currentTelegramId not set — call setCurrentTelegramId() first');
-    }
-    return createBotSignatureHeaders(env.BOT_TOKEN, currentTelegramId);
-  },
-});
-
-export const orpcClient: AppRouter = createORPCClient(link);

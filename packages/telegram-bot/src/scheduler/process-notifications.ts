@@ -1,6 +1,6 @@
 import type { Api, RawApi } from 'grammy';
 
-import { orpcClient, setCurrentTelegramId } from '@/src/api/client.js';
+import { getRpcClientForUser } from '@/src/api/client.js';
 import type { Logger } from '@/src/logger.js';
 import { formatNotificationMessage } from '@/src/telegram/format-notification.js';
 import { sendNotificationMessage } from '@/src/telegram/messaging.js';
@@ -21,8 +21,8 @@ export async function processNotifications(
 ): Promise<void> {
   if (signal.aborted) return;
 
-  setCurrentTelegramId('0');
-  const response = await orpcClient.bot.notifications({ limit: 100 });
+  const rpcClient = getRpcClientForUser('0');
+  const response = await rpcClient.bot.notifications({ limit: 100 });
   const notifications = response.success ? ((response.data ?? []) as BotNotification[]) : [];
 
   if (notifications.length === 0) return;
@@ -44,6 +44,6 @@ export async function processNotifications(
 
     if (!delivered) continue;
 
-    await orpcClient.bot.setNotificationDelivered({ id: notification.id });
+    await rpcClient.bot.setNotificationDelivered({ id: notification.id });
   }
 }

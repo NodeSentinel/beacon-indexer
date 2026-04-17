@@ -1,6 +1,6 @@
 import type { Api, RawApi } from 'grammy';
 
-import { orpcClient, setCurrentTelegramId } from '@/src/api/client.js';
+import { getRpcClientForUser } from '@/src/api/client.js';
 import type { Logger } from '@/src/logger.js';
 import { formatStatsMessage } from '@/src/telegram/format-stats.js';
 import { editDashboardMessage, sendDashboardMessage } from '@/src/telegram/messaging.js';
@@ -28,12 +28,11 @@ export async function notifyUserStats(
   logger: Logger,
 ): Promise<void> {
   const userLogger = logger.child({ telegramId: user.telegramId, username: user.username });
-
-  setCurrentTelegramId(user.telegramId);
+  const rpcClient = getRpcClientForUser(user.telegramId);
 
   // Fetch user's clusters
   userLogger.debug('Fetching clusters');
-  const clustersResponse = await orpcClient.cluster.list({});
+  const clustersResponse = await rpcClient.cluster.list({});
   if (!clustersResponse.success || !clustersResponse.data?.length) {
     userLogger.debug('No clusters found, skipping');
     return;
@@ -44,7 +43,7 @@ export async function notifyUserStats(
   // Fetch snapshot for each cluster and aggregate
   const snapshots = await Promise.all(
     clustersResponse.data.map(async (cluster) => {
-      const snapshotResponse = await orpcClient.cluster.snapshot({ id: cluster.id });
+      const snapshotResponse = await rpcClient.cluster.snapshot({ id: cluster.id });
       if (!snapshotResponse.success || !snapshotResponse.data) return null;
       return snapshotResponse.data;
     }),
@@ -96,7 +95,7 @@ export async function notifyUserStats(
   // Update messageId if we got a new one
   if (newMessageId !== null && newMessageId !== existingMessageId) {
     try {
-      await orpcClient.bot.updateMessageId({
+      await rpcClient.bot.updateMessageId({
         telegramId: user.telegramId,
         messageId: newMessageId,
       });

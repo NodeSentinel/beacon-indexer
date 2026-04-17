@@ -1,10 +1,8 @@
 import type { Api, RawApi } from 'grammy';
 
-import { orpcClient, setCurrentTelegramId } from '@/src/api/client.js';
+import { getRpcClientForUser } from '@/src/api/client.js';
 import type { Logger } from '@/src/logger.js';
 import { notifyUserStats } from '@/src/scheduler/notify-user-stats.js';
-
-const USER_DELAY_MS = 100;
 
 function delay(ms: number, signal: AbortSignal) {
   return new Promise<void>((resolve, reject) => {
@@ -21,8 +19,8 @@ export async function processUsers(
   signal: AbortSignal,
   log: Logger,
 ): Promise<void> {
-  setCurrentTelegramId('0');
-  const response = await orpcClient.bot.users({});
+  const rpcClient = getRpcClientForUser('0');
+  const response = await rpcClient.bot.users({});
   const users = response.success ? (response.data ?? []) : [];
 
   log.info({ userCount: users.length }, 'Processing users');

@@ -1,6 +1,6 @@
 import type { Api, RawApi } from 'grammy';
 
-import { orpcClient, setCurrentTelegramId } from '@/src/api/client.js';
+import { getRpcClientForUser } from '@/src/api/client.js';
 import type { Logger } from '@/src/logger.js';
 
 /** Telegram API error code for "bot was blocked by the user" */
@@ -128,8 +128,8 @@ async function handleBlockedUser(telegramId: string, logger: Logger): Promise<vo
   logger.info({ telegramId }, 'User has blocked the bot, marking as blocked');
   blockedUserIds.add(telegramId);
   try {
-    setCurrentTelegramId(telegramId);
-    await orpcClient.bot.setBlocked({ telegramId });
+    const rpcClient = getRpcClientForUser(telegramId);
+    await rpcClient.bot.setBlocked({ telegramId });
   } catch (err) {
     logger.error({ err, telegramId }, 'Failed to mark user as blocked via API');
   }
