@@ -43,6 +43,7 @@ export const UpdateClusterInputSchema = z.object({
   name: z.string().min(1).max(100).optional(),
   visibility: ClusterVisibilitySchema.optional(),
   feeRecipientAddress: ethereumAddressSchema.nullable().optional(),
+  validatorIndexes: z.array(z.number().int().nonnegative()).optional(),
 });
 
 export type UpdateClusterInput = z.infer<typeof UpdateClusterInputSchema>;

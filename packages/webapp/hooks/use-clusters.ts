@@ -5,6 +5,51 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { orpcClient } from '@/lib/orpc';
 import { useUserId } from '@/lib/user-id';
 
+interface ClusterListItem {
+  id: string;
+  name: string;
+  visibility: 'private' | 'shared';
+  feeRecipientAddress: string | null;
+  ownerId: string;
+  createdAt: string;
+  validatorCount: number;
+}
+
+/**
+ * Merges a created cluster into the cached list so the home view reflects the save immediately.
+ */
+function mergeCreatedCluster(
+  currentClusters: ClusterListItem[] | undefined,
+  createdCluster: ClusterListItem,
+): ClusterListItem[] {
+  const nextClusters = currentClusters?.filter((cluster) => cluster.id !== createdCluster.id) ?? [];
+
+  // Keeps the newest cluster at the top to match the API ordering by createdAt descending.
+  return [createdCluster, ...nextClusters];
+}
+
+/**
+ * Normalizes the create response into the list shape used by the home cache.
+ */
+function toClusterListItem(
+  cluster: Partial<ClusterListItem> | undefined,
+  fallback: Pick<ClusterListItem, 'name' | 'visibility' | 'feeRecipientAddress' | 'validatorCount'>,
+): ClusterListItem {
+  if (!cluster?.id || !cluster.ownerId || !cluster.createdAt) {
+    throw new Error('Failed to create cluster');
+  }
+
+  return {
+    id: cluster.id,
+    name: cluster.name ?? fallback.name,
+    visibility: cluster.visibility ?? fallback.visibility,
+    feeRecipientAddress: cluster.feeRecipientAddress ?? fallback.feeRecipientAddress,
+    ownerId: cluster.ownerId,
+    createdAt: cluster.createdAt,
+    validatorCount: cluster.validatorCount ?? fallback.validatorCount,
+  };
+}
+
 /**
  * Hook to fetch all clusters for the current user
  */
@@ -56,7 +101,7 @@ export function useCreateCluster() {
       validatorIndexes: number[];
       visibility?: 'private' | 'shared';
       feeRecipientAddress?: string | null;
-    }) => {
+    }): Promise<ClusterListItem> => {
       const response = await orpcClient.cluster.create({
         ...data,
         visibility: data.visibility || 'private',
@@ -64,10 +109,21 @@ export function useCreateCluster() {
       if (!response.success) {
         throw new Error(response.error?.message || 'Failed to create cluster');
       }
-      return response.data;
+
+      return toClusterListItem(response.data, {
+        name: data.name,
+        visibility: data.visibility || 'private',
+        feeRecipientAddress: data.feeRecipientAddress ?? null,
+        validatorCount: data.validatorIndexes.length,
+      });
     },
-    onSuccess: () => {
+    onSuccess: (createdCluster) => {
+      queryClient.setQueryData<ClusterListItem[]>(['clusters'], (currentClusters) =>
+        mergeCreatedCluster(currentClusters, createdCluster),
+      );
       queryClient.invalidateQueries({ queryKey: ['clusters'] });
+      queryClient.invalidateQueries({ queryKey: ['cluster'] });
+      queryClient.invalidateQueries({ queryKey: ['clusterSnapshot'] });
     },
   });
 }
@@ -84,6 +140,7 @@ export function useUpdateCluster() {
       name?: string;
       visibility?: 'private' | 'shared';
       feeRecipientAddress?: string | null;
+      validatorIndexes?: number[];
     }) => {
       const { id, ...updateData } = data;
       const response = await orpcClient.cluster.update({ id, ...updateData });

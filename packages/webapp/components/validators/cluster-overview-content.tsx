@@ -118,7 +118,7 @@ export default function ClusterOverviewContent({
     return displays;
   };
 
-  const totalValidators = cluster.validators.length;
+  const totalValidators = cluster.validatorCount ?? cluster.validators.length;
 
   const balanceUsd = formatNumber(cluster.totalBalance * gnoPrice);
   const effectiveBalanceUsd = formatNumber(cluster.totalEffectiveBalance * gnoPrice, 0);

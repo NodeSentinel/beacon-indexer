@@ -46,6 +46,7 @@ export default function DashboardOverview() {
           <SheetTitle className="sr-only">Add Cluster</SheetTitle>
           <div className="mt-6">
             <ClusterForm
+              key="create-cluster-form"
               clusterId={null}
               onClose={() => setClusterFormOpen(false)}
               onSaved={() => refetchClusters()}
@@ -63,6 +64,8 @@ export default function DashboardOverview() {
           <SheetTitle className="sr-only">Manage Cluster</SheetTitle>
           <div className="mt-6">
             <ClusterForm
+              // Remounts the editor when a different cluster opens so local draft state stays isolated.
+              key={managingClusterId ?? 'manage-cluster-form'}
               clusterId={managingClusterId}
               onClose={() => setManagingClusterId(null)}
               onSaved={() => refetchClusters()}

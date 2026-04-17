@@ -59,7 +59,7 @@ export default function ClusterCard({ cluster, onManage, gnoPrice }: ClusterCard
     return displays;
   };
 
-  const totalValidators = cluster.validators.length;
+  const totalValidators = cluster.validatorCount ?? cluster.validators.length;
 
   const balanceUsd = (cluster.totalBalance * gnoPrice).toFixed(2);
   const effectiveBalanceUsd = (cluster.totalEffectiveBalance * gnoPrice).toFixed(0);

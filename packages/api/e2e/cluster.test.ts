@@ -16,6 +16,7 @@ import type { ApiResponse } from '@/utils/response.js';
 
 // Response types using ApiResponse wrapper with schema types
 type ClusterResponse = ApiResponse<Cluster>;
+type ClusterWithCountResponse = ApiResponse<ClusterWithCount>;
 type ClusterDetailResponse = ApiResponse<ClusterDetail>;
 type ClusterListResponse = ApiResponse<ClusterWithCount[]>;
 type AddValidatorsResponse = ApiResponse<AddValidatorsData>;
@@ -117,7 +118,7 @@ describe('Cluster API E2E Tests', () => {
       });
 
       expect(response.ok).toBe(true);
-      const body = (await response.json()) as ClusterResponse;
+      const body = (await response.json()) as ClusterWithCountResponse;
 
       expect(body.success).toBe(true);
       expect(body.data).toBeDefined();
@@ -125,6 +126,7 @@ describe('Cluster API E2E Tests', () => {
       expect(body.data!.visibility).toBe('private');
       expect(body.data!.ownerId).toBe(testOwnerId);
       expect(body.data!.id).toBeDefined();
+      expect(body.data!.validatorCount).toBe(1);
 
       createdClusterIds.push(body.data!.id);
     });
@@ -150,11 +152,12 @@ describe('Cluster API E2E Tests', () => {
       });
 
       expect(response.ok).toBe(true);
-      const body = (await response.json()) as ClusterResponse;
+      const body = (await response.json()) as ClusterWithCountResponse;
 
       expect(body.success).toBe(true);
       expect(body.data!.feeRecipientAddress).toBe(feeRecipient);
       expect(body.data!.visibility).toBe('shared');
+      expect(body.data!.validatorCount).toBe(1);
 
       createdClusterIds.push(body.data!.id);
     });
@@ -302,6 +305,198 @@ describe('Cluster API E2E Tests', () => {
 
       expect(body.success).toBe(false);
       expect(body.error!.code).toBe('CLUSTER_NOT_FOUND');
+    });
+
+    it('should replace cluster validators in the same update request', async () => {
+      // This scenario verifies the save route can swap cluster membership in one request.
+      const cluster = await prisma.cluster.create({
+        data: { name: 'Replace Validators Test', ownerId: testOwnerId, visibility: 'private' },
+      });
+      createdClusterIds.push(cluster.id);
+
+      // Seed the existing validator rows used by the cluster before the update.
+      await prisma.validator.upsert({
+        where: { id: 601 },
+        update: {},
+        create: { id: 601, balance: BigInt(32000000000) },
+      });
+      await prisma.validator.upsert({
+        where: { id: 602 },
+        update: {},
+        create: { id: 602, balance: BigInt(32000000000) },
+      });
+      await prisma.validator.upsert({
+        where: { id: 603 },
+        update: {},
+        create: { id: 603, balance: BigInt(32000000000) },
+      });
+
+      // Attach two validators so the update has an existing membership set to replace.
+      await prisma.clusterValidator.createMany({
+        data: [
+          { clusterId: cluster.id, validatorIndex: 601 },
+          { clusterId: cluster.id, validatorIndex: 602 },
+        ],
+      });
+
+      // Save the edited cluster with one kept validator and one newly added validator.
+      const response = await fetch(`${baseUrl}/clusters/${cluster.id}`, {
+        method: 'PUT',
+        headers: userAuthHeaders({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify({
+          name: 'Replace Validators Test Updated',
+          validatorIndexes: [602, 603],
+        }),
+      });
+
+      expect(response.ok).toBe(true);
+      const body = (await response.json()) as ClusterResponse;
+
+      // The cluster metadata update should succeed together with the membership sync.
+      expect(body.success).toBe(true);
+      expect(body.data!.name).toBe('Replace Validators Test Updated');
+
+      // Read the join table back to confirm the final membership matches the request exactly.
+      const validators = await prisma.clusterValidator.findMany({
+        where: { clusterId: cluster.id },
+        orderBy: { validatorIndex: 'asc' },
+      });
+      expect(validators.map((row) => row.validatorIndex)).toEqual([602, 603]);
+    });
+
+    it('should update validator membership without requiring metadata changes', async () => {
+      // This scenario verifies the transactional sync works when the save only changes validators.
+      const cluster = await prisma.cluster.create({
+        data: { name: 'Validator Only Update Test', ownerId: testOwnerId, visibility: 'private' },
+      });
+      createdClusterIds.push(cluster.id);
+
+      // Seed the validator rows used by the membership-only update request.
+      await prisma.validator.upsert({
+        where: { id: 606 },
+        update: {},
+        create: { id: 606, balance: BigInt(32000000000) },
+      });
+      await prisma.validator.upsert({
+        where: { id: 607 },
+        update: {},
+        create: { id: 607, balance: BigInt(32000000000) },
+      });
+
+      // Start with one validator so the request performs a real membership change.
+      await prisma.clusterValidator.create({
+        data: { clusterId: cluster.id, validatorIndex: 606 },
+      });
+
+      // Save only the new validator set and leave cluster metadata untouched.
+      const response = await fetch(`${baseUrl}/clusters/${cluster.id}`, {
+        method: 'PUT',
+        headers: userAuthHeaders({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify({
+          validatorIndexes: [607],
+        }),
+      });
+
+      expect(response.ok).toBe(true);
+      const body = (await response.json()) as ClusterResponse;
+
+      // The route should keep the original metadata while applying the new membership.
+      expect(body.success).toBe(true);
+      expect(body.data!.name).toBe('Validator Only Update Test');
+      expect(body.data!.visibility).toBe('private');
+
+      // Read the final membership to confirm the validator-only save replaced the join rows.
+      const validators = await prisma.clusterValidator.findMany({
+        where: { clusterId: cluster.id },
+        orderBy: { validatorIndex: 'asc' },
+      });
+      expect(validators.map((row) => row.validatorIndex)).toEqual([607]);
+    });
+
+    it('should allow updating a cluster to an empty validator set', async () => {
+      // This scenario proves an edit can intentionally leave the cluster empty.
+      const cluster = await prisma.cluster.create({
+        data: { name: 'Empty Validators Test', ownerId: testOwnerId, visibility: 'private' },
+      });
+      createdClusterIds.push(cluster.id);
+
+      // Seed one validator so the update removes a real existing membership.
+      await prisma.validator.upsert({
+        where: { id: 604 },
+        update: {},
+        create: { id: 604, balance: BigInt(32000000000) },
+      });
+      await prisma.clusterValidator.create({
+        data: { clusterId: cluster.id, validatorIndex: 604 },
+      });
+
+      // Save the cluster with an explicit empty validator list.
+      const response = await fetch(`${baseUrl}/clusters/${cluster.id}`, {
+        method: 'PUT',
+        headers: userAuthHeaders({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify({
+          visibility: 'shared',
+          validatorIndexes: [],
+        }),
+      });
+
+      expect(response.ok).toBe(true);
+      const body = (await response.json()) as ClusterResponse;
+
+      // The route should accept the edit and preserve the other metadata changes.
+      expect(body.success).toBe(true);
+      expect(body.data!.visibility).toBe('shared');
+
+      // The cluster should end with no validator memberships after the sync.
+      const validators = await prisma.clusterValidator.findMany({
+        where: { clusterId: cluster.id },
+      });
+      expect(validators).toEqual([]);
+    });
+
+    it('should reject validator sync when the edited cluster belongs to another user', async () => {
+      // This scenario ensures the ownership guard still protects the transactional save route.
+      const cluster = await prisma.cluster.create({
+        data: { name: 'Unauthorized Update Test', ownerId: testOwnerId, visibility: 'private' },
+      });
+      createdClusterIds.push(cluster.id);
+
+      // Seed one existing membership so the unauthorized edit would be destructive if allowed.
+      await prisma.validator.upsert({
+        where: { id: 605 },
+        update: {},
+        create: { id: 605, balance: BigInt(32000000000) },
+      });
+      await prisma.clusterValidator.create({
+        data: { clusterId: cluster.id, validatorIndex: 605 },
+      });
+
+      // Submit the full edit as a different authenticated user.
+      const response = await fetch(`${baseUrl}/clusters/${cluster.id}`, {
+        method: 'PUT',
+        headers: otherUserAuthHeaders({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify({
+          name: 'Should Not Apply',
+          validatorIndexes: [],
+        }),
+      });
+
+      expect(response.ok).toBe(true);
+      const body = (await response.json()) as ClusterResponse;
+
+      // The API must not reveal or mutate clusters owned by another user.
+      expect(body.success).toBe(false);
+      expect(body.error!.code).toBe('CLUSTER_NOT_FOUND');
+
+      // Verify both the name and membership remained unchanged after the rejected request.
+      const unchangedCluster = await prisma.cluster.findUniqueOrThrow({
+        where: { id: cluster.id },
+      });
+      expect(unchangedCluster.name).toBe('Unauthorized Update Test');
+      const validators = await prisma.clusterValidator.findMany({
+        where: { clusterId: cluster.id },
+      });
+      expect(validators.map((row) => row.validatorIndex)).toEqual([605]);
     });
   });
 

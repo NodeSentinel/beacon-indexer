@@ -1,4 +1,4 @@
-import { ClusterSchema, CreateClusterInputSchema } from './schemas.js';
+import { ClusterWithCountSchema, CreateClusterInputSchema } from './schemas.js';
 
 import { securedProcedure } from '@/lib/procedures.js';
 import { ClusterStorage } from '@/storage/cluster.js';
@@ -11,7 +11,7 @@ import { ApiResponseSchema } from '@/utils/response.js';
 export const createCluster = securedProcedure
   .route({ method: 'POST', path: '/clusters' })
   .input(CreateClusterInputSchema)
-  .output(ApiResponseSchema(ClusterSchema))
+  .output(ApiResponseSchema(ClusterWithCountSchema))
   .handler(async ({ input, context }) => {
     try {
       const storage = new ClusterStorage();
@@ -20,9 +20,8 @@ export const createCluster = securedProcedure
         ownerId: context.user!.id,
         visibility: input.visibility,
         feeRecipientAddress: input.feeRecipientAddress ?? null,
+        validatorIndexes: input.validatorIndexes,
       });
-
-      await storage.addValidators(cluster.id, input.validatorIndexes);
 
       return {
         success: true,
@@ -33,6 +32,7 @@ export const createCluster = securedProcedure
           feeRecipientAddress: cluster.feeRecipientAddress,
           ownerId: cluster.ownerId,
           createdAt: cluster.createdAt.toISOString(),
+          validatorCount: cluster.validatorCount,
         },
         meta: { timestamp: new Date().toISOString() },
       };

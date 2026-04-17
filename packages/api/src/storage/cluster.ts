@@ -7,12 +7,17 @@ interface CreateClusterData {
   ownerId: string;
   visibility: ClusterVisibility;
   feeRecipientAddress?: string | null;
+  validatorIndexes?: number[];
 }
 
 interface UpdateClusterData {
   name?: string;
   visibility?: ClusterVisibility;
   feeRecipientAddress?: string | null;
+}
+
+interface UpdateClusterWithValidatorsData extends UpdateClusterData {
+  validatorIndexes?: number[];
 }
 
 /**
@@ -23,10 +28,55 @@ export class ClusterStorage {
   constructor(private readonly prisma: PrismaClient = getPrisma()) {}
 
   /**
+   * Removes duplicate validator indexes while preserving the first occurrence.
+   */
+  private uniqueValidatorIndexes(indexes: number[]): number[] {
+    const seen = new Set<number>();
+
+    // Keeps the diff deterministic even when the caller sends repeated indexes.
+    return indexes.filter((index) => {
+      if (seen.has(index)) {
+        return false;
+      }
+
+      seen.add(index);
+      return true;
+    });
+  }
+
+  /**
    * Create a new cluster
    */
   async create(data: CreateClusterData) {
-    return this.prisma.cluster.create({ data });
+    const validatorIndexes = this.uniqueValidatorIndexes(data.validatorIndexes ?? []);
+
+    // Persists the cluster and its initial membership in one transaction so callers never
+    // observe a cluster without the validators that were part of the create request.
+    return this.prisma.$transaction(async (tx) => {
+      const cluster = await tx.cluster.create({
+        data: {
+          name: data.name,
+          ownerId: data.ownerId,
+          visibility: data.visibility,
+          feeRecipientAddress: data.feeRecipientAddress,
+        },
+      });
+
+      if (validatorIndexes.length > 0) {
+        await tx.clusterValidator.createMany({
+          data: validatorIndexes.map((validatorIndex) => ({
+            clusterId: cluster.id,
+            validatorIndex,
+          })),
+          skipDuplicates: true,
+        });
+      }
+
+      return {
+        ...cluster,
+        validatorCount: validatorIndexes.length,
+      };
+    });
   }
 
   /**
@@ -169,6 +219,76 @@ export class ClusterStorage {
    */
   async update(id: string, data: UpdateClusterData) {
     return this.prisma.cluster.update({ where: { id }, data });
+  }
+
+  /**
+   * Update cluster metadata and synchronize validator membership in one transaction.
+   */
+  async updateWithValidators(id: string, data: UpdateClusterWithValidatorsData) {
+    const validatorIndexes =
+      data.validatorIndexes !== undefined
+        ? this.uniqueValidatorIndexes(data.validatorIndexes)
+        : undefined;
+    const metadata = {
+      name: data.name,
+      visibility: data.visibility,
+      feeRecipientAddress: data.feeRecipientAddress,
+    };
+    const hasMetadataUpdates = Object.values(metadata).some((value) => value !== undefined);
+
+    // Runs the metadata update and membership sync together so saves are atomic.
+    return this.prisma.$transaction(async (tx) => {
+      // Reuses the stored cluster row when the save only changes validator membership.
+      const cluster = hasMetadataUpdates
+        ? await tx.cluster.update({
+            where: { id },
+            data: metadata,
+          })
+        : await tx.cluster.findUniqueOrThrow({
+            where: { id },
+          });
+
+      if (validatorIndexes !== undefined) {
+        // Reads the current membership first so the sync only writes the real delta.
+        const currentValidators = await tx.clusterValidator.findMany({
+          where: { clusterId: id },
+          select: { validatorIndex: true },
+        });
+
+        const currentValidatorSet = new Set(currentValidators.map((row) => row.validatorIndex));
+        const nextValidatorSet = new Set(validatorIndexes);
+
+        // Adds validators that appear in the new draft but not in the stored cluster.
+        const validatorIndexesToAdd = validatorIndexes.filter(
+          (validatorIndex) => !currentValidatorSet.has(validatorIndex),
+        );
+        // Removes validators that are still stored but no longer appear in the saved draft.
+        const validatorIndexesToRemove = currentValidators
+          .map((row) => row.validatorIndex)
+          .filter((validatorIndex) => !nextValidatorSet.has(validatorIndex));
+
+        if (validatorIndexesToRemove.length > 0) {
+          await tx.clusterValidator.deleteMany({
+            where: {
+              clusterId: id,
+              validatorIndex: { in: validatorIndexesToRemove },
+            },
+          });
+        }
+
+        if (validatorIndexesToAdd.length > 0) {
+          await tx.clusterValidator.createMany({
+            data: validatorIndexesToAdd.map((validatorIndex) => ({
+              clusterId: id,
+              validatorIndex,
+            })),
+            skipDuplicates: true,
+          });
+        }
+      }
+
+      return cluster;
+    });
   }
 
   /**
