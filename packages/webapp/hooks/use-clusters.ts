@@ -2,7 +2,6 @@
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
-import { useAuthSnapshot } from '@/lib/auth-session';
 import { orpcClient } from '@/lib/orpc';
 import { useUserId } from '@/lib/user-id';
 
@@ -11,10 +10,9 @@ import { useUserId } from '@/lib/user-id';
  */
 export function useClusters() {
   const userId = useUserId();
-  const auth = useAuthSnapshot();
 
   return useQuery({
-    queryKey: ['clusters', auth.cacheKey, userId],
+    queryKey: ['clusters', userId],
     queryFn: async () => {
       const response = await orpcClient.cluster.list({});
       if (!response.success) {
@@ -31,10 +29,8 @@ export function useClusters() {
  * Hook to fetch a single cluster by ID
  */
 export function useCluster(id: string | null) {
-  const auth = useAuthSnapshot();
-
   return useQuery({
-    queryKey: ['cluster', auth.cacheKey, id],
+    queryKey: ['cluster', id],
     queryFn: async () => {
       if (!id) return null;
       const response = await orpcClient.cluster.get({ id });

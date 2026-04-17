@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from 'react';
 
-import { useAuthSnapshot } from './auth-session';
 import { orpcClient } from './orpc';
 
 /**
@@ -16,7 +15,6 @@ import { orpcClient } from './orpc';
  */
 export function useUserId(): string {
   const [userId, setUserId] = useState('');
-  const auth = useAuthSnapshot();
 
   useEffect(() => {
     async function fetchUserId() {
@@ -35,7 +33,7 @@ export function useUserId(): string {
     }
 
     fetchUserId();
-  }, [auth.cacheKey]);
+  }, []);
 
   return userId;
 }

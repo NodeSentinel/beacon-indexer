@@ -2,7 +2,6 @@
 
 import { useQuery } from '@tanstack/react-query';
 
-import { useAuthSnapshot } from '@/lib/auth-session';
 import { orpcClient } from '@/lib/orpc';
 
 export interface ClusterSnapshot {
@@ -43,10 +42,8 @@ export interface ClusterSnapshot {
 }
 
 export function useClusterSnapshot(clusterId: string | null) {
-  const auth = useAuthSnapshot();
-
   return useQuery({
-    queryKey: ['clusterSnapshot', auth.cacheKey, clusterId],
+    queryKey: ['clusterSnapshot', clusterId],
     queryFn: async () => {
       if (!clusterId) throw new Error('No cluster ID');
       const response = await orpcClient.cluster.snapshot({ id: clusterId });

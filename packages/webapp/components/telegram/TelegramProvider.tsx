@@ -6,7 +6,7 @@ import { type PropsWithChildren, useEffect, useState } from 'react';
 
 import { BackButtonBinder } from './BackButtonBinder';
 
-import { clearTelegramInitData, setTelegramInitData } from '@/lib/auth-session';
+import { initializeAnonymousAuth, initializeTelegramAuth } from '@/lib/auth-session';
 import { shouldMockTelegram, setupTelegramMock } from '@/lib/mockTelegramEnv';
 
 /**
@@ -60,22 +60,13 @@ async function setupViewportAndTheme() {
 function TelegramAppInitializer({ children }: PropsWithChildren) {
   const lp = useLaunchParams();
   const rawInitData = useRawInitData();
-  const [isAuthBootstrapped, setIsAuthBootstrapped] = useState(false);
+  const [isTelegramReady, setIsTelegramReady] = useState(false);
 
   useEffect(() => {
-    // Store raw initData for API auth header injection
     if (rawInitData) {
-      setTelegramInitData(rawInitData);
-    } else {
-      clearTelegramInitData();
+      initializeTelegramAuth(rawInitData);
+      setIsTelegramReady(true);
     }
-
-    // Only render children after the auth header source is settled.
-    setIsAuthBootstrapped(true);
-
-    return () => {
-      clearTelegramInitData();
-    };
   }, [rawInitData]);
 
   useEffect(() => {
@@ -94,7 +85,8 @@ function TelegramAppInitializer({ children }: PropsWithChildren) {
     }
   }, [lp]);
 
-  if (!isAuthBootstrapped) {
+  // Telegram sessions must not fall back to anonymous auth.
+  if (!isTelegramReady) {
     return null;
   }
 
@@ -119,7 +111,8 @@ function TelegramAppInitializer({ children }: PropsWithChildren) {
  */
 export function TelegramProvider({ children }: PropsWithChildren) {
   const [isMounted, setIsMounted] = useState(false);
-  const [isSdkReady, setIsSdkReady] = useState(false);
+  const [isTelegramEnvironment, setIsTelegramEnvironment] = useState(false);
+  const [isAuthReady, setIsAuthReady] = useState(false);
 
   useEffect(() => {
     setIsMounted(true);
@@ -138,9 +131,11 @@ export function TelegramProvider({ children }: PropsWithChildren) {
     let cleanup: VoidFunction | undefined;
     try {
       cleanup = init();
-      setIsSdkReady(true);
+      setIsTelegramEnvironment(true);
     } catch (err) {
-      // Avoid breaking the app if init fails in non-Telegram environments
+      // Non-Telegram webapp sessions use anonymous auth from the start.
+      initializeAnonymousAuth();
+      setIsAuthReady(true);
       console.warn('Telegram SDK init failed or unavailable:', err);
     }
 
@@ -155,11 +150,15 @@ export function TelegramProvider({ children }: PropsWithChildren) {
 
   // Don't render SDK components on server
   if (!isMounted) {
-    return <>{children}</>;
+    return null;
   }
 
-  // Render Telegram-dependent parts only after SDK is ready
-  if (!isSdkReady) {
+  // Wait until anonymous web auth is initialized when Telegram SDK is absent.
+  if (!isTelegramEnvironment && !isAuthReady) {
+    return null;
+  }
+
+  if (!isTelegramEnvironment) {
     return <>{children}</>;
   }
 
