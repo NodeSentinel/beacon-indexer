@@ -108,17 +108,19 @@ export function createHttpServer() {
   });
 
   const server = createServer(async (req, res) => {
+    const startedAt = Date.now();
+    let requestPrefix = `${req.method ?? 'UNKNOWN'} ${req.url ?? 'UNKNOWN'}`;
+
     try {
-      const url = new URL(req.url || '', `http://${req.headers.host}`);
+      const url = new URL(req.url || '', `http://${req.headers.host || 'localhost'}`);
       const pathname = url.pathname;
-      const startedAt = Date.now();
       const method = req.method ?? 'UNKNOWN';
       const meta: RequestLogMeta = {
         auth: inferAuthStrategy(req.headers),
         origin: req.headers.origin,
         rpcMethod: getRpcMethod(pathname),
       };
-      const requestPrefix = buildRequestLogPrefix(method, pathname, meta);
+      requestPrefix = buildRequestLogPrefix(method, pathname, meta);
 
       // Determine which handler to use based on path prefix
       // Routes starting with /rpc use RPCHandler (for oRPC client)
@@ -159,7 +161,7 @@ export function createHttpServer() {
 
       logger.info(`${requestPrefix} status=${status} duration=${durationMs}ms`);
     } catch (error) {
-      logger.error({ err: error }, 'Unhandled server error');
+      logger.error({ err: error }, `${requestPrefix} Unhandled server error`);
       if (!res.headersSent) {
         res.statusCode = 500;
         res.setHeader('Content-Type', 'text/plain');
