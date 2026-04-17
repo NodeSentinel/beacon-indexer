@@ -2,7 +2,7 @@
 
 import { Trash2, Loader2 } from 'lucide-react';
 import type React from 'react';
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { isAddress } from 'viem';
 
 import { Button } from '@/components/ui/button';
@@ -23,8 +23,6 @@ import {
   useCreateCluster,
   useUpdateCluster,
   useDeleteCluster,
-  useAddValidators,
-  useRemoveValidator,
 } from '@/hooks/use-clusters';
 import { useToast } from '@/hooks/use-toast';
 import type { ValidatorItem } from '@/hooks/use-validator-input';
@@ -33,7 +31,7 @@ interface ClusterFormProps {
   /** Cluster ID for edit mode, null for create mode */
   clusterId: string | null;
   onClose: () => void;
-  onSaved?: () => void;
+  onSaved?: () => void | Promise<unknown>;
   onDeleted?: () => void;
 }
 
@@ -52,9 +50,7 @@ export default function ClusterForm({ clusterId, onClose, onSaved, onDeleted }: 
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
-  // Validators state - initialValidators is passed to ValidatorSection,
-  // validators holds the current state received via callback
-  const [initialValidators, setInitialValidators] = useState<ValidatorItem[]>([]);
+  // Validators state lives in the form so the save payload always matches the visible chips.
   const [validators, setValidators] = useState<ValidatorItem[]>([]);
 
   // Get withdrawal addresses from the full cluster details
@@ -64,8 +60,6 @@ export default function ClusterForm({ clusterId, onClose, onSaved, onDeleted }: 
   const createCluster = useCreateCluster();
   const updateCluster = useUpdateCluster();
   const deleteCluster = useDeleteCluster();
-  const addValidatorsMutation = useAddValidators();
-  const removeValidatorMutation = useRemoveValidator();
 
   // Initialize form state from API data when editing an existing cluster.
   // The formInitialized flag ensures this only runs once - subsequent API refetches
@@ -76,28 +70,20 @@ export default function ClusterForm({ clusterId, onClose, onSaved, onDeleted }: 
       setName(clusterDetails.name);
       setVisibility(clusterDetails.visibility);
       setFeeRecipient(clusterDetails.feeRecipientAddress || '');
-
-      if (clusterDetails.validators?.length > 0) {
-        setInitialValidators(
-          clusterDetails.validators.map((v, i) => ({
-            id: `i-${i}`,
-            type: 'index' as const,
-            value: v.validatorIndex.toString(),
-            index: v.validatorIndex,
-            displayName: `Validator #${v.validatorIndex}`,
-            withdrawalAddress: v.withdrawalAddress,
-          })),
-        );
-      }
+      setValidators(
+        clusterDetails.validators.map((v, i) => ({
+          id: `i-${i}`,
+          type: 'index' as const,
+          value: v.validatorIndex.toString(),
+          index: v.validatorIndex,
+          displayName: `Validator #${v.validatorIndex}`,
+          withdrawalAddress: v.withdrawalAddress,
+        })),
+      );
 
       setFormInitialized(true);
     }
   }, [clusterDetails, formInitialized]);
-
-  // Stable callback for validator changes
-  const handleValidatorsChange = useCallback((newValidators: ValidatorItem[]) => {
-    setValidators(newValidators);
-  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -107,30 +93,14 @@ export default function ClusterForm({ clusterId, onClose, onSaved, onDeleted }: 
       const validatorIndexes = validators.map((v) => v.index);
 
       if (clusterId) {
-        // Update existing cluster
+        // Update existing cluster and sync the final validator list in the same save request.
         await updateCluster.mutateAsync({
           id: clusterId,
           name,
           visibility,
           feeRecipientAddress: feeRecipient || null,
+          validatorIndexes,
         });
-
-        // Calculate validators to add/remove using clusterDetails
-        const existingIndexes = new Set(
-          clusterDetails?.validators.map((v) => v.validatorIndex) ?? [],
-        );
-        const newIndexes = new Set(validatorIndexes);
-
-        const toAdd = validatorIndexes.filter((idx) => !existingIndexes.has(idx));
-        const toRemove = [...existingIndexes].filter((idx) => !newIndexes.has(idx));
-
-        if (toAdd.length > 0) {
-          await addValidatorsMutation.mutateAsync({ clusterId, validatorIndexes: toAdd });
-        }
-
-        for (const validatorIndex of toRemove) {
-          await removeValidatorMutation.mutateAsync({ clusterId, validatorIndex });
-        }
 
         toast({ title: 'Cluster updated', description: `${name} has been updated` });
       } else {
@@ -145,7 +115,8 @@ export default function ClusterForm({ clusterId, onClose, onSaved, onDeleted }: 
         toast({ title: 'Cluster created', description: `${name} has been created` });
       }
 
-      onSaved?.();
+      // Waits for the parent refresh flow so the home list is updated before the sheet closes.
+      await onSaved?.();
       onClose();
     } catch (error) {
       toast({
@@ -168,7 +139,7 @@ export default function ClusterForm({ clusterId, onClose, onSaved, onDeleted }: 
         description: `${clusterDetails?.name || 'Cluster'} has been deleted`,
       });
       onDeleted?.();
-      onSaved?.();
+      await onSaved?.();
       onClose();
     } catch (error) {
       toast({
@@ -243,10 +214,10 @@ export default function ClusterForm({ clusterId, onClose, onSaved, onDeleted }: 
 
         {/* Validators */}
         <ValidatorInput
-          initialValidators={initialValidators}
+          validators={validators}
           withdrawalAddresses={withdrawalAddresses}
           isEditMode={!!clusterId}
-          onValidatorsChange={handleValidatorsChange}
+          onValidatorsChange={setValidators}
         />
 
         {/* Actions */}

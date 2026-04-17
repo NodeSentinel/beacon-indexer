@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 
 import { BulkActionDialog } from './bulk-action-dialog';
 import { ValidatorInputField } from './validator-input-field';
@@ -10,14 +10,14 @@ import { useMediaQuery } from '@/hooks/use-mobile';
 import { useValidatorInput, type ValidatorItem } from '@/hooks/use-validator-input';
 
 interface ValidatorInputProps {
-  initialValidators: ValidatorItem[];
+  validators: ValidatorItem[];
   withdrawalAddresses: string[];
   isEditMode: boolean;
   onValidatorsChange: (validators: ValidatorItem[]) => void;
 }
 
 export function ValidatorInput({
-  initialValidators,
+  validators,
   withdrawalAddresses,
   isEditMode,
   onValidatorsChange,
@@ -26,7 +26,6 @@ export function ValidatorInput({
   const [helpDialogOpen, setHelpDialogOpen] = useState(false);
 
   const {
-    validators,
     inputValue,
     validationState,
     errorMessage,
@@ -45,14 +44,10 @@ export function ValidatorInput({
     handleKeyDown,
     closeBulkAction,
   } = useValidatorInput({
-    initialValidators,
+    validators,
+    onValidatorsChange,
     withdrawalAddresses,
   });
-
-  // Notify parent when validators change
-  useEffect(() => {
-    onValidatorsChange(validators);
-  }, [validators, onValidatorsChange]);
 
   return (
     <div className="space-y-4">

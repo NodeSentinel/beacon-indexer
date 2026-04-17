@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import { isAddress, isHex, size } from 'viem';
 
 import { useToast } from '@/hooks/use-toast';
@@ -37,7 +37,8 @@ type InputType = 'index' | 'pubkey' | 'withdrawalAddress' | 'unknown';
 const BULK_ADD_THRESHOLD = 10;
 
 interface UseValidatorInputProps {
-  initialValidators?: ValidatorItem[];
+  validators: ValidatorItem[];
+  onValidatorsChange: (validators: ValidatorItem[]) => void;
   withdrawalAddresses?: string[];
 }
 
@@ -119,13 +120,13 @@ function sortValidatorsDescending(validators: ValidatorItem[]): ValidatorItem[] 
  * Groups validators by their actual withdrawal address.
  */
 export function useValidatorInput({
-  initialValidators = [],
+  validators,
+  onValidatorsChange,
   withdrawalAddresses: knownWithdrawalAddresses = [],
-}: UseValidatorInputProps = {}) {
+}: UseValidatorInputProps) {
   const { toast } = useToast();
 
   // Core state
-  const [validators, setValidators] = useState<ValidatorItem[]>(initialValidators);
   const [inputValue, setInputValue] = useState('');
   const [validationState, setValidationState] = useState<ValidationState>('idle');
   const [errorMessage, setErrorMessage] = useState('');
@@ -144,13 +145,6 @@ export function useValidatorInput({
   const searchByIndexes = useSearchByIndexes();
   const searchByPubkeys = useSearchByPubkeys();
   const searchByWithdrawalAddresses = useSearchByWithdrawalAddresses();
-
-  // Update validators when initialValidators change (for edit mode)
-  useEffect(() => {
-    if (initialValidators.length > 0 && validators.length === 0) {
-      setValidators(sortValidatorsDescending(initialValidators));
-    }
-  }, [initialValidators]);
 
   // Combine known and discovered withdrawal addresses for fetching all validators
   const allWithdrawalAddressesToFetch = useMemo(() => {
@@ -371,7 +365,7 @@ export function useValidatorInput({
       }
 
       // Add validators
-      setValidators((prev) => sortValidatorsDescending([...prev, ...newValidators]));
+      onValidatorsChange(sortValidatorsDescending([...validators, ...newValidators]));
       setValidationState('valid');
       setInputValue('');
 
@@ -422,7 +416,7 @@ export function useValidatorInput({
   const handleConfirmBulkAdd = () => {
     if (!bulkAction || bulkAction.action !== 'add') return;
 
-    setValidators((prev) => sortValidatorsDescending([...prev, ...bulkAction.validators]));
+    onValidatorsChange(sortValidatorsDescending([...validators, ...bulkAction.validators]));
 
     // Track discovered withdrawal addresses if not already known
     const newAddresses = bulkAction.validators
@@ -469,9 +463,9 @@ export function useValidatorInput({
 
     if (validatorsToRemove.length === 1) {
       // Just remove directly
-      setValidators((prev) =>
+      onValidatorsChange(
         sortValidatorsDescending(
-          prev.filter((v) => v.withdrawalAddress?.toLowerCase() !== lowerAddr),
+          validators.filter((v) => v.withdrawalAddress?.toLowerCase() !== lowerAddr),
         ),
       );
       toast({
@@ -493,8 +487,8 @@ export function useValidatorInput({
     if (!bulkAction || bulkAction.action !== 'remove') return;
 
     const indexesToRemove = new Set(bulkAction.validators.map((v) => v.index));
-    setValidators((prev) =>
-      sortValidatorsDescending(prev.filter((v) => !indexesToRemove.has(v.index))),
+    onValidatorsChange(
+      sortValidatorsDescending(validators.filter((v) => !indexesToRemove.has(v.index))),
     );
 
     toast({
@@ -506,7 +500,7 @@ export function useValidatorInput({
   };
 
   const removeValidator = (id: string) => {
-    setValidators((prev) => sortValidatorsDescending(prev.filter((v) => v.id !== id)));
+    onValidatorsChange(sortValidatorsDescending(validators.filter((v) => v.id !== id)));
   };
 
   const addMissingValidators = (address: string) => {
@@ -514,7 +508,7 @@ export function useValidatorInput({
     const missing = missingValidatorsByAddress[lowerAddr];
     if (!missing || missing.length === 0) return;
 
-    setValidators((prev) => sortValidatorsDescending([...prev, ...missing]));
+    onValidatorsChange(sortValidatorsDescending([...validators, ...missing]));
     toast({
       title: 'Validators added',
       description: `Added ${missing.length} validators from ${address.slice(0, 10)}...`,

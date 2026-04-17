@@ -29,8 +29,26 @@ export const updateCluster = securedProcedure
       if (input.visibility !== undefined) updateData.visibility = input.visibility;
       if (input.feeRecipientAddress !== undefined)
         updateData.feeRecipientAddress = input.feeRecipientAddress;
+      if (input.validatorIndexes !== undefined) {
+        // Verifies the full saved validator set before applying the transactional sync.
+        const { notFound } = await storage.verifyValidatorIndexes(input.validatorIndexes);
 
-      const cluster = await storage.update(input.id, updateData);
+        if (notFound.length > 0) {
+          return {
+            success: false,
+            error: {
+              code: 'VALIDATORS_NOT_FOUND',
+              message: `Validators not found: ${notFound.join(', ')}`,
+            },
+            meta: { timestamp: new Date().toISOString() },
+          };
+        }
+      }
+
+      const cluster = await storage.updateWithValidators(input.id, {
+        ...updateData,
+        validatorIndexes: input.validatorIndexes,
+      });
 
       return {
         success: true,
