@@ -4,6 +4,8 @@
 export enum AuthStrategy {
   TELEGRAM = 'telegram',
   BOT_SIGNATURE = 'bot_signature',
+  API_KEY = 'api_key',
+  ANONYMOUS = 'anonymous',
 }
 
 /**

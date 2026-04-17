@@ -39,6 +39,6 @@ export function isOriginAllowed(origin: string | undefined): boolean {
 
   const patterns = parseAllowedOrigins();
   const allowed = patterns.some((pattern) => matchesPattern(origin, pattern));
-  logger.info({ origin, patterns, allowed }, 'CORS: origin check');
+  logger.debug({ origin, patterns, allowed }, 'CORS: origin check');
   return allowed;
 }

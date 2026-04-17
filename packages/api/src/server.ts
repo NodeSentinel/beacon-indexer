@@ -1,13 +1,11 @@
-import crypto from 'node:crypto';
 import { createServer } from 'node:http';
 
-import { LoggingHandlerPlugin } from '@orpc/experimental-pino';
 import { OpenAPIHandler } from '@orpc/openapi/node';
-import { onError } from '@orpc/server';
 import { RPCHandler } from '@orpc/server/node';
 import { CORSPlugin } from '@orpc/server/plugins';
 
 import { isOriginAllowed } from './auth/origin.js';
+import { AuthStrategy } from './auth/types.js';
 import { logger } from './lib/logger.js';
 import { router } from './routers/index.js';
 
@@ -31,6 +29,68 @@ const corsPlugin = new CORSPlugin({
   credentials: true,
 });
 
+type RequestLogMeta = {
+  auth: string;
+  origin?: string;
+  rpcMethod?: string;
+};
+
+function getHeader(
+  headers: Record<string, string | string[] | undefined>,
+  name: string,
+): string | undefined {
+  const value = headers[name];
+  return Array.isArray(value) ? value[0] : value;
+}
+
+function inferAuthStrategy(headers: Record<string, string | string[] | undefined>): string {
+  if (getHeader(headers, 'x-telegram-init-data')) {
+    return AuthStrategy.TELEGRAM;
+  }
+
+  if (
+    getHeader(headers, 'bot-signature') &&
+    getHeader(headers, 'bot-user-id') &&
+    getHeader(headers, 'bot-timestamp')
+  ) {
+    return AuthStrategy.BOT_SIGNATURE;
+  }
+
+  if (getHeader(headers, 'authorization')) {
+    return AuthStrategy.API_KEY;
+  }
+
+  if (getHeader(headers, 'ns-anonymous-id')) {
+    return AuthStrategy.ANONYMOUS;
+  }
+
+  return 'unknown';
+}
+
+function getRpcMethod(pathname: string): string | undefined {
+  if (!pathname.startsWith('/rpc/')) {
+    return undefined;
+  }
+
+  return pathname.slice('/rpc/'.length).replaceAll('/', '.');
+}
+
+function buildRequestLogPrefix(method: string, pathname: string, meta: RequestLogMeta): string {
+  const parts = [method, pathname];
+
+  if (meta.rpcMethod) {
+    parts.push(`rpc=${meta.rpcMethod}`);
+  }
+
+  parts.push(`auth=${meta.auth}`);
+
+  if (meta.origin) {
+    parts.push(`origin=${meta.origin}`);
+  }
+
+  return parts.join(' ');
+}
+
 /**
  * Create and configure the HTTP server with both oRPC handlers
  * - OpenAPIHandler: for traditional HTTP requests (Postman, curl, etc.) - routes: /*
@@ -39,65 +99,26 @@ const corsPlugin = new CORSPlugin({
 export function createHttpServer() {
   // Handler for traditional HTTP requests (OpenAPI/REST-like)
   const openApiHandler = new OpenAPIHandler(router, {
-    plugins: [
-      corsPlugin,
-      new LoggingHandlerPlugin({
-        logger,
-        generateId: () => crypto.randomUUID(),
-        logRequestResponse: true,
-        logRequestAbort: true,
-      }) as any,
-    ],
-    interceptors: [
-      onError((error) => {
-        logger.error(
-          {
-            err: error,
-            errorCode: (error as any)?.code,
-            errorMessage: (error as any)?.message,
-            errorData: (error as any)?.data,
-          },
-          'OpenAPI handler error',
-        );
-      }),
-    ],
+    plugins: [corsPlugin],
   });
 
   // Handler for oRPC client (RPCLink)
   const rpcHandler = new RPCHandler(router, {
-    plugins: [
-      corsPlugin,
-      new LoggingHandlerPlugin({
-        logger,
-        generateId: () => crypto.randomUUID(),
-        logRequestResponse: true,
-        logRequestAbort: true,
-      }) as any,
-    ],
-    interceptors: [
-      onError((error) => {
-        logger.error(
-          {
-            err: error,
-            errorCode: (error as any)?.code,
-            errorMessage: (error as any)?.message,
-            errorData: (error as any)?.data,
-          },
-          'RPC handler error',
-        );
-      }),
-    ],
+    plugins: [corsPlugin],
   });
 
   const server = createServer(async (req, res) => {
-    logger.info(
-      { method: req.method, url: req.url, origin: req.headers.origin },
-      'Incoming request',
-    );
-
     try {
       const url = new URL(req.url || '', `http://${req.headers.host}`);
       const pathname = url.pathname;
+      const startedAt = Date.now();
+      const method = req.method ?? 'UNKNOWN';
+      const meta: RequestLogMeta = {
+        auth: inferAuthStrategy(req.headers),
+        origin: req.headers.origin,
+        rpcMethod: getRpcMethod(pathname),
+      };
+      const requestPrefix = buildRequestLogPrefix(method, pathname, meta);
 
       // Determine which handler to use based on path prefix
       // Routes starting with /rpc use RPCHandler (for oRPC client)
@@ -113,15 +134,32 @@ export function createHttpServer() {
         },
       });
 
-      logger.info({ matched: result.matched, responseHeaders: res.getHeaders() }, 'Handler result');
-
       if (!result.matched) {
         res.statusCode = 404;
         res.setHeader('Content-Type', 'text/plain');
         res.end('No procedure matched');
+        logger.warn(`${requestPrefix} status=404 duration=${Date.now() - startedAt}ms`);
+        return;
       }
+
+      const durationMs = Date.now() - startedAt;
+      const status = res.statusCode;
+
+      if (status >= 400) {
+        const details = [`status=${status}`, `duration=${durationMs}ms`].join(' ');
+        const logMethod = status >= 500 ? logger.error.bind(logger) : logger.warn.bind(logger);
+        logMethod(`${requestPrefix} ${details}`);
+        return;
+      }
+
+      if (method === 'OPTIONS') {
+        logger.debug(`${requestPrefix} status=${status} duration=${durationMs}ms`);
+        return;
+      }
+
+      logger.info(`${requestPrefix} status=${status} duration=${durationMs}ms`);
     } catch (error) {
-      logger.error({ err: error }, 'Server error');
+      logger.error({ err: error }, 'Unhandled server error');
       if (!res.headersSent) {
         res.statusCode = 500;
         res.setHeader('Content-Type', 'text/plain');
