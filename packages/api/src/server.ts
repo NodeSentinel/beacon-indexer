@@ -5,8 +5,13 @@ import { RPCHandler } from '@orpc/server/node';
 import { CORSPlugin } from '@orpc/server/plugins';
 
 import { isOriginAllowed } from './auth/origin.js';
-import { AuthStrategy } from './auth/types.js';
 import { logger } from './lib/logger.js';
+import {
+  buildRequestLogPrefix,
+  getRpcMethod,
+  inferAuthStrategy,
+  type RequestLogMeta,
+} from './lib/request-logging.js';
 import { router } from './routers/index.js';
 
 /**
@@ -28,68 +33,6 @@ const corsPlugin = new CORSPlugin({
   ],
   credentials: true,
 });
-
-type RequestLogMeta = {
-  auth: string;
-  origin?: string;
-  rpcMethod?: string;
-};
-
-function getHeader(
-  headers: Record<string, string | string[] | undefined>,
-  name: string,
-): string | undefined {
-  const value = headers[name];
-  return Array.isArray(value) ? value[0] : value;
-}
-
-function inferAuthStrategy(headers: Record<string, string | string[] | undefined>): string {
-  if (getHeader(headers, 'x-telegram-init-data')) {
-    return AuthStrategy.TELEGRAM;
-  }
-
-  if (
-    getHeader(headers, 'bot-signature') &&
-    getHeader(headers, 'bot-user-id') &&
-    getHeader(headers, 'bot-timestamp')
-  ) {
-    return AuthStrategy.BOT_SIGNATURE;
-  }
-
-  if (getHeader(headers, 'authorization')) {
-    return AuthStrategy.API_KEY;
-  }
-
-  if (getHeader(headers, 'ns-anonymous-id')) {
-    return AuthStrategy.ANONYMOUS;
-  }
-
-  return 'unknown';
-}
-
-function getRpcMethod(pathname: string): string | undefined {
-  if (!pathname.startsWith('/rpc/')) {
-    return undefined;
-  }
-
-  return pathname.slice('/rpc/'.length).replaceAll('/', '.');
-}
-
-function buildRequestLogPrefix(method: string, pathname: string, meta: RequestLogMeta): string {
-  const parts = [method, pathname];
-
-  if (meta.rpcMethod) {
-    parts.push(`rpc=${meta.rpcMethod}`);
-  }
-
-  parts.push(`auth=${meta.auth}`);
-
-  if (meta.origin) {
-    parts.push(`origin=${meta.origin}`);
-  }
-
-  return parts.join(' ');
-}
 
 /**
  * Create and configure the HTTP server with both oRPC handlers
