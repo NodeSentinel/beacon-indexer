@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { resolveCommunicationRecipients } from './bot-communications.js';
+import { resolveCommunicationRecipients } from './bot-communication-recipients.js';
 
 const users = [
   { id: 'user-1', telegramId: 1n, username: 'alpha' },

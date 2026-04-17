@@ -65,6 +65,7 @@ export const BotCommunicationSchema = z.object({
   exclude: z.array(z.string()),
   onlyTo: z.array(z.string()),
   sent: z.boolean(),
+  sending: z.boolean(),
   sentAt: z.string().nullable(),
   createdAt: z.string(),
 });

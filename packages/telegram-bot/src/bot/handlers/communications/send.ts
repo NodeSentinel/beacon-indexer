@@ -6,6 +6,17 @@ import type { Context } from '@/src/bot/context.js';
 import { sendNotificationMessage } from '@/src/telegram/messaging.js';
 
 /**
+ * Returns a readable message from an oRPC client error.
+ */
+function getRpcErrorMessage(error: unknown, fallback: string): string {
+  if (error instanceof Error && error.message) {
+    return error.message;
+  }
+
+  return fallback;
+}
+
+/**
  * Parses the communication id from the /send_communication command text.
  */
 function parseCommunicationId(text: string | undefined): number | null {
@@ -36,18 +47,19 @@ export async function sendCommunicationHandler(ctx: CommandContext<Context>) {
 
   const telegramId = ctx.from.id.toString();
   const rpcClient = getRpcClientForUser(telegramId);
-  const communicationResponse = await rpcClient.bot.getCommunication({
-    id: communicationId,
-  });
+  let communicationResponse;
 
-  if (!communicationResponse.success || !communicationResponse.data) {
-    return ctx.reply(
-      communicationResponse.error?.message ?? `Communication ${communicationId} was not found.`,
-    );
+  try {
+    communicationResponse = await rpcClient.bot.startCommunicationSend({
+      id: communicationId,
+    });
+  } catch (error) {
+    ctx.logger.warn({ err: error, communicationId }, 'Failed to start communication send');
+    return ctx.reply(getRpcErrorMessage(error, `Communication ${communicationId} was not found.`));
   }
 
-  if (communicationResponse.data.sent) {
-    return ctx.reply('already sent');
+  if (!communicationResponse.data) {
+    return ctx.reply(`Communication ${communicationId} could not be loaded.`);
   }
 
   // Reuse the legacy dismiss button so every user can remove the broadcast locally.
@@ -73,12 +85,15 @@ export async function sendCommunicationHandler(ctx: CommandContext<Context>) {
     else failedCount += 1;
   }
 
-  const markSentResponse = await rpcClient.bot.markCommunicationSent({
-    id: communicationId,
-  });
-
-  if (!markSentResponse.success) {
-    return ctx.reply(markSentResponse.error?.message ?? 'already sent');
+  try {
+    await rpcClient.bot.markCommunicationSent({
+      id: communicationId,
+    });
+  } catch (error) {
+    ctx.logger.error({ err: error, communicationId }, 'Failed to mark communication as sent');
+    return ctx.reply(
+      getRpcErrorMessage(error, `Communication ${communicationId} could not be finalized.`),
+    );
   }
 
   return ctx.reply(

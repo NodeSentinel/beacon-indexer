@@ -522,6 +522,7 @@ model Communication {
   exclude     String[]  @default([]) @map("exclude")
   onlyTo      String[]  @default([]) @map("only_to")
   sent        Boolean   @default(false) @map("sent")
+  sending     Boolean   @default(false) @map("sending")
   sentAt      DateTime? @map("sent_at") @db.Timestamp
   createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamp
 

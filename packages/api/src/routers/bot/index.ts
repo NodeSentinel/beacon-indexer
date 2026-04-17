@@ -2,6 +2,7 @@ import {
   createBotCommunication,
   getBotCommunication,
   markBotCommunicationSent,
+  startBotCommunicationSend,
 } from './communications.js';
 import {
   deleteBotNotification,
@@ -21,6 +22,7 @@ export const botRouter = {
   getCommunication: getBotCommunication,
   notifications: listBotNotifications,
   markCommunicationSent: markBotCommunicationSent,
+  startCommunicationSend: startBotCommunicationSend,
   setNotificationDelivered: markBotNotificationDelivered,
   users: listBotUsers,
   updateMessageId: updateBotUserMessageId,

@@ -362,6 +362,7 @@ CREATE TABLE "public"."communication" (
     "exclude" TEXT[] DEFAULT ARRAY[]::TEXT[],
     "only_to" TEXT[] DEFAULT ARRAY[]::TEXT[],
     "sent" BOOLEAN NOT NULL DEFAULT false,
+    "sending" BOOLEAN NOT NULL DEFAULT false,
     "sent_at" TIMESTAMP(3),
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
