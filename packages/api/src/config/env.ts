@@ -15,6 +15,11 @@ const envSchema = z.object({
   // Auth
   API_TOKEN_SECRET: z.string().min(32),
   TELEGRAM_BOT_TOKEN: z.string().min(1),
+  TELEGRAM_INIT_DATA_MAX_AGE_SECONDS: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(60 * 60 * 24 * 7),
   ALLOWED_ORIGINS: z.string(),
 
   // Logging
