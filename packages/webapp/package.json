@@ -59,6 +59,7 @@
     "@telegram-apps/sdk": "^3.11.8",
     "@telegram-apps/sdk-react": "^3.3.9",
     "@vercel/analytics": "1.3.1",
+    "@vercel/speed-insights": "^2.0.0",
     "autoprefixer": "^10.4.20",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",

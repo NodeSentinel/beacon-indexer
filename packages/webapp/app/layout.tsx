@@ -1,3 +1,5 @@
+import { Analytics } from '@vercel/analytics/next';
+import { SpeedInsights } from '@vercel/speed-insights/next';
 import type { Metadata } from 'next';
 import { Roboto_Mono } from 'next/font/google';
 import localFont from 'next/font/local';
@@ -71,6 +73,10 @@ export default function RootLayout({
             <V0Provider isV0={isV0}>
               <ValidatorHeader />
               <div className="w-full max-w-7xl mx-auto px-4 lg:px-8">{children}</div>
+              {/* Mounts Vercel traffic analytics for the full app. */}
+              <Analytics />
+              {/* Mounts Vercel performance insights for the full app. */}
+              <SpeedInsights />
             </V0Provider>
           </TelegramProvider>
         </QueryProvider>
