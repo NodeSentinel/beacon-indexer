@@ -71,7 +71,26 @@ export const getClusterMissedAttestations = securedProcedure
   .route({ method: 'GET', path: '/clusters/{id}/analytics/missed-attestations' })
   .input(MissedAttestationsInputSchema)
   .output(ApiResponseSchema(MissedAttestationsResponseSchema))
-  .handler(async ({ input }) => {
+  .handler(async ({ input, context }) => {
+    // Require a resolved user so cluster ownership can be enforced.
+    if (!context.user) {
+      return {
+        success: false,
+        error: { code: 'UNAUTHORIZED', message: 'User authentication required' },
+        meta: { timestamp: new Date().toISOString() },
+      };
+    }
+
+    // Reject access to clusters owned by a different user.
+    const clusterExistsForOwner = await clusterStorage.existsForOwner(input.id, context.user.id);
+    if (!clusterExistsForOwner) {
+      return {
+        success: false,
+        error: { code: 'CLUSTER_NOT_FOUND', message: `Cluster with id ${input.id} not found` },
+        meta: { timestamp: new Date().toISOString() },
+      };
+    }
+
     const validatorIndexes = await getValidatorIndexesForCluster(input.id);
     const data = await fetchMissedAttestations(validatorIndexes, input.range);
     return { success: true, data, meta: { timestamp: new Date().toISOString() } };
@@ -86,6 +105,15 @@ export const getAllClustersMissedAttestations = securedProcedure
   .input(MissedAttestationsAllInputSchema)
   .output(ApiResponseSchema(MissedAttestationsResponseSchema))
   .handler(async ({ input, context }) => {
+    // Require a resolved user so missed attestation aggregation stays scoped to one owner.
+    if (!context.user) {
+      return {
+        success: false,
+        error: { code: 'UNAUTHORIZED', message: 'User authentication required' },
+        meta: { timestamp: new Date().toISOString() },
+      };
+    }
+
     const validatorIndexes = await clusterStorage.findAllValidatorIndexesByOwner(context.user!.id);
     const data = await fetchMissedAttestations(validatorIndexes, input.range);
     return { success: true, data, meta: { timestamp: new Date().toISOString() } };

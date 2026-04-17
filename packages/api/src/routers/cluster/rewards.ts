@@ -131,7 +131,26 @@ export const getClusterRewards = securedProcedure
   .route({ method: 'GET', path: '/clusters/{id}/analytics/rewards' })
   .input(AnalyticsClusterInputSchema)
   .output(ApiResponseSchema(RewardsResponseSchema))
-  .handler(async ({ input }) => {
+  .handler(async ({ input, context }) => {
+    // Require a resolved user so cluster ownership can be enforced.
+    if (!context.user) {
+      return {
+        success: false,
+        error: { code: 'UNAUTHORIZED', message: 'User authentication required' },
+        meta: { timestamp: new Date().toISOString() },
+      };
+    }
+
+    // Reject access to clusters owned by a different user.
+    const clusterExistsForOwner = await clusterStorage.existsForOwner(input.id, context.user.id);
+    if (!clusterExistsForOwner) {
+      return {
+        success: false,
+        error: { code: 'CLUSTER_NOT_FOUND', message: `Cluster with id ${input.id} not found` },
+        meta: { timestamp: new Date().toISOString() },
+      };
+    }
+
     const cluster = await clusterStorage.findByIdWithValidators(input.id);
     const validatorIndexes = cluster ? cluster.validators.map((v) => v.validatorIndex) : [];
     const items = await fetchRewards(validatorIndexes, input.range);
@@ -156,6 +175,15 @@ export const getAllClustersRewards = securedProcedure
   .input(AnalyticsAllClustersInputSchema)
   .output(ApiResponseSchema(RewardsResponseSchema))
   .handler(async ({ input, context }) => {
+    // Require a resolved user so reward aggregation stays scoped to one owner.
+    if (!context.user) {
+      return {
+        success: false,
+        error: { code: 'UNAUTHORIZED', message: 'User authentication required' },
+        meta: { timestamp: new Date().toISOString() },
+      };
+    }
+
     const validatorIndexes = await clusterStorage.findAllValidatorIndexesByOwner(context.user!.id);
     const items = await fetchRewards(validatorIndexes, input.range);
     let tokenPrice = 0;

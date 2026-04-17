@@ -20,9 +20,18 @@ export const removeValidators = securedProcedure
   .route({ method: 'DELETE', path: '/clusters/{id}/validators' })
   .input(ClusterIdParamSchema.merge(RemoveValidatorsInputSchema))
   .output(ApiResponseSchema(RemoveValidatorsResponseSchema))
-  .handler(async ({ input }) => {
+  .handler(async ({ input, context }) => {
     try {
       const storage = new ClusterStorage();
+
+      // Require a resolved user so cluster ownership can be enforced.
+      if (!context.user) {
+        return {
+          success: false,
+          error: { code: 'UNAUTHORIZED', message: 'User authentication required' },
+          meta: { timestamp: new Date().toISOString() },
+        };
+      }
 
       // Validate that exactly one input type is provided
       if (input.withdrawalAddress && input.validatorIndexes) {
@@ -37,8 +46,8 @@ export const removeValidators = securedProcedure
       }
 
       // Check if cluster exists (deleteMany doesn't throw for non-existent clusters)
-      const cluster = await storage.findById(input.id);
-      if (!cluster) {
+      const clusterExistsForOwner = await storage.existsForOwner(input.id, context.user.id);
+      if (!clusterExistsForOwner) {
         return {
           success: false,
           error: { code: 'CLUSTER_NOT_FOUND', message: `Cluster with id ${input.id} not found` },

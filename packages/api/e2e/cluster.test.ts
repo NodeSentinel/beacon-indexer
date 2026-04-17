@@ -28,6 +28,8 @@ describe('Cluster API E2E Tests', () => {
   let baseUrl: string;
   // Fixed test user ID (string, matching the new User.id type)
   const testOwnerId = 'e2e-test-owner-id';
+  // Use a second anonymous session to simulate a different authenticated user.
+  const otherSessionId = '99999999-0000-4000-8000-000000000099';
   const createdClusterIds: string[] = [];
 
   beforeAll(async () => {
@@ -85,6 +87,15 @@ describe('Cluster API E2E Tests', () => {
     });
     await prisma.$disconnect();
   });
+
+  // Build headers for a second authenticated anonymous user.
+  function otherUserAuthHeaders(extra?: Record<string, string>): Record<string, string> {
+    return {
+      'ns-anonymous-id': otherSessionId,
+      Origin: process.env.ALLOWED_ORIGINS?.split(',')[0]?.trim() || 'http://localhost:3000',
+      ...extra,
+    };
+  }
 
   describe('POST /clusters', () => {
     it('should create a cluster successfully', async () => {
@@ -491,6 +502,53 @@ describe('Cluster API E2E Tests', () => {
 
       expect(body.success).toBe(false);
       expect(body.error!.code).toBe('CLUSTER_NOT_FOUND');
+    });
+
+    it('should not allow a different authenticated user to remove validators from another owner cluster', async () => {
+      // Create an owner cluster with two validators so the unauthorized request has something to remove.
+      const cluster = await prisma.cluster.create({
+        data: { name: 'Unauthorized Remove Test', ownerId: testOwnerId, visibility: 'private' },
+      });
+      createdClusterIds.push(cluster.id);
+
+      // Create validators and attach them to the owner cluster.
+      await prisma.validator.upsert({
+        where: { id: 401 },
+        update: {},
+        create: { id: 401, balance: BigInt(32000000000) },
+      });
+      await prisma.validator.upsert({
+        where: { id: 402 },
+        update: {},
+        create: { id: 402, balance: BigInt(32000000000) },
+      });
+      await prisma.clusterValidator.createMany({
+        data: [
+          { clusterId: cluster.id, validatorIndex: 401 },
+          { clusterId: cluster.id, validatorIndex: 402 },
+        ],
+      });
+
+      // Send the delete request as a different authenticated anonymous user.
+      const response = await fetch(`${baseUrl}/clusters/${cluster.id}/validators`, {
+        method: 'DELETE',
+        headers: otherUserAuthHeaders({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify({ validatorIndexes: [401, 402] }),
+      });
+
+      // The API must reject access to clusters owned by a different user.
+      expect(response.ok).toBe(true);
+      const body = (await response.json()) as RemoveValidatorsResponse;
+
+      expect(body.success).toBe(false);
+      expect(body.error!.code).toBe('CLUSTER_NOT_FOUND');
+
+      // Confirm the owner cluster still has both validators after the rejected request.
+      const remaining = await prisma.clusterValidator.findMany({
+        where: { clusterId: cluster.id },
+        orderBy: { validatorIndex: 'asc' },
+      });
+      expect(remaining.map((row) => row.validatorIndex)).toEqual([401, 402]);
     });
   });
 

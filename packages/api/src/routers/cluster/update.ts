@@ -1,4 +1,3 @@
-import { Prisma } from '@beacon-indexer/db';
 import { z } from 'zod';
 
 import { ClusterIdParamSchema, ClusterSchema, UpdateClusterInputSchema } from './schemas.js';
@@ -15,9 +14,28 @@ export const updateCluster = securedProcedure
   .route({ method: 'PUT', path: '/clusters/{id}' })
   .input(ClusterIdParamSchema.merge(UpdateClusterInputSchema))
   .output(ApiResponseSchema(ClusterSchema))
-  .handler(async ({ input }) => {
+  .handler(async ({ input, context }) => {
     try {
       const storage = new ClusterStorage();
+
+      // Require a resolved user so cluster ownership can be enforced.
+      if (!context.user) {
+        return {
+          success: false,
+          error: { code: 'UNAUTHORIZED', message: 'User authentication required' },
+          meta: { timestamp: new Date().toISOString() },
+        };
+      }
+
+      // Reject access to clusters owned by a different user.
+      const clusterExistsForOwner = await storage.existsForOwner(input.id, context.user.id);
+      if (!clusterExistsForOwner) {
+        return {
+          success: false,
+          error: { code: 'CLUSTER_NOT_FOUND', message: `Cluster with id ${input.id} not found` },
+          meta: { timestamp: new Date().toISOString() },
+        };
+      }
 
       // Build update data (only include provided fields)
       const updateData: z.infer<typeof UpdateClusterInputSchema> = {};
@@ -41,14 +59,6 @@ export const updateCluster = securedProcedure
         meta: { timestamp: new Date().toISOString() },
       };
     } catch (error) {
-      // Handle record not found (cluster doesn't exist)
-      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025') {
-        return {
-          success: false,
-          error: { code: 'CLUSTER_NOT_FOUND', message: `Cluster with id ${input.id} not found` },
-          meta: { timestamp: new Date().toISOString() },
-        };
-      }
       const message = error instanceof Error ? error.message : 'Failed to update cluster';
       return {
         success: false,

@@ -13,9 +13,29 @@ export const getCluster = securedProcedure
   .route({ method: 'GET', path: '/clusters/{id}' })
   .input(ClusterIdParamSchema)
   .output(ApiResponseSchema(ClusterDetailSchema))
-  .handler(async ({ input }) => {
+  .handler(async ({ input, context }) => {
     try {
       const storage = new ClusterStorage();
+
+      // Require a resolved user so cluster ownership can be enforced.
+      if (!context.user) {
+        return {
+          success: false,
+          error: { code: 'UNAUTHORIZED', message: 'User authentication required' },
+          meta: { timestamp: new Date().toISOString() },
+        };
+      }
+
+      // Reject access to clusters owned by a different user.
+      const clusterExistsForOwner = await storage.existsForOwner(input.id, context.user.id);
+      if (!clusterExistsForOwner) {
+        return {
+          success: false,
+          error: { code: 'CLUSTER_NOT_FOUND', message: `Cluster with id ${input.id} not found` },
+          meta: { timestamp: new Date().toISOString() },
+        };
+      }
+
       const cluster = await storage.findByIdWithValidatorsAndSnapshot(input.id);
 
       if (!cluster) {

@@ -1,5 +1,3 @@
-import { Prisma } from '@beacon-indexer/db';
-
 import {
   AddValidatorsInputSchema,
   AddValidatorsResponseSchema,
@@ -22,10 +20,29 @@ export const addValidators = securedProcedure
   .route({ method: 'POST', path: '/clusters/{id}/validators' })
   .input(ClusterIdParamSchema.merge(AddValidatorsInputSchema))
   .output(ApiResponseSchema(AddValidatorsResponseSchema))
-  .handler(async ({ input }) => {
+  .handler(async ({ input, context }) => {
     try {
       const storage = new ClusterStorage();
       let validatorIndexes: number[];
+
+      // Require a resolved user so cluster ownership can be enforced.
+      if (!context.user) {
+        return {
+          success: false,
+          error: { code: 'UNAUTHORIZED', message: 'User authentication required' },
+          meta: { timestamp: new Date().toISOString() },
+        };
+      }
+
+      // Reject access to clusters owned by a different user.
+      const clusterExistsForOwner = await storage.existsForOwner(input.id, context.user.id);
+      if (!clusterExistsForOwner) {
+        return {
+          success: false,
+          error: { code: 'CLUSTER_NOT_FOUND', message: `Cluster with id ${input.id} not found` },
+          meta: { timestamp: new Date().toISOString() },
+        };
+      }
 
       // Validate that exactly one input type is provided
       if (input.withdrawalAddress && input.validatorIndexes) {
@@ -90,14 +107,6 @@ export const addValidators = securedProcedure
         meta: { timestamp: new Date().toISOString() },
       };
     } catch (error) {
-      // Handle foreign key constraint violation (cluster doesn't exist)
-      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2003') {
-        return {
-          success: false,
-          error: { code: 'CLUSTER_NOT_FOUND', message: `Cluster with id ${input.id} not found` },
-          meta: { timestamp: new Date().toISOString() },
-        };
-      }
       const message = error instanceof Error ? error.message : 'Failed to add validators';
       return {
         success: false,
