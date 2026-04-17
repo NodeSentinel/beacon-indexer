@@ -364,6 +364,55 @@ describe('Cluster API E2E Tests', () => {
       expect(validators.map((row) => row.validatorIndex)).toEqual([602, 603]);
     });
 
+    it('should update validator membership without requiring metadata changes', async () => {
+      // This scenario verifies the transactional sync works when the save only changes validators.
+      const cluster = await prisma.cluster.create({
+        data: { name: 'Validator Only Update Test', ownerId: testOwnerId, visibility: 'private' },
+      });
+      createdClusterIds.push(cluster.id);
+
+      // Seed the validator rows used by the membership-only update request.
+      await prisma.validator.upsert({
+        where: { id: 606 },
+        update: {},
+        create: { id: 606, balance: BigInt(32000000000) },
+      });
+      await prisma.validator.upsert({
+        where: { id: 607 },
+        update: {},
+        create: { id: 607, balance: BigInt(32000000000) },
+      });
+
+      // Start with one validator so the request performs a real membership change.
+      await prisma.clusterValidator.create({
+        data: { clusterId: cluster.id, validatorIndex: 606 },
+      });
+
+      // Save only the new validator set and leave cluster metadata untouched.
+      const response = await fetch(`${baseUrl}/clusters/${cluster.id}`, {
+        method: 'PUT',
+        headers: userAuthHeaders({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify({
+          validatorIndexes: [607],
+        }),
+      });
+
+      expect(response.ok).toBe(true);
+      const body = (await response.json()) as ClusterResponse;
+
+      // The route should keep the original metadata while applying the new membership.
+      expect(body.success).toBe(true);
+      expect(body.data!.name).toBe('Validator Only Update Test');
+      expect(body.data!.visibility).toBe('private');
+
+      // Read the final membership to confirm the validator-only save replaced the join rows.
+      const validators = await prisma.clusterValidator.findMany({
+        where: { clusterId: cluster.id },
+        orderBy: { validatorIndex: 'asc' },
+      });
+      expect(validators.map((row) => row.validatorIndex)).toEqual([607]);
+    });
+
     it('should allow updating a cluster to an empty validator set', async () => {
       // This scenario proves an edit can intentionally leave the cluster empty.
       const cluster = await prisma.cluster.create({
