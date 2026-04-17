@@ -6,8 +6,8 @@ import { type PropsWithChildren, useEffect, useState } from 'react';
 
 import { BackButtonBinder } from './BackButtonBinder';
 
+import { clearTelegramInitData, setTelegramInitData } from '@/lib/auth-session';
 import { shouldMockTelegram, setupTelegramMock } from '@/lib/mockTelegramEnv';
-import { setTelegramInitData } from '@/lib/telegram-init-data';
 
 /**
  * Mount viewport, expand to full height, and bind CSS variables
@@ -60,12 +60,22 @@ async function setupViewportAndTheme() {
 function TelegramAppInitializer({ children }: PropsWithChildren) {
   const lp = useLaunchParams();
   const rawInitData = useRawInitData();
+  const [isAuthBootstrapped, setIsAuthBootstrapped] = useState(false);
 
   useEffect(() => {
     // Store raw initData for API auth header injection
     if (rawInitData) {
       setTelegramInitData(rawInitData);
+    } else {
+      clearTelegramInitData();
     }
+
+    // Only render children after the auth header source is settled.
+    setIsAuthBootstrapped(true);
+
+    return () => {
+      clearTelegramInitData();
+    };
   }, [rawInitData]);
 
   useEffect(() => {
@@ -83,6 +93,10 @@ function TelegramAppInitializer({ children }: PropsWithChildren) {
       });
     }
   }, [lp]);
+
+  if (!isAuthBootstrapped) {
+    return null;
+  }
 
   return (
     <>

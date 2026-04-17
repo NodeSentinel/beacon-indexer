@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 
+import { useAuthSnapshot } from './auth-session';
 import { orpcClient } from './orpc';
 
 /**
@@ -15,6 +16,7 @@ import { orpcClient } from './orpc';
  */
 export function useUserId(): string {
   const [userId, setUserId] = useState('');
+  const auth = useAuthSnapshot();
 
   useEffect(() => {
     async function fetchUserId() {
@@ -22,14 +24,18 @@ export function useUserId(): string {
         const response = await orpcClient.user.me();
         if (response.success && response.data) {
           setUserId(response.data.id);
+          return;
         }
+
+        setUserId('');
       } catch (error) {
         console.error('Failed to fetch user ID:', error);
+        setUserId('');
       }
     }
 
     fetchUserId();
-  }, []);
+  }, [auth.cacheKey]);
 
   return userId;
 }

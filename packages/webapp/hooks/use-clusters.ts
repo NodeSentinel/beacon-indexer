@@ -2,6 +2,7 @@
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
+import { useAuthSnapshot } from '@/lib/auth-session';
 import { orpcClient } from '@/lib/orpc';
 import { useUserId } from '@/lib/user-id';
 
@@ -10,9 +11,10 @@ import { useUserId } from '@/lib/user-id';
  */
 export function useClusters() {
   const userId = useUserId();
+  const auth = useAuthSnapshot();
 
   return useQuery({
-    queryKey: ['clusters', userId],
+    queryKey: ['clusters', auth.cacheKey, userId],
     queryFn: async () => {
       const response = await orpcClient.cluster.list({});
       if (!response.success) {
@@ -29,8 +31,10 @@ export function useClusters() {
  * Hook to fetch a single cluster by ID
  */
 export function useCluster(id: string | null) {
+  const auth = useAuthSnapshot();
+
   return useQuery({
-    queryKey: ['cluster', id],
+    queryKey: ['cluster', auth.cacheKey, id],
     queryFn: async () => {
       if (!id) return null;
       const response = await orpcClient.cluster.get({ id });
@@ -92,9 +96,9 @@ export function useUpdateCluster() {
       }
       return response.data;
     },
-    onSuccess: (_, variables) => {
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['clusters'] });
-      queryClient.invalidateQueries({ queryKey: ['cluster', variables.id] });
+      queryClient.invalidateQueries({ queryKey: ['cluster'] });
     },
   });
 }
@@ -136,9 +140,9 @@ export function useAddValidators() {
       }
       return response.data;
     },
-    onSuccess: (_, variables) => {
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['clusters'] });
-      queryClient.invalidateQueries({ queryKey: ['cluster', variables.clusterId] });
+      queryClient.invalidateQueries({ queryKey: ['cluster'] });
     },
   });
 }
@@ -160,9 +164,9 @@ export function useRemoveValidator() {
       }
       return response.data;
     },
-    onSuccess: (_, variables) => {
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['clusters'] });
-      queryClient.invalidateQueries({ queryKey: ['cluster', variables.clusterId] });
+      queryClient.invalidateQueries({ queryKey: ['cluster'] });
     },
   });
 }
