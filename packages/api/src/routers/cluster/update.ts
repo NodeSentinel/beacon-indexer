@@ -1,6 +1,6 @@
-import { Prisma } from '@beacon-indexer/db';
 import { z } from 'zod';
 
+import { requireOwnedCluster } from './ownership.js';
 import { ClusterIdParamSchema, ClusterSchema, UpdateClusterInputSchema } from './schemas.js';
 
 import { securedProcedure } from '@/lib/procedures.js';
@@ -15,9 +15,13 @@ export const updateCluster = securedProcedure
   .route({ method: 'PUT', path: '/clusters/{id}' })
   .input(ClusterIdParamSchema.merge(UpdateClusterInputSchema))
   .output(ApiResponseSchema(ClusterSchema))
-  .handler(async ({ input }) => {
+  .handler(async ({ input, context }) => {
     try {
       const storage = new ClusterStorage();
+      const ownershipError = await requireOwnedCluster(storage, input.id, context.user);
+      if (ownershipError) {
+        return ownershipError;
+      }
 
       // Build update data (only include provided fields)
       const updateData: z.infer<typeof UpdateClusterInputSchema> = {};
@@ -41,14 +45,6 @@ export const updateCluster = securedProcedure
         meta: { timestamp: new Date().toISOString() },
       };
     } catch (error) {
-      // Handle record not found (cluster doesn't exist)
-      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025') {
-        return {
-          success: false,
-          error: { code: 'CLUSTER_NOT_FOUND', message: `Cluster with id ${input.id} not found` },
-          meta: { timestamp: new Date().toISOString() },
-        };
-      }
       const message = error instanceof Error ? error.message : 'Failed to update cluster';
       return {
         success: false,

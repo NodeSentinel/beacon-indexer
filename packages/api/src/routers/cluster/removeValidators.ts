@@ -1,3 +1,4 @@
+import { requireOwnedCluster } from './ownership.js';
 import {
   ClusterIdParamSchema,
   RemoveValidatorsInputSchema,
@@ -20,9 +21,13 @@ export const removeValidators = securedProcedure
   .route({ method: 'DELETE', path: '/clusters/{id}/validators' })
   .input(ClusterIdParamSchema.merge(RemoveValidatorsInputSchema))
   .output(ApiResponseSchema(RemoveValidatorsResponseSchema))
-  .handler(async ({ input }) => {
+  .handler(async ({ input, context }) => {
     try {
       const storage = new ClusterStorage();
+      const ownershipError = await requireOwnedCluster(storage, input.id, context.user);
+      if (ownershipError) {
+        return ownershipError;
+      }
 
       // Validate that exactly one input type is provided
       if (input.withdrawalAddress && input.validatorIndexes) {
@@ -32,16 +37,6 @@ export const removeValidators = securedProcedure
             code: 'INVALID_INPUT',
             message: 'Only one of validatorIndexes or withdrawalAddress can be provided, not both',
           },
-          meta: { timestamp: new Date().toISOString() },
-        };
-      }
-
-      // Check if cluster exists (deleteMany doesn't throw for non-existent clusters)
-      const cluster = await storage.findById(input.id);
-      if (!cluster) {
-        return {
-          success: false,
-          error: { code: 'CLUSTER_NOT_FOUND', message: `Cluster with id ${input.id} not found` },
           meta: { timestamp: new Date().toISOString() },
         };
       }

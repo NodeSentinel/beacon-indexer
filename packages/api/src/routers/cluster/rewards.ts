@@ -4,6 +4,7 @@ import {
   AnalyticsValidatorInputSchema,
   RewardsResponseSchema,
 } from './analytics-schemas.js';
+import { requireOwnedCluster } from './ownership.js';
 
 import { securedProcedure } from '@/lib/procedures.js';
 import { AnalyticsStorage } from '@/storage/analytics.js';
@@ -131,7 +132,12 @@ export const getClusterRewards = securedProcedure
   .route({ method: 'GET', path: '/clusters/{id}/analytics/rewards' })
   .input(AnalyticsClusterInputSchema)
   .output(ApiResponseSchema(RewardsResponseSchema))
-  .handler(async ({ input }) => {
+  .handler(async ({ input, context }) => {
+    const ownershipError = await requireOwnedCluster(clusterStorage, input.id, context.user);
+    if (ownershipError) {
+      return ownershipError;
+    }
+
     const cluster = await clusterStorage.findByIdWithValidators(input.id);
     const validatorIndexes = cluster ? cluster.validators.map((v) => v.validatorIndex) : [];
     const items = await fetchRewards(validatorIndexes, input.range);
@@ -156,6 +162,15 @@ export const getAllClustersRewards = securedProcedure
   .input(AnalyticsAllClustersInputSchema)
   .output(ApiResponseSchema(RewardsResponseSchema))
   .handler(async ({ input, context }) => {
+    // Require a resolved user so reward aggregation stays scoped to one owner.
+    if (!context.user) {
+      return {
+        success: false,
+        error: { code: 'UNAUTHORIZED', message: 'User authentication required' },
+        meta: { timestamp: new Date().toISOString() },
+      };
+    }
+
     const validatorIndexes = await clusterStorage.findAllValidatorIndexesByOwner(context.user!.id);
     const items = await fetchRewards(validatorIndexes, input.range);
     let tokenPrice = 0;

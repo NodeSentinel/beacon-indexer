@@ -12,7 +12,7 @@ export function useClusters() {
   const userId = useUserId();
 
   return useQuery({
-    queryKey: ['clusters', userId],
+    queryKey: ['clusters'],
     queryFn: async () => {
       const response = await orpcClient.cluster.list({});
       if (!response.success) {
@@ -92,9 +92,10 @@ export function useUpdateCluster() {
       }
       return response.data;
     },
-    onSuccess: (_, variables) => {
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['clusters'] });
-      queryClient.invalidateQueries({ queryKey: ['cluster', variables.id] });
+      queryClient.invalidateQueries({ queryKey: ['cluster'] });
+      queryClient.invalidateQueries({ queryKey: ['clusterSnapshot'] });
     },
   });
 }
@@ -115,6 +116,8 @@ export function useDeleteCluster() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['clusters'] });
+      queryClient.invalidateQueries({ queryKey: ['cluster'] });
+      queryClient.invalidateQueries({ queryKey: ['clusterSnapshot'] });
     },
   });
 }
@@ -136,9 +139,10 @@ export function useAddValidators() {
       }
       return response.data;
     },
-    onSuccess: (_, variables) => {
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['clusters'] });
-      queryClient.invalidateQueries({ queryKey: ['cluster', variables.clusterId] });
+      queryClient.invalidateQueries({ queryKey: ['cluster'] });
+      queryClient.invalidateQueries({ queryKey: ['clusterSnapshot'] });
     },
   });
 }
@@ -160,9 +164,10 @@ export function useRemoveValidator() {
       }
       return response.data;
     },
-    onSuccess: (_, variables) => {
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['clusters'] });
-      queryClient.invalidateQueries({ queryKey: ['cluster', variables.clusterId] });
+      queryClient.invalidateQueries({ queryKey: ['cluster'] });
+      queryClient.invalidateQueries({ queryKey: ['clusterSnapshot'] });
     },
   });
 }

@@ -6,9 +6,6 @@ import { AuthStrategy, type TelegramUser } from '../types.js';
 
 import { env } from '@/config/env.js';
 
-/** Maximum age of Telegram initData before it's considered expired */
-const INIT_DATA_MAX_AGE_SECONDS = 3600;
-
 /**
  * Telegram Mini App authentication strategy
  * Validates initData from Telegram Web Apps
@@ -55,11 +52,13 @@ export async function authenticateTelegram(initData: string): Promise<TelegramUs
       });
     }
 
-    // Verify auth_date is not expired
+    // Verify auth_date is not older than the configured session window.
+    // Telegram Mini Apps can stay open for long periods, so a short TTL
+    // causes valid in-app sessions to fail unexpectedly.
     const authDate = Number(params.get('auth_date'));
     const now = Math.floor(Date.now() / 1000);
 
-    if (!authDate || now - authDate > INIT_DATA_MAX_AGE_SECONDS) {
+    if (!authDate || now - authDate > env.TELEGRAM_INIT_DATA_MAX_AGE_SECONDS) {
       throw new ORPCError('UNAUTHORIZED', {
         message: 'Telegram init data expired',
       });

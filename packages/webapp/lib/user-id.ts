@@ -22,9 +22,13 @@ export function useUserId(): string {
         const response = await orpcClient.user.me();
         if (response.success && response.data) {
           setUserId(response.data.id);
+          return;
         }
+
+        setUserId('');
       } catch (error) {
         console.error('Failed to fetch user ID:', error);
+        setUserId('');
       }
     }
 

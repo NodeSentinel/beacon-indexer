@@ -1,6 +1,6 @@
 import { Composer } from 'grammy';
 
-import { orpcClient, setCurrentTelegramId } from '@/src/api/client.js';
+import { getRpcClientForUser } from '@/src/api/client.js';
 import type { Context } from '@/src/bot/context.js';
 import { logHandle } from '@/src/bot/helpers/logging.js';
 
@@ -12,8 +12,8 @@ feature.command('dashboard', logHandle('command-dashboard'), async (ctx) => {
   const telegramId = ctx.from.id.toString();
 
   try {
-    setCurrentTelegramId(telegramId);
-    await orpcClient.bot.updateMessageId({ telegramId, messageId: 0 });
+    const rpcClient = getRpcClientForUser(telegramId);
+    await rpcClient.bot.updateMessageId({ telegramId, messageId: 0 });
     return ctx.reply('Dashboard message reset. A new one will be sent shortly.');
   } catch (error) {
     ctx.logger.error({ err: error }, 'Failed to reset message');

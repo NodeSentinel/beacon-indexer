@@ -1,3 +1,4 @@
+import { requireOwnedCluster } from './ownership.js';
 import { ClusterIdParamSchema, ClusterSnapshotSchema } from './schemas.js';
 
 import { securedProcedure } from '@/lib/procedures.js';
@@ -14,9 +15,14 @@ export const getClusterSnapshot = securedProcedure
   .route({ method: 'GET', path: '/clusters/{id}/snapshot' })
   .input(ClusterIdParamSchema)
   .output(ApiResponseSchema(ClusterSnapshotSchema))
-  .handler(async ({ input }) => {
+  .handler(async ({ input, context }) => {
     try {
       const storage = new ClusterStorage();
+      const ownershipError = await requireOwnedCluster(storage, input.id, context.user);
+      if (ownershipError) {
+        return ownershipError;
+      }
+
       const row = await storage.getClusterSnapshot(input.id);
 
       if (!row) {

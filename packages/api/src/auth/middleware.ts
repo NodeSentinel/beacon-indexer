@@ -77,13 +77,13 @@ export const securedProcedure = baseProcedure.use(async ({ context, next }) => {
   // 3. API key — non-browser clients
   if (authHeader) {
     authenticateApiKey(authHeader);
-    return next({ context });
+    return next({ context: { ...context, authStrategy: AuthStrategy.API_KEY } });
   }
 
   // 4. Anonymous web session — requires valid origin + session UUID
   if (anonymousId && isOriginAllowed(origin)) {
     const user = await resolveAnonymousUser(anonymousId);
-    return next({ context: { ...context, user } });
+    return next({ context: { ...context, user, authStrategy: AuthStrategy.ANONYMOUS } });
   }
 
   throw new ORPCError('UNAUTHORIZED', {
@@ -108,5 +108,5 @@ export const telegramAuthProcedure = baseProcedure.use(async ({ context, next })
 
   const user = await resolveTelegramUser(telegramInitData);
 
-  return next({ context: { ...context, user } });
+  return next({ context: { ...context, user, authStrategy: AuthStrategy.TELEGRAM } });
 });

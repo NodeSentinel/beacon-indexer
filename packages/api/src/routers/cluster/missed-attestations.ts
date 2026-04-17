@@ -4,6 +4,7 @@ import {
   MissedAttestationsValidatorInputSchema,
   MissedAttestationsResponseSchema,
 } from './analytics-schemas.js';
+import { requireOwnedCluster } from './ownership.js';
 
 import { securedProcedure } from '@/lib/procedures.js';
 import { AnalyticsStorage } from '@/storage/analytics.js';
@@ -71,7 +72,12 @@ export const getClusterMissedAttestations = securedProcedure
   .route({ method: 'GET', path: '/clusters/{id}/analytics/missed-attestations' })
   .input(MissedAttestationsInputSchema)
   .output(ApiResponseSchema(MissedAttestationsResponseSchema))
-  .handler(async ({ input }) => {
+  .handler(async ({ input, context }) => {
+    const ownershipError = await requireOwnedCluster(clusterStorage, input.id, context.user);
+    if (ownershipError) {
+      return ownershipError;
+    }
+
     const validatorIndexes = await getValidatorIndexesForCluster(input.id);
     const data = await fetchMissedAttestations(validatorIndexes, input.range);
     return { success: true, data, meta: { timestamp: new Date().toISOString() } };
@@ -86,6 +92,15 @@ export const getAllClustersMissedAttestations = securedProcedure
   .input(MissedAttestationsAllInputSchema)
   .output(ApiResponseSchema(MissedAttestationsResponseSchema))
   .handler(async ({ input, context }) => {
+    // Require a resolved user so missed attestation aggregation stays scoped to one owner.
+    if (!context.user) {
+      return {
+        success: false,
+        error: { code: 'UNAUTHORIZED', message: 'User authentication required' },
+        meta: { timestamp: new Date().toISOString() },
+      };
+    }
+
     const validatorIndexes = await clusterStorage.findAllValidatorIndexesByOwner(context.user!.id);
     const data = await fetchMissedAttestations(validatorIndexes, input.range);
     return { success: true, data, meta: { timestamp: new Date().toISOString() } };

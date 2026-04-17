@@ -1,6 +1,6 @@
 import { Composer } from 'grammy';
 
-import { orpcClient, setCurrentTelegramId } from '@/src/api/client.js';
+import { getRpcClientForUser } from '@/src/api/client.js';
 import type { Context } from '@/src/bot/context.js';
 import { blockedUserIds } from '@/src/telegram/messaging.js';
 
@@ -17,8 +17,8 @@ userMiddleware.use(async (ctx, next) => {
     ctx.logger.info({ telegramId }, 'Previously blocked user re-engaged, unblocking');
     blockedUserIds.delete(telegramId);
     try {
-      setCurrentTelegramId(telegramId);
-      await orpcClient.bot.setUnblocked({ telegramId });
+      const rpcClient = getRpcClientForUser(telegramId);
+      await rpcClient.bot.setUnblocked({ telegramId });
     } catch (err) {
       ctx.logger.error({ err, telegramId }, 'Failed to unblock user via API');
     }
