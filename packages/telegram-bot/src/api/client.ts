@@ -8,6 +8,9 @@ import { env } from '@/src/env.js';
 
 export type AppRouter = RouterClient<typeof router>;
 
+/** Synthetic telegram id used for bot requests not tied to a specific user. */
+export const COMMON_REQUESTS_TELEGRAM_ID = '0';
+
 /**
  * Creates an RPC client whose auth headers are bound to a specific telegramId.
  * Each caller gets its own client instance, so requests never share mutable auth state.

@@ -1,6 +1,6 @@
 import type { Api, RawApi } from 'grammy';
 
-import { getRpcClientForUser } from '@/src/api/client.js';
+import { COMMON_REQUESTS_TELEGRAM_ID, getRpcClientForUser } from '@/src/api/client.js';
 import type { Logger } from '@/src/logger.js';
 import { notifyUserStats } from '@/src/scheduler/notify-user-stats.js';
 
@@ -19,7 +19,7 @@ export async function processUsers(
   signal: AbortSignal,
   log: Logger,
 ): Promise<void> {
-  const rpcClient = getRpcClientForUser('0');
+  const rpcClient = getRpcClientForUser(COMMON_REQUESTS_TELEGRAM_ID);
   const response = await rpcClient.bot.users({});
   const users = response.success ? (response.data ?? []) : [];
 

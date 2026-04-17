@@ -1,6 +1,6 @@
 import type { Api, RawApi } from 'grammy';
 
-import { getRpcClientForUser } from '@/src/api/client.js';
+import { COMMON_REQUESTS_TELEGRAM_ID, getRpcClientForUser } from '@/src/api/client.js';
 import type { Logger } from '@/src/logger.js';
 import { formatNotificationMessage } from '@/src/telegram/format-notification.js';
 import { sendNotificationMessage } from '@/src/telegram/messaging.js';
@@ -21,7 +21,7 @@ export async function processNotifications(
 ): Promise<void> {
   if (signal.aborted) return;
 
-  const rpcClient = getRpcClientForUser('0');
+  const rpcClient = getRpcClientForUser(COMMON_REQUESTS_TELEGRAM_ID);
   const response = await rpcClient.bot.notifications({ limit: 100 });
   const notifications = response.success ? ((response.data ?? []) as BotNotification[]) : [];
 
