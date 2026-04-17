@@ -64,9 +64,11 @@ export async function sendNotificationMessage(
   telegramId: string,
   text: string,
   logger: Logger,
+  options?: SendMessageOptions,
 ): Promise<boolean> {
   const messageId = await sendTelegramMessage(api, chatId, telegramId, text, logger, {
     link_preview_options: { is_disabled: true },
+    ...options,
   });
 
   return messageId !== null;

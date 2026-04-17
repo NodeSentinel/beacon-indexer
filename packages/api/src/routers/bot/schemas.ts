@@ -46,3 +46,40 @@ export const BotNotificationDeletedSchema = z.object({
 export const BotNotificationListInputSchema = z.object({
   limit: z.number().int().min(1).max(100).default(20),
 });
+
+export const CommunicationIdParamSchema = z.object({
+  id: z.coerce.number().int().positive(),
+});
+
+export const CreateBotCommunicationSchema = z.object({
+  description: z.string().min(1),
+  message: z.string().min(1),
+  exclude: z.array(z.string()).default([]),
+  onlyTo: z.array(z.string()).default([]),
+});
+
+export const BotCommunicationSchema = z.object({
+  id: z.number().int().positive(),
+  description: z.string(),
+  message: z.string(),
+  exclude: z.array(z.string()),
+  onlyTo: z.array(z.string()),
+  sent: z.boolean(),
+  sentAt: z.string().nullable(),
+  createdAt: z.string(),
+});
+
+export const BotCommunicationRecipientSchema = z.object({
+  id: z.string(),
+  telegramId: z.string(),
+  username: z.string(),
+});
+
+export const BotCommunicationDetailsSchema = BotCommunicationSchema.extend({
+  recipients: z.array(BotCommunicationRecipientSchema),
+});
+
+export const BotCommunicationSentSchema = z.object({
+  id: z.number().int().positive(),
+  sent: z.literal(true),
+});

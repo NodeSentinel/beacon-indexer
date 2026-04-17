@@ -3,4 +3,4 @@
  * Import procedures from here in router files.
  */
 export { publicProcedure } from './orpc.js';
-export { securedProcedure, telegramAuthProcedure } from '@/auth/middleware.js';
+export { apiKeyProcedure, securedProcedure, telegramAuthProcedure } from '@/auth/middleware.js';
