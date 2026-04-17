@@ -1,3 +1,4 @@
+import { requireOwnedCluster } from './ownership.js';
 import {
   ClusterIdParamSchema,
   RemoveValidatorsInputSchema,
@@ -23,14 +24,9 @@ export const removeValidators = securedProcedure
   .handler(async ({ input, context }) => {
     try {
       const storage = new ClusterStorage();
-
-      // Require a resolved user so cluster ownership can be enforced.
-      if (!context.user) {
-        return {
-          success: false,
-          error: { code: 'UNAUTHORIZED', message: 'User authentication required' },
-          meta: { timestamp: new Date().toISOString() },
-        };
+      const ownershipError = await requireOwnedCluster(storage, input.id, context.user);
+      if (ownershipError) {
+        return ownershipError;
       }
 
       // Validate that exactly one input type is provided
@@ -41,16 +37,6 @@ export const removeValidators = securedProcedure
             code: 'INVALID_INPUT',
             message: 'Only one of validatorIndexes or withdrawalAddress can be provided, not both',
           },
-          meta: { timestamp: new Date().toISOString() },
-        };
-      }
-
-      // Check if cluster exists (deleteMany doesn't throw for non-existent clusters)
-      const clusterExistsForOwner = await storage.existsForOwner(input.id, context.user.id);
-      if (!clusterExistsForOwner) {
-        return {
-          success: false,
-          error: { code: 'CLUSTER_NOT_FOUND', message: `Cluster with id ${input.id} not found` },
           meta: { timestamp: new Date().toISOString() },
         };
       }

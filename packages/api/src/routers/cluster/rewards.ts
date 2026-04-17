@@ -4,6 +4,7 @@ import {
   AnalyticsValidatorInputSchema,
   RewardsResponseSchema,
 } from './analytics-schemas.js';
+import { requireOwnedCluster } from './ownership.js';
 
 import { securedProcedure } from '@/lib/procedures.js';
 import { AnalyticsStorage } from '@/storage/analytics.js';
@@ -132,23 +133,9 @@ export const getClusterRewards = securedProcedure
   .input(AnalyticsClusterInputSchema)
   .output(ApiResponseSchema(RewardsResponseSchema))
   .handler(async ({ input, context }) => {
-    // Require a resolved user so cluster ownership can be enforced.
-    if (!context.user) {
-      return {
-        success: false,
-        error: { code: 'UNAUTHORIZED', message: 'User authentication required' },
-        meta: { timestamp: new Date().toISOString() },
-      };
-    }
-
-    // Reject access to clusters owned by a different user.
-    const clusterExistsForOwner = await clusterStorage.existsForOwner(input.id, context.user.id);
-    if (!clusterExistsForOwner) {
-      return {
-        success: false,
-        error: { code: 'CLUSTER_NOT_FOUND', message: `Cluster with id ${input.id} not found` },
-        meta: { timestamp: new Date().toISOString() },
-      };
+    const ownershipError = await requireOwnedCluster(clusterStorage, input.id, context.user);
+    if (ownershipError) {
+      return ownershipError;
     }
 
     const cluster = await clusterStorage.findByIdWithValidators(input.id);

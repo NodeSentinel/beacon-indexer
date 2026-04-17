@@ -1,3 +1,4 @@
+import { requireOwnedCluster } from './ownership.js';
 import {
   AddValidatorsInputSchema,
   AddValidatorsResponseSchema,
@@ -25,23 +26,9 @@ export const addValidators = securedProcedure
       const storage = new ClusterStorage();
       let validatorIndexes: number[];
 
-      // Require a resolved user so cluster ownership can be enforced.
-      if (!context.user) {
-        return {
-          success: false,
-          error: { code: 'UNAUTHORIZED', message: 'User authentication required' },
-          meta: { timestamp: new Date().toISOString() },
-        };
-      }
-
-      // Reject access to clusters owned by a different user.
-      const clusterExistsForOwner = await storage.existsForOwner(input.id, context.user.id);
-      if (!clusterExistsForOwner) {
-        return {
-          success: false,
-          error: { code: 'CLUSTER_NOT_FOUND', message: `Cluster with id ${input.id} not found` },
-          meta: { timestamp: new Date().toISOString() },
-        };
+      const ownershipError = await requireOwnedCluster(storage, input.id, context.user);
+      if (ownershipError) {
+        return ownershipError;
       }
 
       // Validate that exactly one input type is provided
