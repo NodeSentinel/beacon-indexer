@@ -355,6 +355,20 @@ CREATE TABLE "public"."notification_queue" (
 );
 
 -- CreateTable
+CREATE TABLE "public"."communication" (
+    "id" SERIAL NOT NULL,
+    "description" TEXT NOT NULL,
+    "message" TEXT NOT NULL,
+    "exclude" TEXT[] DEFAULT ARRAY[]::TEXT[],
+    "only_to" TEXT[] DEFAULT ARRAY[]::TEXT[],
+    "sent" BOOLEAN NOT NULL DEFAULT false,
+    "sent_at" TIMESTAMP(3),
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "communication_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
 CREATE TABLE "public"."cluster_incident" (
     "id" UUID NOT NULL DEFAULT gen_random_uuid(),
     "status" "public"."ClusterIncidentStatus" NOT NULL DEFAULT 'open',

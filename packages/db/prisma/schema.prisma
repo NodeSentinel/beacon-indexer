@@ -515,6 +515,19 @@ model NotificationQueue {
   @@map("notification_queue")
 }
 
+model Communication {
+  id          Int       @id @default(autoincrement()) @map("id")
+  description String    @map("description")
+  message     String    @map("message")
+  exclude     String[]  @default([]) @map("exclude")
+  onlyTo      String[]  @default([]) @map("only_to")
+  sent        Boolean   @default(false) @map("sent")
+  sentAt      DateTime? @map("sent_at") @db.Timestamp
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamp
+
+  @@map("communication")
+}
+
 model ClusterIncident {
   id     String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid @map("id")
   status ClusterIncidentStatus @default(open) @map("status")

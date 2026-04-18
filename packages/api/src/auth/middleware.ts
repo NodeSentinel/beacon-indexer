@@ -110,3 +110,22 @@ export const telegramAuthProcedure = baseProcedure.use(async ({ context, next })
 
   return next({ context: { ...context, user, authStrategy: AuthStrategy.TELEGRAM } });
 });
+
+/**
+ * API key authenticated procedure.
+ * Requires a valid Authorization header and rejects other auth strategies.
+ */
+export const apiKeyProcedure = baseProcedure.use(async ({ context, next }) => {
+  const { headers } = context;
+  const authHeader = getHeader(headers, 'authorization');
+
+  if (!authHeader) {
+    throw new ORPCError('UNAUTHORIZED', {
+      message: 'API key authentication required',
+    });
+  }
+
+  authenticateApiKey(authHeader);
+
+  return next({ context: { ...context, authStrategy: AuthStrategy.API_KEY } });
+});
