@@ -2,40 +2,36 @@ import { describe, expect, it } from 'vitest';
 
 import { resolveCommunicationRecipients } from './bot-communication-recipients.js';
 
-const users = [
-  { id: 'user-1', telegramId: 1n, username: 'alpha' },
-  { id: 'user-2', telegramId: 2n, username: 'beta' },
-  { id: 'user-3', telegramId: 3n, username: 'gamma' },
-];
+const broadcastTelegramIds = ['1001', '1002', '1003'];
 
 describe('resolveCommunicationRecipients', () => {
-  it('returns all users when onlyTo and exclude are empty', () => {
+  it('returns all broadcast telegram ids when onlyTo and exclude are empty', () => {
     // This case verifies the default broadcast behavior.
-    const recipients = resolveCommunicationRecipients(users, {
+    const recipients = resolveCommunicationRecipients(broadcastTelegramIds, {
       exclude: [],
       onlyTo: [],
     });
 
-    expect(recipients.map((user) => user.id)).toEqual(['user-1', 'user-2', 'user-3']);
+    expect(recipients).toEqual(['1001', '1002', '1003']);
   });
 
-  it('returns only the users listed in onlyTo', () => {
-    // This case verifies the targeted-send behavior.
-    const recipients = resolveCommunicationRecipients(users, {
+  it('returns the telegram ids listed in onlyTo even when they are not in the broadcast list', () => {
+    // This case verifies the targeted-send behavior without a database lookup.
+    const recipients = resolveCommunicationRecipients(broadcastTelegramIds, {
       exclude: [],
-      onlyTo: ['user-2', 'user-3'],
+      onlyTo: ['2001', '2002'],
     });
 
-    expect(recipients.map((user) => user.id)).toEqual(['user-2', 'user-3']);
+    expect(recipients).toEqual(['2001', '2002']);
   });
 
-  it('removes excluded users even when they also appear in onlyTo', () => {
+  it('removes excluded telegram ids from the final send list', () => {
     // This case verifies the precedence rule agreed for the feature.
-    const recipients = resolveCommunicationRecipients(users, {
-      exclude: ['user-2'],
-      onlyTo: ['user-1', 'user-2'],
+    const recipients = resolveCommunicationRecipients(broadcastTelegramIds, {
+      exclude: ['2002'],
+      onlyTo: ['2001', '2002'],
     });
 
-    expect(recipients.map((user) => user.id)).toEqual(['user-1']);
+    expect(recipients).toEqual(['2001']);
   });
 });

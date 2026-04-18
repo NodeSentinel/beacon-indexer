@@ -10,6 +10,7 @@ import {
   CommunicationIdParamSchema,
   CreateBotCommunicationSchema,
 } from '@/routers/bot/schemas.js';
+import { resolveCommunicationRecipients } from '@/storage/bot-communication-recipients.js';
 import { BotCommunicationsStorage } from '@/storage/bot-communications.js';
 import { ApiResponseSchema, errorResponse, successResponse } from '@/utils/response.js';
 
@@ -32,7 +33,6 @@ function mapCommunication(communication: {
   exclude: string[];
   onlyTo: string[];
   sent: boolean;
-  sending: boolean;
   sentAt: Date | null;
   createdAt: Date;
 }) {
@@ -43,19 +43,9 @@ function mapCommunication(communication: {
     exclude: communication.exclude,
     onlyTo: communication.onlyTo,
     sent: communication.sent,
-    sending: communication.sending,
     sentAt: communication.sentAt?.toISOString() ?? null,
     createdAt: communication.createdAt.toISOString(),
   };
-}
-
-/**
- * Re-throws oRPC framework errors so status codes survive the handler boundary.
- */
-function rethrowOrpcError(error: unknown): never | void {
-  if (error instanceof ORPCError) {
-    throw error;
-  }
 }
 
 /**
@@ -99,79 +89,19 @@ export const getBotCommunication = botProcedure
         });
       }
 
-      const recipients = await storage.listRecipients(communication);
+      // Load broadcast recipients only when the communication does not target explicit telegram ids.
+      const broadcastTelegramIds =
+        communication.onlyTo.length > 0 ? [] : await storage.listBroadcastTelegramIds();
+      const recipients = resolveCommunicationRecipients(broadcastTelegramIds, communication);
 
       return successResponse({
         ...mapCommunication(communication),
-        recipients: recipients.map((recipient) => ({
-          id: recipient.id,
-          telegramId: recipient.telegramId.toString(),
-          username: recipient.username,
-        })),
+        recipients,
       }) as BotCommunicationDetailsResponse;
     } catch (error) {
-      rethrowOrpcError(error);
       return errorResponse(
         'GET_COMMUNICATION_ERROR',
         error instanceof Error ? error.message : 'Failed to get communication',
-      ) as BotCommunicationDetailsResponse;
-    }
-  });
-
-/**
- * Claims a pending communication for sending and returns its resolved recipients.
- * POST /bot/communications/{id}/start-send
- */
-export const startBotCommunicationSend = botProcedure
-  .route({ method: 'POST', path: '/bot/communications/{id}/start-send' })
-  .input(CommunicationIdParamSchema)
-  .output(BotCommunicationDetailsResponseSchema)
-  .handler(async ({ input }) => {
-    try {
-      const storage = new BotCommunicationsStorage();
-      const communication = await storage.findById(input.id);
-
-      if (!communication) {
-        throw new ORPCError('NOT_FOUND', {
-          message: `Communication ${input.id} was not found`,
-        });
-      }
-
-      if (communication.sent) {
-        throw new ORPCError('CONFLICT', {
-          message: `Communication ${input.id} was already sent`,
-        });
-      }
-
-      if (communication.sending) {
-        throw new ORPCError('CONFLICT', {
-          message: `Communication ${input.id} is already being sent`,
-        });
-      }
-
-      const claimed = await storage.startSending(input.id);
-
-      if (!claimed) {
-        throw new ORPCError('CONFLICT', {
-          message: `Communication ${input.id} is already being sent`,
-        });
-      }
-
-      const recipients = await storage.listRecipients(communication);
-
-      return successResponse({
-        ...mapCommunication({ ...communication, sending: true }),
-        recipients: recipients.map((recipient) => ({
-          id: recipient.id,
-          telegramId: recipient.telegramId.toString(),
-          username: recipient.username,
-        })),
-      }) as BotCommunicationDetailsResponse;
-    } catch (error) {
-      rethrowOrpcError(error);
-      return errorResponse(
-        'START_COMMUNICATION_SEND_ERROR',
-        error instanceof Error ? error.message : 'Failed to start communication send',
       ) as BotCommunicationDetailsResponse;
     }
   });
@@ -200,7 +130,6 @@ export const markBotCommunicationSent = botProcedure
         sent: true,
       }) as BotCommunicationSentResponse;
     } catch (error) {
-      rethrowOrpcError(error);
       return errorResponse(
         'MARK_COMMUNICATION_SENT_ERROR',
         error instanceof Error ? error.message : 'Failed to mark communication as sent',

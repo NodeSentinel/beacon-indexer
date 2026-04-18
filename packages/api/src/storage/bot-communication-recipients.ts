@@ -4,24 +4,19 @@ export interface CommunicationTargeting {
 }
 
 /**
- * Resolves the final audience for a communication.
+ * Resolves the final telegram ids for a communication.
  */
-export function resolveCommunicationRecipients<T extends { id: string }>(
-  users: T[],
+export function resolveCommunicationRecipients(
+  broadcastTelegramIds: string[],
   targeting: CommunicationTargeting,
-): T[] {
-  // Use sets so the inclusion and exclusion checks stay simple and predictable.
-  const excludedUserIds = new Set(targeting.exclude);
-  const onlyUserIds = new Set(targeting.onlyTo);
+): string[] {
+  // Use a set so exclusion checks stay simple and predictable.
+  const excludedTelegramIds = new Set(targeting.exclude);
 
-  return users.filter((user) => {
-    // Exclusion always wins, even when the user also appears in onlyTo.
-    if (excludedUserIds.has(user.id)) return false;
+  // Use the targeted telegram ids directly when the communication specifies them.
+  const recipientTelegramIds =
+    targeting.onlyTo.length > 0 ? targeting.onlyTo : broadcastTelegramIds;
 
-    // When onlyTo is empty, every notifiable user is eligible.
-    if (onlyUserIds.size === 0) return true;
-
-    // When onlyTo has values, only the listed users are eligible.
-    return onlyUserIds.has(user.id);
-  });
+  // Exclusion always wins over the initial recipient list.
+  return recipientTelegramIds.filter((telegramId) => !excludedTelegramIds.has(telegramId));
 }

@@ -1,19 +1,9 @@
 import { PrismaClient } from '@beacon-indexer/db';
 
 import { getPrisma } from '@/lib/prisma.js';
-import {
-  type CommunicationTargeting,
-  resolveCommunicationRecipients,
-} from '@/storage/bot-communication-recipients.js';
-
-export interface NotifiableCommunicationUser {
-  id: string;
-  telegramId: bigint;
-  username: string;
-}
 
 /**
- * Stores and resolves broadcast communications used by the Telegram bot.
+ * Stores broadcast communications used by the Telegram bot.
  */
 export class BotCommunicationsStorage {
   constructor(private readonly prisma: PrismaClient = getPrisma()) {}
@@ -47,21 +37,11 @@ export class BotCommunicationsStorage {
   }
 
   /**
-   * Lists all notifiable users and applies the communication targeting rules.
+   * Lists the telegram ids eligible for a full broadcast send.
    */
-  async listRecipients(communication: CommunicationTargeting) {
-    // Push the include and exclude filters into the query so the database trims the result set first.
-    const userIdFilter =
-      communication.onlyTo.length > 0 || communication.exclude.length > 0
-        ? {
-            ...(communication.onlyTo.length > 0 ? { in: communication.onlyTo } : {}),
-            ...(communication.exclude.length > 0 ? { notIn: communication.exclude } : {}),
-          }
-        : undefined;
-
+  async listBroadcastTelegramIds() {
     const users = await this.prisma.user.findMany({
       where: {
-        ...(userIdFilter ? { id: userIdFilter } : {}),
         telegramId: { not: null },
         hasBlockedBot: false,
         clusters: {
@@ -73,47 +53,25 @@ export class BotCommunicationsStorage {
         },
       },
       select: {
-        id: true,
         telegramId: true,
-        username: true,
       },
     });
 
-    // Keep the in-memory rule as a last line of defense for the "exclude wins" contract.
-    return resolveCommunicationRecipients(users as NotifiableCommunicationUser[], communication);
+    // Convert database bigint values into telegram ids the bot can send to directly.
+    return users.map((user) => user.telegramId!.toString());
   }
 
   /**
-   * Claims one communication for sending so only one bot process can dispatch it.
-   */
-  async startSending(id: number) {
-    const result = await this.prisma.communication.updateMany({
-      where: {
-        id,
-        sent: false,
-        sending: false,
-      },
-      data: {
-        sending: true,
-      },
-    });
-
-    return result.count === 1;
-  }
-
-  /**
-   * Marks a communication as sent after a sending claim was acquired.
+   * Marks a communication as sent only once.
    */
   async markSent(id: number) {
     const result = await this.prisma.communication.updateMany({
       where: {
         id,
         sent: false,
-        sending: true,
       },
       data: {
         sent: true,
-        sending: false,
         sentAt: new Date(),
       },
     });

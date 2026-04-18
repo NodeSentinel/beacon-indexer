@@ -65,19 +65,12 @@ export const BotCommunicationSchema = z.object({
   exclude: z.array(z.string()),
   onlyTo: z.array(z.string()),
   sent: z.boolean(),
-  sending: z.boolean(),
   sentAt: z.string().nullable(),
   createdAt: z.string(),
 });
 
-export const BotCommunicationRecipientSchema = z.object({
-  id: z.string(),
-  telegramId: z.string(),
-  username: z.string(),
-});
-
 export const BotCommunicationDetailsSchema = BotCommunicationSchema.extend({
-  recipients: z.array(BotCommunicationRecipientSchema),
+  recipients: z.array(z.string()),
 });
 
 export const BotCommunicationSentSchema = z.object({
