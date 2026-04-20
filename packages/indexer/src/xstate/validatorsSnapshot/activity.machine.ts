@@ -1,4 +1,4 @@
-import { setup, fromPromise } from 'xstate';
+import { fromPromise, setup } from 'xstate';
 
 import { ValidatorActivityStatusController } from '@/src/services/consensus/controllers/validatorActivityStatus.js';
 import { pinoLog } from '@/src/xstate/pinoLog.js';
@@ -25,7 +25,7 @@ const runSync = fromPromise(
   },
 );
 
-export const validatorActivityStatusMachine = setup({
+export const activityMachine = setup({
   types: {} as {
     context: {
       validatorActivityStatusController: ValidatorActivityStatusController;

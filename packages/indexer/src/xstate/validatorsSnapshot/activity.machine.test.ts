@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createActor } from 'xstate';
 
-import { validatorActivityStatusMachine } from './validatorActivityStatus.machine.js';
+import { activityMachine } from './activity.machine.js';
 
 import { ValidatorActivityStatusController } from '@/src/services/consensus/controllers/validatorActivityStatus.js';
 
@@ -10,7 +10,7 @@ vi.mock('@/src/xstate/pinoLog.js', () => ({
   pinoLog: vi.fn(() => () => {}),
 }));
 
-describe('validatorActivityStatusMachine', () => {
+describe('activityMachine', () => {
   afterEach(() => {
     vi.useRealTimers();
     vi.restoreAllMocks();
@@ -24,7 +24,7 @@ describe('validatorActivityStatusMachine', () => {
     const runSync = vi.fn().mockResolvedValue(undefined);
 
     // Start the actor with the controller-only contract that the refactor requires.
-    const actor = createActor(validatorActivityStatusMachine, {
+    const actor = createActor(activityMachine, {
       input: {
         validatorActivityStatusController: {
           runSync,

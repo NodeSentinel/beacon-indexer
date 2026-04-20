@@ -10,8 +10,7 @@ import { getChainStatsActor } from './chainStats/index.js';
 import { getCreateEpochActor, getEpochOrchestratorActor } from './epoch/index.js';
 import { getIncidentRewardsActor } from './incidentRewards/index.js';
 import { getLagAlertingActor } from './lagAlerting/index.js';
-import { getSnapshotActor } from './snapshot/index.js';
-import { getValidatorActivityStatusActor } from './validatorActivityStatus/index.js';
+import { getActivityActor, getBalancesPerformanceActor } from './validatorsSnapshot/index.js';
 
 import { ChainStatsController } from '@/src/services/consensus/controllers/chainStats.js';
 import { DailyArchiveController } from '@/src/services/consensus/controllers/dailyArchive.js';
@@ -77,7 +76,7 @@ export default function initXstateMachines(
     chainStatsActor,
   ).start();
 
-  const validatorActivityStatusActor = getValidatorActivityStatusActor(
+  const validatorActivityStatusActor = getActivityActor(
     validatorActivityStatusController,
     slotDuration,
     slotsPerEpoch,
@@ -89,7 +88,7 @@ export default function initXstateMachines(
   const incidentRewardsActor = getIncidentRewardsActor(incidentRewardsController);
   incidentRewardsActor.start();
 
-  const snapshotActor = getSnapshotActor(
+  const snapshotActor = getBalancesPerformanceActor(
     snapshotController,
     slotDuration,
     slotsPerEpoch,

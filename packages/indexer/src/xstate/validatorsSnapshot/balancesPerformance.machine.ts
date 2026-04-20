@@ -1,10 +1,10 @@
 import type { Chain } from '@beacon-indexer/beacon-utils';
-import { setup, fromPromise, assign } from 'xstate';
+import { assign, fromPromise, setup } from 'xstate';
 
 import { SnapshotController } from '@/src/services/consensus/controllers/snapshot.js';
 import { pinoLog } from '@/src/xstate/pinoLog.js';
 
-type SnapshotContext = {
+type BalancesPerformanceContext = {
   snapshotController: SnapshotController;
   slotDuration: number;
   slotsPerEpoch: number;
@@ -36,77 +36,79 @@ const INTERVAL_D = 30 * 60 * 1000; // 30 minutes
 const INTERVAL_W = 3 * 60 * 60 * 1000; // 3 hours
 const INTERVAL_M = 6 * 60 * 60 * 1000; // 6 hours
 
-const runTick = fromPromise(async ({ input }: { input: { context: SnapshotContext } }) => {
-  const ctx = input.context;
-  const controller = ctx.snapshotController;
-  const now = Date.now();
-  const updatedLevels: string[] = [];
+const runTick = fromPromise(
+  async ({ input }: { input: { context: BalancesPerformanceContext } }) => {
+    const ctx = input.context;
+    const controller = ctx.snapshotController;
+    const now = Date.now();
+    const updatedLevels: string[] = [];
 
-  const currentEpoch = controller.getCurrentEpoch();
-  let lastEpochUpdate = ctx.lastEpochUpdate;
-  let lastDUpdate = ctx.lastDUpdate;
-  let lastWUpdate = ctx.lastWUpdate;
-  let lastMUpdate = ctx.lastMUpdate;
-  let lastNewValidatorCheck = ctx.lastNewValidatorCheck;
+    const currentEpoch = controller.getCurrentEpoch();
+    let lastEpochUpdate = ctx.lastEpochUpdate;
+    let lastDUpdate = ctx.lastDUpdate;
+    let lastWUpdate = ctx.lastWUpdate;
+    let lastMUpdate = ctx.lastMUpdate;
+    let lastNewValidatorCheck = ctx.lastNewValidatorCheck;
 
-  // Level 0: Detect and backfill new validators (every 30s)
-  if (
-    lastNewValidatorCheck === null ||
-    now - lastNewValidatorCheck >= INTERVAL_NEW_VALIDATOR_CHECK
-  ) {
-    const count = await controller.detectAndBackfillNewValidators(ctx.maxAttestationDelay);
-    if (count > 0) {
-      updatedLevels.push(`new-validators(${count})`);
+    // Level 0: Detect and backfill new validators (every 30s)
+    if (
+      lastNewValidatorCheck === null ||
+      now - lastNewValidatorCheck >= INTERVAL_NEW_VALIDATOR_CHECK
+    ) {
+      const count = await controller.detectAndBackfillNewValidators(ctx.maxAttestationDelay);
+      if (count > 0) {
+        updatedLevels.push(`new-validators(${count})`);
+      }
+      lastNewValidatorCheck = now;
     }
-    lastNewValidatorCheck = now;
-  }
 
-  // Level 1: Balances and hourly metrics (every new epoch)
-  if (lastEpochUpdate === null || currentEpoch > lastEpochUpdate) {
-    await controller.updateBalances();
-    updatedLevels.push('balances');
+    // Level 1: Balances and hourly metrics (every new epoch)
+    if (lastEpochUpdate === null || currentEpoch > lastEpochUpdate) {
+      await controller.updateBalances();
+      updatedLevels.push('balances');
 
-    await controller.updatePerformanceH(ctx.maxAttestationDelay);
-    updatedLevels.push('h');
+      await controller.updatePerformanceH(ctx.maxAttestationDelay);
+      updatedLevels.push('h');
 
-    lastEpochUpdate = currentEpoch;
-  }
+      lastEpochUpdate = currentEpoch;
+    }
 
-  // Level 4: d performance (every 30 min)
-  if (lastDUpdate === null || now - lastDUpdate >= INTERVAL_D) {
-    await controller.updatePerformanceD(ctx.maxAttestationDelay);
-    lastDUpdate = now;
-    updatedLevels.push('d');
-  }
+    // Level 4: d performance (every 30 min)
+    if (lastDUpdate === null || now - lastDUpdate >= INTERVAL_D) {
+      await controller.updatePerformanceD(ctx.maxAttestationDelay);
+      lastDUpdate = now;
+      updatedLevels.push('d');
+    }
 
-  // Level 5: w performance (every 3h)
-  if (lastWUpdate === null || now - lastWUpdate >= INTERVAL_W) {
-    await controller.updatePerformanceW();
-    lastWUpdate = now;
-    updatedLevels.push('w');
-  }
+    // Level 5: w performance (every 3h)
+    if (lastWUpdate === null || now - lastWUpdate >= INTERVAL_W) {
+      await controller.updatePerformanceW();
+      lastWUpdate = now;
+      updatedLevels.push('w');
+    }
 
-  // Level 6: m performance (every 6h)
-  if (lastMUpdate === null || now - lastMUpdate >= INTERVAL_M) {
-    await controller.updatePerformanceM();
-    lastMUpdate = now;
-    updatedLevels.push('m');
-  }
+    // Level 6: m performance (every 6h)
+    if (lastMUpdate === null || now - lastMUpdate >= INTERVAL_M) {
+      await controller.updatePerformanceM();
+      lastMUpdate = now;
+      updatedLevels.push('m');
+    }
 
-  return {
-    updatedLevels,
-    lastProcessedSlot: ctx.lastProcessedSlot,
-    lastEpochUpdate,
-    lastDUpdate,
-    lastWUpdate,
-    lastMUpdate,
-    lastNewValidatorCheck,
-  } satisfies TickResult;
-});
+    return {
+      updatedLevels,
+      lastProcessedSlot: ctx.lastProcessedSlot,
+      lastEpochUpdate,
+      lastDUpdate,
+      lastWUpdate,
+      lastMUpdate,
+      lastNewValidatorCheck,
+    } satisfies TickResult;
+  },
+);
 
-export const snapshotMachine = setup({
+export const balancesPerformanceMachine = setup({
   types: {} as {
-    context: SnapshotContext;
+    context: BalancesPerformanceContext;
     input: {
       snapshotController: SnapshotController;
       slotDuration: number;
