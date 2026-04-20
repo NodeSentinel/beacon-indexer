@@ -264,7 +264,7 @@ INSERT INTO "public"."archive" ("id", "last_hour", "last_day", "last_month")
 VALUES (1, NULL, NULL, NULL);
 
 -- CreateTable
-CREATE TABLE "public"."validators_snapshot_stats" (
+CREATE TABLE "public"."validators_snapshot_activity" (
     "validator_index" INTEGER NOT NULL,
     "status" VARCHAR(10) NOT NULL,
     "is_inactive" BOOLEAN NOT NULL DEFAULT false,
@@ -273,8 +273,25 @@ CREATE TABLE "public"."validators_snapshot_stats" (
     "consecutive_missed_attestations" INTEGER NOT NULL DEFAULT 0,
     "missed_streak_started_at_slot" INTEGER,
     "missed_rewards_processed_through_slot" INTEGER,
-    "attestations_total" INTEGER NOT NULL,
-    "attestations_missed" INTEGER NOT NULL,
+    "updated_at" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "validators_snapshot_activity_pkey" PRIMARY KEY ("validator_index")
+);
+
+-- CreateTable
+CREATE TABLE "public"."validators_snapshot_balances" (
+    "validator_index" INTEGER NOT NULL,
+    "balance" BIGINT NOT NULL,
+    "effective_balance" BIGINT NOT NULL DEFAULT 0,
+    "beacon_status" INTEGER,
+    "updated_at" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "validators_snapshot_balances_pkey" PRIMARY KEY ("validator_index")
+);
+
+-- CreateTable
+CREATE TABLE "public"."validators_snapshot_performance" (
+    "validator_index" INTEGER NOT NULL,
     "attestation_count_h" SMALLINT NOT NULL DEFAULT 0,
     "missed_attestation_count_h" SMALLINT NOT NULL DEFAULT 0,
     "attestation_count_d" SMALLINT NOT NULL DEFAULT 0,
@@ -284,7 +301,6 @@ CREATE TABLE "public"."validators_snapshot_stats" (
     "attestation_count_m" SMALLINT NOT NULL DEFAULT 0,
     "missed_attestation_count_m" SMALLINT NOT NULL DEFAULT 0,
     "missed_attestation_slots_h" INTEGER[] NOT NULL DEFAULT '{}',
-    "effective_balance" BIGINT NOT NULL DEFAULT 0,
     "performance_h" DECIMAL,
     "performance_d" DECIMAL,
     "performance_w" DECIMAL,
@@ -311,11 +327,9 @@ CREATE TABLE "public"."validators_snapshot_stats" (
     "avg_attestation_delay_d" REAL,
     "avg_attestation_delay_w" REAL,
     "avg_attestation_delay_m" REAL,
-    "beacon_status" INTEGER,
-    "balance" BIGINT NOT NULL,
     "updated_at" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
-    CONSTRAINT "validators_snapshot_stats_pkey" PRIMARY KEY ("validator_index")
+    CONSTRAINT "validators_snapshot_performance_pkey" PRIMARY KEY ("validator_index")
 );
 
 -- CreateTable

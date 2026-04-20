@@ -4,6 +4,7 @@ import { ValidatorActivityStatusStorage } from './validatorActivityStatus.js';
 
 describe('ValidatorActivityStatusStorage transaction scope', () => {
   let prisma: {
+    $executeRaw: ReturnType<typeof vi.fn>;
     $transaction: ReturnType<typeof vi.fn>;
     incidentProcessorState: {
       upsert: ReturnType<typeof vi.fn>;
@@ -33,6 +34,7 @@ describe('ValidatorActivityStatusStorage transaction scope', () => {
     };
 
     prisma = {
+      $executeRaw: vi.fn().mockResolvedValue(undefined),
       $transaction: vi.fn(async (callback: (transactionClient: typeof tx) => Promise<unknown>) =>
         callback(tx),
       ),
@@ -77,6 +79,7 @@ describe('ValidatorActivityStatusStorage transaction scope', () => {
 
     // The processor state bootstrap is not part of the per-slot work. After
     // that, each slot must execute inside its own short transaction.
+    expect(prisma.$executeRaw).toHaveBeenCalledTimes(1);
     expect(prisma.incidentProcessorState.upsert).toHaveBeenCalledTimes(1);
     expect(prisma.$transaction).toHaveBeenCalledTimes(2);
 

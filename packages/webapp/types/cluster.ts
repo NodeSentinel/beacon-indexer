@@ -6,7 +6,6 @@ export interface ClusterValidator {
   balance: number;
   effectiveBalance: number;
   performance: number;
-  missedAttestations: number;
   clusterId: string;
 }
 

@@ -117,7 +117,6 @@ export const ClusterValidatorDetailSchema = z.object({
   status: z.number().nullable(),
   isInactive: z.boolean(),
   performanceH: z.number().nullable(),
-  attestationsMissed: z.number().nullable(),
   balance: z.string(),
   effectiveBalance: z.string().nullable(),
   pubkey: z.string().nullable(),
@@ -157,9 +156,6 @@ export const ClusterSnapshotSchema = z.object({
 
   totalBalance: z.string(),
   totalEffectiveBalance: z.string(),
-
-  attestationsTotal: z.number(),
-  attestationsMissed: z.number(),
 
   performanceH: z.number().nullable(),
   performanceD: z.number().nullable(),

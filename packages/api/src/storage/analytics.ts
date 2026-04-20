@@ -10,7 +10,7 @@ export class AnalyticsStorage {
   constructor(private readonly prisma: PrismaClient = getPrisma()) {}
 
   /**
-   * Get missed attestations from the snapshot table (1h data)
+   * Get missed attestations from the performance snapshot table (1h data)
    * Reads pre-computed missed_attestation_slots_h arrays, unnests, and groups by epoch
    */
   async getMissedAttestationsFromSnapshot(
@@ -29,10 +29,10 @@ export class AnalyticsStorage {
       `SELECT
         (s.slot / ${slotsPerEpoch})::int AS epoch,
         COUNT(*)::bigint AS count,
-        COUNT(DISTINCT vss.validator_index)::bigint AS validator_count
-      FROM validators_snapshot_stats vss
-      CROSS JOIN LATERAL unnest(vss.missed_attestation_slots_h) AS s(slot)
-      WHERE vss.validator_index = ANY($1::int[])
+        COUNT(DISTINCT vsp.validator_index)::bigint AS validator_count
+      FROM validators_snapshot_performance vsp
+      CROSS JOIN LATERAL unnest(vsp.missed_attestation_slots_h) AS s(slot)
+      WHERE vsp.validator_index = ANY($1::int[])
       GROUP BY (s.slot / ${slotsPerEpoch})
       ORDER BY epoch ASC`,
       validatorIndexes,

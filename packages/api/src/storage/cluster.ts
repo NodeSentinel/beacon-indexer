@@ -113,7 +113,7 @@ export class ClusterStorage {
 
   /**
    * Find cluster by ID with validators enriched with snapshot stats.
-   * Single raw query joining cluster, cluster_validator, validator, and validators_snapshot_stats.
+   * Single raw query joining cluster membership with the split snapshot tables.
    */
   async findByIdWithValidatorsAndSnapshot(id: string) {
     const rows = await this.prisma.$queryRaw<
@@ -132,7 +132,6 @@ export class ClusterStorage {
         pubkey: string | null;
         is_inactive: boolean | null;
         performance_h: string | null;
-        attestations_missed: bigint | null;
       }>
     >`
       SELECT
@@ -148,13 +147,13 @@ export class ClusterStorage {
         v.balance,
         v.effective_balance,
         v.pubkey,
-        vss.is_inactive,
-        vss.performance_h::text AS performance_h,
-        vss.attestations_missed
+        vsa.is_inactive,
+        vsp.performance_h::text AS performance_h
       FROM cluster c
       LEFT JOIN cluster_validator cv ON cv.cluster_id = c.id
       LEFT JOIN validator v ON v.id = cv.validator_index
-      LEFT JOIN validators_snapshot_stats vss ON vss.validator_index = cv.validator_index
+      LEFT JOIN validators_snapshot_activity vsa ON vsa.validator_index = cv.validator_index
+      LEFT JOIN validators_snapshot_performance vsp ON vsp.validator_index = cv.validator_index
       WHERE c.id = ${id}
     `;
 
@@ -179,7 +178,6 @@ export class ClusterStorage {
           pubkey: r.pubkey,
           isInactive: r.is_inactive ?? false,
           performanceH: r.performance_h !== null ? Number(r.performance_h) : null,
-          attestationsMissed: r.attestations_missed !== null ? Number(r.attestations_missed) : null,
         })),
     };
   }
@@ -411,8 +409,6 @@ export class ClusterStorage {
         inactive_count: bigint;
         total_balance: bigint | null;
         total_effective_balance: bigint | null;
-        attestations_total: bigint | null;
-        attestations_missed: bigint | null;
         performance_h: string | null;
         performance_d: string | null;
         performance_w: string | null;
@@ -442,81 +438,120 @@ export class ClusterStorage {
         beacon_status_breakdown: string;
       }>
     >`
+      WITH merged_snapshot AS (
+        SELECT
+          cv.validator_index,
+          vsa.is_inactive,
+          b.balance,
+          b.effective_balance,
+          b.beacon_status,
+          p.attestation_count_h,
+          p.missed_attestation_count_h,
+          p.attestation_count_d,
+          p.missed_attestation_count_d,
+          p.attestation_count_w,
+          p.missed_attestation_count_w,
+          p.attestation_count_m,
+          p.missed_attestation_count_m,
+          p.apy_h,
+          p.apy_d,
+          p.apy_w,
+          p.apy_m,
+          p.consensus_reward_h,
+          p.consensus_reward_d,
+          p.consensus_reward_w,
+          p.consensus_reward_m,
+          p.missed_reward_h,
+          p.missed_reward_d,
+          p.missed_reward_w,
+          p.missed_reward_m,
+          p.execution_reward_h,
+          p.execution_reward_d,
+          p.execution_reward_w,
+          p.execution_reward_m,
+          p.attestation_efficiency_d,
+          p.attestation_efficiency_w,
+          p.attestation_efficiency_m,
+          p.avg_attestation_delay_d,
+          p.avg_attestation_delay_w,
+          p.avg_attestation_delay_m
+        FROM cluster_validator cv
+        LEFT JOIN validators_snapshot_activity vsa ON vsa.validator_index = cv.validator_index
+        LEFT JOIN validators_snapshot_balances b ON b.validator_index = cv.validator_index
+        LEFT JOIN validators_snapshot_performance p ON p.validator_index = cv.validator_index
+        WHERE cv.cluster_id = ${clusterId}
+      )
       SELECT
-        COUNT(*) FILTER (WHERE vss.is_inactive = false AND COALESCE(vss.beacon_status, 0) IN (0, 1, 2, 3, 4))::bigint AS active_count,
-        COUNT(*) FILTER (WHERE vss.is_inactive = true AND COALESCE(vss.beacon_status, 0) IN (0, 1, 2, 3, 4))::bigint AS inactive_count,
-        COALESCE(SUM(vss.balance), 0)::bigint AS total_balance,
-        COALESCE(SUM(vss.effective_balance), 0)::bigint AS total_effective_balance,
-        COALESCE(SUM(vss.attestations_total), 0)::bigint AS attestations_total,
-        COALESCE(SUM(vss.attestations_missed), 0)::bigint AS attestations_missed,
+        COUNT(*) FILTER (WHERE merged_snapshot.is_inactive = false AND COALESCE(merged_snapshot.beacon_status, 0) IN (0, 1, 2, 3, 4))::bigint AS active_count,
+        COUNT(*) FILTER (WHERE merged_snapshot.is_inactive = true AND COALESCE(merged_snapshot.beacon_status, 0) IN (0, 1, 2, 3, 4))::bigint AS inactive_count,
+        COALESCE(SUM(merged_snapshot.balance), 0)::bigint AS total_balance,
+        COALESCE(SUM(merged_snapshot.effective_balance), 0)::bigint AS total_effective_balance,
         -- Cluster performance: (total attestations - total missed) / total attestations per timeframe
-        CASE WHEN SUM(vss.attestation_count_h) > 0
-          THEN ((SUM(vss.attestation_count_h) - SUM(vss.missed_attestation_count_h))::numeric / SUM(vss.attestation_count_h))::numeric(5,4)::text
+        CASE WHEN SUM(merged_snapshot.attestation_count_h) > 0
+          THEN ((SUM(merged_snapshot.attestation_count_h) - SUM(merged_snapshot.missed_attestation_count_h))::numeric / SUM(merged_snapshot.attestation_count_h))::numeric(5,4)::text
           ELSE NULL END AS performance_h,
-        CASE WHEN SUM(vss.attestation_count_d) > 0
-          THEN ((SUM(vss.attestation_count_d) - SUM(vss.missed_attestation_count_d))::numeric / SUM(vss.attestation_count_d))::numeric(5,4)::text
+        CASE WHEN SUM(merged_snapshot.attestation_count_d) > 0
+          THEN ((SUM(merged_snapshot.attestation_count_d) - SUM(merged_snapshot.missed_attestation_count_d))::numeric / SUM(merged_snapshot.attestation_count_d))::numeric(5,4)::text
           ELSE NULL END AS performance_d,
-        CASE WHEN SUM(vss.attestation_count_w) > 0
-          THEN ((SUM(vss.attestation_count_w) - SUM(vss.missed_attestation_count_w))::numeric / SUM(vss.attestation_count_w))::numeric(5,4)::text
+        CASE WHEN SUM(merged_snapshot.attestation_count_w) > 0
+          THEN ((SUM(merged_snapshot.attestation_count_w) - SUM(merged_snapshot.missed_attestation_count_w))::numeric / SUM(merged_snapshot.attestation_count_w))::numeric(5,4)::text
           ELSE NULL END AS performance_w,
-        CASE WHEN SUM(vss.attestation_count_m) > 0
-          THEN ((SUM(vss.attestation_count_m) - SUM(vss.missed_attestation_count_m))::numeric / SUM(vss.attestation_count_m))::numeric(5,4)::text
+        CASE WHEN SUM(merged_snapshot.attestation_count_m) > 0
+          THEN ((SUM(merged_snapshot.attestation_count_m) - SUM(merged_snapshot.missed_attestation_count_m))::numeric / SUM(merged_snapshot.attestation_count_m))::numeric(5,4)::text
           ELSE NULL END AS performance_m,
         -- Weighted average APY (by balance)
-        CASE WHEN SUM(vss.balance) > 0
-          THEN (SUM(COALESCE(vss.apy_h, 0) * vss.balance)::numeric / SUM(vss.balance))::numeric(5,2)::text
+        CASE WHEN SUM(merged_snapshot.balance) > 0
+          THEN (SUM(COALESCE(merged_snapshot.apy_h, 0) * merged_snapshot.balance)::numeric / SUM(merged_snapshot.balance))::numeric(5,2)::text
           ELSE NULL END AS apy_h,
-        CASE WHEN SUM(vss.balance) > 0
-          THEN (SUM(COALESCE(vss.apy_d, 0) * vss.balance)::numeric / SUM(vss.balance))::numeric(5,2)::text
+        CASE WHEN SUM(merged_snapshot.balance) > 0
+          THEN (SUM(COALESCE(merged_snapshot.apy_d, 0) * merged_snapshot.balance)::numeric / SUM(merged_snapshot.balance))::numeric(5,2)::text
           ELSE NULL END AS apy_d,
-        CASE WHEN SUM(vss.balance) > 0
-          THEN (SUM(COALESCE(vss.apy_w, 0) * vss.balance)::numeric / SUM(vss.balance))::numeric(5,2)::text
+        CASE WHEN SUM(merged_snapshot.balance) > 0
+          THEN (SUM(COALESCE(merged_snapshot.apy_w, 0) * merged_snapshot.balance)::numeric / SUM(merged_snapshot.balance))::numeric(5,2)::text
           ELSE NULL END AS apy_w,
-        CASE WHEN SUM(vss.balance) > 0
-          THEN (SUM(COALESCE(vss.apy_m, 0) * vss.balance)::numeric / SUM(vss.balance))::numeric(5,2)::text
+        CASE WHEN SUM(merged_snapshot.balance) > 0
+          THEN (SUM(COALESCE(merged_snapshot.apy_m, 0) * merged_snapshot.balance)::numeric / SUM(merged_snapshot.balance))::numeric(5,2)::text
           ELSE NULL END AS apy_m,
         -- Sum rewards
-        SUM(vss.consensus_reward_h)::bigint AS consensus_reward_h,
-        SUM(vss.consensus_reward_d)::bigint AS consensus_reward_d,
-        SUM(vss.consensus_reward_w)::bigint AS consensus_reward_w,
-        SUM(vss.consensus_reward_m)::bigint AS consensus_reward_m,
-        SUM(vss.missed_reward_h)::bigint AS missed_reward_h,
-        SUM(vss.missed_reward_d)::bigint AS missed_reward_d,
-        SUM(vss.missed_reward_w)::bigint AS missed_reward_w,
-        SUM(vss.missed_reward_m)::bigint AS missed_reward_m,
-        SUM(vss.execution_reward_h)::text AS execution_reward_h,
-        SUM(vss.execution_reward_d)::text AS execution_reward_d,
-        SUM(vss.execution_reward_w)::text AS execution_reward_w,
-        SUM(vss.execution_reward_m)::text AS execution_reward_m,
+        SUM(merged_snapshot.consensus_reward_h)::bigint AS consensus_reward_h,
+        SUM(merged_snapshot.consensus_reward_d)::bigint AS consensus_reward_d,
+        SUM(merged_snapshot.consensus_reward_w)::bigint AS consensus_reward_w,
+        SUM(merged_snapshot.consensus_reward_m)::bigint AS consensus_reward_m,
+        SUM(merged_snapshot.missed_reward_h)::bigint AS missed_reward_h,
+        SUM(merged_snapshot.missed_reward_d)::bigint AS missed_reward_d,
+        SUM(merged_snapshot.missed_reward_w)::bigint AS missed_reward_w,
+        SUM(merged_snapshot.missed_reward_m)::bigint AS missed_reward_m,
+        SUM(merged_snapshot.execution_reward_h)::text AS execution_reward_h,
+        SUM(merged_snapshot.execution_reward_d)::text AS execution_reward_d,
+        SUM(merged_snapshot.execution_reward_w)::text AS execution_reward_w,
+        SUM(merged_snapshot.execution_reward_m)::text AS execution_reward_m,
         -- Weighted attestation efficiency (by attestation count per timeframe)
-        (SUM(vss.attestation_efficiency_d * vss.attestation_count_d) / NULLIF(SUM(CASE WHEN vss.attestation_efficiency_d IS NOT NULL THEN vss.attestation_count_d ELSE 0 END), 0))::real::text
+        (SUM(merged_snapshot.attestation_efficiency_d * merged_snapshot.attestation_count_d) / NULLIF(SUM(CASE WHEN merged_snapshot.attestation_efficiency_d IS NOT NULL THEN merged_snapshot.attestation_count_d ELSE 0 END), 0))::real::text
           AS attestation_efficiency_d,
-        (SUM(vss.attestation_efficiency_w * vss.attestation_count_w) / NULLIF(SUM(CASE WHEN vss.attestation_efficiency_w IS NOT NULL THEN vss.attestation_count_w ELSE 0 END), 0))::real::text
+        (SUM(merged_snapshot.attestation_efficiency_w * merged_snapshot.attestation_count_w) / NULLIF(SUM(CASE WHEN merged_snapshot.attestation_efficiency_w IS NOT NULL THEN merged_snapshot.attestation_count_w ELSE 0 END), 0))::real::text
           AS attestation_efficiency_w,
-        (SUM(vss.attestation_efficiency_m * vss.attestation_count_m) / NULLIF(SUM(CASE WHEN vss.attestation_efficiency_m IS NOT NULL THEN vss.attestation_count_m ELSE 0 END), 0))::real::text
+        (SUM(merged_snapshot.attestation_efficiency_m * merged_snapshot.attestation_count_m) / NULLIF(SUM(CASE WHEN merged_snapshot.attestation_efficiency_m IS NOT NULL THEN merged_snapshot.attestation_count_m ELSE 0 END), 0))::real::text
           AS attestation_efficiency_m,
         -- Weighted attestation delay (by attestation count per timeframe)
-        (SUM(vss.avg_attestation_delay_d * vss.attestation_count_d) / NULLIF(SUM(CASE WHEN vss.avg_attestation_delay_d IS NOT NULL THEN vss.attestation_count_d ELSE 0 END), 0))::real::text
+        (SUM(merged_snapshot.avg_attestation_delay_d * merged_snapshot.attestation_count_d) / NULLIF(SUM(CASE WHEN merged_snapshot.avg_attestation_delay_d IS NOT NULL THEN merged_snapshot.attestation_count_d ELSE 0 END), 0))::real::text
           AS avg_attestation_delay_d,
-        (SUM(vss.avg_attestation_delay_w * vss.attestation_count_w) / NULLIF(SUM(CASE WHEN vss.avg_attestation_delay_w IS NOT NULL THEN vss.attestation_count_w ELSE 0 END), 0))::real::text
+        (SUM(merged_snapshot.avg_attestation_delay_w * merged_snapshot.attestation_count_w) / NULLIF(SUM(CASE WHEN merged_snapshot.avg_attestation_delay_w IS NOT NULL THEN merged_snapshot.attestation_count_w ELSE 0 END), 0))::real::text
           AS avg_attestation_delay_w,
-        (SUM(vss.avg_attestation_delay_m * vss.attestation_count_m) / NULLIF(SUM(CASE WHEN vss.avg_attestation_delay_m IS NOT NULL THEN vss.attestation_count_m ELSE 0 END), 0))::real::text
+        (SUM(merged_snapshot.avg_attestation_delay_m * merged_snapshot.attestation_count_m) / NULLIF(SUM(CASE WHEN merged_snapshot.avg_attestation_delay_m IS NOT NULL THEN merged_snapshot.attestation_count_m ELSE 0 END), 0))::real::text
           AS avg_attestation_delay_m,
         -- Beacon status breakdown as JSON
         COALESCE(
           (SELECT json_object_agg(bs, cnt)::text
            FROM (
-             SELECT vss2.beacon_status::text AS bs, COUNT(*)::int AS cnt
+             SELECT b2.beacon_status::text AS bs, COUNT(*)::int AS cnt
              FROM cluster_validator cv2
-             JOIN validators_snapshot_stats vss2 ON cv2.validator_index = vss2.validator_index
+             JOIN validators_snapshot_balances b2 ON cv2.validator_index = b2.validator_index
              WHERE cv2.cluster_id = ${clusterId}
-             GROUP BY vss2.beacon_status
+             GROUP BY b2.beacon_status
            ) sub),
           '{}'
         ) AS beacon_status_breakdown
-      FROM cluster_validator cv
-      JOIN validators_snapshot_stats vss ON cv.validator_index = vss.validator_index
-      WHERE cv.cluster_id = ${clusterId}
+      FROM merged_snapshot
     `;
 
     return rows[0] ?? null;

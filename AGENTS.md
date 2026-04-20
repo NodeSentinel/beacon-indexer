@@ -49,3 +49,14 @@ A developer should be able to fully understand the intent and flow of the test b
 ## Agent
 
 - NEVER do changes without confirmation.
+
+## Communication
+
+- Be brutally concise.
+- Answer the exact question only.
+- No preambles.
+- No extra context.
+- No alternatives unless asked.
+- No "it depends" unless strictly necessary.
+- State facts first.
+- Then, if useful, add one supporting code reference.

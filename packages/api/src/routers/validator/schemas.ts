@@ -68,16 +68,6 @@ export const EpochSchema = z.object({
 });
 
 /**
- * Performance summary schema
- */
-export const PerformanceSummarySchema = z.object({
-  attestationsTotal: z.number().int(),
-  attestationsMissed: z.number().int(),
-  performancePercentage: z.number(),
-  maxAttestationDelay: z.number().int(),
-});
-
-/**
  * Validator status schema - id (numeric) and value (Beacon API string)
  */
 export const ValidatorStatusSchema = z
@@ -104,13 +94,11 @@ export const ValidatorInfoSchema = z.object({
  */
 export const ValidatorDetailsSchema = z.object({
   validatorInfo: ValidatorInfoSchema,
-  performanceSummary: PerformanceSummarySchema,
   epochs: z.array(EpochSchema),
 });
 
 export type ValidatorDetails = z.infer<typeof ValidatorDetailsSchema>;
 export type ValidatorInfo = z.infer<typeof ValidatorInfoSchema>;
-export type PerformanceSummary = z.infer<typeof PerformanceSummarySchema>;
 export type Epoch = z.infer<typeof EpochSchema>;
 export type Slot = z.infer<typeof SlotSchema>;
 export type Attestation = z.infer<typeof AttestationSchema>;

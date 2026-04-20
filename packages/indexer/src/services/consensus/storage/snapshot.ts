@@ -38,18 +38,66 @@ type UpdatePerformanceDParams = SnapshotValidatorFilterParams & {
 /**
  * SnapshotStorage - Database persistence layer for validator snapshot operations.
  *
- * Handles all database operations for the validators_snapshot_stats table.
+ * Handles all database operations for the snapshot-owned hot tables.
  * All business logic happens in the controller layer.
  */
 export class SnapshotStorage {
   constructor(private readonly prisma: PrismaClient) {}
 
   /**
+   * Inserts missing balance rows for tracked validators.
+   */
+  private async insertMissingBalanceRows(validatorIndexes?: number[]): Promise<void> {
+    await this.prisma.$executeRaw`
+      INSERT INTO validators_snapshot_balances (
+        validator_index,
+        balance,
+        effective_balance,
+        beacon_status,
+        updated_at
+      )
+      SELECT DISTINCT
+        v.id,
+        v.balance,
+        COALESCE(v.effective_balance, 0),
+        v.status,
+        NOW()
+      FROM cluster_validator cv
+      JOIN validator v ON v.id = cv.validator_index
+      WHERE v.status IS NOT NULL
+        AND (${validatorIndexes ?? null}::int[] IS NULL OR v.id = ANY(${validatorIndexes ?? null}::int[]))
+      ON CONFLICT (validator_index) DO NOTHING
+    `;
+  }
+
+  /**
+   * Inserts missing performance rows for tracked validators.
+   */
+  private async insertMissingPerformanceRows(validatorIndexes?: number[]): Promise<void> {
+    await this.prisma.$executeRaw`
+      INSERT INTO validators_snapshot_performance (
+        validator_index,
+        updated_at
+      )
+      SELECT DISTINCT
+        v.id,
+        NOW()
+      FROM cluster_validator cv
+      JOIN validator v ON v.id = cv.validator_index
+      WHERE v.status IS NOT NULL
+        AND (${validatorIndexes ?? null}::int[] IS NULL OR v.id = ANY(${validatorIndexes ?? null}::int[]))
+      ON CONFLICT (validator_index) DO NOTHING
+    `;
+  }
+
+  /**
    * Update balance fields from the validator table.
    */
   async updateBalances(): Promise<void> {
+    await this.insertMissingBalanceRows();
+
     await this.prisma.$executeRaw`
-      UPDATE validators_snapshot_stats vss
+      UPDATE validators_snapshot_balances vss
       SET
         balance = v.balance,
         effective_balance = COALESCE(v.effective_balance, 0),
@@ -66,11 +114,13 @@ export class SnapshotStorage {
   async updatePerformanceH(params: UpdatePerformanceHParams): Promise<void> {
     const { minSlot, maxSlot, minEpoch, maxEpoch, maxAttestationDelay, validatorIndexes } = params;
 
+    await this.insertMissingPerformanceRows(validatorIndexes);
+
     await this.prisma.$executeRaw`
       WITH
         user_validators AS (
           SELECT DISTINCT vss.validator_index
-          FROM validators_snapshot_stats vss
+          FROM validators_snapshot_performance vss
           WHERE (${validatorIndexes ?? null}::int[] IS NULL
             OR vss.validator_index = ANY(${validatorIndexes ?? null}::int[]))
         ),
@@ -152,7 +202,7 @@ export class SnapshotStorage {
           LEFT JOIN exec_rew e ON uv.validator_index = e.validator_index
           JOIN validator v ON v.id = uv.validator_index
         )
-      UPDATE validators_snapshot_stats vss
+      UPDATE validators_snapshot_performance vss
       SET
         performance_h = p.performance_h,
         attestation_count_h = p.attestation_count_h,
@@ -181,6 +231,8 @@ export class SnapshotStorage {
   async updatePerformanceD(params: UpdatePerformanceDParams): Promise<void> {
     const { genesisTimeSec, secPerSlot, slotsPerEpoch, maxAttestationDelay, validatorIndexes } =
       params;
+
+    await this.insertMissingPerformanceRows(validatorIndexes);
 
     await this.prisma.$executeRaw`
       WITH
@@ -223,7 +275,7 @@ export class SnapshotStorage {
 
         target_validators AS (
           SELECT DISTINCT vss.validator_index
-          FROM validators_snapshot_stats vss
+          FROM validators_snapshot_performance vss
           WHERE (${validatorIndexes ?? null}::int[] IS NULL
             OR vss.validator_index = ANY(${validatorIndexes ?? null}::int[]))
         ),
@@ -402,7 +454,7 @@ export class SnapshotStorage {
           CROSS JOIN total_hours th
         )
 
-      UPDATE validators_snapshot_stats vss
+      UPDATE validators_snapshot_performance vss
       SET
         performance_d = p.performance_d,
         apy_d = p.apy_d,
@@ -428,11 +480,13 @@ export class SnapshotStorage {
   async updatePerformanceW(params?: SnapshotValidatorFilterParams): Promise<void> {
     const validatorIndexes = params?.validatorIndexes;
 
+    await this.insertMissingPerformanceRows(validatorIndexes);
+
     await this.prisma.$executeRaw`
       WITH
         target_validators AS (
           SELECT DISTINCT vss.validator_index
-          FROM validators_snapshot_stats vss
+          FROM validators_snapshot_performance vss
           WHERE (${validatorIndexes ?? null}::int[] IS NULL
             OR vss.validator_index = ANY(${validatorIndexes ?? null}::int[]))
         ),
@@ -483,7 +537,7 @@ export class SnapshotStorage {
           JOIN validator v ON v.id = tv.validator_index
           CROSS JOIN day_count dc
         )
-      UPDATE validators_snapshot_stats vss
+      UPDATE validators_snapshot_performance vss
       SET
         performance_w = p.performance_w,
         apy_w = p.apy_w,
@@ -509,11 +563,13 @@ export class SnapshotStorage {
   async updatePerformanceM(params?: SnapshotValidatorFilterParams): Promise<void> {
     const validatorIndexes = params?.validatorIndexes;
 
+    await this.insertMissingPerformanceRows(validatorIndexes);
+
     await this.prisma.$executeRaw`
       WITH
         target_validators AS (
           SELECT DISTINCT vss.validator_index
-          FROM validators_snapshot_stats vss
+          FROM validators_snapshot_performance vss
           WHERE (${validatorIndexes ?? null}::int[] IS NULL
             OR vss.validator_index = ANY(${validatorIndexes ?? null}::int[]))
         ),
@@ -564,7 +620,7 @@ export class SnapshotStorage {
           JOIN validator v ON v.id = tv.validator_index
           CROSS JOIN day_count dc
         )
-      UPDATE validators_snapshot_stats vss
+      UPDATE validators_snapshot_performance vss
       SET
         performance_m = p.performance_m,
         apy_m = p.apy_m,
@@ -591,7 +647,7 @@ export class SnapshotStorage {
       JOIN validator v ON v.id = cv.validator_index
       WHERE v.status IS NOT NULL
         AND NOT EXISTS (
-          SELECT 1 FROM validators_snapshot_stats vss
+          SELECT 1 FROM validators_snapshot_balances vss
           WHERE vss.validator_index = cv.validator_index
         )
     `;
@@ -600,29 +656,12 @@ export class SnapshotStorage {
 
   /**
    * Insert base snapshot rows for new validators.
-   * Populates balance/status from the validator table. All performance fields start as NULL.
+   * Creates rows in the snapshot-owned hot tables.
    */
   async insertNewValidatorSnapshots(validatorIndexes: number[]): Promise<void> {
     if (validatorIndexes.length === 0) return;
 
-    await this.prisma.$executeRaw`
-      INSERT INTO validators_snapshot_stats (
-        validator_index, status,
-        attestations_total, attestations_missed, beacon_status,
-        balance, effective_balance, updated_at
-      )
-      SELECT
-        v.id,
-        'active',
-        0,
-        0,
-        v.status,
-        v.balance,
-        COALESCE(v.effective_balance, 0),
-        NOW()
-      FROM validator v
-      WHERE v.id = ANY(${validatorIndexes}::int[])
-      ON CONFLICT (validator_index) DO NOTHING
-    `;
+    await this.insertMissingBalanceRows(validatorIndexes);
+    await this.insertMissingPerformanceRows(validatorIndexes);
   }
 }

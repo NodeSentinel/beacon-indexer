@@ -58,9 +58,6 @@ export const getClusterSnapshot = securedProcedure
           totalBalance: formatBalance(row.total_balance ?? BigInt(0)),
           totalEffectiveBalance: formatBalance(row.total_effective_balance ?? BigInt(0)),
 
-          attestationsTotal: Number(row.attestations_total ?? 0),
-          attestationsMissed: Number(row.attestations_missed ?? 0),
-
           performanceH: toNum(row.performance_h),
           performanceD: toNum(row.performance_d),
           performanceW: toNum(row.performance_w),

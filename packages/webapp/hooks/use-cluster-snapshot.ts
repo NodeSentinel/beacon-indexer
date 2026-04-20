@@ -10,8 +10,6 @@ export interface ClusterSnapshot {
   statusBreakdown: Record<string, number>;
   totalBalance: string;
   totalEffectiveBalance: string;
-  attestationsTotal: number;
-  attestationsMissed: number;
   performance1h: number | null;
   performance1d: number | null;
   performance1w: number | null;
@@ -57,8 +55,6 @@ export function useClusterSnapshot(clusterId: string | null) {
         statusBreakdown: d.statusBreakdown,
         totalBalance: d.totalBalance,
         totalEffectiveBalance: d.totalEffectiveBalance,
-        attestationsTotal: d.attestationsTotal,
-        attestationsMissed: d.attestationsMissed,
         performance1h: d.performanceH,
         performance1d: d.performanceD,
         performance1w: d.performanceW,

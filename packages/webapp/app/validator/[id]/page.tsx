@@ -8,7 +8,6 @@ import { useParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import ValidatorDetails from '@/components/validator/validator-details';
-import ValidatorPerformance from '@/components/validator/validator-performance';
 import ValidatorRewardsList from '@/components/validator/validator-rewards-list';
 import { orpc } from '@/lib/orpc';
 
@@ -82,7 +81,6 @@ export default function ValidatorDetailPage() {
       {validatorData && !isLoading && (
         <div className="space-y-4 md:space-y-6">
           <ValidatorDetails info={validatorData.validatorInfo} />
-          <ValidatorPerformance summary={validatorData.performanceSummary} />
           <ValidatorRewardsList epochs={validatorData.epochs} />
         </div>
       )}
