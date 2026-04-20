@@ -45,3 +45,7 @@ A developer should be able to fully understand the intent and flow of the test b
 - Do not move chat context, refactor history, or temporary reasoning into durable code comments.
 - Avoid vague phrasing like "after this", "at this point", or "now" when a literal comment would be clearer.
 - Prefer comments like "gets current cursor", "opens missing rows", or "updates the slot cursor".
+
+## Agent
+
+- NEVER do changes without confirmation.

@@ -25,12 +25,15 @@ CREATE TABLE "public"."validator" (
 
 -- CreateTable
 CREATE TABLE "public"."validator_withdrawals" (
+    "withdrawal_index" BIGINT NOT NULL,
     "slot" INTEGER NOT NULL,
     "validator_index" VARCHAR(98) NOT NULL,
     "amount" BIGINT NOT NULL,
 
-    CONSTRAINT "validator_withdrawals_pkey" PRIMARY KEY ("slot","validator_index")
+    CONSTRAINT "validator_withdrawals_pkey" PRIMARY KEY ("withdrawal_index")
 );
+
+CREATE INDEX "validator_withdrawals_validator_index_slot_idx" ON "public"."validator_withdrawals"("validator_index", "slot");
 
 -- CreateTable
 CREATE TABLE "public"."validator_deposits" (
