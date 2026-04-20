@@ -9,14 +9,14 @@ import { SnapshotStorage } from '@/src/services/consensus/storage/snapshot.js';
 /**
  * E2E tests for the snapshot system.
  *
- * The snapshot table (`validators_snapshot_stats`) holds a live summary of each
- * validator's balances, rewards, metrics, and activity state.
+ * The snapshot domain stores hot state in split tables for balances,
+ * performance, and activity.
  *
  * Two concerns are tested here:
  *   1. Balance and metrics refreshes — copying live validator data into the
- *      snapshot without changing liveness fields.
+ *      snapshot-owned tables without changing activity-owned fields.
  *   2. New validator detection — finding validators that joined a cluster but
- *      don't have a snapshot row yet, and inserting one.
+ *      don't have snapshot-owned rows yet, and inserting them.
  *
  * ---
  *
@@ -58,7 +58,9 @@ describe('Snapshot - Balance and Metrics Updates', () => {
     snapshotController = new SnapshotController(snapshotStorage, beaconTime);
 
     // Wipe all tables (order matters — foreign keys)
-    await prisma.$executeRawUnsafe(`DELETE FROM "validators_snapshot_stats"`);
+    await prisma.$executeRawUnsafe(`DELETE FROM "validators_snapshot_performance"`);
+    await prisma.$executeRawUnsafe(`DELETE FROM "validators_snapshot_balances"`);
+    await prisma.$executeRawUnsafe(`DELETE FROM "validators_snapshot_activity"`);
     await prisma.$executeRawUnsafe(`DELETE FROM "cluster_validator"`);
     await prisma.$executeRawUnsafe(`DELETE FROM "cluster"`);
     await prisma.$executeRawUnsafe(`DELETE FROM "user"`);
@@ -118,24 +120,52 @@ describe('Snapshot - Balance and Metrics Updates', () => {
       });
     }
 
-    // Create the snapshot base rows (all performance fields start as NULL)
+    // Create the snapshot-owned base rows for balances and performance.
     await snapshotStorage.insertNewValidatorSnapshots(validatorIds);
+
+    // Create default activity rows so merged snapshot assertions can read all hot state.
+    for (const id of validatorIds) {
+      await prisma.validatorsSnapshotActivity.create({
+        data: {
+          validatorIndex: id,
+          status: 'active',
+          isInactive: false,
+          inactiveSinceSlot: null,
+          activeSinceSlot: null,
+          consecutiveMissedAttestations: 0,
+          missedStreakStartedAtSlot: null,
+          missedRewardsProcessedThroughSlot: null,
+          attestationsTotal: 0,
+          attestationsMissed: 0,
+        },
+      });
+    }
   }
 
   /**
-   * Sets the snapshot row to a non-default activity state so we can verify
-   * balance and metrics updates do not rewrite validator-owned streak facts.
+   * Sets the activity row to a non-default state so we can verify snapshot
+   * updates do not rewrite activity-owned streak facts.
    */
   async function seedActivityState(validatorIndex: number) {
     await prisma.$executeRaw`
-      UPDATE validators_snapshot_stats
+      INSERT INTO validators_snapshot_activity (
+        validator_index,
+        status,
+        is_inactive,
+        inactive_since_slot,
+        active_since_slot,
+        consecutive_missed_attestations,
+        updated_at
+      )
+      VALUES (${validatorIndex}, 'inactive', true, 100, 90, 3, NOW())
+      ON CONFLICT (validator_index) DO UPDATE
       SET
-        status = 'inactive',
-        is_inactive = true,
-        inactive_since_slot = 100,
-        active_since_slot = 90,
-        consecutive_missed_attestations = 3
-      WHERE validator_index = ${validatorIndex}
+        status = EXCLUDED.status,
+        is_inactive = EXCLUDED.is_inactive,
+        inactive_since_slot = EXCLUDED.inactive_since_slot,
+        active_since_slot = EXCLUDED.active_since_slot,
+        consecutive_missed_attestations = EXCLUDED.consecutive_missed_attestations,
+        updated_at = NOW()
     `;
   }
 
@@ -158,7 +188,7 @@ describe('Snapshot - Balance and Metrics Updates', () => {
   }
 
   /**
-   * Reads the snapshot row for a single validator.
+   * Reads the merged hot snapshot state for a single validator.
    */
   async function getSnapshot(validatorIndex: number) {
     const rows = await prisma.$queryRaw<
@@ -178,7 +208,28 @@ describe('Snapshot - Balance and Metrics Updates', () => {
         apy_h: string | null;
         consensus_reward_h: bigint | null;
       }>
-    >`SELECT * FROM validators_snapshot_stats WHERE validator_index = ${validatorIndex}`;
+    >`
+      SELECT
+        COALESCE(a.validator_index, b.validator_index, p.validator_index) AS validator_index,
+        a.status,
+        a.is_inactive,
+        a.inactive_since_slot,
+        a.active_since_slot,
+        a.consecutive_missed_attestations,
+        b.balance,
+        b.effective_balance,
+        b.beacon_status,
+        p.attestation_count_h,
+        p.missed_attestation_count_h,
+        p.performance_h,
+        p.apy_h,
+        p.consensus_reward_h
+      FROM validators_snapshot_balances b
+      FULL OUTER JOIN validators_snapshot_activity a ON a.validator_index = b.validator_index
+      FULL OUTER JOIN validators_snapshot_performance p
+        ON p.validator_index = COALESCE(a.validator_index, b.validator_index)
+      WHERE COALESCE(a.validator_index, b.validator_index, p.validator_index) = ${validatorIndex}
+    `;
     return rows[0] ?? null;
   }
 
@@ -257,7 +308,7 @@ describe('Snapshot - Balance and Metrics Updates', () => {
 
     // Pre-seed performance fields with known values.
     await prisma.$executeRaw`
-      UPDATE validators_snapshot_stats
+      UPDATE validators_snapshot_performance
       SET performance_h = 0.9500, apy_h = 3.50, consensus_reward_h = 1000000
       WHERE validator_index = 1
     `;
@@ -308,7 +359,9 @@ describe('Snapshot - New Validator Detection', () => {
 
   beforeEach(async () => {
     // Clean slate before each test
-    await prisma.$executeRawUnsafe(`DELETE FROM "validators_snapshot_stats"`);
+    await prisma.$executeRawUnsafe(`DELETE FROM "validators_snapshot_performance"`);
+    await prisma.$executeRawUnsafe(`DELETE FROM "validators_snapshot_balances"`);
+    await prisma.$executeRawUnsafe(`DELETE FROM "validators_snapshot_activity"`);
     await prisma.$executeRawUnsafe(`DELETE FROM "cluster_validator"`);
     await prisma.$executeRawUnsafe(`DELETE FROM "cluster"`);
     await prisma.$executeRawUnsafe(`DELETE FROM "user"`);
@@ -372,32 +425,53 @@ describe('Snapshot - New Validator Detection', () => {
   it('should insert base snapshot rows for new validators', async () => {
     await createValidatorInCluster([10]);
 
-    // Insert a base snapshot row
+    // Insert the base snapshot-owned rows.
     await snapshotStorage.insertNewValidatorSnapshots([10]);
 
-    // Verify the row exists with sensible defaults
-    const rows = await prisma.$queryRaw<
+    // Verify the balances row exists with live validator values.
+    const balanceRows = await prisma.$queryRaw<
       Array<{
         validator_index: number;
-        status: string;
-        is_inactive: boolean;
-        inactive_since_slot: number | null;
-        active_since_slot: number | null;
-        consecutive_missed_attestations: number;
-        attestations_total: number;
-        attestations_missed: number;
+        balance: bigint;
+        effective_balance: bigint;
+        beacon_status: number | null;
       }>
-    >`SELECT * FROM validators_snapshot_stats WHERE validator_index = 10`;
+    >`SELECT * FROM validators_snapshot_balances WHERE validator_index = 10`;
+    const performanceRows = await prisma.$queryRaw<Array<{ validator_index: number }>>`
+      SELECT validator_index FROM validators_snapshot_performance WHERE validator_index = 10
+    `;
 
-    const row = rows[0];
+    const row = balanceRows[0];
     expect(row).not.toBeNull();
-    expect(row!.status).toBe('active'); // starts as active
-    expect(row!.is_inactive).toBe(false);
-    expect(row!.inactive_since_slot).toBeNull();
-    expect(row!.active_since_slot).toBeNull();
-    expect(row!.consecutive_missed_attestations).toBe(0); // no current streak
-    expect(row!.attestations_total).toBe(0); // no attestations yet
-    expect(row!.attestations_missed).toBe(0); // no misses yet
+    expect(row!.balance).toBe(BigInt(32_000_000_000));
+    expect(row!.effective_balance).toBe(BigInt(32_000_000_000));
+    expect(row!.beacon_status).toBe(2);
+    expect(performanceRows).toHaveLength(1);
+  });
+
+  it('should create balances and performance rows in the split snapshot tables', async () => {
+    // Create one validator in a cluster without any hot snapshot rows yet.
+    await createValidatorInCluster([10]);
+
+    // Insert the base hot snapshot rows for the snapshot worker domain.
+    await snapshotStorage.insertNewValidatorSnapshots([10]);
+
+    // The balances table should get one row for the validator.
+    const balanceRows = await prisma.$queryRaw<Array<{ validator_index: number }>>`
+      SELECT validator_index
+      FROM validators_snapshot_balances
+      WHERE validator_index = 10
+    `;
+
+    // The performance table should get one row for the validator.
+    const performanceRows = await prisma.$queryRaw<Array<{ validator_index: number }>>`
+      SELECT validator_index
+      FROM validators_snapshot_performance
+      WHERE validator_index = 10
+    `;
+
+    expect(balanceRows).toHaveLength(1);
+    expect(performanceRows).toHaveLength(1);
   });
 
   it('should not overwrite existing snapshot rows on insert', async () => {
@@ -407,7 +481,7 @@ describe('Snapshot - New Validator Detection', () => {
 
     // Simulate: the h-performance update already ran and wrote data
     await prisma.$executeRaw`
-      UPDATE validators_snapshot_stats SET performance_h = 0.9500 WHERE validator_index = 10
+      UPDATE validators_snapshot_performance SET performance_h = 0.9500 WHERE validator_index = 10
     `;
 
     // Try inserting again — should be a no-op (ON CONFLICT DO NOTHING)
@@ -415,7 +489,7 @@ describe('Snapshot - New Validator Detection', () => {
 
     // Verify: performance_h was NOT overwritten back to NULL
     const rows = await prisma.$queryRaw<Array<{ performance_h: string | null }>>`
-      SELECT performance_h FROM validators_snapshot_stats WHERE validator_index = 10
+      SELECT performance_h FROM validators_snapshot_performance WHERE validator_index = 10
     `;
     expect(Number(rows[0]!.performance_h)).toBeCloseTo(0.95, 2);
   });

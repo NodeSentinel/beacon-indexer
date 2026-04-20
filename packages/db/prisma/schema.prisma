@@ -376,10 +376,10 @@ model Archive {
   @@map("archive")
 }
 
-model ValidatorsSnapshotStats {
-  validatorIndex Int @id(map: "validators_snapshot_stats_pkey") @map("validator_index")
+model ValidatorsSnapshotActivity {
+  validatorIndex Int @id(map: "validators_snapshot_activity_pkey") @map("validator_index")
 
-  // State
+  // State owned by the activity worker.
   status                            String  @map("status") @db.VarChar(10)
   isInactive                        Boolean @default(false) @map("is_inactive")
   inactiveSinceSlot                 Int?    @map("inactive_since_slot")
@@ -387,17 +387,29 @@ model ValidatorsSnapshotStats {
   consecutiveMissedAttestations     Int     @default(0) @map("consecutive_missed_attestations")
   missedStreakStartedAtSlot         Int?    @map("missed_streak_started_at_slot")
   missedRewardsProcessedThroughSlot Int?    @map("missed_rewards_processed_through_slot")
+  attestationsTotal                 Int     @default(0) @map("attestations_total")
+  attestationsMissed                Int     @default(0) @map("attestations_missed")
+  updatedAt                         DateTime @default(now()) @map("updated_at") @db.Timestamp
 
-  // Balances
-  balance          BigInt @map("balance")
-  effectiveBalance BigInt @default(0) @map("effective_balance")
-  beaconStatus     Int?   @map("beacon_status")
+  @@map("validators_snapshot_activity")
+}
 
-  // Attestations (updated per slot)
-  attestationsTotal  Int @map("attestations_total")
-  attestationsMissed Int @map("attestations_missed")
+model ValidatorsSnapshotBalances {
+  validatorIndex Int @id(map: "validators_snapshot_balances_pkey") @map("validator_index")
 
-  // Attestation counts per timeframe (for cluster-level aggregation)
+  // Balance state owned by the snapshot worker.
+  balance          BigInt   @map("balance")
+  effectiveBalance BigInt   @default(0) @map("effective_balance")
+  beaconStatus     Int?     @map("beacon_status")
+  updatedAt        DateTime @default(now()) @map("updated_at") @db.Timestamp
+
+  @@map("validators_snapshot_balances")
+}
+
+model ValidatorsSnapshotPerformance {
+  validatorIndex Int @id(map: "validators_snapshot_performance_pkey") @map("validator_index")
+
+  // Attestation counts per timeframe.
   attestationCountH       Int @default(0) @map("attestation_count_h") @db.SmallInt
   missedAttestationCountH Int @default(0) @map("missed_attestation_count_h") @db.SmallInt
   attestationCountD       Int @default(0) @map("attestation_count_d") @db.SmallInt
@@ -407,52 +419,52 @@ model ValidatorsSnapshotStats {
   attestationCountM       Int @default(0) @map("attestation_count_m") @db.SmallInt
   missedAttestationCountM Int @default(0) @map("missed_attestation_count_m") @db.SmallInt
 
-  // Missed attestation slots for the last hour (populated by indexer)
+  // Missed attestation slots for the last hour.
   missedAttestationSlotsH Int[] @default([]) @map("missed_attestation_slots_h")
 
-  // Performance per timeframe (ratio 0.0000 - 1.0000)
+  // Performance per timeframe (ratio 0.0000 - 1.0000).
   performanceH Decimal? @map("performance_h")
   performanceD Decimal? @map("performance_d")
   performanceW Decimal? @map("performance_w")
   performanceM Decimal? @map("performance_m")
 
-  // APY per timeframe
+  // APY per timeframe.
   apyH Decimal? @map("apy_h")
   apyD Decimal? @map("apy_d")
   apyW Decimal? @map("apy_w")
   apyM Decimal? @map("apy_m")
 
-  // Consensus rewards per timeframe
+  // Consensus rewards per timeframe.
   consensusRewardH BigInt? @map("consensus_reward_h")
   consensusRewardD BigInt? @map("consensus_reward_d")
   consensusRewardW BigInt? @map("consensus_reward_w")
   consensusRewardM BigInt? @map("consensus_reward_m")
 
-  // Missed rewards per timeframe
+  // Missed rewards per timeframe.
   missedRewardH BigInt? @map("missed_reward_h")
   missedRewardD BigInt? @map("missed_reward_d")
   missedRewardW BigInt? @map("missed_reward_w")
   missedRewardM BigInt? @map("missed_reward_m")
 
-  // Execution rewards per timeframe
+  // Execution rewards per timeframe.
   executionRewardH Decimal? @map("execution_reward_h") @db.Decimal(78, 0)
   executionRewardD Decimal? @map("execution_reward_d") @db.Decimal(78, 0)
   executionRewardW Decimal? @map("execution_reward_w") @db.Decimal(78, 0)
   executionRewardM Decimal? @map("execution_reward_m") @db.Decimal(78, 0)
 
-  // Attestation efficiency per timeframe (weighted score 0.0–1.0)
+  // Attestation efficiency per timeframe.
   attestationEfficiencyD Float? @map("attestation_efficiency_d") @db.Real
   attestationEfficiencyW Float? @map("attestation_efficiency_w") @db.Real
   attestationEfficiencyM Float? @map("attestation_efficiency_m") @db.Real
 
-  // Average attestation delay per timeframe (in slots)
+  // Average attestation delay per timeframe.
   avgAttestationDelayD Float? @map("avg_attestation_delay_d") @db.Real
   avgAttestationDelayW Float? @map("avg_attestation_delay_w") @db.Real
   avgAttestationDelayM Float? @map("avg_attestation_delay_m") @db.Real
 
   updatedAt DateTime @default(now()) @map("updated_at") @db.Timestamp
 
-  @@map("validators_snapshot_stats")
+  @@map("validators_snapshot_performance")
 }
 
 model IncidentProcessorState {

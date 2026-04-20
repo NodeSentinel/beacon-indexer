@@ -107,7 +107,7 @@ describe('Incident Rewards', () => {
     await prisma.clusterValidator.deleteMany({});
     await prisma.cluster.deleteMany({});
     await prisma.user.deleteMany({});
-    await prisma.validatorsSnapshotStats.deleteMany({});
+    await prisma.validatorsSnapshotActivity.deleteMany({});
     await prisma.validatorSyncRewards.deleteMany({});
     await prisma.$executeRawUnsafe(`DELETE FROM "epoch_rewards"`);
     await prisma.slot.deleteMany({});
@@ -152,7 +152,7 @@ describe('Incident Rewards', () => {
       },
     });
 
-    await prisma.validatorsSnapshotStats.create({
+    await prisma.validatorsSnapshotActivity.create({
       data: {
         validatorIndex: VALIDATOR_INDEX,
         status: 'active',
@@ -162,9 +162,6 @@ describe('Incident Rewards', () => {
         consecutiveMissedAttestations: 0,
         missedStreakStartedAtSlot: null,
         missedRewardsProcessedThroughSlot: null,
-        balance: BigInt(32_000_000_000),
-        effectiveBalance: BigInt(32_000_000_000),
-        beaconStatus: 3,
         attestationsTotal: 0,
         attestationsMissed: 0,
       },
@@ -207,7 +204,7 @@ describe('Incident Rewards', () => {
       },
     });
 
-    await prisma.validatorsSnapshotStats.create({
+    await prisma.validatorsSnapshotActivity.create({
       data: {
         validatorIndex,
         status: 'active',
@@ -217,9 +214,6 @@ describe('Incident Rewards', () => {
         consecutiveMissedAttestations: 0,
         missedStreakStartedAtSlot: null,
         missedRewardsProcessedThroughSlot: null,
-        balance: BigInt(32_000_000_000),
-        effectiveBalance: BigInt(32_000_000_000),
-        beaconStatus: 3,
         attestationsTotal: 0,
         attestationsMissed: 0,
       },

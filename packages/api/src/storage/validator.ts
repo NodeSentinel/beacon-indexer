@@ -86,8 +86,8 @@ export class ValidatorStorage {
   }
 
   /**
-   * Get performance summary from validators_snapshot_stats table
-   * Falls back to computing from committee table if summary not available
+   * Get performance summary from the activity hot table.
+   * Falls back to computing from committee table if summary not available.
    * @param validatorIndex - Validator index
    * @param maxAttestationDelay - Maximum delay threshold
    * @returns Performance summary row
@@ -101,8 +101,12 @@ export class ValidatorStorage {
       SELECT
         attestations_total,
         attestations_missed,
-        performance::numeric AS performance
-      FROM validators_snapshot_stats
+        CASE
+          WHEN attestations_total > 0
+          THEN ((attestations_total - attestations_missed)::float / attestations_total * 100)::numeric(5, 2)
+          ELSE 0.0
+        END AS performance
+      FROM validators_snapshot_activity
       WHERE validator_index = ${validatorIndex}
       LIMIT 1
     `;

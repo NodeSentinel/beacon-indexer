@@ -25,6 +25,29 @@ export class ValidatorActivityStatusStorage {
     private readonly slotsPerEpoch: number,
   ) {}
 
+  /** Inserts missing activity rows for tracked validators. */
+  private async insertMissingActivityRows(): Promise<void> {
+    await this.prisma.$executeRaw`
+      INSERT INTO validators_snapshot_activity (
+        validator_index,
+        status,
+        attestations_total,
+        attestations_missed,
+        updated_at
+      )
+      SELECT DISTINCT
+        v.id,
+        'active',
+        0,
+        0,
+        NOW()
+      FROM cluster_validator cv
+      JOIN validator v ON v.id = cv.validator_index
+      WHERE v.status IS NOT NULL
+      ON CONFLICT (validator_index) DO NOTHING
+    `;
+  }
+
   /** Gets the SQL timestamp for a slot expression. */
   private getSqlTimestampForExpression(slotExpression: Prisma.Sql): Prisma.Sql {
     // Converts a slot expression into its chain timestamp inside SQL.
@@ -52,7 +75,7 @@ export class ValidatorActivityStatusStorage {
           cv.validator_index,
           vss.inactive_since_slot
         FROM cluster_validator cv
-        JOIN validators_snapshot_stats vss ON vss.validator_index = cv.validator_index
+        JOIN validators_snapshot_activity vss ON vss.validator_index = cv.validator_index
         WHERE vss.is_inactive = TRUE
           AND vss.inactive_since_slot IS NOT NULL
       ),
@@ -212,7 +235,7 @@ export class ValidatorActivityStatusStorage {
           vss.consecutive_missed_attestations AS snapshot_consecutive_missed_attestations,
           vss.missed_streak_started_at_slot AS snapshot_missed_streak_started_at_slot
         FROM committee c
-        JOIN validators_snapshot_stats vss ON vss.validator_index = c.validator_index
+        JOIN validators_snapshot_activity vss ON vss.validator_index = c.validator_index
         WHERE c.slot = ${slot}::int
       ),
       -- Builds the next snapshot state for each touched validator.
@@ -251,7 +274,7 @@ export class ValidatorActivityStatusStorage {
         FROM slot_duties
       )
       -- Writes the new snapshot state.
-      UPDATE validators_snapshot_stats AS vss
+      UPDATE validators_snapshot_activity AS vss
       SET
         is_inactive = recomputed.next_is_inactive,
         -- Keeps the first missed slot while the validator stays inactive.
@@ -295,6 +318,9 @@ export class ValidatorActivityStatusStorage {
     if (lastCoveredSlot >= newestProcessableSlot) {
       return;
     }
+
+    // Creates missing hot-state rows before replaying safe duties.
+    await this.insertMissingActivityRows();
 
     // Processes one slot at a time up to the newest safe slot.
     for (let slot = lastCoveredSlot + 1; slot <= newestProcessableSlot; slot += 1) {

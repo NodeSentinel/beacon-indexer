@@ -70,7 +70,7 @@ describe('Validator Activity Status Updater', () => {
     await prisma.clusterValidator.deleteMany({});
     await prisma.cluster.deleteMany({});
     await prisma.user.deleteMany({});
-    await prisma.$executeRawUnsafe(`DELETE FROM "validators_snapshot_stats"`);
+    await prisma.validatorsSnapshotActivity.deleteMany({});
     await prisma.$executeRawUnsafe(`DELETE FROM "committee"`);
     await prisma.validator.deleteMany({});
 
@@ -96,7 +96,7 @@ describe('Validator Activity Status Updater', () => {
     });
 
     // Create the snapshot row whose current-activity fields the processor updates.
-    await prisma.validatorsSnapshotStats.create({
+    await prisma.validatorsSnapshotActivity.create({
       data: {
         validatorIndex,
         status: 'active',
@@ -106,9 +106,6 @@ describe('Validator Activity Status Updater', () => {
         consecutiveMissedAttestations: 0,
         missedStreakStartedAtSlot: null,
         missedRewardsProcessedThroughSlot: 80,
-        balance: BigInt(32_000_000_000),
-        effectiveBalance: BigInt(32_000_000_000),
-        beaconStatus: 3,
         attestationsTotal: 1,
         attestationsMissed: 0,
       },
@@ -147,8 +144,8 @@ describe('Validator Activity Status Updater', () => {
     }
   }
 
-  // This helper creates or updates only the snapshot state that incident
-  // reconciliation reads directly from the durable validator snapshot table.
+  // This helper creates or updates only the activity state that incident
+  // reconciliation reads directly from the split activity table.
   async function seedIncidentSnapshotState(
     validatorIndex: number,
     params: {
@@ -156,7 +153,7 @@ describe('Validator Activity Status Updater', () => {
       inactiveSinceSlot: number | null;
     },
   ) {
-    await prisma.validatorsSnapshotStats.upsert({
+    await prisma.validatorsSnapshotActivity.upsert({
       where: { validatorIndex },
       update: {
         isInactive: params.isInactive,
@@ -174,9 +171,6 @@ describe('Validator Activity Status Updater', () => {
         consecutiveMissedAttestations: params.isInactive ? 4 : 0,
         missedStreakStartedAtSlot: params.inactiveSinceSlot,
         missedRewardsProcessedThroughSlot: null,
-        balance: BigInt(32_000_000_000),
-        effectiveBalance: BigInt(32_000_000_000),
-        beaconStatus: 3,
         attestationsTotal: 0,
         attestationsMissed: 0,
       },
@@ -207,7 +201,7 @@ describe('Validator Activity Status Updater', () => {
 
   // This helper reads back the snapshot row after the updater runs.
   async function getSnapshot(validatorIndex: number) {
-    return prisma.validatorsSnapshotStats.findUniqueOrThrow({
+    return prisma.validatorsSnapshotActivity.findUniqueOrThrow({
       where: { validatorIndex },
     });
   }
@@ -267,7 +261,7 @@ describe('Validator Activity Status Updater', () => {
   // This scenario preserves the schema-lock coverage for the snapshot fields used by the global inactivity flow.
   it('persists validator activity state and processor cursors', async () => {
     // Seed the validator snapshot row with the activity-tracking columns.
-    await prisma.validatorsSnapshotStats.create({
+    await prisma.validatorsSnapshotActivity.create({
       data: {
         validatorIndex: 101,
         status: 'active',
@@ -277,9 +271,6 @@ describe('Validator Activity Status Updater', () => {
         consecutiveMissedAttestations: 0,
         missedStreakStartedAtSlot: null,
         missedRewardsProcessedThroughSlot: 88,
-        balance: BigInt(32_000_000_000),
-        effectiveBalance: BigInt(32_000_000_000),
-        beaconStatus: 3,
         attestationsTotal: 1,
         attestationsMissed: 0,
       },
@@ -294,7 +285,7 @@ describe('Validator Activity Status Updater', () => {
     });
 
     // Read the rows back through Prisma so the test locks the generated schema surface.
-    const snapshot = await prisma.validatorsSnapshotStats.findUniqueOrThrow({
+    const snapshot = await prisma.validatorsSnapshotActivity.findUniqueOrThrow({
       where: { validatorIndex: 101 },
     });
     const processorState = await prisma.incidentProcessorState.findUniqueOrThrow({
@@ -414,6 +405,34 @@ describe('Validator Activity Status Updater', () => {
     ).toEqual([101]);
   });
 
+  // This scenario proves the activity worker writes liveness state to its own split table.
+  it('stores validator liveness in validators_snapshot_activity', async () => {
+    // Seed one tracked validator and enough missed duties to cross the inactivity threshold.
+    await seedSnapshotValidator(101);
+    await seedClusterMembership('cluster-a', [101]);
+    await seedCommitteeMisses([120, 121, 122, 123], 101);
+
+    // Run the updater through the newest duty in the missed streak.
+    await runActivitySyncThrough(124, 1, 3);
+
+    // Read the activity-owned table directly because it is the new write target.
+    const activityRows = await prisma.$queryRaw<
+      Array<{
+        validator_index: number;
+        is_inactive: boolean;
+        inactive_since_slot: number | null;
+      }>
+    >`
+      SELECT validator_index, is_inactive, inactive_since_slot
+      FROM validators_snapshot_activity
+      WHERE validator_index = 101
+    `;
+
+    expect(activityRows).toHaveLength(1);
+    expect(activityRows[0]?.is_inactive).toBe(true);
+    expect(activityRows[0]?.inactive_since_slot).toBe(120);
+  });
+
   // This scenario locks the exact slot where the activity processor should close the active incident.
   it('closes the open incident on the exact slot where the cluster becomes fully active again', async () => {
     // Seed the validator and cluster membership used by the incident row.
@@ -421,7 +440,7 @@ describe('Validator Activity Status Updater', () => {
     await seedClusterMembership('cluster-a', [101]);
 
     // Move the snapshot row into the already-inactive state the recovery scenario starts from.
-    await prisma.validatorsSnapshotStats.update({
+    await prisma.validatorsSnapshotActivity.update({
       where: { validatorIndex: 101 },
       data: {
         isInactive: true,
