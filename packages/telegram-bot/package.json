@@ -17,9 +17,9 @@
     "lint:fix": "eslint . --fix",
     "format": "eslint . --fix",
     "type-check": "tsc --noEmit",
-    "build": "tsc",
+    "build": "tsc --noEmit",
     "dev": "tsc-watch --onSuccess \"tsx ./src/main.ts\"",
-    "start": "tsc && tsx ./src/main.ts",
+    "start": "tsx ./src/main.ts",
     "start:force": "tsx ./src/main.ts",
     "test": "echo \"No tests for telegram-bot\""
   },

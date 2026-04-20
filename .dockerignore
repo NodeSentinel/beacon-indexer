@@ -43,6 +43,9 @@ coverage
 .nyc_output
 **/__tests__
 **/e2e
+packages/webapp
+scripts
+.claude
 
 # Documentation
 *.md
