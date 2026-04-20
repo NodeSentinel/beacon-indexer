@@ -4,7 +4,7 @@ import { Settings } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { useChainStats } from '@/hooks/use-chain-stats';
-import { useClusterSnapshot, type ClusterSnapshot } from '@/hooks/use-cluster-snapshot';
+import { useClusterSnapshot } from '@/hooks/use-cluster-snapshot';
 import { formatNumber } from '@/lib/utils';
 import type { Cluster } from '@/types/cluster';
 

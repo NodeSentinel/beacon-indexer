@@ -17,12 +17,6 @@ interface ValidatorInfoRow {
   effective_balance: bigint | null;
 }
 
-interface PerformanceSummaryRow {
-  attestations_total: number;
-  attestations_missed: number;
-  performance: number;
-}
-
 interface SlotRow {
   slot: number;
   index: number; // indexInEpoch
@@ -83,63 +77,6 @@ export class ValidatorStorage {
     `;
 
     return result[0] ?? null;
-  }
-
-  /**
-   * Get performance summary from the activity hot table.
-   * Falls back to computing from committee table if summary not available.
-   * @param validatorIndex - Validator index
-   * @param maxAttestationDelay - Maximum delay threshold
-   * @returns Performance summary row
-   */
-  async getPerformanceSummary(
-    validatorIndex: number,
-    maxAttestationDelay: number,
-  ): Promise<PerformanceSummaryRow> {
-    // Try to get from summary table first
-    const summaryResult = await this.prisma.$queryRaw<Array<PerformanceSummaryRow>>`
-      SELECT
-        attestations_total,
-        attestations_missed,
-        CASE
-          WHEN attestations_total > 0
-          THEN ((attestations_total - attestations_missed)::float / attestations_total * 100)::numeric(5, 2)
-          ELSE 0.0
-        END AS performance
-      FROM validators_snapshot_activity
-      WHERE validator_index = ${validatorIndex}
-      LIMIT 1
-    `;
-
-    if (summaryResult[0]) {
-      return summaryResult[0];
-    }
-
-    // Fallback: compute from committee table (all data, no slot filter)
-    const computedResult = await this.prisma.$queryRaw<Array<PerformanceSummaryRow>>`
-      SELECT
-        COUNT(*)::int AS attestations_total,
-        COUNT(*) FILTER (
-          WHERE attestation_delay IS NULL OR attestation_delay > ${maxAttestationDelay}::smallint
-        )::int AS attestations_missed,
-        CASE
-          WHEN COUNT(*) > 0
-          THEN ((COUNT(*) - COUNT(*) FILTER (
-            WHERE attestation_delay IS NULL OR attestation_delay > ${maxAttestationDelay}::smallint
-          ))::float / COUNT(*) * 100)::numeric(5, 2)
-          ELSE 0.0
-        END AS performance
-      FROM committee
-      WHERE validator_index = ${validatorIndex}
-    `;
-
-    return (
-      computedResult[0] ?? {
-        attestations_total: 0,
-        attestations_missed: 0,
-        performance: 0,
-      }
-    );
   }
 
   /**

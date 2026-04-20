@@ -48,7 +48,6 @@ export default function ValidatorList({ validators }: ValidatorListProps) {
             <TableHead>Status</TableHead>
             <TableHead>Balance</TableHead>
             <TableHead>Performance</TableHead>
-            <TableHead>Missed</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -73,7 +72,6 @@ export default function ValidatorList({ validators }: ValidatorListProps) {
                   {validator.performance.toFixed(1)}%
                 </span>
               </TableCell>
-              <TableCell className="font-mono text-sm">{validator.missedAttestations}</TableCell>
             </TableRow>
           ))}
         </TableBody>

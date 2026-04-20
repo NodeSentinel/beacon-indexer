@@ -387,8 +387,6 @@ model ValidatorsSnapshotActivity {
   consecutiveMissedAttestations     Int     @default(0) @map("consecutive_missed_attestations")
   missedStreakStartedAtSlot         Int?    @map("missed_streak_started_at_slot")
   missedRewardsProcessedThroughSlot Int?    @map("missed_rewards_processed_through_slot")
-  attestationsTotal                 Int     @default(0) @map("attestations_total")
-  attestationsMissed                Int     @default(0) @map("attestations_missed")
   updatedAt                         DateTime @default(now()) @map("updated_at") @db.Timestamp
 
   @@map("validators_snapshot_activity")

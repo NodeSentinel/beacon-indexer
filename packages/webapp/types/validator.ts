@@ -8,7 +8,6 @@ export interface Validator {
   balance: number; // in GNO
   effectiveBalance: number;
   performance: number; // percentage
-  missedAttestations: number;
   clusterId: string;
 }
 

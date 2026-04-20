@@ -106,8 +106,6 @@ describe('Validator Activity Status Updater', () => {
         consecutiveMissedAttestations: 0,
         missedStreakStartedAtSlot: null,
         missedRewardsProcessedThroughSlot: 80,
-        attestationsTotal: 1,
-        attestationsMissed: 0,
       },
     });
   }
@@ -171,8 +169,6 @@ describe('Validator Activity Status Updater', () => {
         consecutiveMissedAttestations: params.isInactive ? 4 : 0,
         missedStreakStartedAtSlot: params.inactiveSinceSlot,
         missedRewardsProcessedThroughSlot: null,
-        attestationsTotal: 0,
-        attestationsMissed: 0,
       },
     });
   }
@@ -271,8 +267,6 @@ describe('Validator Activity Status Updater', () => {
         consecutiveMissedAttestations: 0,
         missedStreakStartedAtSlot: null,
         missedRewardsProcessedThroughSlot: 88,
-        attestationsTotal: 1,
-        attestationsMissed: 0,
       },
     });
 

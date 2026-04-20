@@ -132,7 +132,6 @@ export class ClusterStorage {
         pubkey: string | null;
         is_inactive: boolean | null;
         performance_h: string | null;
-        attestations_missed: bigint | null;
       }>
     >`
       SELECT
@@ -149,8 +148,7 @@ export class ClusterStorage {
         v.effective_balance,
         v.pubkey,
         vsa.is_inactive,
-        vsp.performance_h::text AS performance_h,
-        vsa.attestations_missed
+        vsp.performance_h::text AS performance_h
       FROM cluster c
       LEFT JOIN cluster_validator cv ON cv.cluster_id = c.id
       LEFT JOIN validator v ON v.id = cv.validator_index
@@ -180,7 +178,6 @@ export class ClusterStorage {
           pubkey: r.pubkey,
           isInactive: r.is_inactive ?? false,
           performanceH: r.performance_h !== null ? Number(r.performance_h) : null,
-          attestationsMissed: r.attestations_missed !== null ? Number(r.attestations_missed) : null,
         })),
     };
   }
@@ -412,8 +409,6 @@ export class ClusterStorage {
         inactive_count: bigint;
         total_balance: bigint | null;
         total_effective_balance: bigint | null;
-        attestations_total: bigint | null;
-        attestations_missed: bigint | null;
         performance_h: string | null;
         performance_d: string | null;
         performance_w: string | null;
@@ -450,8 +445,6 @@ export class ClusterStorage {
           b.balance,
           b.effective_balance,
           b.beacon_status,
-          vsa.attestations_total,
-          vsa.attestations_missed,
           p.attestation_count_h,
           p.missed_attestation_count_h,
           p.attestation_count_d,
@@ -493,8 +486,6 @@ export class ClusterStorage {
         COUNT(*) FILTER (WHERE merged_snapshot.is_inactive = true AND COALESCE(merged_snapshot.beacon_status, 0) IN (0, 1, 2, 3, 4))::bigint AS inactive_count,
         COALESCE(SUM(merged_snapshot.balance), 0)::bigint AS total_balance,
         COALESCE(SUM(merged_snapshot.effective_balance), 0)::bigint AS total_effective_balance,
-        COALESCE(SUM(merged_snapshot.attestations_total), 0)::bigint AS attestations_total,
-        COALESCE(SUM(merged_snapshot.attestations_missed), 0)::bigint AS attestations_missed,
         -- Cluster performance: (total attestations - total missed) / total attestations per timeframe
         CASE WHEN SUM(merged_snapshot.attestation_count_h) > 0
           THEN ((SUM(merged_snapshot.attestation_count_h) - SUM(merged_snapshot.missed_attestation_count_h))::numeric / SUM(merged_snapshot.attestation_count_h))::numeric(5,4)::text

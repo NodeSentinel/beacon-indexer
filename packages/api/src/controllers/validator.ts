@@ -3,13 +3,12 @@ import { VALIDATOR_STATUS } from '@beacon-indexer/beacon-utils';
 import type {
   ValidatorDetails,
   ValidatorInfo,
-  PerformanceSummary,
   Epoch,
   Slot,
   Attestation,
 } from '@/routers/validator/schemas.js';
 import { ValidatorStorage } from '@/storage/validator.js';
-import { beaconTime, chainConfig } from '@/utils/beaconTime.js';
+import { beaconTime } from '@/utils/beaconTime.js';
 import { formatBalance } from '@/utils/tokenFormat.js';
 
 /** Reverse map: numeric status id → Beacon API string */
@@ -45,14 +44,11 @@ export class ValidatorController {
     }
 
     // Fetch all data in parallel (no slot/epoch filters - all data)
-    const [validatorInfoRow, performanceSummaryRow, slotRows, epochRewardsRows] = await Promise.all(
-      [
-        this.storage.getValidatorInfo(validatorIndex),
-        this.storage.getPerformanceSummary(validatorIndex, chainConfig.beacon.maxAttestationDelay),
-        this.storage.getTimelineSlots(validatorIndex),
-        this.storage.getEpochRewards(validatorIndex),
-      ],
-    );
+    const [validatorInfoRow, slotRows, epochRewardsRows] = await Promise.all([
+      this.storage.getValidatorInfo(validatorIndex),
+      this.storage.getTimelineSlots(validatorIndex),
+      this.storage.getEpochRewards(validatorIndex),
+    ]);
 
     if (!validatorInfoRow) {
       throw new Error(`Validator not found: ${validatorIndex}`);
@@ -74,14 +70,6 @@ export class ValidatorController {
       effectiveBalance: validatorInfoRow.effective_balance
         ? formatBalance(validatorInfoRow.effective_balance)
         : null,
-    };
-
-    // Transform performance summary
-    const performanceSummary: PerformanceSummary = {
-      attestationsTotal: performanceSummaryRow.attestations_total,
-      attestationsMissed: performanceSummaryRow.attestations_missed,
-      performancePercentage: Number(performanceSummaryRow.performance),
-      maxAttestationDelay: chainConfig.beacon.maxAttestationDelay,
     };
 
     // Group slots by epoch and transform
@@ -162,7 +150,6 @@ export class ValidatorController {
 
     return {
       validatorInfo,
-      performanceSummary,
       epochs,
     };
   }

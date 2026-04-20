@@ -31,15 +31,11 @@ export class ValidatorActivityStatusStorage {
       INSERT INTO validators_snapshot_activity (
         validator_index,
         status,
-        attestations_total,
-        attestations_missed,
         updated_at
       )
       SELECT DISTINCT
         v.id,
         'active',
-        0,
-        0,
         NOW()
       FROM cluster_validator cv
       JOIN validator v ON v.id = cv.validator_index

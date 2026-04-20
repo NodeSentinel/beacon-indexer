@@ -135,8 +135,6 @@ describe('Snapshot - Balance and Metrics Updates', () => {
           consecutiveMissedAttestations: 0,
           missedStreakStartedAtSlot: null,
           missedRewardsProcessedThroughSlot: null,
-          attestationsTotal: 0,
-          attestationsMissed: 0,
         },
       });
     }

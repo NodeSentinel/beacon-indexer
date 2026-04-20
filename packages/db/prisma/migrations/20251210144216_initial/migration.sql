@@ -273,8 +273,6 @@ CREATE TABLE "public"."validators_snapshot_activity" (
     "consecutive_missed_attestations" INTEGER NOT NULL DEFAULT 0,
     "missed_streak_started_at_slot" INTEGER,
     "missed_rewards_processed_through_slot" INTEGER,
-    "attestations_total" INTEGER NOT NULL DEFAULT 0,
-    "attestations_missed" INTEGER NOT NULL DEFAULT 0,
     "updated_at" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT "validators_snapshot_activity_pkey" PRIMARY KEY ("validator_index")

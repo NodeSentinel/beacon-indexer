@@ -162,8 +162,6 @@ describe('Incident Rewards', () => {
         consecutiveMissedAttestations: 0,
         missedStreakStartedAtSlot: null,
         missedRewardsProcessedThroughSlot: null,
-        attestationsTotal: 0,
-        attestationsMissed: 0,
       },
     });
   });
@@ -214,8 +212,6 @@ describe('Incident Rewards', () => {
         consecutiveMissedAttestations: 0,
         missedStreakStartedAtSlot: null,
         missedRewardsProcessedThroughSlot: null,
-        attestationsTotal: 0,
-        attestationsMissed: 0,
       },
     });
   }

@@ -70,7 +70,6 @@ export function toDetailedCluster(clusterDetail: any): Cluster {
           balance: parseFloat(v.balance),
           effectiveBalance: v.effectiveBalance ? parseFloat(v.effectiveBalance) : 0,
           performance: v.performanceH !== null ? v.performanceH * 100 : 0,
-          missedAttestations: v.attestationsMissed ?? 0,
           clusterId: clusterDetail.id,
         };
       },
