@@ -2,9 +2,9 @@
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "baseUrl": ".",
-    "rootDir": ".",
     "paths": {
-      "@/*": ["*"]
+      "@beacon-indexer/api/routers": ["../api/src/routers/index.ts"],
+      "@/*": ["*", "../api/src/*"]
     },
     "noEmit": true,
     "outDir": "build",
