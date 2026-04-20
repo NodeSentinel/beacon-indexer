@@ -746,7 +746,7 @@ export class SlotStorage {
   async getValidatorWithdrawalsForSlot(slot: number) {
     return this.prisma.validatorWithdrawals.findMany({
       where: { slot },
-      orderBy: { validatorIndex: 'asc' },
+      orderBy: { withdrawalIndex: 'asc' },
     });
   }
 

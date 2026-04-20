@@ -242,6 +242,7 @@ export class SlotController extends SlotControllerHelpers {
     await this.slotStorage.saveValidatorWithdrawals(
       baseSlot.slot,
       withdrawals.map((withdrawal) => ({
+        withdrawalIndex: BigInt(withdrawal.index),
         slot: baseSlot.slot,
         validatorIndex: withdrawal.validator_index,
         amount: BigInt(withdrawal.amount),

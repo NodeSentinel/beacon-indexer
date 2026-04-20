@@ -138,11 +138,12 @@ model epochRewards {
 }
 
 model validatorWithdrawals {
-  slot           Int    @map("slot")
-  validatorIndex String @map("validator_index") @db.VarChar(98)
-  amount         BigInt @map("amount")
+  withdrawalIndex BigInt @id @map("withdrawal_index")
+  slot            Int    @map("slot")
+  validatorIndex  String @map("validator_index") @db.VarChar(98)
+  amount          BigInt @map("amount")
 
-  @@id([slot, validatorIndex])
+  @@index([validatorIndex, slot], map: "validator_withdrawals_validator_index_slot_idx")
   @@map("validator_withdrawals")
 }
 
@@ -379,13 +380,13 @@ model ValidatorsSnapshotStats {
   validatorIndex Int @id(map: "validators_snapshot_stats_pkey") @map("validator_index")
 
   // State
-  status                        String  @map("status") @db.VarChar(10)
-  isInactive                    Boolean @default(false) @map("is_inactive")
-  inactiveSinceSlot             Int?    @map("inactive_since_slot")
-  activeSinceSlot               Int?    @map("active_since_slot")
-  consecutiveMissedAttestations Int     @default(0) @map("consecutive_missed_attestations")
-  missedStreakStartedAtSlot     Int?    @map("missed_streak_started_at_slot")
-  missedRewardsProcessedThroughSlot Int? @map("missed_rewards_processed_through_slot")
+  status                            String  @map("status") @db.VarChar(10)
+  isInactive                        Boolean @default(false) @map("is_inactive")
+  inactiveSinceSlot                 Int?    @map("inactive_since_slot")
+  activeSinceSlot                   Int?    @map("active_since_slot")
+  consecutiveMissedAttestations     Int     @default(0) @map("consecutive_missed_attestations")
+  missedStreakStartedAtSlot         Int?    @map("missed_streak_started_at_slot")
+  missedRewardsProcessedThroughSlot Int?    @map("missed_rewards_processed_through_slot")
 
   // Balances
   balance          BigInt @map("balance")
@@ -495,7 +496,6 @@ model User {
 
 /**
  * NotificationQueue - one pending or delivered notification per user.
- *
  * The queue stores a generic type + payload and keeps delivery state minimal.
  * Message rendering stays outside the indexer so copy can evolve without
  * rewriting historical producer logic.
@@ -529,7 +529,7 @@ model Communication {
 }
 
 model ClusterIncident {
-  id     String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid @map("id")
+  id     String                @id @default(dbgenerated("gen_random_uuid()")) @map("id") @db.Uuid
   status ClusterIncidentStatus @default(open) @map("status")
 
   clusterId String @map("cluster_id")
@@ -542,11 +542,11 @@ model ClusterIncident {
   durationSlots   Int?      @map("duration_slots")
   durationSeconds Int?      @map("duration_seconds")
 
-  missedAttestationRewards BigInt? @map("missed_attestation_rewards")
-  missedSyncRewards        BigInt? @map("missed_sync_rewards")
-  missedConsensusRewards   BigInt? @map("missed_consensus_rewards")
-  rewardsFinalized       Boolean   @default(false) @map("rewards_finalized")
-  rewardsFinalizedAt     DateTime? @map("rewards_finalized_at") @db.Timestamp
+  missedAttestationRewards BigInt?   @map("missed_attestation_rewards")
+  missedSyncRewards        BigInt?   @map("missed_sync_rewards")
+  missedConsensusRewards   BigInt?   @map("missed_consensus_rewards")
+  rewardsFinalized         Boolean   @default(false) @map("rewards_finalized")
+  rewardsFinalizedAt       DateTime? @map("rewards_finalized_at") @db.Timestamp
 
   openedNotificationQueuedAt DateTime? @map("opened_notification_queued_at") @db.Timestamp
   closedNotificationQueuedAt DateTime? @map("closed_notification_queued_at") @db.Timestamp
@@ -554,7 +554,7 @@ model ClusterIncident {
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamp
   updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamp
 
-  cluster            Cluster                   @relation(fields: [clusterId], references: [id], onDelete: Cascade)
+  cluster            Cluster                    @relation(fields: [clusterId], references: [id], onDelete: Cascade)
   incidentValidators ClusterIncidentValidator[]
 
   // The database migration also adds a partial unique index on cluster_id where
@@ -565,8 +565,8 @@ model ClusterIncident {
 }
 
 model ClusterIncidentValidator {
-  id             String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid @map("id")
-  incidentId     String @db.Uuid @map("incident_id")
+  id             String @id @default(dbgenerated("gen_random_uuid()")) @map("id") @db.Uuid
+  incidentId     String @map("incident_id") @db.Uuid
   validatorIndex Int    @map("validator_index")
 
   inactiveFromSlot Int  @map("inactive_from_slot")
@@ -599,12 +599,12 @@ model FeeRewardAddress {
 }
 
 model Cluster {
-  id                         String            @id @default(cuid())
-  name                       String
-  ownerId                    String            @map("owner_id")
-  visibility                 ClusterVisibility @default(private)
-  feeRecipientAddress        String?           @map("fee_recipient_address") @db.VarChar(42)
-  createdAt                  DateTime          @default(now()) @map("created_at")
+  id                  String            @id @default(cuid())
+  name                String
+  ownerId             String            @map("owner_id")
+  visibility          ClusterVisibility @default(private)
+  feeRecipientAddress String?           @map("fee_recipient_address") @db.VarChar(42)
+  createdAt           DateTime          @default(now()) @map("created_at")
 
   owner      User               @relation(fields: [ownerId], references: [id], onDelete: Restrict)
   incidents  ClusterIncident[]
