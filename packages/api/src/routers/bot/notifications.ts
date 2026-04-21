@@ -37,7 +37,6 @@ export const listBotNotifications = botProcedure
       return successResponse(
         notifications.map((notification) => ({
           id: notification.id,
-          incidentNotificationType: notification.incidentNotificationType ?? null,
           userId: notification.userId,
           telegramId: notification.user.telegramId!.toString(),
           type: notification.type,
@@ -64,10 +63,7 @@ export const markBotNotificationDelivered = botProcedure
   .handler(async ({ input }) => {
     try {
       const storage = new BotNotificationsStorage();
-      await storage.markDelivered({
-        id: input.id,
-        incidentNotificationType: input.incidentNotificationType,
-      });
+      await storage.markDelivered(input.id);
 
       return successResponse({
         id: input.id,
