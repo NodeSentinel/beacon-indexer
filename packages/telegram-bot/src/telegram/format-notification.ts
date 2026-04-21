@@ -1,15 +1,15 @@
+import { differenceInMinutes, parseISO } from 'date-fns';
+
 type NotificationFormatter = (payload: unknown) => string;
 
 type IncidentPayload = {
   clusterName?: string;
   closedAt?: string;
   closedSlot?: number | null;
-  durationSeconds?: number | null;
-  durationSlots?: number | null;
-  missedConsensusRewards?: string | { token?: string; wei?: string };
+  isReminder?: boolean;
+  now?: string;
   openedAt?: string;
   openedSlot?: number;
-  validatorIndexes?: number[];
 };
 
 const notificationFormatters: Record<string, NotificationFormatter> = {
@@ -45,12 +45,15 @@ function formatNotificationPayload(payload: unknown): string {
 function formatIncidentOpened(payload: unknown): string {
   const data = asIncidentPayload(payload);
 
+  if (data.isReminder) {
+    return `There is an incident for cluster ${data.clusterName ?? 'Unknown cluster'}, it has been opened for ${formatOpenDuration(data)}.`;
+  }
+
   return [
     'Cluster incident opened',
     `Cluster: ${data.clusterName ?? 'Unknown cluster'}`,
     `Started slot: ${data.openedSlot ?? '-'}`,
     `Started at: ${data.openedAt ?? '-'}`,
-    `Affected validators: ${formatValidatorIndexes(data.validatorIndexes)}`,
   ].join('\n');
 }
 
@@ -63,9 +66,6 @@ function formatIncidentClosed(payload: unknown): string {
     `Cluster: ${data.clusterName ?? 'Unknown cluster'}`,
     `Closed slot: ${data.closedSlot ?? '-'}`,
     `Closed at: ${data.closedAt ?? '-'}`,
-    `Duration: ${formatDuration(data.durationSeconds)} (${data.durationSlots ?? 0} slots)`,
-    `Missed rewards: ${formatMissedConsensusRewards(data.missedConsensusRewards)}`,
-    `Affected validators: ${formatValidatorIndexes(data.validatorIndexes)}`,
   ].join('\n');
 }
 
@@ -78,39 +78,14 @@ function asIncidentPayload(payload: unknown): IncidentPayload {
   return {};
 }
 
-/** Formats validator indexes without exceeding Telegram's message limit. */
-function formatValidatorIndexes(indexes: number[] | undefined): string {
-  if (!indexes?.length) return '-';
+/** Formats how long an open incident has been running. */
+function formatOpenDuration(data: IncidentPayload): string {
+  if (!data.openedAt) return '0hs';
 
-  const maxValidatorIndexes = 50;
-  const visibleIndexes = indexes.slice(0, maxValidatorIndexes).join(', ');
-  const hiddenCount = indexes.length - maxValidatorIndexes;
+  const openedAt = parseISO(data.openedAt);
+  const now = data.now ? parseISO(data.now) : new Date();
+  const minutes = Math.max(differenceInMinutes(now, openedAt), 0);
+  const hours = minutes / 60;
 
-  if (hiddenCount <= 0) return visibleIndexes;
-
-  return `${visibleIndexes} ... and ${hiddenCount} more`;
-}
-
-/** Formats missed consensus rewards for Telegram copy. */
-function formatMissedConsensusRewards(rewards: IncidentPayload['missedConsensusRewards']): string {
-  if (!rewards) return '0';
-  if (typeof rewards === 'string') return rewards;
-
-  return rewards.token ?? rewards.wei ?? '0';
-}
-
-/** Formats a duration in seconds using compact units. */
-function formatDuration(durationSeconds: number | null | undefined): string {
-  if (!durationSeconds || durationSeconds <= 0) return '0s';
-
-  const hours = Math.floor(durationSeconds / 3600);
-  const minutes = Math.floor((durationSeconds % 3600) / 60);
-  const seconds = durationSeconds % 60;
-  const parts = [
-    hours > 0 ? `${hours}h` : null,
-    minutes > 0 ? `${minutes}m` : null,
-    seconds > 0 ? `${seconds}s` : null,
-  ].filter(Boolean);
-
-  return parts.join(' ');
+  return `${Number(hours.toFixed(1))}hs`;
 }
