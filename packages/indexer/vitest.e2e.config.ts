@@ -9,7 +9,7 @@ export default defineConfig({
   test: {
     globals: true,
     environment: 'node',
-    // No setupFiles for e2e tests - they should use real environment variables
+    // Forces e2e tests to use the hardcoded local Docker test database.
     testTimeout: 300000, // 5 minutes timeout for E2E tests
     hookTimeout: 300000,
     teardownTimeout: 300000,

@@ -15,6 +15,13 @@ NC='\033[0m' # No Color
 # Get package argument (optional)
 PACKAGE="${1:-all}"
 
+# Hardcoded e2e database settings; do not read these values from .env.
+E2E_DB_NAME="e2e_beacon"
+E2E_DB_USER="e2e_user"
+E2E_DB_PASS="e2e_password"
+E2E_DB_PORT="5499"
+E2E_DB_URL="postgresql://$E2E_DB_USER:$E2E_DB_PASS@localhost:$E2E_DB_PORT/$E2E_DB_NAME?schema=public"
+
 echo "🚀 Starting E2E tests locally (package: $PACKAGE)..."
 
 # Check if PostgreSQL container is already running
@@ -27,17 +34,17 @@ fi
 # Start PostgreSQL container with tmpfs for clean data
 echo -e "${GREEN}🐳 Starting PostgreSQL container...${NC}"
 docker run --name e2e-postgres \
-    -e POSTGRES_DB=e2e_beacon \
-    -e POSTGRES_USER=e2e_user \
-    -e POSTGRES_PASSWORD=e2e_password \
-    -p 5499:5432 \
+    -e POSTGRES_DB="$E2E_DB_NAME" \
+    -e POSTGRES_USER="$E2E_DB_USER" \
+    -e POSTGRES_PASSWORD="$E2E_DB_PASS" \
+    -p "$E2E_DB_PORT":5432 \
     --tmpfs /var/lib/postgresql/data \
     -d postgres:16
 
 # Wait for PostgreSQL to be ready
 echo -e "${GREEN}⏳ Waiting for PostgreSQL to be ready...${NC}"
 for i in {1..60}; do
-    if docker exec e2e-postgres pg_isready -U e2e_user -d e2e_beacon >/dev/null 2>&1; then
+    if docker exec e2e-postgres pg_isready -U "$E2E_DB_USER" -d "$E2E_DB_NAME" >/dev/null 2>&1; then
         echo -e "${GREEN}✅ PostgreSQL is ready!${NC}"
         sleep 2  # Give it a moment to fully initialize
         break
@@ -51,7 +58,7 @@ done
 
 # Setup database
 echo -e "${GREEN}🗄️  Setting up database...${NC}"
-DATABASE_URL="postgresql://e2e_user:e2e_password@localhost:5499/e2e_beacon?schema=public" \
+DATABASE_URL="$E2E_DB_URL" \
 pnpm --filter @beacon-indexer/db exec prisma migrate deploy --schema=prisma/schema.prisma
 
 # Store the root directory
@@ -61,7 +68,7 @@ ROOT_DIR=$(pwd)
 run_indexer_e2e() {
     echo -e "${GREEN}🧪 Running indexer E2E tests...${NC}"
     cd "$ROOT_DIR/packages/indexer"
-    DATABASE_URL="postgresql://e2e_user:e2e_password@localhost:5499/e2e_beacon?schema=public" \
+    DATABASE_URL="$E2E_DB_URL" \
     pnpm test:e2e
 }
 
@@ -69,7 +76,7 @@ run_indexer_e2e() {
 run_api_e2e() {
     echo -e "${GREEN}🧪 Running API E2E tests...${NC}"
     cd "$ROOT_DIR/packages/api"
-    DATABASE_URL="postgresql://e2e_user:e2e_password@localhost:5499/e2e_beacon?schema=public" \
+    DATABASE_URL="$E2E_DB_URL" \
     API_TOKEN_SECRET="test-secret-must-be-at-least-32-characters-long" \
     CHAIN="gnosis" \
     TELEGRAM_BOT_TOKEN="fake-token-for-e2e" \

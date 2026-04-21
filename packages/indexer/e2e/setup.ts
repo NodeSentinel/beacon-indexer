@@ -9,3 +9,5 @@ function forceE2eDatabaseUrl() {
 }
 
 forceE2eDatabaseUrl();
+
+export {};
