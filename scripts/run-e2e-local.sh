@@ -27,9 +27,9 @@ fi
 # Start PostgreSQL container with tmpfs for clean data
 echo -e "${GREEN}🐳 Starting PostgreSQL container...${NC}"
 docker run --name e2e-postgres \
-    -e POSTGRES_DB=beacon_test \
-    -e POSTGRES_USER=postgres \
-    -e POSTGRES_PASSWORD=password \
+    -e POSTGRES_DB=e2e_beacon \
+    -e POSTGRES_USER=e2e_user \
+    -e POSTGRES_PASSWORD=e2e_password \
     -p 5499:5432 \
     --tmpfs /var/lib/postgresql/data \
     -d postgres:16
@@ -37,7 +37,7 @@ docker run --name e2e-postgres \
 # Wait for PostgreSQL to be ready
 echo -e "${GREEN}⏳ Waiting for PostgreSQL to be ready...${NC}"
 for i in {1..60}; do
-    if docker exec e2e-postgres pg_isready -U postgres -d beacon_test >/dev/null 2>&1; then
+    if docker exec e2e-postgres pg_isready -U e2e_user -d e2e_beacon >/dev/null 2>&1; then
         echo -e "${GREEN}✅ PostgreSQL is ready!${NC}"
         sleep 2  # Give it a moment to fully initialize
         break
@@ -51,7 +51,7 @@ done
 
 # Setup database
 echo -e "${GREEN}🗄️  Setting up database...${NC}"
-DATABASE_URL="postgresql://postgres:password@localhost:5499/beacon_test?schema=public" \
+DATABASE_URL="postgresql://e2e_user:e2e_password@localhost:5499/e2e_beacon?schema=public" \
 pnpm --filter @beacon-indexer/db exec prisma migrate deploy --schema=prisma/schema.prisma
 
 # Store the root directory
@@ -61,7 +61,7 @@ ROOT_DIR=$(pwd)
 run_indexer_e2e() {
     echo -e "${GREEN}🧪 Running indexer E2E tests...${NC}"
     cd "$ROOT_DIR/packages/indexer"
-    DATABASE_URL="postgresql://postgres:password@localhost:5499/beacon_test?schema=public" \
+    DATABASE_URL="postgresql://e2e_user:e2e_password@localhost:5499/e2e_beacon?schema=public" \
     pnpm test:e2e
 }
 
@@ -69,7 +69,7 @@ run_indexer_e2e() {
 run_api_e2e() {
     echo -e "${GREEN}🧪 Running API E2E tests...${NC}"
     cd "$ROOT_DIR/packages/api"
-    DATABASE_URL="postgresql://postgres:password@localhost:5499/beacon_test?schema=public" \
+    DATABASE_URL="postgresql://e2e_user:e2e_password@localhost:5499/e2e_beacon?schema=public" \
     API_TOKEN_SECRET="test-secret-must-be-at-least-32-characters-long" \
     CHAIN="gnosis" \
     TELEGRAM_BOT_TOKEN="fake-token-for-e2e" \
