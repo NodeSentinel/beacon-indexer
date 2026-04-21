@@ -32,10 +32,10 @@ test('formatNotificationMessage formats open incident reminders with elapsed dur
     openedAt: '2026-04-21T12:00:00.000Z',
   });
 
-  // This assertion verifies reminders include how long the incident has been open.
+  // This assertion verifies reminders include a dynamic elapsed duration.
   assert.equal(
     message,
-    'There is an incident for cluster Main validators, it has been opened for 3.5hs.',
+    'There is an incident for cluster Main validators, it has been opened for 3 hours.',
   );
 });
 

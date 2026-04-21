@@ -1,4 +1,4 @@
-import { differenceInMinutes, parseISO } from 'date-fns';
+import { formatDistanceStrict, parseISO } from 'date-fns';
 
 type NotificationFormatter = (payload: unknown) => string;
 
@@ -80,12 +80,12 @@ function asIncidentPayload(payload: unknown): IncidentPayload {
 
 /** Formats how long an open incident has been running. */
 function formatOpenDuration(data: IncidentPayload): string {
-  if (!data.openedAt) return '0hs';
+  if (!data.openedAt) return '0 seconds';
 
   const openedAt = parseISO(data.openedAt);
   const now = data.now ? parseISO(data.now) : new Date();
-  const minutes = Math.max(differenceInMinutes(now, openedAt), 0);
-  const hours = minutes / 60;
 
-  return `${Number(hours.toFixed(1))}hs`;
+  return formatDistanceStrict(now, openedAt, {
+    roundingMethod: 'floor',
+  });
 }
