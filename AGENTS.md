@@ -23,6 +23,11 @@
 
 - **`docs`**: project docs. See `docs/`.
 
+### E2E Tests
+
+Run e2e tests only from the repo root with `pnpm test:e2e:local`.
+Never run e2e tests directly with package scripts, Vitest, `.env`, or custom DB credentials. If the root command cannot be used, stop and ask.
+
 ### E2E Test Documentation
 
 Every end-to-end test must include clear comments explaining what the test does.
