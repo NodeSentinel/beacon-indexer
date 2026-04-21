@@ -67,6 +67,7 @@ export const env = createEnv({
       .string()
       .default('[]')
       .transform((val) => JSON.parse(val) as number[]),
+    BOT_RATE_LIMIT_PER_SECOND: z.coerce.number().int().positive().default(30),
 
     // Webhook Configuration (only used when BOT_MODE=webhook)
     BOT_WEBHOOK: z.string().url().optional(),

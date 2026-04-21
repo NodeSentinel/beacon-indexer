@@ -3,7 +3,7 @@ import type { Api, RawApi } from 'grammy';
 import { getRpcClientForUser } from '@/src/api/client.js';
 import type { Logger } from '@/src/logger.js';
 import { formatStatsMessage } from '@/src/telegram/format-stats.js';
-import { editDashboardMessage, sendDashboardMessage } from '@/src/telegram/messaging.js';
+import { editMessage, sendMessage } from '@/src/telegram/messaging.js';
 
 interface BotUser {
   id: string;
@@ -66,14 +66,18 @@ export async function notifyUserStats(
 
   // Try to edit existing message first
   if (existingMessageId) {
-    const edited = await editDashboardMessage(
+    const edited = await editMessage({
       api,
       chatId,
-      existingMessageId,
-      user.telegramId,
-      message,
-      userLogger,
-    );
+      messageId: existingMessageId,
+      telegramId: user.telegramId,
+      text: message,
+      logger: userLogger,
+      options: {
+        parse_mode: 'MarkdownV2',
+        link_preview_options: { is_disabled: true },
+      },
+    });
     if (edited) {
       userLogger.debug('Message edited successfully');
       return; // Message updated in place, messageId unchanged
@@ -83,13 +87,18 @@ export async function notifyUserStats(
   }
 
   // Send new message
-  const newMessageId = await sendDashboardMessage(
+  const newMessageId = await sendMessage({
     api,
     chatId,
-    user.telegramId,
-    message,
-    userLogger,
-  );
+    telegramId: user.telegramId,
+    text: message,
+    logger: userLogger,
+    options: {
+      parse_mode: 'MarkdownV2',
+      link_preview_options: { is_disabled: true },
+      disable_notification: true,
+    },
+  });
   userLogger.debug({ newMessageId }, 'New message sent');
 
   // Update messageId if we got a new one

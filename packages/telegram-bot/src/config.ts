@@ -6,6 +6,7 @@ interface BaseConfig {
   botToken: string;
   botAllowedUpdates: readonly AllowedUpdateType[];
   botAdmins: number[];
+  botRateLimitPerSecond: number;
   isDebug: boolean;
   logLevel: string;
 }
@@ -34,6 +35,7 @@ function createConfigFromEnv(): Config {
     botToken: env.BOT_TOKEN as string,
     botAllowedUpdates: env.BOT_ALLOWED_UPDATES,
     botAdmins: env.BOT_ADMINS as number[],
+    botRateLimitPerSecond: env.BOT_RATE_LIMIT_PER_SECOND as number,
     isDebug: env.DEBUG as boolean,
     logLevel: env.LOG_LEVEL as string,
   };
