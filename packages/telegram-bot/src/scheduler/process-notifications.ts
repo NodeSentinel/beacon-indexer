@@ -7,6 +7,7 @@ import { sendMessage } from '@/src/telegram/messaging.js';
 
 interface BotNotification {
   id: string;
+  incidentNotificationType?: 'incident_opened' | 'incident_closed' | null;
   userId: string;
   telegramId: string | null;
   type: string;
@@ -47,6 +48,9 @@ export async function processNotifications(
 
     if (messageId === null) continue;
 
-    await rpcClient.bot.setNotificationDelivered({ id: notification.id });
+    await rpcClient.bot.setNotificationDelivered({
+      id: notification.id,
+      incidentNotificationType: notification.incidentNotificationType,
+    });
   }
 }

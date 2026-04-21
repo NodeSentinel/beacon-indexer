@@ -1,12 +1,8 @@
 import { ClusterIncidentStatus, Prisma, PrismaClient } from '@beacon-indexer/db';
 
-import {
-  getIncidentNotificationId,
-  parseIncidentNotificationId,
-  type IncidentNotificationType,
-} from './bot-notification-ids.js';
-
 import { getPrisma } from '@/lib/prisma.js';
+
+type IncidentNotificationType = 'incident_opened' | 'incident_closed';
 
 type DueIncidentNotificationRow = {
   incident_id: string;
@@ -24,6 +20,14 @@ type DueIncidentNotificationRow = {
 };
 
 const OPEN_INCIDENT_REPEAT_MS = 3 * 60 * 60 * 1000;
+
+/** Builds delivery metadata for an incident notification. */
+export function getIncidentDeliveryTarget(
+  incidentId: string,
+  type: IncidentNotificationType,
+): { incidentId: string; type: IncidentNotificationType } {
+  return { incidentId, type };
+}
 
 /** Builds the Telegram payload for an incident notification. */
 function getIncidentNotificationPayload(row: DueIncidentNotificationRow) {
@@ -71,7 +75,12 @@ export class BotNotificationsStorage {
       this.listPendingIncidentNotifications(limit),
     ]);
 
-    return [...queuedNotifications, ...incidentNotifications]
+    const normalizedQueuedNotifications = queuedNotifications.map((notification) => ({
+      ...notification,
+      incidentNotificationType: null,
+    }));
+
+    return [...normalizedQueuedNotifications, ...incidentNotifications]
       .sort((left, right) => left.createdAt.getTime() - right.createdAt.getTime())
       .slice(0, limit);
   }
@@ -138,7 +147,8 @@ export class BotNotificationsStorage {
     `);
 
     return rows.map((row) => ({
-      id: getIncidentNotificationId(row.type, row.incident_id),
+      id: row.incident_id,
+      incidentNotificationType: row.type,
       userId: row.owner_id,
       type: row.type,
       payload: getIncidentNotificationPayload(row),
@@ -150,15 +160,18 @@ export class BotNotificationsStorage {
   }
 
   /** Marks a regular or synthetic notification as delivered. */
-  async markDelivered(id: string) {
-    const incidentNotification = parseIncidentNotificationId(id);
-
-    if (incidentNotification) {
-      return this.markIncidentNotificationDelivered(incidentNotification);
+  async markDelivered(params: {
+    id: string;
+    incidentNotificationType?: IncidentNotificationType | null;
+  }) {
+    if (params.incidentNotificationType) {
+      return this.markIncidentNotificationDelivered(
+        getIncidentDeliveryTarget(params.id, params.incidentNotificationType),
+      );
     }
 
     return this.prisma.notificationQueue.update({
-      where: { id },
+      where: { id: params.id },
       data: {
         delivered: true,
         deliveredAt: new Date(),

@@ -20,6 +20,7 @@ export const UpdateMessageIdSchema = z.object({
 
 export const BotNotificationSchema = z.object({
   id: z.string(),
+  incidentNotificationType: z.enum(['incident_opened', 'incident_closed']).nullable().optional(),
   userId: z.string(),
   telegramId: z.string().nullable(),
   type: z.string(),
@@ -31,6 +32,7 @@ export const BotNotificationListSchema = z.array(BotNotificationSchema);
 
 export const NotificationIdParamSchema = z.object({
   id: z.string(),
+  incidentNotificationType: z.enum(['incident_opened', 'incident_closed']).nullable().optional(),
 });
 
 export const BotNotificationDeliveredSchema = z.object({
