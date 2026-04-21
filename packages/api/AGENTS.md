@@ -61,6 +61,10 @@ Only use pagination for UI listings (validators, events, history). Stats aggrega
 ## Backend conventions
 
 - Validate all inputs with Zod.
+- Authentication is implemented in the API.
+- Use `securedProcedure` for API endpoints by default.
+- Use `publicProcedure` only for explicitly public endpoints, such as health checks.
+- Use narrower auth wrappers like `botProcedure` or `apiKeyProcedure` when an endpoint must require a specific auth strategy.
 - Use Prisma models when the operation can be resolved with one Prisma query.
 - Use raw SQL for performance-critical operations that would require more than one Prisma query.
 
