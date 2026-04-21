@@ -1,4 +1,4 @@
-import { Prisma, PrismaClient } from '@beacon-indexer/db';
+import { ClusterIncidentStatus, Prisma, PrismaClient } from '@beacon-indexer/db';
 
 import { getPrisma } from '@/lib/prisma.js';
 
@@ -38,33 +38,32 @@ export class IncidentStorage {
    * Confirms the cluster belongs to the authenticated user.
    */
   async isOwnedCluster(params: { ownerId: string; clusterId: string }): Promise<boolean> {
-    const [row] = await this.prisma.$queryRaw<Array<{ exists: boolean }>>`
-      SELECT EXISTS(
-        SELECT 1
-        FROM cluster
-        WHERE id = ${params.clusterId}
-          AND owner_id = ${params.ownerId}
-      ) AS "exists"
-    `;
+    const cluster = await this.prisma.cluster.findFirst({
+      where: {
+        id: params.clusterId,
+        ownerId: params.ownerId,
+      },
+      select: { id: true },
+    });
 
-    return row?.exists ?? false;
+    return cluster !== null;
   }
 
   /**
    * Confirms the incident belongs to a cluster owned by the authenticated user.
    */
   async isOwnedIncident(params: { ownerId: string; incidentId: string }): Promise<boolean> {
-    const [row] = await this.prisma.$queryRaw<Array<{ exists: boolean }>>`
-      SELECT EXISTS(
-        SELECT 1
-        FROM cluster_incident incident
-        JOIN cluster ON cluster.id = incident.cluster_id
-        WHERE incident.id = ${params.incidentId}::uuid
-          AND cluster.owner_id = ${params.ownerId}
-      ) AS "exists"
-    `;
+    const incident = await this.prisma.clusterIncident.findFirst({
+      where: {
+        id: params.incidentId,
+        cluster: {
+          ownerId: params.ownerId,
+        },
+      },
+      select: { id: true },
+    });
 
-    return row?.exists ?? false;
+    return incident !== null;
   }
 
   /**
@@ -135,69 +134,87 @@ export class IncidentStorage {
    * Updates the latest open-notified timestamp for the current open incident.
    */
   async markOpenIncidentNotified(params: MarkOpenIncidentNotifiedParams) {
-    const rows = await this.prisma.$queryRaw<
-      Array<{
-        incident_id: string;
-        opened_notification_queued_at: Date;
-      }>
-    >(Prisma.sql`
-      UPDATE cluster_incident AS incident
-      SET
-        opened_notification_queued_at = ${params.notifiedAt},
-        updated_at = ${params.notifiedAt}
-      FROM cluster
-      WHERE cluster.id = incident.cluster_id
-        AND cluster.id = ${params.clusterId}
-        AND cluster.owner_id = ${params.ownerId}
-        AND incident.status = 'open'::"ClusterIncidentStatus"
-      RETURNING incident.id AS incident_id, incident.opened_notification_queued_at
-    `);
+    const rows = await this.prisma.clusterIncident.updateManyAndReturn({
+      where: {
+        clusterId: params.clusterId,
+        status: ClusterIncidentStatus.open,
+        cluster: {
+          ownerId: params.ownerId,
+        },
+      },
+      data: {
+        openedNotificationQueuedAt: params.notifiedAt,
+        updatedAt: params.notifiedAt,
+      },
+      select: {
+        id: true,
+        openedNotificationQueuedAt: true,
+      },
+    });
 
-    return rows[0] ?? null;
+    const incident = rows[0];
+
+    if (!incident?.openedNotificationQueuedAt) {
+      return null;
+    }
+
+    return {
+      incident_id: incident.id,
+      opened_notification_queued_at: incident.openedNotificationQueuedAt,
+    };
   }
 
   /**
    * Reads the current status for an owned incident.
    */
   async getOwnedIncidentStatus(params: { ownerId: string; incidentId: string }) {
-    const rows = await this.prisma.$queryRaw<
-      Array<{
-        status: 'open' | 'closed';
-      }>
-    >(Prisma.sql`
-      SELECT incident.status::text AS status
-      FROM cluster_incident AS incident
-      JOIN cluster ON cluster.id = incident.cluster_id
-      WHERE incident.id = ${params.incidentId}::uuid
-        AND cluster.owner_id = ${params.ownerId}
-    `);
+    const incident = await this.prisma.clusterIncident.findFirst({
+      where: {
+        id: params.incidentId,
+        cluster: {
+          ownerId: params.ownerId,
+        },
+      },
+      select: {
+        status: true,
+      },
+    });
 
-    return rows[0] ?? null;
+    return incident;
   }
 
   /**
    * Updates the latest closed-notified timestamp for a closed incident.
    */
   async markClosedIncidentNotified(params: MarkClosedIncidentNotifiedParams) {
-    const rows = await this.prisma.$queryRaw<
-      Array<{
-        incident_id: string;
-        closed_notification_queued_at: Date;
-      }>
-    >(Prisma.sql`
-      UPDATE cluster_incident AS incident
-      SET
-        closed_notification_queued_at = ${params.notifiedAt},
-        updated_at = ${params.notifiedAt}
-      FROM cluster
-      WHERE cluster.id = incident.cluster_id
-        AND incident.id = ${params.incidentId}::uuid
-        AND cluster.owner_id = ${params.ownerId}
-        AND incident.status = 'closed'::"ClusterIncidentStatus"
-      RETURNING incident.id AS incident_id, incident.closed_notification_queued_at
-    `);
+    const rows = await this.prisma.clusterIncident.updateManyAndReturn({
+      where: {
+        id: params.incidentId,
+        status: ClusterIncidentStatus.closed,
+        cluster: {
+          ownerId: params.ownerId,
+        },
+      },
+      data: {
+        closedNotificationQueuedAt: params.notifiedAt,
+        updatedAt: params.notifiedAt,
+      },
+      select: {
+        id: true,
+        closedNotificationQueuedAt: true,
+      },
+    });
 
-    return rows[0] ?? null;
+    const incident = rows[0];
+
+    if (!incident?.closedNotificationQueuedAt) {
+      return null;
+    }
+
+    return {
+      incident_id: incident.id,
+      closed_notification_queued_at: incident.closedNotificationQueuedAt,
+    };
   }
 
   /**

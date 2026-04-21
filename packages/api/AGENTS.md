@@ -61,7 +61,8 @@ Only use pagination for UI listings (validators, events, history). Stats aggrega
 ## Backend conventions
 
 - Validate all inputs with Zod.
-- **Use raw SQL** for performance-critical queries, not Prisma models.
+- Use Prisma models when the operation can be resolved with one Prisma query.
+- Use raw SQL for performance-critical operations that would require more than one Prisma query.
 
 ## Storage
 
