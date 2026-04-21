@@ -1,8 +1,12 @@
 import { ClusterIncidentStatus, Prisma, PrismaClient } from '@beacon-indexer/db';
 
-import { getPrisma } from '@/lib/prisma.js';
+import {
+  getIncidentNotificationId,
+  parseIncidentNotificationId,
+  type IncidentNotificationType,
+} from './bot-notification-ids.js';
 
-type IncidentNotificationType = 'incident_opened' | 'incident_closed';
+import { getPrisma } from '@/lib/prisma.js';
 
 type DueIncidentNotificationRow = {
   incident_id: string;
@@ -19,33 +23,7 @@ type DueIncidentNotificationRow = {
   closed_slot: number | null;
 };
 
-const INCIDENT_NOTIFICATION_PREFIX = 'incident-notification';
 const OPEN_INCIDENT_REPEAT_MS = 3 * 60 * 60 * 1000;
-
-/** Builds a synthetic notification id for an incident notification. */
-export function getIncidentNotificationId(
-  type: IncidentNotificationType,
-  incidentId: string,
-): string {
-  return `${INCIDENT_NOTIFICATION_PREFIX}:${type}:${incidentId}`;
-}
-
-/** Parses a synthetic incident notification id. */
-export function parseIncidentNotificationId(
-  id: string,
-): { incidentId: string; type: IncidentNotificationType } | null {
-  const [prefix, type, incidentId] = id.split(':');
-
-  if (
-    prefix !== INCIDENT_NOTIFICATION_PREFIX ||
-    (type !== 'incident_opened' && type !== 'incident_closed') ||
-    !incidentId
-  ) {
-    return null;
-  }
-
-  return { incidentId, type };
-}
 
 /** Builds the Telegram payload for an incident notification. */
 function getIncidentNotificationPayload(row: DueIncidentNotificationRow) {

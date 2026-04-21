@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { getIncidentNotificationId, parseIncidentNotificationId } from './bot-notifications.js';
+import { getIncidentNotificationId, parseIncidentNotificationId } from './bot-notification-ids.js';
 
 describe('incident notification ids', () => {
   it('round-trips opened and closed incident notification ids', () => {
