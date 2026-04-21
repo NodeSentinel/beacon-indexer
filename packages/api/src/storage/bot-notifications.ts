@@ -21,14 +21,6 @@ type DueIncidentNotificationRow = {
 
 const OPEN_INCIDENT_REPEAT_MS = 3 * 60 * 60 * 1000;
 
-/** Builds delivery metadata for an incident notification. */
-export function getIncidentDeliveryTarget(
-  incidentId: string,
-  type: IncidentNotificationType,
-): { incidentId: string; type: IncidentNotificationType } {
-  return { incidentId, type };
-}
-
 /** Builds the Telegram payload for an incident notification. */
 function getIncidentNotificationPayload(row: DueIncidentNotificationRow) {
   return {
@@ -165,9 +157,10 @@ export class BotNotificationsStorage {
     incidentNotificationType?: IncidentNotificationType | null;
   }) {
     if (params.incidentNotificationType) {
-      return this.markIncidentNotificationDelivered(
-        getIncidentDeliveryTarget(params.id, params.incidentNotificationType),
-      );
+      return this.markIncidentNotificationDelivered({
+        incidentId: params.id,
+        type: params.incidentNotificationType,
+      });
     }
 
     return this.prisma.notificationQueue.update({
