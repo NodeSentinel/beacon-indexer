@@ -1,16 +1,19 @@
 import { formatDistanceStrict, parseISO } from 'date-fns';
+import { z } from 'zod';
 
 type NotificationFormatter = (payload: unknown) => string;
 
-type IncidentPayload = {
-  clusterName?: string;
-  closedAt?: string;
-  closedSlot?: number | null;
-  isReminder?: boolean;
-  now?: string;
-  openedAt?: string;
-  openedSlot?: number;
-};
+const IncidentPayloadSchema = z.object({
+  clusterName: z.string().optional(),
+  closedAt: z.string().optional(),
+  closedSlot: z.number().nullish(),
+  isReminder: z.boolean().optional(),
+  now: z.string().optional(),
+  openedAt: z.string().optional(),
+  openedSlot: z.number().optional(),
+});
+
+type IncidentPayload = z.infer<typeof IncidentPayloadSchema>;
 
 const notificationFormatters: Record<string, NotificationFormatter> = {
   incident_opened: (payload) => formatIncidentOpened(payload),
@@ -71,11 +74,8 @@ function formatIncidentClosed(payload: unknown): string {
 
 /** Converts unknown payloads into the incident payload shape. */
 function asIncidentPayload(payload: unknown): IncidentPayload {
-  if (typeof payload === 'object' && payload !== null && !Array.isArray(payload)) {
-    return payload as IncidentPayload;
-  }
-
-  return {};
+  const result = IncidentPayloadSchema.safeParse(payload);
+  return result.success ? result.data : {};
 }
 
 /** Formats how long an open incident has been running. */
