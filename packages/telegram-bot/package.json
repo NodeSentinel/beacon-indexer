@@ -21,7 +21,7 @@
     "dev": "tsc-watch --onSuccess \"tsx ./src/main.ts\"",
     "start": "tsx ./src/main.ts",
     "start:force": "tsx ./src/main.ts",
-    "test": "echo \"No tests for telegram-bot\""
+    "test": "tsx --test src/**/*.test.ts"
   },
   "dependencies": {
     "@grammyjs/auto-chat-action": "0.1.1",
@@ -36,6 +36,7 @@
     "@orpc/server": "1.13.4",
     "@t3-oss/env-core": "^0.10.1",
     "callback-data": "1.1.1",
+    "date-fns": "^4.1.0",
     "dotenv": "^16.0.3",
     "grammy": "1.36.1",
     "hono": "4.10.3",

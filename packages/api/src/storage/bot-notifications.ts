@@ -5,6 +5,7 @@ import { getPrisma } from '@/lib/prisma.js';
 export class BotNotificationsStorage {
   constructor(private readonly prisma: PrismaClient = getPrisma()) {}
 
+  /** Lists queued validator notifications for bot delivery. */
   async listPending(limit: number) {
     return this.prisma.notificationQueue.findMany({
       where: {
@@ -31,6 +32,7 @@ export class BotNotificationsStorage {
     });
   }
 
+  /** Marks a queued validator notification as delivered. */
   async markDelivered(id: string) {
     return this.prisma.notificationQueue.update({
       where: { id },
@@ -41,6 +43,7 @@ export class BotNotificationsStorage {
     });
   }
 
+  /** Deletes a regular queued notification. */
   async delete(id: string) {
     return this.prisma.notificationQueue.delete({
       where: { id },

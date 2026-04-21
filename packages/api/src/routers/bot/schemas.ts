@@ -47,6 +47,21 @@ export const BotNotificationListInputSchema = z.object({
   limit: z.number().int().min(1).max(100).default(20),
 });
 
+export const BotIncidentNotificationSchema = z.object({
+  id: z.string(),
+  userId: z.string(),
+  telegramId: z.string(),
+  type: z.enum(['incident_opened', 'incident_closed']),
+  payload: z.unknown(),
+  createdAt: z.string(),
+});
+
+export const BotIncidentNotificationListSchema = z.array(BotIncidentNotificationSchema);
+
+export const IncidentNotificationIdParamSchema = z.object({
+  incidentId: z.string().uuid(),
+});
+
 export const CommunicationIdParamSchema = z.object({
   id: z.coerce.number().int().positive(),
 });
