@@ -29,11 +29,13 @@ describe('ClusterStorage.getSummary', () => {
         { validatorIndex: 3 },
         { validatorIndex: 4 },
       ]);
+    const count = vi.fn().mockResolvedValue(2);
 
     // Provides only the Prisma delegate used by the method under test.
     const storage = new ClusterStorage({
       cluster: { findMany },
       clusterValidator: { groupBy },
+      user: { count },
     } as never);
 
     // Gets the cross-user cluster summary.
@@ -41,6 +43,8 @@ describe('ClusterStorage.getSummary', () => {
 
     // Confirms the summary reports all clusters returned by storage.
     expect(summary.totalClusters).toBe(2);
+    // Confirms the summary reports the total number of users.
+    expect(summary.totalUsers).toBe(2);
     // Confirms the summary counts validators once across all clusters.
     expect(summary.totalUniqueValidators).toBe(4);
     // Confirms each cluster includes the validator membership count.
@@ -67,5 +71,7 @@ describe('ClusterStorage.getSummary', () => {
     expect(groupBy).toHaveBeenCalledWith({
       by: ['validatorIndex'],
     });
+    // Confirms users are counted without loading user rows.
+    expect(count).toHaveBeenCalledWith();
   });
 });

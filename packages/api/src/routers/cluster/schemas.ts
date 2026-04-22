@@ -238,6 +238,7 @@ export const ClusterSummaryItemSchema = z.object({
  */
 export const ClusterSummarySchema = z.object({
   totalClusters: z.number(),
+  totalUsers: z.number(),
   totalUniqueValidators: z.number(),
   clusters: z.array(ClusterSummaryItemSchema),
 });

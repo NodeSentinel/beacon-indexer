@@ -216,7 +216,7 @@ export class ClusterStorage {
    * Get a cross-user summary of clusters and validator membership counts.
    */
   async getSummary() {
-    const [clusters, uniqueValidators] = await Promise.all([
+    const [clusters, uniqueValidators, totalUsers] = await Promise.all([
       this.prisma.cluster.findMany({
         include: { _count: { select: { validators: true } } },
         orderBy: { createdAt: 'desc' },
@@ -224,10 +224,12 @@ export class ClusterStorage {
       this.prisma.clusterValidator.groupBy({
         by: ['validatorIndex'],
       }),
+      this.prisma.user.count(),
     ]);
 
     return {
       totalClusters: clusters.length,
+      totalUsers,
       totalUniqueValidators: uniqueValidators.length,
       clusters: clusters.map((cluster) => ({
         id: cluster.id,
