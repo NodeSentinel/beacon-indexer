@@ -18,7 +18,7 @@ test('formatNotificationMessage formats opened incident notifications without va
       'Cluster incident opened',
       'Cluster: Main validators',
       'Started slot: 123',
-      'Started at: 2026-04-21T12:00:00.000Z',
+      'Started at: 2026-04-21 12:00:00 UTC',
     ].join('\n'),
   );
 });
@@ -54,7 +54,7 @@ test('formatNotificationMessage formats closed incident notifications without re
       'Cluster incident resolved',
       'Cluster: Main validators',
       'Closed slot: 153',
-      'Closed at: 2026-04-21T13:00:00.000Z',
+      'Closed at: 2026-04-21 13:00:00 UTC',
     ].join('\n'),
   );
 });

@@ -1,4 +1,5 @@
 import type { Api, RawApi } from 'grammy';
+import { InlineKeyboard } from 'grammy';
 
 import { COMMON_REQUESTS_TELEGRAM_ID, getRpcClientForUser } from '@/src/api/client.js';
 import type { Logger } from '@/src/logger.js';
@@ -14,6 +15,20 @@ interface BotIncidentNotification {
   type: IncidentNotificationType;
   payload: unknown;
   createdAt: string;
+}
+
+type IncidentNotificationSendOptions = Parameters<Api<RawApi>['sendMessage']>[2];
+
+/** Builds Telegram send options for incident notifications. */
+export function buildIncidentNotificationSendOptions(
+  _type: IncidentNotificationType,
+): IncidentNotificationSendOptions {
+  const dismissKeyboard = new InlineKeyboard().text('Dismiss', 'remove_message');
+
+  return {
+    link_preview_options: { is_disabled: true },
+    reply_markup: dismissKeyboard,
+  };
 }
 
 /** Processes incident notifications without using the notification queue. */
@@ -44,9 +59,7 @@ export async function processIncidentNotifications(
       telegramId: notification.telegramId,
       text: message,
       logger: log.child({ incidentId: notification.id, type: notification.type }),
-      options: {
-        link_preview_options: { is_disabled: true },
-      },
+      options: buildIncidentNotificationSendOptions(notification.type),
     });
 
     if (messageId === null) continue;
