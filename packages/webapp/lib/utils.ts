@@ -1,4 +1,5 @@
 import { clsx, type ClassValue } from 'clsx';
+import { format, formatDuration, intervalToDuration, parseISO } from 'date-fns';
 import { twMerge } from 'tailwind-merge';
 
 export function cn(...inputs: ClassValue[]) {
@@ -13,6 +14,45 @@ export function formatTime(timestamp: string) {
     hour: '2-digit',
     minute: '2-digit',
   });
+}
+
+/** Formats an incident timestamp as dd/MM HH:mm. */
+export function formatIncidentDateTime(timestamp: string): string {
+  return format(parseISO(timestamp), 'dd/MM HH:mm');
+}
+
+/** Formats incident duration seconds or derives it from open and close timestamps. */
+export function formatIncidentDuration({
+  closedAt,
+  durationSeconds,
+  openedAt,
+}: {
+  closedAt: string | null;
+  durationSeconds: number | null;
+  openedAt: string;
+}): string {
+  const resolvedDurationSeconds =
+    durationSeconds ??
+    Math.max(
+      0,
+      Math.floor(
+        ((closedAt ? parseISO(closedAt) : new Date()).getTime() - parseISO(openedAt).getTime()) /
+          1000,
+      ),
+    );
+
+  if (resolvedDurationSeconds === 0) return '0 seconds';
+
+  return formatDuration(
+    intervalToDuration({
+      start: 0,
+      end: resolvedDurationSeconds * 1000,
+    }),
+    {
+      format: ['days', 'hours', 'minutes', 'seconds'],
+      zero: false,
+    },
+  );
 }
 
 const WEI_PER_GWEI = 10 ** 9;

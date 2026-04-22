@@ -3,6 +3,7 @@ import type { Api, RawApi } from 'grammy';
 import { COMMON_REQUESTS_TELEGRAM_ID, getRpcClientForUser } from '@/src/api/client.js';
 import type { Logger } from '@/src/logger.js';
 import { formatNotificationMessage } from '@/src/telegram/format-notification.js';
+import { buildIncidentNotificationSendOptions } from '@/src/telegram/incident-notification-options.js';
 import { sendMessage } from '@/src/telegram/messaging.js';
 
 type IncidentNotificationType = 'incident_opened' | 'incident_closed';
@@ -44,9 +45,7 @@ export async function processIncidentNotifications(
       telegramId: notification.telegramId,
       text: message,
       logger: log.child({ incidentId: notification.id, type: notification.type }),
-      options: {
-        link_preview_options: { is_disabled: true },
-      },
+      options: buildIncidentNotificationSendOptions(),
     });
 
     if (messageId === null) continue;

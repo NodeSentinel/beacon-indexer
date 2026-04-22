@@ -1,6 +1,8 @@
 import { formatDistanceStrict, parseISO } from 'date-fns';
 import { z } from 'zod';
 
+import { formatUtcDateTime } from './format-date.js';
+
 type NotificationFormatter = (payload: unknown) => string;
 
 const IncidentPayloadSchema = z.object({
@@ -56,7 +58,7 @@ function formatIncidentOpened(payload: unknown): string {
     'Cluster incident opened',
     `Cluster: ${data.clusterName ?? 'Unknown cluster'}`,
     `Started slot: ${data.openedSlot ?? '-'}`,
-    `Started at: ${data.openedAt ?? '-'}`,
+    `Started at: ${formatUtcDateTime(data.openedAt)}`,
   ].join('\n');
 }
 
@@ -68,7 +70,7 @@ function formatIncidentClosed(payload: unknown): string {
     'Cluster incident resolved',
     `Cluster: ${data.clusterName ?? 'Unknown cluster'}`,
     `Closed slot: ${data.closedSlot ?? '-'}`,
-    `Closed at: ${data.closedAt ?? '-'}`,
+    `Closed at: ${formatUtcDateTime(data.closedAt)}`,
   ].join('\n');
 }
 

@@ -11,12 +11,19 @@ import {
   UnderlineTabsList,
   UnderlineTabsTrigger,
 } from '@/components/underline-tabs';
+import { env } from '@/env';
 import { useBlockProposals } from '@/hooks/use-block-proposals';
+import { useChainStats } from '@/hooks/use-chain-stats';
 import type { ClusterIncident } from '@/hooks/use-cluster-incidents';
 import { useClusterIncidents } from '@/hooks/use-cluster-incidents';
-import type { IncidentAffectedValidator } from '@/hooks/use-incident-affected-validators';
 import { useIncidentAffectedValidators } from '@/hooks/use-incident-affected-validators';
-import { cn } from '@/lib/utils';
+import {
+  cn,
+  formatIncidentDateTime,
+  formatIncidentDuration,
+  formatNumber,
+  getTokenSymbol,
+} from '@/lib/utils';
 
 interface EventsFeedContentProps {
   clusterId: string | null;
@@ -128,6 +135,7 @@ function BlocksTab({ clusterId }: { clusterId: string | null }) {
 /** Renders lazy-loaded cluster incidents with pagination. */
 function IncidentsTab({ clusterId, isActive }: { clusterId: string | null; isActive: boolean }) {
   const [incidentsPage, setIncidentsPage] = useState(1);
+  const { data: chainStats } = useChainStats();
   const {
     data: incidentsData,
     isLoading,
@@ -137,6 +145,8 @@ function IncidentsTab({ clusterId, isActive }: { clusterId: string | null; isAct
   const totalIncidentPages = incidentsData
     ? Math.ceil(incidentsData.totalCount / incidentsData.pageSize)
     : 0;
+  const tokenPrice = chainStats?.tokenPrice ?? 0;
+  const tokenSymbol = getTokenSymbol(env.NEXT_PUBLIC_CHAIN);
 
   useEffect(() => {
     // Resets incident pagination when the selected cluster changes.
@@ -168,7 +178,12 @@ function IncidentsTab({ clusterId, isActive }: { clusterId: string | null; isAct
   return (
     <div className="space-y-2">
       {incidentsData.incidents.map((incident) => (
-        <IncidentItem key={incident.id} incident={incident} />
+        <IncidentItem
+          key={incident.id}
+          incident={incident}
+          tokenPrice={tokenPrice}
+          tokenSymbol={tokenSymbol}
+        />
       ))}
       {totalIncidentPages > 1 && (
         <div className="flex items-center justify-between pt-3 border-t border-border/50">
@@ -200,35 +215,35 @@ function IncidentsTab({ clusterId, isActive }: { clusterId: string | null; isAct
 // --- Incident Item ---
 
 /** Renders one incident row and lazy-loads affected validators when opened. */
-function IncidentItem({ incident }: { incident: ClusterIncident }) {
+function IncidentItem({
+  incident,
+  tokenPrice,
+  tokenSymbol,
+}: {
+  incident: ClusterIncident;
+  tokenPrice: number;
+  tokenSymbol: string;
+}) {
   const [isOpen, setIsOpen] = useState(false);
-  const [validatorsPage, setValidatorsPage] = useState(1);
   const {
     data: validatorsData,
     isLoading,
     error,
-  } = useIncidentAffectedValidators(incident.id, validatorsPage, isOpen);
-
-  const totalValidatorPages = validatorsData
-    ? Math.ceil(validatorsData.totalCount / validatorsData.pageSize)
-    : 0;
-
-  const durationLabel =
-    incident.durationSlots !== null ? `${incident.durationSlots.toLocaleString()} slots` : 'Open';
+  } = useIncidentAffectedValidators(incident.id, 1, isOpen);
 
   return (
     <Collapsible open={isOpen} onOpenChange={setIsOpen}>
       <CollapsibleTrigger className="w-full">
         <div className="flex items-center gap-2 md:gap-3 p-2 md:p-3 rounded-lg bg-accent hover:bg-accent/80 transition-colors group cursor-pointer border border-border/50 hover:border-border">
-          <div className="flex-1 flex items-center gap-2 text-left min-w-0">
+          <div className="flex-1 grid grid-cols-[auto_auto_1fr] items-center gap-2 text-left min-w-0">
+            <span className="text-xs md:text-sm font-mono text-muted-foreground whitespace-nowrap">
+              {formatIncidentDateTime(incident.openedAt)}
+            </span>
             <span className="text-xs md:text-sm font-mono text-muted-foreground whitespace-nowrap capitalize">
               {incident.status}
             </span>
-            <span className="text-xs md:text-sm font-mono whitespace-nowrap">
-              Slot #{incident.openedSlot.toLocaleString()}
-            </span>
             <span className="text-xs md:text-sm text-muted-foreground truncate">
-              {durationLabel}
+              {formatIncidentDuration(incident)}
             </span>
           </div>
 
@@ -244,15 +259,13 @@ function IncidentItem({ incident }: { incident: ClusterIncident }) {
 
       <CollapsibleContent>
         <div className="px-3 py-3 ml-6 md:ml-11 space-y-3 text-sm border-l-2 border-border">
-          <IncidentDetails incident={incident} />
-          <AffectedValidatorsSection
-            validators={validatorsData?.validators ?? []}
+          <IncidentDetails
+            incident={incident}
             isLoading={isLoading}
             errorMessage={error?.message}
-            totalPages={totalValidatorPages}
-            currentPage={validatorsPage}
-            onPreviousPage={() => setValidatorsPage((p) => Math.max(1, p - 1))}
-            onNextPage={() => setValidatorsPage((p) => Math.min(totalValidatorPages, p + 1))}
+            tokenPrice={tokenPrice}
+            tokenSymbol={tokenSymbol}
+            validatorsAffected={validatorsData?.totalCount}
           />
         </div>
       </CollapsibleContent>
@@ -261,127 +274,139 @@ function IncidentItem({ incident }: { incident: ClusterIncident }) {
 }
 
 /** Renders static incident metadata. */
-function IncidentDetails({ incident }: { incident: ClusterIncident }) {
+function IncidentDetails({
+  incident,
+  isLoading,
+  errorMessage,
+  tokenPrice,
+  tokenSymbol,
+  validatorsAffected,
+}: {
+  incident: ClusterIncident;
+  isLoading: boolean;
+  errorMessage?: string;
+  tokenPrice: number;
+  tokenSymbol: string;
+  validatorsAffected?: number;
+}) {
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-between gap-4">
-        <span className="text-muted-foreground text-xs md:text-sm">Opened</span>
-        <span className="font-mono text-xs break-all">{incident.openedAt}</span>
+        <span className="text-muted-foreground text-xs md:text-sm">Open</span>
+        <span className="font-mono text-xs break-all">
+          {formatIncidentDateTime(incident.openedAt)}
+        </span>
       </div>
-      {incident.closedAt && (
-        <div className="flex items-center justify-between gap-4">
-          <span className="text-muted-foreground text-xs md:text-sm">Closed</span>
-          <span className="font-mono text-xs break-all">{incident.closedAt}</span>
-        </div>
-      )}
       <div className="flex items-center justify-between gap-4">
-        <span className="text-muted-foreground text-xs md:text-sm">Opened Slot</span>
+        <span className="text-muted-foreground text-xs md:text-sm">Close</span>
+        <span className="font-mono text-xs break-all">
+          {incident.closedAt ? formatIncidentDateTime(incident.closedAt) : '-'}
+        </span>
+      </div>
+      <div className="flex items-center justify-between gap-4">
+        <span className="text-muted-foreground text-xs md:text-sm">Duration</span>
+        <span className="font-mono text-xs md:text-sm">{formatIncidentDuration(incident)}</span>
+      </div>
+      <div className="flex items-center justify-between gap-4">
+        <span className="text-muted-foreground text-xs md:text-sm">Open Slot</span>
         <span className="font-mono text-xs md:text-sm">{incident.openedSlot.toLocaleString()}</span>
       </div>
-      {incident.closedSlot !== null && (
-        <div className="flex items-center justify-between gap-4">
-          <span className="text-muted-foreground text-xs md:text-sm">Closed Slot</span>
-          <span className="font-mono text-xs md:text-sm">
-            {incident.closedSlot.toLocaleString()}
-          </span>
-        </div>
-      )}
-      {incident.missedConsensusRewards !== null && (
-        <div className="flex items-center justify-between gap-4">
-          <span className="text-muted-foreground text-xs md:text-sm">Missed Consensus Rewards</span>
-          <span className="font-normal text-destructive text-xs md:text-sm">
-            {incident.missedConsensusRewards}
-          </span>
-        </div>
-      )}
+      <div className="flex items-center justify-between gap-4">
+        <span className="text-muted-foreground text-xs md:text-sm">Close Slot</span>
+        <span className="font-mono text-xs md:text-sm">
+          {incident.closedSlot !== null ? incident.closedSlot.toLocaleString() : '-'}
+        </span>
+      </div>
+      <IncidentRewards incident={incident} tokenPrice={tokenPrice} tokenSymbol={tokenSymbol} />
+      <AffectedValidatorsCount
+        isLoading={isLoading}
+        errorMessage={errorMessage}
+        validatorsAffected={validatorsAffected}
+      />
     </div>
   );
 }
 
-interface AffectedValidatorsSectionProps {
-  validators: IncidentAffectedValidator[];
-  isLoading: boolean;
-  errorMessage?: string;
-  totalPages: number;
-  currentPage: number;
-  onPreviousPage: () => void;
-  onNextPage: () => void;
+/** Renders the incident missed rewards state and value. */
+function IncidentRewards({
+  incident,
+  tokenPrice,
+  tokenSymbol,
+}: {
+  incident: ClusterIncident;
+  tokenPrice: number;
+  tokenSymbol: string;
+}) {
+  if (!incident.rewardsFinalized) {
+    return (
+      <div className="flex items-center justify-between gap-4">
+        <span className="text-muted-foreground text-xs md:text-sm">Missed Rewards</span>
+        <span className="text-xs md:text-sm text-muted-foreground">
+          Rewards are still processing
+        </span>
+      </div>
+    );
+  }
+
+  if (incident.missedConsensusRewards === null) {
+    return (
+      <div className="flex items-center justify-between gap-4">
+        <span className="text-muted-foreground text-xs md:text-sm">Missed Rewards</span>
+        <span className="text-xs md:text-sm text-muted-foreground">No missed rewards recorded</span>
+      </div>
+    );
+  }
+
+  const missedRewards = Number(incident.missedConsensusRewards);
+  const hasTokenPrice = Number.isFinite(tokenPrice) && tokenPrice > 0;
+  const missedRewardsUsd = hasTokenPrice ? ` ($${formatNumber(missedRewards * tokenPrice)})` : '';
+
+  return (
+    <div className="flex items-center justify-between gap-4">
+      <span className="text-muted-foreground text-xs md:text-sm">Missed Rewards</span>
+      <span className="font-normal text-destructive text-xs md:text-sm text-right">
+        {incident.missedConsensusRewards} {tokenSymbol}
+        {missedRewardsUsd}
+      </span>
+    </div>
+  );
 }
 
-/** Renders the lazy-loaded affected validators list. */
-function AffectedValidatorsSection({
-  validators,
+/** Renders the lazy-loaded affected validators count. */
+function AffectedValidatorsCount({
   isLoading,
   errorMessage,
-  totalPages,
-  currentPage,
-  onPreviousPage,
-  onNextPage,
-}: AffectedValidatorsSectionProps) {
+  validatorsAffected,
+}: {
+  isLoading: boolean;
+  errorMessage?: string;
+  validatorsAffected?: number;
+}) {
   if (isLoading) {
     return (
-      <div className="space-y-2">
-        <p className="text-xs uppercase tracking-wider text-muted-foreground">
-          Affected Validators
-        </p>
-        <div className="h-12 bg-foreground/5 rounded-lg animate-pulse" />
+      <div className="flex items-center justify-between gap-4">
+        <span className="text-muted-foreground text-xs md:text-sm">Validators Affected</span>
+        <span className="text-xs md:text-sm text-muted-foreground">
+          Loading affected validators...
+        </span>
       </div>
     );
   }
 
   if (errorMessage) {
-    return <p className="text-sm text-destructive py-2">{errorMessage}</p>;
-  }
-
-  if (validators.length === 0) {
-    return <p className="text-sm text-muted-foreground py-2">No affected validators</p>;
-  }
-
-  return (
-    <div className="space-y-2">
-      <p className="text-xs uppercase tracking-wider text-muted-foreground">Affected Validators</p>
-      <div className="space-y-1">
-        {validators.map((validator) => (
-          <AffectedValidatorItem key={validator.validatorIndex} validator={validator} />
-        ))}
+    return (
+      <div className="flex items-center justify-between gap-4">
+        <span className="text-muted-foreground text-xs md:text-sm">Validators Affected</span>
+        <span className="text-xs md:text-sm text-destructive">{errorMessage}</span>
       </div>
-      {totalPages > 1 && (
-        <div className="flex items-center justify-between pt-2">
-          <Button variant="ghost" size="sm" onClick={onPreviousPage} disabled={currentPage <= 1}>
-            Prev
-          </Button>
-          <span className="text-xs text-muted-foreground">
-            Page {currentPage} of {totalPages}
-          </span>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={onNextPage}
-            disabled={currentPage >= totalPages}
-          >
-            Next
-          </Button>
-        </div>
-      )}
-    </div>
-  );
-}
-
-/** Renders one affected validator row. */
-function AffectedValidatorItem({ validator }: { validator: IncidentAffectedValidator }) {
-  const slotRange =
-    validator.inactiveToSlot !== null
-      ? `${validator.inactiveFromSlot.toLocaleString()}-${validator.inactiveToSlot.toLocaleString()}`
-      : `${validator.inactiveFromSlot.toLocaleString()}-open`;
+    );
+  }
 
   return (
-    <div className="flex items-center justify-between gap-3 rounded-md bg-background/60 border border-border/50 px-2 py-1.5">
-      <span className="font-mono text-xs md:text-sm whitespace-nowrap">
-        Val #{validator.validatorIndex}
-      </span>
-      <span className="font-mono text-xs text-muted-foreground truncate">Slots {slotRange}</span>
-      <span className="font-normal text-destructive text-xs md:text-sm whitespace-nowrap">
-        {validator.missedConsensusRewards}
+    <div className="flex items-center justify-between gap-4">
+      <span className="text-muted-foreground text-xs md:text-sm">Validators Affected</span>
+      <span className="font-mono text-xs md:text-sm">
+        {validatorsAffected !== undefined ? validatorsAffected.toLocaleString() : '-'}
       </span>
     </div>
   );
