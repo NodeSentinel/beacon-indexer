@@ -230,6 +230,7 @@ export const ClusterSummaryItemSchema = z.object({
   id: z.string(),
   name: z.string(),
   ownerId: z.string(),
+  ownerUsername: z.string(),
   validatorCount: z.number(),
 });
 

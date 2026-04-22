@@ -218,7 +218,10 @@ export class ClusterStorage {
   async getSummary() {
     const [clusters, uniqueValidators, totalUsers] = await Promise.all([
       this.prisma.cluster.findMany({
-        include: { _count: { select: { validators: true } } },
+        include: {
+          owner: { select: { username: true, telegramId: true } },
+          _count: { select: { validators: true } },
+        },
         orderBy: { createdAt: 'desc' },
       }),
       this.prisma.clusterValidator.groupBy({
@@ -235,6 +238,7 @@ export class ClusterStorage {
         id: cluster.id,
         name: cluster.name,
         ownerId: cluster.ownerId,
+        ownerUsername: cluster.owner.telegramId === null ? 'annon' : cluster.owner.username,
         validatorCount: cluster._count.validators,
       })),
     };

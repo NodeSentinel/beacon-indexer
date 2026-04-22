@@ -11,6 +11,7 @@ describe('ClusterStorage.getSummary', () => {
         name: 'Main cluster',
         ownerId: 'user-a',
         createdAt: new Date('2026-04-22T10:00:00.000Z'),
+        owner: { username: 'alice', telegramId: 123n },
         _count: { validators: 3 },
       },
       {
@@ -18,6 +19,7 @@ describe('ClusterStorage.getSummary', () => {
         name: 'Backup cluster',
         ownerId: 'user-b',
         createdAt: new Date('2026-04-21T10:00:00.000Z'),
+        owner: { username: 'anon:session-b', telegramId: null },
         _count: { validators: 2 },
       },
     ]);
@@ -53,18 +55,23 @@ describe('ClusterStorage.getSummary', () => {
         id: 'cluster-a',
         name: 'Main cluster',
         ownerId: 'user-a',
+        ownerUsername: 'alice',
         validatorCount: 3,
       },
       {
         id: 'cluster-b',
         name: 'Backup cluster',
         ownerId: 'user-b',
+        ownerUsername: 'annon',
         validatorCount: 2,
       },
     ]);
     // Confirms Prisma counts validators without loading validator rows.
     expect(findMany).toHaveBeenCalledWith({
-      include: { _count: { select: { validators: true } } },
+      include: {
+        owner: { select: { username: true, telegramId: true } },
+        _count: { select: { validators: true } },
+      },
       orderBy: { createdAt: 'desc' },
     });
     // Confirms duplicate validator memberships across clusters are counted once.
