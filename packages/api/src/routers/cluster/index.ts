@@ -16,11 +16,13 @@ import {
 import { removeValidators } from './removeValidators.js';
 import { getClusterRewards, getAllClustersRewards } from './rewards.js';
 import { getClusterSnapshot } from './snapshot.js';
+import { getClusterSummary } from './summary.js';
 import { updateCluster } from './update.js';
 
 export const clusterRouter = {
   create: createCluster,
   list: listClusters,
+  summary: getClusterSummary,
   get: getCluster,
   update: updateCluster,
   delete: deleteCluster,

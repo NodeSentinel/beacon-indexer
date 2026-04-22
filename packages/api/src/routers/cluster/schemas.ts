@@ -224,6 +224,27 @@ export const ClusterWithCountSchema = ClusterSchema.extend({
 export type ClusterWithCount = z.infer<typeof ClusterWithCountSchema>;
 
 /**
+ * Cluster summary item with validator count for cross-user reporting.
+ */
+export const ClusterSummaryItemSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  ownerId: z.string(),
+  validatorCount: z.number(),
+});
+
+/**
+ * Cross-user cluster summary response schema.
+ */
+export const ClusterSummarySchema = z.object({
+  totalClusters: z.number(),
+  totalUniqueValidators: z.number(),
+  clusters: z.array(ClusterSummaryItemSchema),
+});
+
+export type ClusterSummary = z.infer<typeof ClusterSummarySchema>;
+
+/**
  * Cluster validator detail schema
  */
 export const ClusterValidatorDetailSchema = z.object({

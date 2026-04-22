@@ -213,6 +213,32 @@ export class ClusterStorage {
   }
 
   /**
+   * Get a cross-user summary of clusters and validator membership counts.
+   */
+  async getSummary() {
+    const [clusters, uniqueValidators] = await Promise.all([
+      this.prisma.cluster.findMany({
+        include: { _count: { select: { validators: true } } },
+        orderBy: { createdAt: 'desc' },
+      }),
+      this.prisma.clusterValidator.groupBy({
+        by: ['validatorIndex'],
+      }),
+    ]);
+
+    return {
+      totalClusters: clusters.length,
+      totalUniqueValidators: uniqueValidators.length,
+      clusters: clusters.map((cluster) => ({
+        id: cluster.id,
+        name: cluster.name,
+        ownerId: cluster.ownerId,
+        validatorCount: cluster._count.validators,
+      })),
+    };
+  }
+
+  /**
    * Update cluster by ID
    */
   async update(id: string, data: UpdateClusterData) {
