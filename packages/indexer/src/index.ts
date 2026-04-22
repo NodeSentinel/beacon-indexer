@@ -211,7 +211,6 @@ async function main() {
   const validatorActivityStatusController = new ValidatorActivityStatusController(
     validatorActivityStatusStorage,
     slotStorage,
-    beaconTime,
   );
 
   // Start indexing the beacon chain

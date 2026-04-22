@@ -79,8 +79,6 @@ export default function initXstateMachines(
 
   const validatorActivityStatusActor = getValidatorActivityStatusActor(
     validatorActivityStatusController,
-    slotDuration,
-    slotsPerEpoch,
     maxAttestationDelay,
     missedAttestationsForInactivity,
   );

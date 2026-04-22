@@ -447,12 +447,12 @@ CREATE TABLE "public"."cluster" (
 );
 
 -- CreateTable
-CREATE TABLE "public"."incident_processor_state" (
+CREATE TABLE "public"."validator_activity_processor_state" (
     "processor" VARCHAR(64) NOT NULL,
-    "last_processed_slot" INTEGER NOT NULL,
+    "last_evaluated_duty_slot" INTEGER NOT NULL,
     "updated_at" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
-    CONSTRAINT "incident_processor_state_pkey" PRIMARY KEY ("processor")
+    CONSTRAINT "validator_activity_processor_state_pkey" PRIMARY KEY ("processor")
 );
 
 -- CreateTable
@@ -482,6 +482,11 @@ CREATE INDEX "committee_validator_index_slot_attestation_delay_idx" ON "public".
 
 -- CreateIndex
 CREATE INDEX "slot_slot_processed_idx" ON "public"."slot"("slot", "processed");
+
+-- CreateIndex
+CREATE INDEX "slot_processed_true_slot_desc_idx"
+ON "public"."slot"("slot" DESC)
+WHERE "processed" = true;
 
 -- CreateIndex
 CREATE INDEX "slot_proposer_index_slot_idx" ON "public"."slot"("proposer_index", "slot" DESC);
@@ -514,6 +519,11 @@ CREATE INDEX "notification_queue_user_id_delivered_idx" ON "public"."notificatio
 
 -- CreateIndex
 CREATE INDEX "cluster_incident_cluster_id_idx" ON "public"."cluster_incident"("cluster_id");
+
+-- CreateIndex
+CREATE INDEX "validators_snapshot_activity_inactive_validator_idx"
+ON "public"."validators_snapshot_activity"("validator_index", "inactive_since_slot")
+WHERE "is_inactive" = true AND "inactive_since_slot" IS NOT NULL;
 
 -- CreateIndex
 CREATE INDEX "cluster_incident_status_opened_at_idx" ON "public"."cluster_incident"("status", "opened_at" DESC);

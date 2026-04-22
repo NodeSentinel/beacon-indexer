@@ -1,5 +1,3 @@
-import { BeaconTime } from '@beacon-indexer/beacon-utils/beaconTime';
-
 import type { SlotStorage } from '../storage/slot.js';
 import { ValidatorActivityStatusStorage } from '../storage/validatorActivityStatus.js';
 
@@ -11,62 +9,32 @@ export class ValidatorActivityStatusController {
   constructor(
     private readonly storage: ValidatorActivityStatusStorage,
     private readonly slotStorage: SlotStorage,
-    private readonly beaconTime: BeaconTime,
   ) {}
 
-  async runSync(params: {
-    skipValidatorStatusUpdateWhenBehindHeadSlots: number;
-    maxAttestationDelay: number;
-    inactiveMissedCount: number;
-  }): Promise<void> {
-    // Skip the refresh entirely until the slot pipeline has indexed at least one
-    // committee window that can be evaluated safely.
-    const lastIndexedSlot = await this.slotStorage.getLastProcessedSlot();
-    if (lastIndexedSlot === null) {
-      return;
-    }
-
-    // Reuse the controller's freshness and safe-slot rules once the cursor exists.
-    await this.syncCurrentActivityStatus({
-      lastIndexedSlot,
-      skipValidatorStatusUpdateWhenBehindHeadSlots:
-        params.skipValidatorStatusUpdateWhenBehindHeadSlots,
-      maxAttestationDelay: params.maxAttestationDelay,
-      inactiveMissedCount: params.inactiveMissedCount,
-    });
-  }
-
   async syncCurrentActivityStatus(params: {
-    lastIndexedSlot: number;
-    skipValidatorStatusUpdateWhenBehindHeadSlots: number;
     maxAttestationDelay: number;
     inactiveMissedCount: number;
   }): Promise<void> {
-    // Reads the current chain head to avoid judging slots too close to it.
-    const headSlot = this.beaconTime.getChainCurrentSlot();
-
-    // Keeps a small gap from head so the node has time to expose fresh data.
-    const lastSlotSafeToReadFromNode =
-      headSlot - params.skipValidatorStatusUpdateWhenBehindHeadSlots;
-
-    // Uses the smaller limit between what we already indexed and what is safe
-    // to read from the node.
-    const lastIndexedSlotSafeToUse = Math.min(params.lastIndexedSlot, lastSlotSafeToReadFromNode);
-
-    // Gets the newest slot we can process in this iteration.
-    const newestProcessableSlot = lastIndexedSlotSafeToUse - params.maxAttestationDelay;
-    if (newestProcessableSlot < 0) {
+    // Skip the refresh until the slot pipeline has completed at least one slot.
+    const lastProcessedSlot = await this.slotStorage.getLastProcessedSlot();
+    if (lastProcessedSlot === null) {
       return;
     }
 
-    // Replays the snapshot only up to the newest safe slot.
+    // Evaluate only duties whose attestation inclusion window has fully elapsed.
+    const newestEvaluableDutySlot = lastProcessedSlot - params.maxAttestationDelay;
+    if (newestEvaluableDutySlot < 0) {
+      return;
+    }
+
+    // Replay activity state through the newest duty slot that can be judged.
     await this.storage.syncCurrentActivityStatus({
-      newestProcessableSlot,
+      newestEvaluableDutySlot,
       inactiveMissedCount: params.inactiveMissedCount,
       maxAttestationDelay: params.maxAttestationDelay,
     });
     this.logger.info('Synchronized current validator activity status', {
-      newestProcessableSlot,
+      newestEvaluableDutySlot,
     });
   }
 }

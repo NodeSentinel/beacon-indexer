@@ -9,8 +9,6 @@ export { validatorActivityStatusMachine } from './validatorActivityStatus.machin
 
 export const getValidatorActivityStatusActor = (
   validatorActivityStatusController: ValidatorActivityStatusController,
-  slotDuration: number,
-  skipValidatorStatusUpdateWhenBehindHeadSlots: number,
   maxAttestationDelay: number,
   inactiveMissedCount: number,
 ) => {
@@ -19,8 +17,6 @@ export const getValidatorActivityStatusActor = (
   const actor = createActor(validatorActivityStatusMachine, {
     input: {
       validatorActivityStatusController,
-      slotDuration,
-      skipValidatorStatusUpdateWhenBehindHeadSlots,
       maxAttestationDelay,
       inactiveMissedCount,
     },
