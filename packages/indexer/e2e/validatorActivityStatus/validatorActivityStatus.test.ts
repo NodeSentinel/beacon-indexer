@@ -56,15 +56,15 @@ describe('Validator Activity Status Updater', () => {
       gnosisConfig.beacon.slotsPerEpoch,
     );
 
-    // Provide the controller dependency required by the new controller-level runSync boundary.
+    // Provide the controller dependency required by the controller-level sync boundary.
     slotStorage = {
       getLastProcessedSlot: vi.fn(),
     } as unknown as SlotStorage;
-    controller = new ValidatorActivityStatusController(storage, slotStorage, beaconTime);
+    controller = new ValidatorActivityStatusController(storage, slotStorage);
 
     // Remove only the data touched by this suite, keeping the setup isolated and deterministic.
     await prisma.notificationQueue.deleteMany({});
-    await prisma.incidentProcessorState.deleteMany({});
+    await prisma.validatorActivityProcessorState.deleteMany({});
     await prisma.clusterIncidentValidator.deleteMany({});
     await prisma.clusterIncident.deleteMany({});
     await prisma.clusterValidator.deleteMany({});
@@ -236,19 +236,15 @@ describe('Validator Activity Status Updater', () => {
 
   // This helper keeps the activity-sync call sites short in the slot-driven scenarios below.
   async function runActivitySyncThrough(
-    lastIndexedSlot: number,
+    lastProcessedSlot: number,
     maxAttestationDelay: number,
     inactiveMissedCount: number,
   ) {
-    // Keep enough distance from head and still allow the newest indexed duty to be judged.
-    vi.spyOn(beaconTime, 'getChainCurrentSlot').mockReturnValue(
-      lastIndexedSlot + maxAttestationDelay + gnosisConfig.beacon.slotsPerEpoch,
-    );
+    // The controller reads the latest slot completed by the slot pipeline.
+    vi.mocked(slotStorage.getLastProcessedSlot).mockResolvedValue(lastProcessedSlot);
 
     // Run the same controller entrypoint the production worker uses.
     await controller.syncCurrentActivityStatus({
-      lastIndexedSlot,
-      skipValidatorStatusUpdateWhenBehindHeadSlots: gnosisConfig.beacon.slotsPerEpoch,
       maxAttestationDelay,
       inactiveMissedCount,
     });
@@ -270,11 +266,11 @@ describe('Validator Activity Status Updater', () => {
       },
     });
 
-    // Seed the dedicated processor cursor row used by the activity-status updater.
-    await prisma.incidentProcessorState.create({
+    // Seed the dedicated evaluated-duty cursor row used by the activity-status updater.
+    await prisma.validatorActivityProcessorState.create({
       data: {
         processor: 'validator-activity-status',
-        lastProcessedSlot: 9001,
+        lastEvaluatedDutySlot: 9001,
       },
     });
 
@@ -282,13 +278,13 @@ describe('Validator Activity Status Updater', () => {
     const snapshot = await prisma.validatorsSnapshotActivity.findUniqueOrThrow({
       where: { validatorIndex: 101 },
     });
-    const processorState = await prisma.incidentProcessorState.findUniqueOrThrow({
+    const processorState = await prisma.validatorActivityProcessorState.findUniqueOrThrow({
       where: { processor: 'validator-activity-status' },
     });
 
     expect(snapshot.consecutiveMissedAttestations).toBe(0);
     expect(snapshot.missedRewardsProcessedThroughSlot).toBe(88);
-    expect(processorState.lastProcessedSlot).toBe(9001);
+    expect(processorState.lastEvaluatedDutySlot).toBe(9001);
   });
 
   // This scenario proves the processor still advances through already-safe duties even when head is far ahead.
@@ -297,13 +293,9 @@ describe('Validator Activity Status Updater', () => {
     await seedSnapshotValidator(101);
     await seedCommitteeMisses([120, 121, 122, 123], 101);
 
-    // Simulate the chain head being far ahead of the indexed slot.
-    vi.spyOn(beaconTime, 'getChainCurrentSlot').mockReturnValue(140);
-
-    // Run the updater even though the live head is well ahead of the indexed boundary.
+    // Run the updater through the indexed slot boundary owned by slot processing.
+    vi.mocked(slotStorage.getLastProcessedSlot).mockResolvedValue(124);
     await controller.syncCurrentActivityStatus({
-      lastIndexedSlot: 124,
-      skipValidatorStatusUpdateWhenBehindHeadSlots: gnosisConfig.beacon.slotsPerEpoch,
       maxAttestationDelay: 1,
       inactiveMissedCount: 4,
     });
@@ -322,13 +314,9 @@ describe('Validator Activity Status Updater', () => {
     await seedSnapshotValidator(101);
     await seedCommitteeMisses([120, 121, 122, 123], 101);
 
-    // Keep enough distance from head so slot 123 is still safe to judge.
-    vi.spyOn(beaconTime, 'getChainCurrentSlot').mockReturnValue(140);
-
     // Run the updater using the same indexed slot, now treated as fresh.
+    vi.mocked(slotStorage.getLastProcessedSlot).mockResolvedValue(124);
     await controller.syncCurrentActivityStatus({
-      lastIndexedSlot: 124,
-      skipValidatorStatusUpdateWhenBehindHeadSlots: gnosisConfig.beacon.slotsPerEpoch,
       maxAttestationDelay: 1,
       inactiveMissedCount: 4,
     });
@@ -356,12 +344,8 @@ describe('Validator Activity Status Updater', () => {
         (123, 3, 101, 3, ${null})
     `;
 
-    // Keep enough distance from head so slot 123 is still safe to judge.
-    vi.spyOn(beaconTime, 'getChainCurrentSlot').mockReturnValue(140);
-
+    vi.mocked(slotStorage.getLastProcessedSlot).mockResolvedValue(124);
     await controller.syncCurrentActivityStatus({
-      lastIndexedSlot: 124,
-      skipValidatorStatusUpdateWhenBehindHeadSlots: gnosisConfig.beacon.slotsPerEpoch,
       maxAttestationDelay: 1,
       inactiveMissedCount: 3,
     });

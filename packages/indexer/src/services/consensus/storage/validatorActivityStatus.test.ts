@@ -6,12 +6,12 @@ describe('ValidatorActivityStatusStorage transaction scope', () => {
   let prisma: {
     $executeRaw: ReturnType<typeof vi.fn>;
     $transaction: ReturnType<typeof vi.fn>;
-    incidentProcessorState: {
+    validatorActivityProcessorState: {
       upsert: ReturnType<typeof vi.fn>;
     };
   };
   let tx: {
-    incidentProcessorState: {
+    validatorActivityProcessorState: {
       upsert: ReturnType<typeof vi.fn>;
       update: ReturnType<typeof vi.fn>;
     };
@@ -23,10 +23,10 @@ describe('ValidatorActivityStatusStorage transaction scope', () => {
     // Recreate the mocked Prisma client and transaction client for each test so
     // every assertion observes only the calls made by that scenario.
     tx = {
-      incidentProcessorState: {
+      validatorActivityProcessorState: {
         upsert: vi.fn().mockResolvedValue({
           processor: 'validator-activity-status',
-          lastProcessedSlot: 4,
+          lastEvaluatedDutySlot: 4,
         }),
         update: vi.fn().mockResolvedValue(undefined),
       },
@@ -38,10 +38,10 @@ describe('ValidatorActivityStatusStorage transaction scope', () => {
       $transaction: vi.fn(async (callback: (transactionClient: typeof tx) => Promise<unknown>) =>
         callback(tx),
       ),
-      incidentProcessorState: {
+      validatorActivityProcessorState: {
         upsert: vi.fn().mockResolvedValue({
           processor: 'validator-activity-status',
-          lastProcessedSlot: 4,
+          lastEvaluatedDutySlot: 4,
         }),
       },
     };
@@ -72,15 +72,15 @@ describe('ValidatorActivityStatusStorage transaction scope', () => {
     // Process two pending slots so the test can observe whether storage keeps
     // one large transaction or commits each slot independently.
     await storage.syncCurrentActivityStatus({
-      newestProcessableSlot: 6,
+      newestEvaluableDutySlot: 6,
       inactiveMissedCount: 1,
       maxAttestationDelay: 1,
     });
 
-    // The processor state bootstrap is not part of the per-slot work. After
-    // that, each slot must execute inside its own short transaction.
-    expect(prisma.$executeRaw).toHaveBeenCalledTimes(1);
-    expect(prisma.incidentProcessorState.upsert).toHaveBeenCalledTimes(1);
+    // Mid-epoch processing should avoid the activity-row bootstrap scan. Each
+    // slot must still execute inside its own short transaction.
+    expect(prisma.$executeRaw).toHaveBeenCalledTimes(0);
+    expect(prisma.validatorActivityProcessorState.upsert).toHaveBeenCalledTimes(1);
     expect(prisma.$transaction).toHaveBeenCalledTimes(2);
 
     // The slot-local work must still run for both pending slots and use the
@@ -96,13 +96,38 @@ describe('ValidatorActivityStatusStorage transaction scope', () => {
 
     // The durable bookmark must advance inside each slot transaction so a
     // crash can only replay at most one slot on the next run.
-    expect(tx.incidentProcessorState.update).toHaveBeenNthCalledWith(1, {
+    expect(tx.validatorActivityProcessorState.update).toHaveBeenNthCalledWith(1, {
       where: { processor: 'validator-activity-status' },
-      data: { lastProcessedSlot: 5 },
+      data: { lastEvaluatedDutySlot: 5 },
     });
-    expect(tx.incidentProcessorState.update).toHaveBeenNthCalledWith(2, {
+    expect(tx.validatorActivityProcessorState.update).toHaveBeenNthCalledWith(2, {
       where: { processor: 'validator-activity-status' },
-      data: { lastProcessedSlot: 6 },
+      data: { lastEvaluatedDutySlot: 6 },
     });
+  });
+
+  it('inserts missing activity rows only before processing the first slot of an epoch', async () => {
+    // Stub the slot-local SQL helpers so the test can count only bootstrap
+    // activity-row inserts around the replay loop.
+    vi.spyOn(storage as never, 'updateSlotSnapshots').mockResolvedValue(undefined);
+    vi.spyOn(storage as never, 'reconcileOpenIncidents').mockResolvedValue(undefined);
+
+    // Start from slot 15 so the batch crosses slot 16, which is the first slot
+    // of the next epoch for this test storage.
+    prisma.validatorActivityProcessorState.upsert.mockResolvedValue({
+      processor: 'validator-activity-status',
+      lastEvaluatedDutySlot: 15,
+    });
+
+    // Process one full epoch-boundary slot and one mid-epoch slot.
+    await storage.syncCurrentActivityStatus({
+      newestEvaluableDutySlot: 17,
+      inactiveMissedCount: 1,
+      maxAttestationDelay: 1,
+    });
+
+    // The bootstrap insert should run once for slot 16 and not repeat for slot
+    // 17, avoiding repeated cluster-validator scans during hot polling.
+    expect(prisma.$executeRaw).toHaveBeenCalledTimes(1);
   });
 });

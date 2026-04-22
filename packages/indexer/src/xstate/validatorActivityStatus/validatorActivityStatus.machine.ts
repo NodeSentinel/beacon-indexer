@@ -3,22 +3,27 @@ import { setup, fromPromise } from 'xstate';
 import { ValidatorActivityStatusController } from '@/src/services/consensus/controllers/validatorActivityStatus.js';
 import { pinoLog } from '@/src/xstate/pinoLog.js';
 
-const runSync = fromPromise(
+const VALIDATOR_ACTIVITY_STATUS_POLLING_INTERVAL_MS = 1000;
+
+// The activity worker runs often, but the controller evaluates only mature duty
+// slots. Example: with maxAttestationDelay = 5 and latest processed slot = 105,
+// validator duties for slot 100 can be judged. A null attestation delay at slot
+// 100 is then a missed duty; an attestation delay <= 5 is successful. The worker
+// advances that evaluated-duty cursor and updates the validator activity
+// snapshot, which can open or close cluster incidents.
+const syncCurrentActivityStatus = fromPromise(
   async ({
     input,
   }: {
     input: {
       validatorActivityStatusController: ValidatorActivityStatusController;
-      skipValidatorStatusUpdateWhenBehindHeadSlots: number;
       maxAttestationDelay: number;
       inactiveMissedCount: number;
     };
   }) => {
     // Delegate the entire refresh pass to the controller so the machine stays
     // orchestration-only.
-    await input.validatorActivityStatusController.runSync({
-      skipValidatorStatusUpdateWhenBehindHeadSlots:
-        input.skipValidatorStatusUpdateWhenBehindHeadSlots,
+    await input.validatorActivityStatusController.syncCurrentActivityStatus({
       maxAttestationDelay: input.maxAttestationDelay,
       inactiveMissedCount: input.inactiveMissedCount,
     });
@@ -29,35 +34,27 @@ export const validatorActivityStatusMachine = setup({
   types: {} as {
     context: {
       validatorActivityStatusController: ValidatorActivityStatusController;
-      slotDuration: number;
-      skipValidatorStatusUpdateWhenBehindHeadSlots: number;
       maxAttestationDelay: number;
       inactiveMissedCount: number;
     };
     input: {
       validatorActivityStatusController: ValidatorActivityStatusController;
-      slotDuration: number;
-      skipValidatorStatusUpdateWhenBehindHeadSlots: number;
       maxAttestationDelay: number;
       inactiveMissedCount: number;
     };
   },
   delays: {
-    // Poll at slot cadence so validator activity state tracks the latest safe slot
-    // as soon as new committee data becomes final.
-    tickInterval: ({ context }) => context.slotDuration,
+    // Poll quickly so incidents are opened soon after slot processing completes.
+    tickInterval: () => VALIDATOR_ACTIVITY_STATUS_POLLING_INTERVAL_MS,
   },
   actors: {
-    runSync,
+    syncCurrentActivityStatus,
   },
 }).createMachine({
   id: 'ValidatorActivityStatus',
   initial: 'waiting',
   context: ({ input }) => ({
     validatorActivityStatusController: input.validatorActivityStatusController,
-    slotDuration: input.slotDuration,
-    skipValidatorStatusUpdateWhenBehindHeadSlots:
-      input.skipValidatorStatusUpdateWhenBehindHeadSlots,
     maxAttestationDelay: input.maxAttestationDelay,
     inactiveMissedCount: input.inactiveMissedCount,
   }),
@@ -74,11 +71,9 @@ export const validatorActivityStatusMachine = setup({
       invoke: {
         // Execute one refresh pass and always return to the waiting state whether
         // the pass succeeded or failed.
-        src: 'runSync',
+        src: 'syncCurrentActivityStatus',
         input: ({ context }) => ({
           validatorActivityStatusController: context.validatorActivityStatusController,
-          skipValidatorStatusUpdateWhenBehindHeadSlots:
-            context.skipValidatorStatusUpdateWhenBehindHeadSlots,
           maxAttestationDelay: context.maxAttestationDelay,
           inactiveMissedCount: context.inactiveMissedCount,
         }),

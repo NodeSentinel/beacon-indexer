@@ -3,8 +3,8 @@ import { Prisma, PrismaClient } from '@beacon-indexer/db';
 import { getActivityLookbackSlots } from './activityLookback.js';
 
 type SyncCurrentActivityStatusParams = {
-  // Newest slot we can process in this run.
-  newestProcessableSlot: number;
+  // Newest duty slot whose attestation inclusion window has fully elapsed.
+  newestEvaluableDutySlot: number;
   // Missed duties in a row needed to mark a validator inactive.
   inactiveMissedCount: number;
   // Attestations later than this delay count as missed.
@@ -53,6 +53,11 @@ export class ValidatorActivityStatusStorage {
         INTERVAL '1 second'
       )
     `;
+  }
+
+  /** Checks whether a slot is the first slot of its epoch. */
+  private isFirstSlotOfEpoch(slot: number): boolean {
+    return slot % this.slotsPerEpoch === 0;
   }
 
   /** Opens and closes incidents from the current inactive snapshot. */
@@ -287,39 +292,45 @@ export class ValidatorActivityStatusStorage {
     `;
   }
 
-  /** Replays safe slots and keeps snapshots and incidents up to date. */
+  /** Replays mature duty slots and keeps snapshots and incidents up to date. */
   async syncCurrentActivityStatus(params: SyncCurrentActivityStatusParams): Promise<void> {
-    const { newestProcessableSlot, inactiveMissedCount, maxAttestationDelay } = params;
+    const { newestEvaluableDutySlot, inactiveMissedCount, maxAttestationDelay } = params;
 
     // Gets how many slots we need to look back.
     const slotsToLookBack = getActivityLookbackSlots(this.slotsPerEpoch, inactiveMissedCount);
 
-    // Gets the oldest slot we need to process in this run.
-    const oldestProcessableSlot = newestProcessableSlot - slotsToLookBack;
+    // Gets the oldest duty slot we need to evaluate in this run.
+    const oldestEvaluableDutySlot = newestEvaluableDutySlot - slotsToLookBack;
 
-    // Gets or creates the slot cursor for this processor.
-    const processorState = await this.prisma.incidentProcessorState.upsert({
+    // Gets or creates the evaluated-duty cursor for this processor.
+    const processorState = await this.prisma.validatorActivityProcessorState.upsert({
       where: { processor: VALIDATOR_ACTIVITY_PROCESSOR },
       update: {},
       create: {
         processor: VALIDATOR_ACTIVITY_PROCESSOR,
-        lastProcessedSlot: Math.max(oldestProcessableSlot - 1, -1),
+        lastEvaluatedDutySlot: Math.max(oldestEvaluableDutySlot - 1, -1),
       },
     });
 
-    // Gets the last slot we already covered
-    const lastCoveredSlot = Math.max(processorState.lastProcessedSlot, oldestProcessableSlot - 1);
+    // Gets the last mature duty slot already evaluated.
+    const lastEvaluatedDutySlot = Math.max(
+      processorState.lastEvaluatedDutySlot,
+      oldestEvaluableDutySlot - 1,
+    );
 
-    // Stops here when there are no new safe slots left to replay.
-    if (lastCoveredSlot >= newestProcessableSlot) {
+    // Stops here when there are no new mature duty slots left to evaluate.
+    if (lastEvaluatedDutySlot >= newestEvaluableDutySlot) {
       return;
     }
 
-    // Creates missing hot-state rows before replaying safe duties.
-    await this.insertMissingActivityRows();
+    // Processes one mature duty slot at a time.
+    for (let slot = lastEvaluatedDutySlot + 1; slot <= newestEvaluableDutySlot; slot += 1) {
+      // Refresh tracked-validator snapshot rows only when epoch duties can add
+      // new validators to the activity window.
+      if (this.isFirstSlotOfEpoch(slot)) {
+        await this.insertMissingActivityRows();
+      }
 
-    // Processes one slot at a time up to the newest safe slot.
-    for (let slot = lastCoveredSlot + 1; slot <= newestProcessableSlot; slot += 1) {
       await this.prisma.$transaction(async (tx) => {
         await this.updateSlotSnapshots(tx, slot, inactiveMissedCount, maxAttestationDelay);
 
@@ -329,9 +340,9 @@ export class ValidatorActivityStatusStorage {
         });
 
         // Saves the slot cursor after this slot is done.
-        await tx.incidentProcessorState.update({
+        await tx.validatorActivityProcessorState.update({
           where: { processor: VALIDATOR_ACTIVITY_PROCESSOR },
-          data: { lastProcessedSlot: slot },
+          data: { lastEvaluatedDutySlot: slot },
         });
       });
     }

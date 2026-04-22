@@ -73,7 +73,7 @@ describe('Incident Rewards', () => {
       delaySlotsToHead: gnosisConfig.beacon.delaySlotsToHead,
     });
 
-    // Provide the controller dependency required by the new controller-level runSync boundary.
+    // Provide the controller dependency required by the controller-level sync boundary.
     slotStorage = {
       getLastProcessedSlot: vi.fn(),
     } as unknown as SlotStorage;
@@ -88,7 +88,6 @@ describe('Incident Rewards', () => {
         gnosisConfig.beacon.slotsPerEpoch,
       ),
       slotStorage,
-      beaconTime,
     );
 
     incidentRewardsController = new IncidentRewardsController(
@@ -103,7 +102,7 @@ describe('Incident Rewards', () => {
     await prisma.notificationQueue.deleteMany({});
     await prisma.clusterIncidentValidator.deleteMany({});
     await prisma.clusterIncident.deleteMany({});
-    await prisma.incidentProcessorState.deleteMany({});
+    await prisma.validatorActivityProcessorState.deleteMany({});
     await prisma.clusterValidator.deleteMany({});
     await prisma.cluster.deleteMany({});
     await prisma.user.deleteMany({});
@@ -295,13 +294,9 @@ describe('Incident Rewards', () => {
       ],
     });
 
-    // Keep enough distance from head so slot 104 is still safe to judge.
-    vi.spyOn(beaconTime, 'getChainCurrentSlot').mockReturnValue(121);
-
     // Refresh current liveness state from the indexed committee data.
+    vi.mocked(slotStorage.getLastProcessedSlot).mockResolvedValue(105);
     await validatorActivityStatusController.syncCurrentActivityStatus({
-      lastIndexedSlot: 105,
-      skipValidatorStatusUpdateWhenBehindHeadSlots: gnosisConfig.beacon.slotsPerEpoch,
       maxAttestationDelay: 1,
       inactiveMissedCount: 4,
     });

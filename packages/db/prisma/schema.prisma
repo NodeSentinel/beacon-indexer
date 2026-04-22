@@ -465,12 +465,12 @@ model ValidatorsSnapshotPerformance {
   @@map("validators_snapshot_performance")
 }
 
-model IncidentProcessorState {
-  processor         String   @id @map("processor") @db.VarChar(64)
-  lastProcessedSlot Int      @map("last_processed_slot")
-  updatedAt         DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamp
+model ValidatorActivityProcessorState {
+  processor             String   @id @map("processor") @db.VarChar(64)
+  lastEvaluatedDutySlot Int      @map("last_evaluated_duty_slot")
+  updatedAt             DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamp
 
-  @@map("incident_processor_state")
+  @@map("validator_activity_processor_state")
 }
 
 model ChainEpochStats {
