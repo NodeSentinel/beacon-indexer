@@ -1,5 +1,5 @@
 import { BeaconTime } from '@beacon-indexer/beacon-utils/beaconTime';
-import { setup, assign, sendParent, raise, ActorRefFrom, fromPromise, stopChild } from 'xstate';
+import { ActorRefFrom, assign, fromPromise, raise, sendParent, setup, stopChild } from 'xstate';
 
 import { slotOrchestratorMachine, SlotsCompletedEvent } from '../slot/slotOrchestrator.machine.js';
 
@@ -277,7 +277,7 @@ export const epochProcessorMachine = setup({
   id: 'EpochProcessor',
   initial: 'waitingToProcessEpoch',
   context: ({ input }) => {
-    const { startSlot, endSlot } = input.services.beaconTime.getEpochSlots(input.epoch);
+    const { endSlot, startSlot } = input.services.beaconTime.getEpochSlots(input.epoch);
     return {
       epoch: input.epoch,
       startSlot: startSlot,

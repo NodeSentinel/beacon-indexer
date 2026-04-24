@@ -11,7 +11,7 @@
  * This machine processes slots one at a time within an epoch.
  */
 
-import { setup, assign, stopChild, sendParent, ActorRefFrom, fromPromise } from 'xstate';
+import { ActorRefFrom, assign, fromPromise, sendParent, setup, stopChild } from 'xstate';
 
 import { SlotController } from '@/src/services/consensus/controllers/slot.js';
 import { getEpochSlots } from '@/src/services/consensus/utils/misc.js';
@@ -75,7 +75,7 @@ export const slotOrchestratorMachine = setup({
   id: 'SlotOrchestrator',
   initial: 'findingNextSlot',
   context: ({ input }) => {
-    const { startSlot: _startSlot, endSlot } = getEpochSlots(input.epoch);
+    const { endSlot, startSlot: _startSlot } = getEpochSlots(input.epoch);
     const startSlot = Math.max(_startSlot, input.lookbackSlot);
 
     return {

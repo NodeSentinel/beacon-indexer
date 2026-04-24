@@ -1,17 +1,17 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { isAddress, isHex, size } from 'viem';
 
 import { useToast } from '@/hooks/use-toast';
 import {
+  useGetValidatorsFromWithdrawalAddresses,
   useSearchByIndex,
   useSearchByIndexes,
   useSearchByPubkey,
   useSearchByPubkeys,
   useSearchByWithdrawalAddress,
   useSearchByWithdrawalAddresses,
-  useGetValidatorsFromWithdrawalAddresses,
 } from '@/hooks/use-validator-search';
 
 export type ValidatorItem = {
@@ -120,8 +120,8 @@ function sortValidatorsDescending(validators: ValidatorItem[]): ValidatorItem[] 
  * Groups validators by their actual withdrawal address.
  */
 export function useValidatorInput({
-  validators,
   onValidatorsChange,
+  validators,
   withdrawalAddresses: knownWithdrawalAddresses = [],
 }: UseValidatorInputProps) {
   const { toast } = useToast();
@@ -156,7 +156,7 @@ export function useValidatorInput({
   }, [knownWithdrawalAddresses, discoveredWithdrawalAddresses]);
 
   // Fetch validators for all withdrawal addresses (known + discovered)
-  const { validatorsByWithdrawalAddress, isLoading: isLoadingAddresses } =
+  const { isLoading: isLoadingAddresses, validatorsByWithdrawalAddress } =
     useGetValidatorsFromWithdrawalAddresses(allWithdrawalAddressesToFetch);
 
   // Compute all unique withdrawal addresses from current validators
@@ -171,7 +171,7 @@ export function useValidatorInput({
   }, [validators]);
 
   // Compute validatorsByAddress and missingValidatorsByAddress
-  const { validatorsByAddress, missingValidatorsByAddress } = useMemo(() => {
+  const { missingValidatorsByAddress, validatorsByAddress } = useMemo(() => {
     const currentIndexes = new Set(validators.map((v) => v.index));
     const byAddress: Record<string, ValidatorItem[]> = {};
     const missing: Record<string, ValidatorItem[]> = {};

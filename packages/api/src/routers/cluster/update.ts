@@ -15,7 +15,7 @@ export const updateCluster = securedProcedure
   .route({ method: 'PUT', path: '/clusters/{id}' })
   .input(ClusterIdParamSchema.merge(UpdateClusterInputSchema))
   .output(ApiResponseSchema(ClusterSchema))
-  .handler(async ({ input, context }) => {
+  .handler(async ({ context, input }) => {
     try {
       const storage = new ClusterStorage();
       const ownershipError = await requireOwnedCluster(storage, input.id, context.user);

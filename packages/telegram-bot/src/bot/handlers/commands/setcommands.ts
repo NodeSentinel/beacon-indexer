@@ -1,8 +1,8 @@
 import { Command, CommandGroup } from '@grammyjs/commands';
 
-import type { Context } from '@/src/bot/context.js';
 import type { LanguageCode } from '@grammyjs/types';
 import type { CommandContext } from 'grammy';
+import type { Context } from '@/src/bot/context.js';
 
 import { i18n } from '@/src/bot/i18n.js';
 

@@ -1,6 +1,6 @@
 import { Readable } from 'stream';
 
-import { PrismaClient, Committee, Prisma } from '@beacon-indexer/db';
+import { Committee, Prisma, PrismaClient } from '@beacon-indexer/db';
 import { Pool } from 'pg';
 // @ts-expect-error - pg-copy-streams doesn't have type definitions
 import { from as copyFrom } from 'pg-copy-streams';

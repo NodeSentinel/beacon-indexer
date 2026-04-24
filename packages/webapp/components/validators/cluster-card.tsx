@@ -2,11 +2,10 @@
 
 import { Settings } from 'lucide-react';
 
-import type { Cluster } from '@/types/cluster';
-
 import DashboardCard from '@/components/dashboard/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import type { Cluster } from '@/types/cluster';
 
 interface ClusterCardProps {
   cluster: Cluster;
@@ -14,7 +13,7 @@ interface ClusterCardProps {
   gnoPrice: number;
 }
 
-export default function ClusterCard({ cluster, onManage, gnoPrice }: ClusterCardProps) {
+export default function ClusterCard({ cluster, gnoPrice, onManage }: ClusterCardProps) {
   const statusCounts = cluster.validators.reduce(
     (acc, v) => {
       acc[v.status] = (acc[v.status] || 0) + 1;

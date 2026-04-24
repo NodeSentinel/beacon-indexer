@@ -9,7 +9,7 @@ import {
 } from './schemas.js';
 
 import { BotUsersStorage } from '@/storage/bot-users.js';
-import { ApiResponseSchema, successResponse, errorResponse } from '@/utils/response.js';
+import { ApiResponseSchema, errorResponse, successResponse } from '@/utils/response.js';
 
 const BotUserListResponseSchema = ApiResponseSchema(BotUserListSchema);
 type BotUserListResponse = z.infer<typeof BotUserListResponseSchema>;

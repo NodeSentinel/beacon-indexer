@@ -4,10 +4,8 @@ import { hydrateReply, parseMode } from '@grammyjs/parse-mode';
 import { sequentialize } from '@grammyjs/runner';
 import { Bot as TelegramBot } from 'grammy';
 
-import type { Context } from '@/src/bot/context.js';
-import type { Config } from '@/src/config.js';
-import type { Logger } from '@/src/logger.js';
 import type { BotConfig } from 'grammy';
+import type { Context } from '@/src/bot/context.js';
 
 import { adminFeature } from '@/src/bot/features/admin.js';
 import { languageFeature } from '@/src/bot/features/language.js';
@@ -20,6 +18,8 @@ import { i18n, isMultipleLocales } from '@/src/bot/i18n.js';
 import { session } from '@/src/bot/middlewares/session.js';
 import { updateLogger } from '@/src/bot/middlewares/update-logger.js';
 import { userMiddleware } from '@/src/bot/middlewares/user.js';
+import type { Config } from '@/src/config.js';
+import type { Logger } from '@/src/logger.js';
 
 interface Dependencies {
   config: Config;

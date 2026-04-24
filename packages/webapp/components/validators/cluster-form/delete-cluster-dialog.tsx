@@ -21,10 +21,10 @@ interface DeleteClusterDialogProps {
 }
 
 export function DeleteClusterDialog({
-  open,
-  onOpenChange,
-  onConfirm,
   isDeleting,
+  onConfirm,
+  onOpenChange,
+  open,
 }: DeleteClusterDialogProps) {
   return (
     <AlertDialog open={open} onOpenChange={onOpenChange}>

@@ -2,10 +2,9 @@
 
 import { useQuery } from '@tanstack/react-query';
 
-import type { RewardsResponse } from '@/types/validator';
-
 import { orpcClient } from '@/lib/orpc';
 import { useUserId } from '@/lib/user-id';
+import type { RewardsResponse } from '@/types/validator';
 
 type ApiRewardItem = {
   timestamp: string;

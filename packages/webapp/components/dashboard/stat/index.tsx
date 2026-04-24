@@ -4,7 +4,7 @@ import type React from 'react';
 
 import { Badge } from '@/components/ui/badge';
 import { Bullet } from '@/components/ui/bullet';
-import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
 
 interface DashboardStatProps {
@@ -18,13 +18,13 @@ interface DashboardStatProps {
 }
 
 export default function DashboardStat({
-  label,
-  value,
   description,
-  icon,
-  tag,
-  intent,
   direction,
+  icon,
+  intent,
+  label,
+  tag,
+  value,
 }: DashboardStatProps) {
   const Icon = icon;
 
@@ -57,7 +57,7 @@ export default function DashboardStat({
     return 'text-muted-foreground';
   };
 
-  const { prefix, numericValue, suffix, isNumeric } = parseValue(value);
+  const { isNumeric, numericValue, prefix, suffix } = parseValue(value);
 
   return (
     <Card className="relative overflow-hidden">

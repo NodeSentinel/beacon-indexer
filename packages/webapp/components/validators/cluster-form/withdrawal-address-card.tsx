@@ -4,9 +4,8 @@ import { Trash2 } from 'lucide-react';
 
 import { VirtualizedChipList } from './virtualized-chip-list';
 
-import type { ValidatorItem } from '@/hooks/use-validator-input';
-
 import { Button } from '@/components/ui/button';
+import type { ValidatorItem } from '@/hooks/use-validator-input';
 
 interface WithdrawalAddressCardProps {
   address: string;
@@ -20,12 +19,12 @@ interface WithdrawalAddressCardProps {
 
 export function WithdrawalAddressCard({
   address,
-  validators,
-  totalCount,
   missingCount,
+  onAddMissing,
   onRemoveAddress,
   onRemoveValidator,
-  onAddMissing,
+  totalCount,
+  validators,
 }: WithdrawalAddressCardProps) {
   return (
     <div className="rounded-lg border border-border/50 bg-background/50 overflow-hidden">

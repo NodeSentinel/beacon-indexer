@@ -2,11 +2,10 @@
 
 import { Settings } from 'lucide-react';
 
-import type { Cluster } from '@/types/cluster';
-import type { Stats } from '@/types/validator';
-
 import DashboardCard from '@/components/dashboard/card';
 import { Button } from '@/components/ui/button';
+import type { Cluster } from '@/types/cluster';
+import type { Stats } from '@/types/validator';
 
 interface ClusterOverviewProps {
   cluster: Cluster;
@@ -18,10 +17,10 @@ interface ClusterOverviewProps {
 
 export default function ClusterOverview({
   cluster,
-  stats,
   gnoPrice,
   onManage,
   showManageButton = true,
+  stats,
 }: ClusterOverviewProps) {
   const statusCounts = cluster.validators.reduce(
     (acc, v) => {

@@ -17,32 +17,32 @@ interface ValidatorInputProps {
 }
 
 export function ValidatorInput({
-  validators,
-  withdrawalAddresses,
   isEditMode,
   onValidatorsChange,
+  validators,
+  withdrawalAddresses,
 }: ValidatorInputProps) {
   const isMobile = useMediaQuery('(max-width: 768px)');
   const [helpDialogOpen, setHelpDialogOpen] = useState(false);
 
   const {
-    inputValue,
-    validationState,
-    errorMessage,
-    bulkAction,
-    isSearching,
+    addMissingValidators,
     allWithdrawalAddresses,
-    validatorsByAddress,
-    missingValidatorsByAddress,
+    bulkAction,
+    closeBulkAction,
+    errorMessage,
     handleAddValidator,
     handleConfirmBulkAdd,
-    handleRemoveByWithdrawal,
     handleConfirmBulkRemove,
-    removeValidator,
-    addMissingValidators,
     handleInputChange,
     handleKeyDown,
-    closeBulkAction,
+    handleRemoveByWithdrawal,
+    inputValue,
+    isSearching,
+    missingValidatorsByAddress,
+    removeValidator,
+    validationState,
+    validatorsByAddress,
   } = useValidatorInput({
     validators,
     onValidatorsChange,

@@ -1,6 +1,6 @@
 'use client';
 
-import { X, AlertTriangle, Info, AlertCircle, CheckCircle } from 'lucide-react';
+import { AlertCircle, AlertTriangle, CheckCircle, Info, X } from 'lucide-react';
 import { useState } from 'react';
 
 import { cn } from '@/lib/utils';

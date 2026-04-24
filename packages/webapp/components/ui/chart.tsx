@@ -35,10 +35,10 @@ function useChart() {
 }
 
 function ChartContainer({
-  id,
-  className,
   children,
+  className,
   config,
+  id,
   ...props
 }: React.ComponentProps<'div'> & {
   config: ChartConfig;
@@ -65,7 +65,7 @@ function ChartContainer({
   );
 }
 
-const ChartStyle = ({ id, config }: { id: string; config: ChartConfig }) => {
+const ChartStyle = ({ config, id }: { id: string; config: ChartConfig }) => {
   const colorConfig = Object.entries(config).filter(([, config]) => config.theme || config.color);
 
   if (!colorConfig.length) {
@@ -98,18 +98,18 @@ const ChartTooltip = RechartsPrimitive.Tooltip;
 
 function ChartTooltipContent({
   active,
-  payload,
   className,
-  indicator = 'dot',
-  hideLabel = false,
-  hideIndicator = false,
-  label,
-  labelFormatter,
-  labelClassName,
-  formatter,
   color,
-  nameKey,
+  formatter,
+  hideIndicator = false,
+  hideLabel = false,
+  indicator = 'dot',
+  label,
+  labelClassName,
+  labelFormatter,
   labelKey,
+  nameKey,
+  payload,
 }: {
   active?: boolean;
   payload?: Array<{
@@ -255,9 +255,9 @@ const ChartLegend = RechartsPrimitive.Legend;
 function ChartLegendContent({
   className,
   hideIcon = false,
+  nameKey,
   payload,
   verticalAlign = 'bottom',
-  nameKey,
 }: React.ComponentProps<'div'> & {
   payload?: Array<{
     value?: string;

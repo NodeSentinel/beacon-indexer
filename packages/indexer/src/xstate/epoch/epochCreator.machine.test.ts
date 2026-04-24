@@ -1,4 +1,4 @@
-import { test, expect, vi } from 'vitest';
+import { expect, test, vi } from 'vitest';
 import { createActor } from 'xstate';
 
 import { epochCreationMachine } from './epochCreator.machine.js';

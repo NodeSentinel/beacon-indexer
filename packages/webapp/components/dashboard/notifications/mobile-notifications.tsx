@@ -5,12 +5,11 @@ import React, { useState } from 'react';
 
 import NotificationItem from './notification-item';
 
-import type { Notification } from '@/types/dashboard';
-
 import { Badge } from '@/components/ui/badge';
 import { Bullet } from '@/components/ui/bullet';
 import { SheetClose, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { useIsV0 } from '@/lib/v0-context';
+import type { Notification } from '@/types/dashboard';
 
 interface MobileNotificationsProps {
   initialNotifications: Notification[];

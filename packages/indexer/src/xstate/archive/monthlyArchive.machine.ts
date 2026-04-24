@@ -1,4 +1,4 @@
-import { setup, fromPromise } from 'xstate';
+import { fromPromise, setup } from 'xstate';
 
 import { MonthlyArchiveController } from '@/src/services/consensus/controllers/monthlyArchive.js';
 import { pinoLog } from '@/src/xstate/pinoLog.js';

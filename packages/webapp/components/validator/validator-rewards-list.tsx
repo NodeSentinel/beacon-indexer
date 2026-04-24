@@ -1,13 +1,13 @@
 'use client';
 
-import { ChevronDown, ChevronUp, Gift, Eye, EyeOff, Target } from 'lucide-react';
-import { useState, useMemo } from 'react';
+import { ChevronDown, ChevronUp, Eye, EyeOff, Gift, Target } from 'lucide-react';
+import { useMemo, useState } from 'react';
 
 import DashboardCard from '@/components/dashboard/card';
 import { Button } from '@/components/ui/button';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { env } from '@/env';
-import { formatNumber, weiToGwei, weiToETH, REWARD_UNIT, getTokenSymbol } from '@/lib/utils';
+import { formatNumber, getTokenSymbol, REWARD_UNIT, weiToETH, weiToGwei } from '@/lib/utils';
 
 interface Attestation {
   indexInEpoch: number;

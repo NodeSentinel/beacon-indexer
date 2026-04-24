@@ -1,5 +1,5 @@
 import { BeaconTime } from '@beacon-indexer/beacon-utils/beaconTime';
-import { createActor, ActorRefFrom } from 'xstate';
+import { ActorRefFrom, createActor } from 'xstate';
 
 import { EpochController } from '@/src/services/consensus/controllers/epoch.js';
 import { PartitionController } from '@/src/services/consensus/controllers/partition.js';

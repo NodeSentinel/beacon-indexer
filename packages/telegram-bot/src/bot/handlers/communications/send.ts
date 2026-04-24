@@ -1,11 +1,11 @@
 import { InlineKeyboard } from 'grammy';
 
+import type { CommandContext } from 'grammy';
 import { countBatchDeliveryResults, splitRecipientsIntoBatches } from './send-batches.js';
 
-import type { Context } from '@/src/bot/context.js';
-import type { CommandContext } from 'grammy';
-
 import { COMMON_REQUESTS_TELEGRAM_ID, getRpcClientForUser } from '@/src/api/client.js';
+import type { Context } from '@/src/bot/context.js';
+
 import { sendMessage } from '@/src/telegram/messaging.js';
 
 /**

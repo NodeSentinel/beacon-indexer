@@ -1,7 +1,7 @@
 /* eslint-disable import/order */
 import { BeaconTime } from '@beacon-indexer/beacon-utils/beaconTime';
 import { gnosisConfig } from '@beacon-indexer/beacon-utils/config/chain';
-import { test, expect, vi, beforeEach, afterEach, describe } from 'vitest';
+import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import { createMachine, sendParent } from 'xstate';
 
 import {
@@ -14,9 +14,9 @@ import { PartitionController } from '@/src/services/consensus/controllers/partit
 import { SlotController } from '@/src/services/consensus/controllers/slot.js';
 const SLOT_DURATION = 10; // 10ms - small for fast tests (real Gnosis: 5s)
 const {
-  slotsPerEpoch: SLOTS_PER_EPOCH,
-  genesisTimestamp: GENESIS_TIMESTAMP,
   epochsPerSyncCommitteePeriod: EPOCHS_PER_SYNC_COMMITTEE_PERIOD,
+  genesisTimestamp: GENESIS_TIMESTAMP,
+  slotsPerEpoch: SLOTS_PER_EPOCH,
 } = gnosisConfig.beacon;
 const LOOKBACK_SLOT = 32;
 const POLLING_DELAY = SLOT_DURATION / 2;

@@ -1,5 +1,5 @@
-import { PrismaClient, Prisma } from '@beacon-indexer/db';
-import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
+import { Prisma, PrismaClient } from '@beacon-indexer/db';
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
 import { getDailyArchivePartitionName } from '@/src/services/consensus/controllers/dailyArchive.js';
 import { MonthlyArchiveController } from '@/src/services/consensus/controllers/monthlyArchive.js';

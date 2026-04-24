@@ -2,12 +2,11 @@
 
 import { Settings } from 'lucide-react';
 
-import type { Cluster } from '@/types/cluster';
-
 import { Button } from '@/components/ui/button';
 import { useChainStats } from '@/hooks/use-chain-stats';
 import { useClusterSnapshot } from '@/hooks/use-cluster-snapshot';
 import { formatNumber } from '@/lib/utils';
+import type { Cluster } from '@/types/cluster';
 
 interface ClusterOverviewContentProps {
   cluster: Cluster;
@@ -282,7 +281,7 @@ export default function ClusterOverviewContent({
             <>
               <div className="grid grid-cols-5 gap-3 md:gap-4 md:text-center">
                 <div />
-                {PERIODS.map(({ label, key }) => (
+                {PERIODS.map(({ key, label }) => (
                   <div key={key}>
                     <p className="text-[10px] md:text-xs text-muted-foreground mb-0.5">{label}</p>
                     <p className="text-sm md:text-lg font-normal font-semibold">
@@ -332,7 +331,7 @@ export default function ClusterOverviewContent({
             <>
               {/* Mobile: stacked cards */}
               <div className="md:hidden space-y-2">
-                {PERIODS.map(({ label, key }) => (
+                {PERIODS.map(({ key, label }) => (
                   <div key={key} className="space-y-1.5">
                     <div className="flex items-center gap-2">
                       <span className="text-sm font-normal font-semibold">{label}</span>
@@ -393,7 +392,7 @@ export default function ClusterOverviewContent({
                   <div className="text-xs text-muted-foreground">EXECUTION</div>
                   <div className="text-xs text-muted-foreground">TOTAL</div>
                 </div>
-                {PERIODS.map(({ label, key }) => (
+                {PERIODS.map(({ key, label }) => (
                   <div
                     key={key}
                     className="grid grid-cols-6 gap-4 text-center py-2 border-t border-border/30"

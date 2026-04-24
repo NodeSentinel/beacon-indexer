@@ -1,8 +1,8 @@
 import { Composer } from 'grammy';
 
+import { getRpcClientForUser } from '@/src/api/client.js';
 import type { Context } from '@/src/bot/context.js';
 
-import { getRpcClientForUser } from '@/src/api/client.js';
 import { logHandle } from '@/src/bot/helpers/logging.js';
 
 const composer = new Composer<Context>();

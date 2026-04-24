@@ -8,6 +8,7 @@ import prettierConfig from 'eslint-config-prettier';
 import * as importPlugin from 'eslint-plugin-import';
 import nodePlugin from 'eslint-plugin-node';
 import prettierPlugin from 'eslint-plugin-prettier';
+import * as sortDestructureKeys from 'eslint-plugin-sort-destructure-keys';
 import tseslint from 'typescript-eslint';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -39,6 +40,7 @@ const nextMiniAppConfigs = compatMiniApp
     const normalizedRules = {
       ...(rest.rules ?? {}),
       '@next/next/no-duplicate-head': 'off',
+      '@next/next/no-html-link-for-pages': 'off',
       '@next/next/no-page-custom-font': 'off',
     };
 
@@ -92,7 +94,7 @@ export default tseslint.config(
       '@typescript-eslint/no-unsafe-return': 'off',
       '@typescript-eslint/no-unsafe-argument': 'off',
       '@typescript-eslint/no-namespace': ['error', { allowDeclarations: true }],
-      'import/order': 'off',
+      'import/order': ['error', { alphabetize: { order: 'asc', caseInsensitive: true } }],
       'prettier/prettier': 'error',
     },
   },
@@ -112,6 +114,23 @@ export default tseslint.config(
   // Next.js + TypeScript rules for the app package
   ...nextMiniAppConfigs,
   prettierConfig,
+  {
+    files: ['packages/**/*.{js,jsx,ts,tsx}'],
+    ignores: ['**/*.config.{js,cjs,mjs,ts}', '**/scripts/**'],
+    plugins: {
+      'sort-destructure-keys': sortDestructureKeys,
+    },
+    rules: {
+      'sort-destructure-keys/sort-destructure-keys': 'error',
+      'sort-imports': [
+        'error',
+        {
+          ignoreCase: true,
+          ignoreDeclarationSort: true,
+        },
+      ],
+    },
+  },
   {
     ignores: [
       'node_modules',

@@ -12,7 +12,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/co
 import { useIsMobile } from '@/hooks/use-mobile';
 
 export function MobileChat() {
-  const { totalUnreadCount, chatState, setChatState } = useChatState();
+  const { chatState, setChatState, totalUnreadCount } = useChatState();
   const isMobile = useIsMobile();
   const hasNewMessages = totalUnreadCount > 0;
 

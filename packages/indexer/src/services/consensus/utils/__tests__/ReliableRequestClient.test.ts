@@ -1,5 +1,5 @@
 import ms from 'ms';
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { TestReliableClient } from '@/src/services/consensus/utils/__tests__/reliableClient.js';
 

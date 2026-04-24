@@ -1,6 +1,6 @@
 'use client';
 
-import { motion, AnimatePresence } from 'motion/react';
+import { AnimatePresence, motion } from 'motion/react';
 
 import { cn } from '@/lib/utils';
 
@@ -11,8 +11,8 @@ interface ChatStatusIndicatorProps {
 }
 
 export function ChatStatusIndicator({
-  isExpanded = false,
   hasUnreadMessages = false,
+  isExpanded = false,
   unreadCount = 0,
 }: ChatStatusIndicatorProps) {
   return (

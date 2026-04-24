@@ -1,11 +1,10 @@
 'use client';
 
-import { Trash2, Loader2 } from 'lucide-react';
-import { useState, useEffect } from 'react';
-import { isAddress } from 'viem';
+import { Loader2, Trash2 } from 'lucide-react';
+import { useEffect, useState } from 'react';
 
-import type { ValidatorItem } from '@/hooks/use-validator-input';
 import type React from 'react';
+import { isAddress } from 'viem';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -23,10 +22,11 @@ import { ValidatorInput } from '@/components/validators/cluster-form/validator-i
 import {
   useCluster,
   useCreateCluster,
-  useUpdateCluster,
   useDeleteCluster,
+  useUpdateCluster,
 } from '@/hooks/use-clusters';
 import { useToast } from '@/hooks/use-toast';
+import type { ValidatorItem } from '@/hooks/use-validator-input';
 
 interface ClusterFormProps {
   /** Cluster ID for edit mode, null for create mode */
@@ -36,7 +36,7 @@ interface ClusterFormProps {
   onDeleted?: () => void;
 }
 
-export default function ClusterForm({ clusterId, onClose, onSaved, onDeleted }: ClusterFormProps) {
+export default function ClusterForm({ clusterId, onClose, onDeleted, onSaved }: ClusterFormProps) {
   const { toast } = useToast();
 
   // Fetch full cluster details when in edit mode

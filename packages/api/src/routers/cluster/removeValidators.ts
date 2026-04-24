@@ -21,7 +21,7 @@ export const removeValidators = securedProcedure
   .route({ method: 'DELETE', path: '/clusters/{id}/validators' })
   .input(ClusterIdParamSchema.merge(RemoveValidatorsInputSchema))
   .output(ApiResponseSchema(RemoveValidatorsResponseSchema))
-  .handler(async ({ input, context }) => {
+  .handler(async ({ context, input }) => {
     try {
       const storage = new ClusterStorage();
       const ownershipError = await requireOwnedCluster(storage, input.id, context.user);

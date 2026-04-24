@@ -8,13 +8,13 @@ import { ReliableRequestClient } from '@/src/services/consensus/utils/reliableRe
  */
 export class TestReliableClient extends ReliableRequestClient {
   constructor({
-    fullNodeConcurrency,
     archiveNodeConcurrency,
-    fullNodeUrl,
+    archiveNodeRetries = 5,
     archiveNodeUrl,
     baseDelay,
+    fullNodeConcurrency,
     fullNodeRetries = 3,
-    archiveNodeRetries = 5,
+    fullNodeUrl,
   }: {
     fullNodeConcurrency: number;
     archiveNodeConcurrency: number;

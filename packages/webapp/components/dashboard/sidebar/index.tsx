@@ -42,7 +42,7 @@ function SidebarMenuButton(
 ) {
   // ignore isActive/asChild for this minimal stub
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const { isActive, asChild, ...rest } = props;
+  const { asChild, isActive, ...rest } = props;
   return <button type="button" {...rest} />;
 }
 function SidebarRail(props: React.HTMLAttributes<HTMLDivElement>) {
@@ -62,7 +62,7 @@ function PopoverContent(
   },
 ) {
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const { side, align, sideOffset, ...rest } = props;
+  const { align, side, sideOffset, ...rest } = props;
   return <div {...rest} />;
 }
 import AtomIcon from '@/components/icons/atom';

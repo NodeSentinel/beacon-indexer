@@ -49,13 +49,13 @@ export abstract class ReliableRequestClient {
   protected readonly archiveNodeRetries: number;
 
   constructor({
-    fullNodeUrl,
-    fullNodeConcurrency,
-    fullNodeRetries,
-    archiveNodeUrl,
     archiveNodeConcurrency,
     archiveNodeRetries,
+    archiveNodeUrl,
     baseDelay,
+    fullNodeConcurrency,
+    fullNodeRetries,
+    fullNodeUrl,
   }: {
     fullNodeUrl: string;
     fullNodeConcurrency: number;

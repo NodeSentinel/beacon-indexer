@@ -1,7 +1,7 @@
 import { BeaconTime } from '@beacon-indexer/beacon-utils/beaconTime';
 import { gnosisConfig } from '@beacon-indexer/beacon-utils/config/chain';
 import { PrismaClient } from '@beacon-indexer/db';
-import { describe, it, expect, afterAll, beforeAll, beforeEach } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
 import { ChainStatsController } from '@/src/services/consensus/controllers/chainStats.js';
 import { ChainStatsStorage } from '@/src/services/consensus/storage/chainStats.js';

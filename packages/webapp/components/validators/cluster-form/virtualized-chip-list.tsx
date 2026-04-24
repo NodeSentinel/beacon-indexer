@@ -10,7 +10,7 @@ interface ChipListProps {
   maxHeight: number;
 }
 
-export function VirtualizedChipList({ validators, onRemoveValidator, maxHeight }: ChipListProps) {
+export function VirtualizedChipList({ maxHeight, onRemoveValidator, validators }: ChipListProps) {
   return (
     <div className="overflow-y-auto pr-2" style={{ maxHeight }}>
       <div

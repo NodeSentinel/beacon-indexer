@@ -3,9 +3,9 @@ import { gnosisConfig } from '@beacon-indexer/beacon-utils/config/chain';
 import { PrismaClient } from '@beacon-indexer/db';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { ValidatorActivityStatusController } from '@/src/services/consensus/controllers/validatorActivityStatus.js';
 import type { SlotStorage } from '@/src/services/consensus/storage/slot.js';
 
-import { ValidatorActivityStatusController } from '@/src/services/consensus/controllers/validatorActivityStatus.js';
 import { ValidatorActivityStatusStorage } from '@/src/services/consensus/storage/validatorActivityStatus.js';
 
 // This suite verifies the fast validator activity updater against a real database.

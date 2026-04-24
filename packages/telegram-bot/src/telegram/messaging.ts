@@ -1,5 +1,5 @@
-import type { Logger } from '@/src/logger.js';
 import type { Api, RawApi } from 'grammy';
+import type { Logger } from '@/src/logger.js';
 
 import { handleTelegramRequest } from '@/src/telegram/request.js';
 
@@ -28,10 +28,10 @@ interface EditMessageParams {
 export async function sendMessage({
   api,
   chatId,
-  telegramId,
-  text,
   logger,
   options,
+  telegramId,
+  text,
 }: SendMessageBaseParams): Promise<number | null> {
   const result = await handleTelegramRequest({
     logger,
@@ -47,11 +47,11 @@ export async function sendMessage({
 export async function editMessage({
   api,
   chatId,
+  logger,
   messageId,
+  options,
   telegramId,
   text,
-  logger,
-  options,
 }: EditMessageParams): Promise<boolean> {
   const result = await handleTelegramRequest({
     logger,

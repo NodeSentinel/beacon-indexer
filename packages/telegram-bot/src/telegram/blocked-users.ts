@@ -1,6 +1,5 @@
-import type { Logger } from '@/src/logger.js';
-
 import { getRpcClientForUser } from '@/src/api/client.js';
+import type { Logger } from '@/src/logger.js';
 
 export async function handleBlockedUser(telegramId: string, logger: Logger): Promise<void> {
   logger.info({ telegramId }, 'User has blocked the bot, marking as blocked');

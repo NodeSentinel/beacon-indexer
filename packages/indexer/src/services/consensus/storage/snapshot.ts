@@ -112,7 +112,7 @@ export class SnapshotStorage {
    * Update h performance metrics from raw committee and epoch_rewards tables.
    */
   async updatePerformanceH(params: UpdatePerformanceHParams): Promise<void> {
-    const { minSlot, maxSlot, minEpoch, maxEpoch, maxAttestationDelay, validatorIndexes } = params;
+    const { maxAttestationDelay, maxEpoch, maxSlot, minEpoch, minSlot, validatorIndexes } = params;
 
     await this.insertMissingPerformanceRows(validatorIndexes);
 
@@ -229,7 +229,7 @@ export class SnapshotStorage {
    * Chain params are needed to convert timestamps to slot/epoch ranges in SQL.
    */
   async updatePerformanceD(params: UpdatePerformanceDParams): Promise<void> {
-    const { genesisTimeSec, secPerSlot, slotsPerEpoch, maxAttestationDelay, validatorIndexes } =
+    const { genesisTimeSec, maxAttestationDelay, secPerSlot, slotsPerEpoch, validatorIndexes } =
       params;
 
     await this.insertMissingPerformanceRows(validatorIndexes);

@@ -1,4 +1,4 @@
-import type { ChatData, ChatConversation, ChatUser } from '@/types/chat';
+import type { ChatConversation, ChatData, ChatUser } from '@/types/chat';
 
 // Current user (JOYBOY based on the screenshot)
 const currentUser: ChatUser = {

@@ -1,9 +1,8 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { buildIncidentNotificationSendOptions } from '../telegram/incident-notification-options.js';
-
 import type { InlineKeyboardMarkup } from 'grammy/types';
+import { buildIncidentNotificationSendOptions } from '../telegram/incident-notification-options.js';
 
 /** Gets the inline keyboard from send options for assertions. */
 function getInlineKeyboardMarkup(): InlineKeyboardMarkup {

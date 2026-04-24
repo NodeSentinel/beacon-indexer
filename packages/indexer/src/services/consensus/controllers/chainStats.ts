@@ -15,7 +15,7 @@ export class ChainStatsController {
       return { epoch, skipped: true };
     }
 
-    const { startSlot, endSlot } = this.beaconTime.getEpochSlots(epoch);
+    const { endSlot, startSlot } = this.beaconTime.getEpochSlots(epoch);
 
     await this.storage.insertChainEpochStats(
       epoch,

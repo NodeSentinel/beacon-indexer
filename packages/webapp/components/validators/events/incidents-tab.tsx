@@ -6,13 +6,12 @@ import { useEffect, useState } from 'react';
 import { EmptyStateTab } from './empty-state-tab';
 import { EventsTabPagination } from './events-tab-pagination';
 
-import type { ClusterIncident } from '@/hooks/use-cluster-incidents';
-
 import ArrowRight from '@/components/icons/arrow-right';
 import { Badge } from '@/components/ui/badge';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { env } from '@/env';
 import { useChainStats } from '@/hooks/use-chain-stats';
+import type { ClusterIncident } from '@/hooks/use-cluster-incidents';
 import { useClusterIncidents } from '@/hooks/use-cluster-incidents';
 import { useIncidentAffectedValidators } from '@/hooks/use-incident-affected-validators';
 import {
@@ -67,8 +66,8 @@ export function IncidentsTab({ clusterId, isActive }: IncidentsTabProps) {
   const { data: chainStats } = useChainStats();
   const {
     data: incidentsData,
-    isLoading,
     error,
+    isLoading,
   } = useClusterIncidents(clusterId, incidentsPage, isActive);
   const totalIncidentPages = incidentsData
     ? Math.ceil(incidentsData.totalCount / incidentsData.pageSize)
@@ -130,8 +129,8 @@ function IncidentItem({ incident, tokenPrice, tokenSymbol }: IncidentItemProps) 
   const [isOpen, setIsOpen] = useState(false);
   const {
     data: validatorsData,
-    isLoading,
     error,
+    isLoading,
   } = useIncidentAffectedValidators(incident.id, 1, isOpen);
 
   return (
@@ -204,9 +203,9 @@ function IncidentSummary({ incident, tokenPrice }: IncidentSummaryProps) {
 
 /** Renders static incident metadata. */
 function IncidentDetails({
+  errorMessage,
   incident,
   isLoading,
-  errorMessage,
   tokenPrice,
   tokenSymbol,
   validatorsAffected,
@@ -288,8 +287,8 @@ function IncidentRewards({ incident, tokenPrice, tokenSymbol }: IncidentRewardsP
 
 /** Renders the lazy-loaded affected validators count. */
 function AffectedValidatorsCount({
-  isLoading,
   errorMessage,
+  isLoading,
   validatorsAffected,
 }: AffectedValidatorsCountProps) {
   if (isLoading) {

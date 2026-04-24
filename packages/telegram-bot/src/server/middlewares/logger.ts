@@ -1,5 +1,5 @@
-import type { Logger } from '@/src/logger.js';
 import type { MiddlewareHandler } from 'hono';
+import type { Logger } from '@/src/logger.js';
 
 export function setLogger(logger: Logger): MiddlewareHandler {
   return async (c, next) => {

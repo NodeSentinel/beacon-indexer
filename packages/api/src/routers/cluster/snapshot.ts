@@ -15,7 +15,7 @@ export const getClusterSnapshot = securedProcedure
   .route({ method: 'GET', path: '/clusters/{id}/snapshot' })
   .input(ClusterIdParamSchema)
   .output(ApiResponseSchema(ClusterSnapshotSchema))
-  .handler(async ({ input, context }) => {
+  .handler(async ({ context, input }) => {
     try {
       const storage = new ClusterStorage();
       const ownershipError = await requireOwnedCluster(storage, input.id, context.user);

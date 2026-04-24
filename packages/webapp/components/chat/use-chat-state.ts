@@ -1,8 +1,7 @@
 import { create } from 'zustand';
 
-import type { ChatState, ChatMessage, ChatConversation } from '@/types/chat';
-
 import { mockChatData } from '@/data/chat-mock';
+import type { ChatConversation, ChatMessage, ChatState } from '@/types/chat';
 
 type ChatComponentState = {
   state: ChatState;
@@ -41,7 +40,7 @@ const chatStore = create<ChatStore>((set, get) => ({
   setNewMessage: (newMessage) => set({ newMessage }),
 
   handleSendMessage: () => {
-    const { newMessage, conversations, chatState } = get();
+    const { chatState, conversations, newMessage } = get();
     const activeConv = conversations.find((conv) => conv.id === chatState.activeConversation);
 
     if (!newMessage.trim() || !activeConv) return;

@@ -1,6 +1,6 @@
 'use client';
 
-import { Users, Coins, ArrowUpCircle, ArrowDownCircle } from 'lucide-react';
+import { ArrowDownCircle, ArrowUpCircle, Coins, Users } from 'lucide-react';
 
 import type { LucideIcon } from 'lucide-react';
 
@@ -21,12 +21,12 @@ interface StatCardProps {
 
 function StatCard({
   icon: Icon,
-  iconColor,
   iconBg,
+  iconColor,
   label,
-  value,
-  suffix,
   subValue,
+  suffix,
+  value,
 }: StatCardProps) {
   return (
     <div className="border border-border/60 rounded-lg p-2.5 md:p-3.5">

@@ -2,8 +2,6 @@
 
 import { useState } from 'react';
 
-import type { ValidatorEvent, Validator } from '@/types/validator';
-
 import DashboardCard from '@/components/dashboard/card';
 import ArrowRight from '@/components/icons/arrow-right';
 import { Badge } from '@/components/ui/badge';
@@ -16,6 +14,7 @@ import {
 } from '@/components/underline-tabs';
 import { cn } from '@/lib/utils';
 import { formatTime } from '@/lib/utils'; // Import formatTime function
+import type { Validator, ValidatorEvent } from '@/types/validator';
 
 interface EventsFeedProps {
   events: ValidatorEvent[];
@@ -23,7 +22,7 @@ interface EventsFeedProps {
   gnoPrice: number;
 }
 
-export default function EventsFeed({ events, validators: _validators, gnoPrice }: EventsFeedProps) {
+export default function EventsFeed({ events, gnoPrice, validators: _validators }: EventsFeedProps) {
   const incidentEvents = events.filter((e) => e.type === 'inactive' || e.type === 'slashed');
 
   // Group incidents by timestamp and type for display

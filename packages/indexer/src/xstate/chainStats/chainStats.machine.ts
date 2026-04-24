@@ -1,4 +1,4 @@
-import { setup, fromPromise } from 'xstate';
+import { fromPromise, setup } from 'xstate';
 
 import { ChainStatsController } from '@/src/services/consensus/controllers/chainStats.js';
 import { pinoLog } from '@/src/xstate/pinoLog.js';

@@ -1,9 +1,7 @@
 'use client';
 
 import * as React from 'react';
-import { XAxis, YAxis, CartesianGrid, Area, AreaChart } from 'recharts';
-
-import type { MockData, TimePeriod } from '@/types/dashboard';
+import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from 'recharts';
 
 import { Bullet } from '@/components/ui/bullet';
 import {
@@ -14,6 +12,7 @@ import {
 } from '@/components/ui/chart';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import mockDataJson from '@/mock.json';
+import type { MockData, TimePeriod } from '@/types/dashboard';
 
 const mockData = mockDataJson as MockData;
 
@@ -180,7 +179,7 @@ export default function DashboardChart() {
   );
 }
 
-export const ChartLegend = ({ label, color }: { label: string; color: string }) => {
+export const ChartLegend = ({ color, label }: { label: string; color: string }) => {
   return (
     <div className="flex items-center gap-2 uppercase">
       <Bullet style={{ backgroundColor: color }} className="rotate-45" />

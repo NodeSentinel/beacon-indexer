@@ -15,7 +15,7 @@ export const deleteCluster = securedProcedure
   .route({ method: 'DELETE', path: '/clusters/{id}' })
   .input(ClusterIdParamSchema)
   .output(ApiResponseSchema(z.object({ deleted: z.boolean() })))
-  .handler(async ({ input, context }) => {
+  .handler(async ({ context, input }) => {
     try {
       const storage = new ClusterStorage();
       const ownershipError = await requireOwnedCluster(storage, input.id, context.user);

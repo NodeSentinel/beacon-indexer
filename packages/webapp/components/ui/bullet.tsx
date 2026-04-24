@@ -27,6 +27,6 @@ export interface BulletProps
   extends VariantProps<typeof bulletVariants>,
     HTMLAttributes<HTMLDivElement> {}
 
-export const Bullet = ({ variant, size, className, ...props }: BulletProps) => {
+export const Bullet = ({ className, size, variant, ...props }: BulletProps) => {
   return <div className={cn(bulletVariants({ variant, size }), className)} {...props}></div>;
 };

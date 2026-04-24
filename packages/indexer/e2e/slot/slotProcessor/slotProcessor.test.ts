@@ -1,7 +1,7 @@
 import { BeaconTime } from '@beacon-indexer/beacon-utils/beaconTime';
 import { gnosisConfig } from '@beacon-indexer/beacon-utils/config/chain';
 import { PrismaClient } from '@beacon-indexer/db';
-import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 // Import mock data
 import validatorsData from '../../epoch/epochProcessor/mocks/validators.json' with { type: 'json' };
@@ -22,7 +22,7 @@ import { EpochStorage } from '@/src/services/consensus/storage/epoch.js';
 import { PartitionStorage } from '@/src/services/consensus/storage/partition.js';
 import { SlotStorage } from '@/src/services/consensus/storage/slot.js';
 import { ValidatorsStorage } from '@/src/services/consensus/storage/validators.js';
-import { GetCommittees, GetValidators, Block } from '@/src/services/consensus/types.js';
+import { Block, GetCommittees, GetValidators } from '@/src/services/consensus/types.js';
 import { ExecutionClient } from '@/src/services/execution/execution.js';
 
 /**

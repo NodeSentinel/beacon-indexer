@@ -3,9 +3,8 @@
 import { VirtualizedChipList } from './virtualized-chip-list';
 import { WithdrawalAddressCard } from './withdrawal-address-card';
 
-import type { ValidatorItem } from '@/hooks/use-validator-input';
-
 import { Label } from '@/components/ui/label';
+import type { ValidatorItem } from '@/hooks/use-validator-input';
 
 interface ValidatorsListProps {
   validators: ValidatorItem[];
@@ -19,14 +18,14 @@ interface ValidatorsListProps {
 }
 
 export function ValidatorsList({
-  validators,
   allWithdrawalAddresses,
-  validatorsByAddress,
-  missingValidatorsByAddress,
   isEditMode: _isEditMode,
-  onRemoveValidator,
-  onRemoveByWithdrawal,
+  missingValidatorsByAddress,
   onAddMissingValidators,
+  onRemoveByWithdrawal,
+  onRemoveValidator,
+  validators,
+  validatorsByAddress,
 }: ValidatorsListProps) {
   if (validators.length === 0) {
     return null;

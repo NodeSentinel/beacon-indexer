@@ -1,6 +1,5 @@
-import { ValidatorActivityStatusStorage } from '../storage/validatorActivityStatus.js';
-
 import type { SlotStorage } from '../storage/slot.js';
+import { ValidatorActivityStatusStorage } from '../storage/validatorActivityStatus.js';
 
 import createLogger from '@/src/lib/pino.js';
 

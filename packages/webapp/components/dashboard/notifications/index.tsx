@@ -5,12 +5,11 @@ import React, { useState } from 'react';
 
 import NotificationItem from './notification-item';
 
-import type { Notification } from '@/types/dashboard';
-
 import { Badge } from '@/components/ui/badge';
 import { Bullet } from '@/components/ui/bullet';
 import { Button } from '@/components/ui/button';
-import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import type { Notification } from '@/types/dashboard';
 
 interface NotificationsProps {
   initialNotifications: Notification[];

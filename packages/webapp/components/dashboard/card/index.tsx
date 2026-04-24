@@ -1,7 +1,7 @@
 import type React from 'react';
 
 import { Bullet } from '@/components/ui/bullet';
-import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 
 interface DashboardCardProps extends Omit<React.ComponentProps<typeof Card>, 'title'> {
   title: React.ReactNode;
@@ -12,12 +12,12 @@ interface DashboardCardProps extends Omit<React.ComponentProps<typeof Card>, 'ti
 }
 
 export default function DashboardCard({
-  title,
-  addon,
   action,
-  intent = 'default',
+  addon,
   children,
   className,
+  intent = 'default',
+  title,
   ...props
 }: DashboardCardProps) {
   return (

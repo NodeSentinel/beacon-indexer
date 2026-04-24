@@ -1,11 +1,11 @@
 import { VALIDATOR_STATUS } from '@beacon-indexer/beacon-utils';
 
 import type {
-  ValidatorDetails,
-  ValidatorInfo,
+  Attestation,
   Epoch,
   Slot,
-  Attestation,
+  ValidatorDetails,
+  ValidatorInfo,
 } from '@/routers/validator/schemas.js';
 
 import { ValidatorStorage } from '@/storage/validator.js';

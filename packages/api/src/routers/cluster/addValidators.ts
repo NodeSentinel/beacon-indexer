@@ -21,7 +21,7 @@ export const addValidators = securedProcedure
   .route({ method: 'POST', path: '/clusters/{id}/validators' })
   .input(ClusterIdParamSchema.merge(AddValidatorsInputSchema))
   .output(ApiResponseSchema(AddValidatorsResponseSchema))
-  .handler(async ({ input, context }) => {
+  .handler(async ({ context, input }) => {
     try {
       const storage = new ClusterStorage();
       let validatorIndexes: number[];

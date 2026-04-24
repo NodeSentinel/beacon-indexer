@@ -1,6 +1,6 @@
 import { BeaconTime } from '@beacon-indexer/beacon-utils/beaconTime';
 import ms from 'ms';
-import { test, expect, vi, beforeEach, afterEach, describe } from 'vitest';
+import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 
 import {
   createAndStartActor,
@@ -59,7 +59,7 @@ const mockSlotController = {} as unknown as SlotController;
 // Mock that waits for COMPLETE_SLOTS event, then sends SLOTS_COMPLETED to parent
 const mockSlotOrchestratorMachine = vi.hoisted(() => {
   // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const { setup, sendParent } = require('xstate');
+  const { sendParent, setup } = require('xstate');
 
   return setup({
     actions: {
@@ -863,7 +863,7 @@ describe('epochProcessorMachine', () => {
       // Create a parent machine that spawns the epochProcessorMachine
       // This allows us to test sendParent behavior
       // eslint-disable-next-line @typescript-eslint/no-require-imports
-      const { setup, createActor } = require('xstate');
+      const { createActor, setup } = require('xstate');
 
       let receivedEpochCompleted = false;
       let completedMachineId = '';

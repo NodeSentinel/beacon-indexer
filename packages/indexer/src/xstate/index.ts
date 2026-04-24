@@ -1,3 +1,4 @@
+import type { Chain } from '@beacon-indexer/beacon-utils';
 import { BeaconTime } from '@beacon-indexer/beacon-utils/beaconTime';
 
 import {
@@ -11,8 +12,6 @@ import { getIncidentRewardsActor } from './incidentRewards/index.js';
 import { getLagAlertingActor } from './lagAlerting/index.js';
 import { getSnapshotActor } from './snapshot/index.js';
 import { getValidatorActivityStatusActor } from './validatorActivityStatus/index.js';
-
-import type { Chain } from '@beacon-indexer/beacon-utils';
 
 import { ChainStatsController } from '@/src/services/consensus/controllers/chainStats.js';
 import { DailyArchiveController } from '@/src/services/consensus/controllers/dailyArchive.js';

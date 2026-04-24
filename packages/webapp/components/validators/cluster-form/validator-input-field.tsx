@@ -1,6 +1,6 @@
 'use client';
 
-import { Check, X, Loader2, HelpCircle } from 'lucide-react';
+import { Check, HelpCircle, Loader2, X } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import {
@@ -13,7 +13,7 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { TooltipContent, TooltipTrigger, Tooltip, TooltipProvider } from '@/components/ui/tooltip';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 type ValidationState = 'idle' | 'validating' | 'valid' | 'invalid';
 
@@ -56,8 +56,8 @@ function HelpContent() {
 
 function HelpButton({
   isMobile,
-  open,
   onOpenChange,
+  open,
 }: {
   isMobile: boolean;
   open: boolean;
@@ -108,16 +108,16 @@ function HelpButton({
 }
 
 export function ValidatorInputField({
-  inputValue,
-  validationState,
   errorMessage,
-  isSearching,
-  isMobile,
   helpDialogOpen,
+  inputValue,
+  isMobile,
+  isSearching,
+  onAdd,
   onHelpDialogChange,
   onInputChange,
   onKeyDown,
-  onAdd,
+  validationState,
 }: ValidatorInputFieldProps) {
   const isLoading = validationState === 'validating' || isSearching;
 

@@ -1,13 +1,13 @@
 import { BeaconTime } from '@beacon-indexer/beacon-utils/beaconTime';
 import {
-  setup,
-  assign,
-  stopChild,
-  spawnChild,
-  sendTo,
-  fromPromise,
-  and,
   ActorRefFrom,
+  and,
+  assign,
+  fromPromise,
+  sendTo,
+  setup,
+  spawnChild,
+  stopChild,
 } from 'xstate';
 
 import { dailyArchiveMachine } from '../archive/dailyArchive.machine.js';

@@ -2,9 +2,8 @@ import Image from 'next/image';
 
 import { formatDate } from './utils';
 
-import type { ChatConversation, ChatUser } from '@/types/chat';
-
 import { Badge } from '@/components/ui/badge';
+import type { ChatConversation, ChatUser } from '@/types/chat';
 
 interface ChatContactProps {
   conversation: ChatConversation;
@@ -14,8 +13,8 @@ interface ChatContactProps {
 
 export default function ChatContact({
   conversation,
-  otherUser,
   onOpenConversation,
+  otherUser,
 }: ChatContactProps) {
   return (
     <div

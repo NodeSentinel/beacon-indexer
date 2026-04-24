@@ -26,12 +26,12 @@ const FAILURE_MESSAGES: Record<TelegramMethod, string> = {
 };
 
 export async function handleTelegramRequest<TResponse>({
+  chatId,
+  logContext = {},
   logger,
   method,
-  chatId,
-  telegramId,
   request,
-  logContext = {},
+  telegramId,
   treatSameMessageAsSuccess = false,
 }: TelegramRequestOptions<TResponse>): Promise<TelegramRequestResult<TResponse>> {
   try {

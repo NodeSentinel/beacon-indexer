@@ -1,6 +1,6 @@
 import { BeaconTime } from '@beacon-indexer/beacon-utils/beaconTime';
 import { PrismaClient } from '@beacon-indexer/db';
-import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
 import { BeaconClient } from '@/src/services/consensus/beacon.js';
 import { EpochController } from '@/src/services/consensus/controllers/epoch.js';

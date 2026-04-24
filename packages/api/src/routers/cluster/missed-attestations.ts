@@ -1,8 +1,8 @@
 import {
-  MissedAttestationsInputSchema,
   MissedAttestationsAllInputSchema,
-  MissedAttestationsValidatorInputSchema,
+  MissedAttestationsInputSchema,
   MissedAttestationsResponseSchema,
+  MissedAttestationsValidatorInputSchema,
 } from './analytics-schemas.js';
 import { requireOwnedCluster } from './ownership.js';
 
@@ -72,7 +72,7 @@ export const getClusterMissedAttestations = securedProcedure
   .route({ method: 'GET', path: '/clusters/{id}/analytics/missed-attestations' })
   .input(MissedAttestationsInputSchema)
   .output(ApiResponseSchema(MissedAttestationsResponseSchema))
-  .handler(async ({ input, context }) => {
+  .handler(async ({ context, input }) => {
     const ownershipError = await requireOwnedCluster(clusterStorage, input.id, context.user);
     if (ownershipError) {
       return ownershipError;
@@ -91,7 +91,7 @@ export const getAllClustersMissedAttestations = securedProcedure
   .route({ method: 'GET', path: '/clusters/all/analytics/missed-attestations' })
   .input(MissedAttestationsAllInputSchema)
   .output(ApiResponseSchema(MissedAttestationsResponseSchema))
-  .handler(async ({ input, context }) => {
+  .handler(async ({ context, input }) => {
     // Require a resolved user so missed attestation aggregation stays scoped to one owner.
     if (!context.user) {
       return {

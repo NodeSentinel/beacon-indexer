@@ -4,10 +4,10 @@ import process from 'node:process';
 
 import { run } from '@grammyjs/runner';
 
-import type { PollingConfig, WebhookConfig } from '@/src/config.js';
 import type { RunnerHandle } from '@grammyjs/runner';
 
 import { createBot } from '@/src/bot/index.js';
+import type { PollingConfig, WebhookConfig } from '@/src/config.js';
 import { config } from '@/src/config.js';
 import { logger } from '@/src/logger.js';
 import { startScheduler } from '@/src/scheduler/index.js';

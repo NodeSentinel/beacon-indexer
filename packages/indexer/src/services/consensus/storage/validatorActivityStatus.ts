@@ -294,7 +294,7 @@ export class ValidatorActivityStatusStorage {
 
   /** Replays mature duty slots and keeps snapshots and incidents up to date. */
   async syncCurrentActivityStatus(params: SyncCurrentActivityStatusParams): Promise<void> {
-    const { newestEvaluableDutySlot, inactiveMissedCount, maxAttestationDelay } = params;
+    const { inactiveMissedCount, maxAttestationDelay, newestEvaluableDutySlot } = params;
 
     // Gets how many slots we need to look back.
     const slotsToLookBack = getActivityLookbackSlots(this.slotsPerEpoch, inactiveMissedCount);

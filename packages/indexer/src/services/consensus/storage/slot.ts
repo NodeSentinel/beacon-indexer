@@ -1,4 +1,4 @@
-import { PrismaClient, Prisma } from '@beacon-indexer/db';
+import { Prisma, PrismaClient } from '@beacon-indexer/db';
 import chunk from 'lodash/chunk.js';
 import ms from 'ms';
 

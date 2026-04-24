@@ -1,7 +1,7 @@
 import { performance } from 'node:perf_hooks';
 
-import type { Context } from '@/src/bot/context.js';
 import type { Middleware } from 'grammy';
+import type { Context } from '@/src/bot/context.js';
 
 import { getUpdateInfo } from '@/src/bot/helpers/logging.js';
 

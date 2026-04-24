@@ -7,7 +7,7 @@ import { type PropsWithChildren, useEffect, useState } from 'react';
 import { BackButtonBinder } from './BackButtonBinder';
 
 import { initializeAnonymousAuth, initializeTelegramAuth } from '@/lib/auth-session';
-import { shouldMockTelegram, setupTelegramMock } from '@/lib/mockTelegramEnv';
+import { setupTelegramMock, shouldMockTelegram } from '@/lib/mockTelegramEnv';
 
 /**
  * Mount viewport, expand to full height, and bind CSS variables

@@ -1,6 +1,6 @@
 'use client';
 
-import { User, Copy, Check, ExternalLink } from 'lucide-react';
+import { Check, Copy, ExternalLink, User } from 'lucide-react';
 import { useState } from 'react';
 
 import DashboardCard from '@/components/dashboard/card';

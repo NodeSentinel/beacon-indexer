@@ -1,8 +1,7 @@
 import { RateLimiterMemory, RateLimiterQueue } from 'rate-limiter-flexible';
 
-import type { Logger } from '@/src/logger.js';
-
 import { config } from '@/src/config.js';
+import type { Logger } from '@/src/logger.js';
 
 export type TelegramMethod = 'sendMessage' | 'editMessageText';
 

@@ -15,9 +15,9 @@ import {
 } from './notifications.js';
 import {
   listBotUsers,
-  updateBotUserMessageId,
   setBotUserBlocked,
   setBotUserUnblocked,
+  updateBotUserMessageId,
 } from './users.js';
 
 export const botRouter = {

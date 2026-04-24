@@ -1,9 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Tooltip } from 'recharts';
-
-import type { MissedAttestation } from '@/types/validator';
+import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 
 import DashboardCard from '@/components/dashboard/card';
 import { ChartContainer } from '@/components/ui/chart';
@@ -20,6 +18,7 @@ import {
   UnderlineTabsList,
   UnderlineTabsTrigger,
 } from '@/components/underline-tabs';
+import type { MissedAttestation } from '@/types/validator';
 
 interface AnalyticsProps {
   data: MissedAttestation[];

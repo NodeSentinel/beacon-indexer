@@ -17,7 +17,7 @@
  */
 
 import ms from 'ms';
-import { setup, assign, sendParent, fromPromise } from 'xstate';
+import { assign, fromPromise, sendParent, setup } from 'xstate';
 
 import { SlotController } from '@/src/services/consensus/controllers/slot.js';
 import { Block } from '@/src/services/consensus/types.js';
@@ -130,7 +130,7 @@ export const slotProcessorMachine = setup({
           block: Block;
         };
       }) => {
-        const { slotController, slot, block } = input;
+        const { block, slot, slotController } = input;
         const body = block.data.message.body;
 
         await slotController.processEpWithdrawals(slot, body.execution_payload?.withdrawals || []);
@@ -245,7 +245,7 @@ export const slotProcessorMachine = setup({
         onDone: {
           target: 'checkingForMissedSlot',
           actions: assign({
-            beaconBlockData: ({ event, context }) => ({
+            beaconBlockData: ({ context, event }) => ({
               ...context.beaconBlockData,
               rawData: event.output,
             }),

@@ -2,10 +2,9 @@ import Image from 'next/image';
 
 import { formatDate } from './utils';
 
-import type { ChatConversation } from '@/types/chat';
-
 import { mockChatData } from '@/data/chat-mock';
 import { cn } from '@/lib/utils';
+import type { ChatConversation } from '@/types/chat';
 
 interface ChatPreviewProps {
   conversation: ChatConversation;

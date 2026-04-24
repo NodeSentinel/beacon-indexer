@@ -3,14 +3,14 @@ import axios, { AxiosError, AxiosInstance, InternalAxiosRequestConfig } from 'ax
 import { logError, logRequest, logResponse } from '@/src/lib/httpPino.js';
 import {
   AttestationRewards,
+  Block,
   BlockRewards,
   GetAttestations,
   GetCommittees,
+  GetSyncCommittees,
   GetValidators,
   GetValidatorsBalances,
   SyncCommitteeRewards,
-  GetSyncCommittees,
-  Block,
   ValidatorProposerDuties,
 } from '@/src/services/consensus/types.js';
 import { getEpochSlots } from '@/src/services/consensus/utils/misc.js';
@@ -115,7 +115,7 @@ export class BeaconClient extends ReliableRequestClient {
   /**
    * Check if indexer is delayed for priority selection
    */
-  private isIndexerDelayed({ value, type }: { value: number; type: 'slot' | 'epoch' }): boolean {
+  private isIndexerDelayed({ type, value }: { value: number; type: 'slot' | 'epoch' }): boolean {
     let slot: number;
 
     if (type === 'epoch') {

@@ -1,7 +1,7 @@
 'use client';
 
 import { Plus, Server } from 'lucide-react';
-import { useState, useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
 import AnalyticsContent from './analytics-content';
 import ClusterOverviewContent from './cluster-overview-content';
@@ -10,13 +10,13 @@ import EventsFeedContent from './events';
 import { Button } from '@/components/ui/button';
 import {
   UnderlineTabs,
+  UnderlineTabsContent,
   UnderlineTabsList,
   UnderlineTabsTrigger,
-  UnderlineTabsContent,
 } from '@/components/underline-tabs';
 import { useCluster } from '@/hooks/use-clusters';
 import { toDetailedCluster } from '@/lib/cluster-adapter';
-import { CLUSTER_FILTER_ALL, type Cluster, type ClusterFilter } from '@/types/cluster';
+import { type Cluster, CLUSTER_FILTER_ALL, type ClusterFilter } from '@/types/cluster';
 
 interface UserDashboardProps {
   clusters: Cluster[];
@@ -60,12 +60,12 @@ function getAggregatedCluster(clusters: Cluster[]): Cluster {
 
 export default function UserDashboard({
   clusters,
+  hideAllTab = false,
   isLoading,
   onAddCluster,
-  onManageCluster,
-  hideAllTab = false,
-  selectedCluster: controlledSelectedCluster,
   onClusterChange,
+  onManageCluster,
+  selectedCluster: controlledSelectedCluster,
 }: UserDashboardProps) {
   // Internal state for uncontrolled mode
   const [internalSelectedCluster, setInternalSelectedCluster] =

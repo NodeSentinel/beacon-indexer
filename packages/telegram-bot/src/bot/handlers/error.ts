@@ -1,5 +1,5 @@
-import type { Context } from '@/src/bot/context.js';
 import type { ErrorHandler } from 'grammy';
+import type { Context } from '@/src/bot/context.js';
 
 import { getUpdateInfo } from '@/src/bot/helpers/logging.js';
 

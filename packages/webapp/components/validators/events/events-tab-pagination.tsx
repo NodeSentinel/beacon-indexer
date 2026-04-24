@@ -12,9 +12,9 @@ interface EventsTabPaginationProps {
 /** Renders the shared pager used by event tabs. */
 export function EventsTabPagination({
   currentPage,
-  totalPages,
-  onPreviousPage,
   onNextPage,
+  onPreviousPage,
+  totalPages,
 }: EventsTabPaginationProps) {
   return (
     <div className="flex items-center justify-between pt-3 border-t border-border/50">

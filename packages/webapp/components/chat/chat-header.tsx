@@ -1,6 +1,6 @@
 'use client';
 
-import { motion, AnimatePresence } from 'motion/react';
+import { AnimatePresence, motion } from 'motion/react';
 import React from 'react';
 
 import ArrowLeftIcon from '../icons/arrow-left';
@@ -24,13 +24,13 @@ interface ChatHeaderProps {
 }
 
 export function ChatHeader({
+  className,
+  onBackClick,
   onClick,
   showBackButton = false,
-  onBackClick,
   variant = 'desktop',
-  className,
 }: ChatHeaderProps) {
-  const { chatState, totalUnreadCount, activeConversation, goBack, toggleExpanded } =
+  const { activeConversation, chatState, goBack, toggleExpanded, totalUnreadCount } =
     useChatState();
 
   const isV0 = useIsV0();

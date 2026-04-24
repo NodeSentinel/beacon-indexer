@@ -1,11 +1,10 @@
 'use client';
 
+import type { router } from '@beacon-indexer/api/routers';
 import { createORPCClient } from '@orpc/client';
 import { RPCLink } from '@orpc/client/fetch';
-import { createTanstackQueryUtils } from '@orpc/tanstack-query';
-
-import type { router } from '@beacon-indexer/api/routers';
 import type { RouterClient } from '@orpc/server';
+import { createTanstackQueryUtils } from '@orpc/tanstack-query';
 
 import { env } from '@/env';
 import { getAuthHeaders } from '@/lib/auth-session';

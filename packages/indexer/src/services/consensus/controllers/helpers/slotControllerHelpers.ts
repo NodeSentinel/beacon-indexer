@@ -1,13 +1,13 @@
 import type {
-  SyncCommitteeRewards,
-  BlockRewards,
   Attestation,
+  BlockRewards,
+  SyncCommitteeRewards,
 } from '@/src/services/consensus/types.js';
 
 import {
-  convertVariableBitsToString,
   convertFixedBitsToString,
   convertHexStringToByteArray,
+  convertVariableBitsToString,
 } from '@/src/services/consensus/utils/bitlist.js';
 
 /**

@@ -1,6 +1,6 @@
 'use client';
 
-import { motion, AnimatePresence } from 'motion/react';
+import { AnimatePresence, motion } from 'motion/react';
 import React from 'react';
 
 import PlusIcon from '../icons/plus';
@@ -16,14 +16,14 @@ const CONTENT_HEIGHT = 420; // Height of expandable content
 
 export default function Chat() {
   const {
+    activeConversation,
     chatState,
     conversations,
-    newMessage,
-    setNewMessage,
-    activeConversation,
-    handleSendMessage,
-    openConversation,
     goBack,
+    handleSendMessage,
+    newMessage,
+    openConversation,
+    setNewMessage,
     toggleExpanded,
   } = useChatState();
 

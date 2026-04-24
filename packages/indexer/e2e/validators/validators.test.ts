@@ -5,14 +5,14 @@ import { BeaconTime } from '@beacon-indexer/beacon-utils/beaconTime';
 import { gnosisConfig } from '@beacon-indexer/beacon-utils/config/chain';
 import { PrismaClient } from '@beacon-indexer/db';
 import {
-  describe,
-  it,
-  expect,
-  beforeAll,
   afterAll,
+  beforeAll,
   beforeEach,
-  vi,
+  describe,
+  expect,
+  it,
   type MockedFunction,
+  vi,
 } from 'vitest';
 
 import { BeaconClient } from '@/src/services/consensus/beacon.js';

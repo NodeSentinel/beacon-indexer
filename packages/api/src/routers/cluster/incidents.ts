@@ -80,7 +80,7 @@ export const listClusterIncidents = securedProcedure
   .route({ method: 'GET', path: '/clusters/{id}/incidents' })
   .input(ClusterIncidentsInputSchema)
   .output(ClusterIncidentsApiResponseSchema)
-  .handler(async ({ input, context }) => {
+  .handler(async ({ context, input }) => {
     if (!context.user) {
       return missingUserResponse();
     }
@@ -164,7 +164,7 @@ export const markClusterIncidentOpenedNotified = securedProcedure
   .route({ method: 'POST', path: '/clusters/{id}/incidents/opened-notified' })
   .input(ClusterIncidentsInputSchema.pick({ id: true }))
   .output(ClusterIncidentNotificationApiResponseSchema)
-  .handler(async ({ input, context }) => {
+  .handler(async ({ context, input }) => {
     if (!context.user) {
       return missingNotificationUserResponse();
     }
@@ -216,7 +216,7 @@ export const markClusterIncidentClosedNotified = securedProcedure
   .route({ method: 'POST', path: '/clusters/incidents/{incidentId}/closed-notified' })
   .input(ClusterIncidentIdParamSchema)
   .output(ClusterIncidentNotificationApiResponseSchema)
-  .handler(async ({ input, context }) => {
+  .handler(async ({ context, input }) => {
     if (!context.user) {
       return missingNotificationUserResponse();
     }
@@ -286,7 +286,7 @@ export const listIncidentAffectedValidators = securedProcedure
   .route({ method: 'GET', path: '/clusters/incidents/{incidentId}/affected-validators' })
   .input(ClusterIncidentAffectedValidatorsInputSchema)
   .output(ClusterIncidentAffectedValidatorsApiResponseSchema)
-  .handler(async ({ input, context }) => {
+  .handler(async ({ context, input }) => {
     if (!context.user) {
       return missingValidatorsUserResponse();
     }

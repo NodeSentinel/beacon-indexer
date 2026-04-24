@@ -1,7 +1,7 @@
 import { BeaconTime } from '@beacon-indexer/beacon-utils/beaconTime';
 import ms from 'ms';
 
-import { env, chainConfig } from '@/src/lib/env.js';
+import { chainConfig, env } from '@/src/lib/env.js';
 import createLogger from '@/src/lib/pino.js';
 import { getPrisma } from '@/src/lib/prisma.js';
 import { BeaconClient } from '@/src/services/consensus/beacon.js';

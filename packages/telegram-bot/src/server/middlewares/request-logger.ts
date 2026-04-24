@@ -1,6 +1,5 @@
-import { getPath } from 'hono/utils/url';
-
 import type { MiddlewareHandler } from 'hono';
+import { getPath } from 'hono/utils/url';
 
 export function requestLogger(): MiddlewareHandler {
   return async (c, next) => {

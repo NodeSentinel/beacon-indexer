@@ -1,7 +1,7 @@
 import { BeaconTime } from '@beacon-indexer/beacon-utils/beaconTime';
 import { gnosisConfig } from '@beacon-indexer/beacon-utils/config/chain';
 import { PrismaClient } from '@beacon-indexer/db';
-import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
 import { getPartitionName } from '@/src/services/consensus/controllers/helpers/partitionNaming.js';
 import {

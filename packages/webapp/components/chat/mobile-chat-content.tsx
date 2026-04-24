@@ -1,6 +1,6 @@
 'use client';
 
-import { motion, AnimatePresence } from 'motion/react';
+import { AnimatePresence, motion } from 'motion/react';
 import React from 'react';
 
 import PlusIcon from '../icons/plus';
@@ -14,14 +14,14 @@ import { Button } from '@/components/ui/button';
 
 export function MobileChatContent() {
   const {
+    activeConversation,
     chatState,
     conversations,
-    newMessage,
-    setNewMessage,
-    activeConversation,
-    handleSendMessage,
-    openConversation,
     goBack,
+    handleSendMessage,
+    newMessage,
+    openConversation,
+    setNewMessage,
   } = useChatState();
 
   return (

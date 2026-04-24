@@ -1,5 +1,5 @@
 import { fromZonedTime } from 'date-fns-tz';
-import { describe, it, expect } from 'vitest';
+import { describe, expect, it } from 'vitest';
 
 import { getUTCDatetimeFlooredToHour } from './index.js';
 

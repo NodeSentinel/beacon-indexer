@@ -1,5 +1,5 @@
 // Re-export BeaconTime and chain config from consensus-utils
-import { getChainConfig, BeaconTime } from '@beacon-indexer/beacon-utils';
+import { BeaconTime, getChainConfig } from '@beacon-indexer/beacon-utils';
 
 import { env } from '../config/env.js';
 

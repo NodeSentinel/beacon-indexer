@@ -1,12 +1,11 @@
 'use client';
 
 import Image from 'next/image';
-import React, { useState, useEffect } from 'react';
-
-import type { WidgetData } from '@/types/dashboard';
+import React, { useEffect, useState } from 'react';
 
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
+import type { WidgetData } from '@/types/dashboard';
 
 interface WidgetProps {
   widgetData: WidgetData;

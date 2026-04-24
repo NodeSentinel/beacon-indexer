@@ -3,9 +3,9 @@ import { subHours } from 'date-fns';
 
 import {
   getPartitionName,
+  ParsedPartition,
   parseEpochPartitionName,
   parseSlotPartitionName,
-  ParsedPartition,
 } from '@/src/services/consensus/controllers/helpers/partitionNaming.js';
 import { PartitionStorage } from '@/src/services/consensus/storage/partition.js';
 import { getUTCDatetimeFlooredToHour } from '@/src/utils/date/index.js';
@@ -105,7 +105,7 @@ export class PartitionController {
    * @returns Array of partition info objects
    */
   private calculateSlotPartitions(epoch: number, tableNamePrefix: string): SlotPartitionInfo[] {
-    const { startSlot, endSlot } = this.beaconTime.getEpochSlots(epoch);
+    const { endSlot, startSlot } = this.beaconTime.getEpochSlots(epoch);
 
     const firstSlotToProcess = Math.max(startSlot, this.beaconTime.getLookbackSlot());
     if (firstSlotToProcess > endSlot) return [];

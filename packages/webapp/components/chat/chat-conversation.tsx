@@ -1,16 +1,15 @@
-import { motion, AnimatePresence } from 'motion/react';
+import { AnimatePresence, motion } from 'motion/react';
 
 import ArrowRightIcon from '../icons/arrow-right';
 import { Badge } from '../ui/badge';
 
 import { formatDate, formatTime } from './utils';
 
-import type { ChatConversation as ChatConversationType } from '@/types/chat';
-import type { ChatMessage as ChatMessageType } from '@/types/chat';
-
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
+import type { ChatMessage as ChatMessageType } from '@/types/chat';
+import type { ChatConversation as ChatConversationType } from '@/types/chat';
 
 const MESSAGE_GROUP_THRESHOLD = 3 * 60 * 1000; // 3 minutes in milliseconds
 
@@ -30,8 +29,8 @@ interface MessageGroup {
 export default function ChatConversation({
   activeConversation,
   newMessage,
-  setNewMessage,
   onSendMessage,
+  setNewMessage,
 }: ChatConversationProps) {
   // Group messages by time and sender
   const groupMessages = (messages: ChatMessageType[]): MessageGroup[] => {

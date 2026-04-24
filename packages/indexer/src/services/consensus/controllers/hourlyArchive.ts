@@ -4,8 +4,8 @@ import { HourlyArchiveStorage } from '../storage/hourlyArchive.js';
 
 import { getHourlyArchivePartitionName } from '@/src/services/consensus/controllers/helpers/partitionNaming.js';
 import {
-  PartitionController,
   HourArchiveCandidate,
+  PartitionController,
 } from '@/src/services/consensus/controllers/partition.js';
 
 /**

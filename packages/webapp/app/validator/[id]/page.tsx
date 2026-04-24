@@ -17,8 +17,8 @@ export default function ValidatorDetailPage() {
 
   const {
     data: response,
-    isLoading,
     error,
+    isLoading,
     refetch,
   } = useQuery({
     ...orpc.validator.getValidator.queryOptions({ input: { id: id! } }),

@@ -12,7 +12,7 @@ export const createCluster = securedProcedure
   .route({ method: 'POST', path: '/clusters' })
   .input(CreateClusterInputSchema)
   .output(ApiResponseSchema(ClusterWithCountSchema))
-  .handler(async ({ input, context }) => {
+  .handler(async ({ context, input }) => {
     try {
       const storage = new ClusterStorage();
       const cluster = await storage.create({

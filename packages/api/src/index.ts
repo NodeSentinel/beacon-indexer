@@ -1,7 +1,7 @@
 import { env } from './config/env.js';
 import { startJobs, stopJobs } from './jobs/index.js';
 import { logger } from './lib/logger.js';
-import { getPrisma, disconnectPrisma } from './lib/prisma.js';
+import { disconnectPrisma, getPrisma } from './lib/prisma.js';
 import { createHttpServer } from './server.js';
 
 let server: ReturnType<typeof createHttpServer> | null = null;

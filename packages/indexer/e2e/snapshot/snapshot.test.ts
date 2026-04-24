@@ -1,7 +1,7 @@
 import { BeaconTime } from '@beacon-indexer/beacon-utils/beaconTime';
 import { gnosisConfig } from '@beacon-indexer/beacon-utils/config/chain';
 import { PrismaClient } from '@beacon-indexer/db';
-import { describe, it, expect, afterAll, afterEach, beforeAll, beforeEach } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
 import { SnapshotController } from '@/src/services/consensus/controllers/snapshot.js';
 import { SnapshotStorage } from '@/src/services/consensus/storage/snapshot.js';

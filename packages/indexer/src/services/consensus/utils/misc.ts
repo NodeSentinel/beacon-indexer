@@ -1,4 +1,4 @@
-import { env, chainConfig } from '@/src/lib/env.js';
+import { chainConfig, env } from '@/src/lib/env.js';
 import { getSlotNumberFromTimestamp } from '@/src/services/consensus/utils/time.deprecated.js';
 
 export function getOldestLookbackSlot() {

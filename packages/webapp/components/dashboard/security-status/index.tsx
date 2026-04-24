@@ -1,12 +1,11 @@
 import { cva, type VariantProps } from 'class-variance-authority';
 import Image from 'next/image';
 
-import type { SecurityStatus as SecurityStatusType } from '@/types/dashboard';
-
 import DashboardCard from '@/components/dashboard/card';
 import { Badge } from '@/components/ui/badge';
 import { Bullet } from '@/components/ui/bullet';
 import { cn } from '@/lib/utils';
+import type { SecurityStatus as SecurityStatusType } from '@/types/dashboard';
 
 const securityStatusItemVariants = cva('border rounded-md ring-4', {
   variants: {
@@ -28,7 +27,7 @@ interface SecurityStatusItemProps extends VariantProps<typeof securityStatusItem
   className?: string;
 }
 
-function SecurityStatusItem({ title, value, status, variant, className }: SecurityStatusItemProps) {
+function SecurityStatusItem({ className, status, title, value, variant }: SecurityStatusItemProps) {
   return (
     <div className={cn(securityStatusItemVariants({ variant }), className)}>
       <div className="flex items-center gap-2 py-1.5 px-2.5 border-b border-current">

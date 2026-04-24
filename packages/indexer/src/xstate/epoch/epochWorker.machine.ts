@@ -1,5 +1,5 @@
 import { BeaconTime } from '@beacon-indexer/beacon-utils/beaconTime';
-import { setup, assign, sendParent, ActorRefFrom, fromPromise } from 'xstate';
+import { ActorRefFrom, assign, fromPromise, sendParent, setup } from 'xstate';
 
 import { epochProcessorMachine } from './epochProcessor.machine.js';
 

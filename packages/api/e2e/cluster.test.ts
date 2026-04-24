@@ -6,14 +6,13 @@ import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { E2E_SESSION_ID, userAuthHeaders } from './helpers.js';
 
 import type {
+  AddValidatorsResponse as AddValidatorsData,
   Cluster,
   ClusterDetail,
   ClusterWithCount,
-  AddValidatorsResponse as AddValidatorsData,
 } from '@/routers/cluster/schemas.js';
-import type { ApiResponse } from '@/utils/response.js';
-
 import { createHttpServer } from '@/server.js';
+import type { ApiResponse } from '@/utils/response.js';
 
 // Response types using ApiResponse wrapper with schema types
 type ClusterResponse = ApiResponse<Cluster>;

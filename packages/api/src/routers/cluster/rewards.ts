@@ -1,6 +1,6 @@
 import {
-  AnalyticsClusterInputSchema,
   AnalyticsAllClustersInputSchema,
+  AnalyticsClusterInputSchema,
   AnalyticsValidatorInputSchema,
   RewardsResponseSchema,
 } from './analytics-schemas.js';
@@ -132,7 +132,7 @@ export const getClusterRewards = securedProcedure
   .route({ method: 'GET', path: '/clusters/{id}/analytics/rewards' })
   .input(AnalyticsClusterInputSchema)
   .output(ApiResponseSchema(RewardsResponseSchema))
-  .handler(async ({ input, context }) => {
+  .handler(async ({ context, input }) => {
     const ownershipError = await requireOwnedCluster(clusterStorage, input.id, context.user);
     if (ownershipError) {
       return ownershipError;
@@ -161,7 +161,7 @@ export const getAllClustersRewards = securedProcedure
   .route({ method: 'GET', path: '/clusters/all/analytics/rewards' })
   .input(AnalyticsAllClustersInputSchema)
   .output(ApiResponseSchema(RewardsResponseSchema))
-  .handler(async ({ input, context }) => {
+  .handler(async ({ context, input }) => {
     // Require a resolved user so reward aggregation stays scoped to one owner.
     if (!context.user) {
       return {
