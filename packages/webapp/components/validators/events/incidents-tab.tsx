@@ -169,42 +169,47 @@ function IncidentSummary({ incident, tokenPrice }: IncidentSummaryProps) {
   const costUsd = getIncidentCostUsd(incident, tokenPrice);
 
   return (
-    <div className="flex-1 min-w-0">
-      <div className="grid grid-cols-[minmax(0,1.3fr)_auto] gap-3 items-start">
-        <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto_auto] sm:items-center">
-          <div className="min-w-0 rounded-md border border-border/60 bg-background/60 px-3 py-2">
-            <div className="text-[10px] uppercase tracking-wide text-muted-foreground">Opened</div>
-            <div className="text-xs md:text-sm font-mono text-foreground truncate">
-              {formatIncidentDateTime(incident.openedAt)}
-            </div>
-          </div>
-
-          <div className="rounded-md border border-border/60 bg-background/60 px-3 py-2">
-            <div className="text-[10px] uppercase tracking-wide text-muted-foreground mb-1">
-              Status
-            </div>
-            <Badge variant={incident.status === 'open' ? 'outline-warning' : 'outline-success'}>
-              {incident.status}
-            </Badge>
-          </div>
-
-          <div className="rounded-md border border-border/60 bg-background/60 px-3 py-2">
-            <div className="text-[10px] uppercase tracking-wide text-muted-foreground">
-              Duration
-            </div>
-            <div className="text-xs md:text-sm font-mono text-foreground">
-              {formatIncidentDurationCompact(incident)}
-            </div>
-          </div>
-        </div>
-
-        {costUsd && (
-          <div className="rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-right">
-            <div className="text-[10px] uppercase tracking-wide text-muted-foreground">Cost</div>
-            <div className="text-sm md:text-base font-mono text-destructive">${costUsd}</div>
-          </div>
-        )}
+    <div className="flex-1 min-w-0 flex items-center gap-2 md:gap-3 text-left overflow-hidden">
+      <div className="min-w-0 flex items-center gap-1.5 md:gap-2 shrink overflow-hidden">
+        <span className="text-[10px] md:text-xs uppercase tracking-wide text-muted-foreground shrink-0">
+          Opened
+        </span>
+        <span className="text-xs md:text-sm font-mono text-foreground truncate">
+          {formatIncidentDateTime(incident.openedAt)}
+        </span>
       </div>
+
+      <div className="h-4 w-px bg-border/70 shrink-0" />
+
+      <Badge
+        variant={incident.status === 'open' ? 'outline-warning' : 'outline-success'}
+        className="uppercase shrink-0"
+      >
+        {incident.status}
+      </Badge>
+
+      <div className="h-4 w-px bg-border/70 shrink-0" />
+
+      <div className="flex items-center gap-1.5 md:gap-2 shrink-0">
+        <span className="text-[10px] md:text-xs uppercase tracking-wide text-muted-foreground">
+          Duration
+        </span>
+        <span className="text-xs md:text-sm font-mono text-foreground">
+          {formatIncidentDurationCompact(incident)}
+        </span>
+      </div>
+
+      {costUsd && (
+        <>
+          <div className="h-4 w-px bg-border/70 shrink-0" />
+          <div className="ml-auto flex items-center gap-1.5 md:gap-2 shrink-0">
+            <span className="text-[10px] md:text-xs uppercase tracking-wide text-muted-foreground">
+              Cost
+            </span>
+            <span className="text-xs md:text-sm font-mono text-destructive">${costUsd}</span>
+          </div>
+        </>
+      )}
     </div>
   );
 }
