@@ -1,5 +1,6 @@
-import type { Api, RawApi } from 'grammy';
 import { InlineKeyboard } from 'grammy';
+
+import type { Api, RawApi } from 'grammy';
 
 type IncidentNotificationSendOptions = Parameters<Api<RawApi>['sendMessage']>[2];
 

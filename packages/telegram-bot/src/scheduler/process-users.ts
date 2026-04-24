@@ -1,7 +1,7 @@
+import type { Logger } from '@/src/logger.js';
 import type { Api, RawApi } from 'grammy';
 
 import { COMMON_REQUESTS_TELEGRAM_ID, getRpcClientForUser } from '@/src/api/client.js';
-import type { Logger } from '@/src/logger.js';
 import { notifyUserStats } from '@/src/scheduler/notify-user-stats.js';
 
 function delay(ms: number, signal: AbortSignal) {

@@ -4,6 +4,9 @@ import { HelpCircle } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Tooltip } from 'recharts';
 
+import type { ClusterFilter } from '@/types/cluster';
+import type { MissedAttestation, Reward } from '@/types/validator';
+
 import { ChartContainer } from '@/components/ui/chart';
 import {
   Select,
@@ -24,8 +27,6 @@ import { useMissedAttestations } from '@/hooks/use-missed-attestations';
 import { useRewards } from '@/hooks/use-rewards';
 import { bucketByTime, type AnalyticsTimeRange } from '@/lib/analytics-buckets';
 import { formatNumber } from '@/lib/utils';
-import type { ClusterFilter } from '@/types/cluster';
-import type { MissedAttestation, Reward } from '@/types/validator';
 
 /** Format a token value to USD string */
 function toUsd(tokenValue: number, price: number): string {

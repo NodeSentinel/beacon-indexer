@@ -1,9 +1,10 @@
 import Image from 'next/image';
 
+import type { RebelRanking } from '@/types/dashboard';
+
 import DashboardCard from '@/components/dashboard/card';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
-import type { RebelRanking } from '@/types/dashboard';
 
 interface RebelsRankingProps {
   rebels: RebelRanking[];

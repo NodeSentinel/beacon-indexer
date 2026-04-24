@@ -1,7 +1,8 @@
 import { formatTime } from './utils';
 
-import { cn } from '@/lib/utils';
 import type { ChatMessage as ChatMessageType } from '@/types/chat';
+
+import { cn } from '@/lib/utils';
 
 interface ChatMessageProps {
   message: ChatMessageType;

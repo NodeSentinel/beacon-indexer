@@ -3,6 +3,7 @@ import type {
   BlockRewards,
   Attestation,
 } from '@/src/services/consensus/types.js';
+
 import {
   convertVariableBitsToString,
   convertFixedBitsToString,

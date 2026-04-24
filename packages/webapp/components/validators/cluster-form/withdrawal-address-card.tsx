@@ -4,8 +4,9 @@ import { Trash2 } from 'lucide-react';
 
 import { VirtualizedChipList } from './virtualized-chip-list';
 
-import { Button } from '@/components/ui/button';
 import type { ValidatorItem } from '@/hooks/use-validator-input';
+
+import { Button } from '@/components/ui/button';
 
 interface WithdrawalAddressCardProps {
   address: string;

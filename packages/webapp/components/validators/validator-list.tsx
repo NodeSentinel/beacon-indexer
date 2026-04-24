@@ -1,6 +1,8 @@
+import type { Validator } from '@/types/validator';
+
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
-import type { Validator } from '@/types/validator';
+
 // Local minimal table primitives
 function Table(props: React.HTMLAttributes<HTMLTableElement>) {
   return <table className="w-full border-collapse" {...props} />;

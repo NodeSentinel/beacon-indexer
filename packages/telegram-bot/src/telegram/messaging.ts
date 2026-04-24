@@ -1,6 +1,6 @@
+import type { Logger } from '@/src/logger.js';
 import type { Api, RawApi } from 'grammy';
 
-import type { Logger } from '@/src/logger.js';
 import { handleTelegramRequest } from '@/src/telegram/request.js';
 
 type SendMessageOptions = Parameters<Api<RawApi>['sendMessage']>[2];

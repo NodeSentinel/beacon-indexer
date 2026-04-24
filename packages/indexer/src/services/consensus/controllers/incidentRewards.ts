@@ -1,6 +1,7 @@
 import { BeaconTime } from '@beacon-indexer/beacon-utils/beaconTime';
 
 import { IncidentRewardsStorage } from '../storage/incidentRewards.js';
+
 import type { SlotStorage } from '../storage/slot.js';
 
 import createLogger from '@/src/lib/pino.js';

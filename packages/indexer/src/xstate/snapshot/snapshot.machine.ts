@@ -1,5 +1,6 @@
-import type { Chain } from '@beacon-indexer/beacon-utils';
 import { setup, fromPromise, assign } from 'xstate';
+
+import type { Chain } from '@beacon-indexer/beacon-utils';
 
 import { SnapshotController } from '@/src/services/consensus/controllers/snapshot.js';
 import { pinoLog } from '@/src/xstate/pinoLog.js';

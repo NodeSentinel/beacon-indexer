@@ -1,9 +1,11 @@
 import { Analytics } from '@vercel/analytics/next';
 import { SpeedInsights } from '@vercel/speed-insights/next';
-import type { Metadata } from 'next';
 import { Roboto_Mono } from 'next/font/google';
 import localFont from 'next/font/local';
+
 import './globals.css';
+
+import type { Metadata } from 'next';
 import type React from 'react';
 
 import { TelegramProvider } from '@/components/telegram/TelegramProvider';

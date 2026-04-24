@@ -5,8 +5,9 @@ import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 
 import { botAuthHeaders, E2E_SESSION_ID, userAuthHeaders } from './helpers.js';
 
-import { createHttpServer } from '@/server.js';
 import type { ApiResponse } from '@/utils/response.js';
+
+import { createHttpServer } from '@/server.js';
 
 type IncidentListItem = {
   id: string;

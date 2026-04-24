@@ -1,5 +1,6 @@
-import type { AllowedUpdateType } from './env.js';
 import { env } from './env.js';
+
+import type { AllowedUpdateType } from './env.js';
 
 // Type definitions for bot configuration
 interface BaseConfig {

@@ -1,12 +1,13 @@
 import fs from 'fs/promises';
 import path from 'path';
 
-import type { BeaconTime } from '@beacon-indexer/beacon-utils/beaconTime';
 import { setup, fromPromise, assign } from 'xstate';
+
+import type { SlotController } from '@/src/services/consensus/controllers/slot.js';
+import type { BeaconTime } from '@beacon-indexer/beacon-utils/beaconTime';
 
 import createLogger from '@/src/lib/pino.js';
 import { sendTelegramAlert } from '@/src/lib/telegram.js';
-import type { SlotController } from '@/src/services/consensus/controllers/slot.js';
 import { pinoLog } from '@/src/xstate/pinoLog.js';
 
 const LOGGER_CONTEXT = 'LagAlerting';

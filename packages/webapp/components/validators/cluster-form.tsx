@@ -1,9 +1,11 @@
 'use client';
 
 import { Trash2, Loader2 } from 'lucide-react';
-import type React from 'react';
 import { useState, useEffect } from 'react';
 import { isAddress } from 'viem';
+
+import type { ValidatorItem } from '@/hooks/use-validator-input';
+import type React from 'react';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -25,7 +27,6 @@ import {
   useDeleteCluster,
 } from '@/hooks/use-clusters';
 import { useToast } from '@/hooks/use-toast';
-import type { ValidatorItem } from '@/hooks/use-validator-input';
 
 interface ClusterFormProps {
   /** Cluster ID for edit mode, null for create mode */

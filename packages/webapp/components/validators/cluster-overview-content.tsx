@@ -2,11 +2,12 @@
 
 import { Settings } from 'lucide-react';
 
+import type { Cluster } from '@/types/cluster';
+
 import { Button } from '@/components/ui/button';
 import { useChainStats } from '@/hooks/use-chain-stats';
 import { useClusterSnapshot } from '@/hooks/use-cluster-snapshot';
 import { formatNumber } from '@/lib/utils';
-import type { Cluster } from '@/types/cluster';
 
 interface ClusterOverviewContentProps {
   cluster: Cluster;

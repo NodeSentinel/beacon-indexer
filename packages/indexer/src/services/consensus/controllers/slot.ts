@@ -2,9 +2,10 @@ import { BeaconTime } from '@beacon-indexer/beacon-utils/beaconTime';
 
 import { BeaconClient } from '../beacon.js';
 import { SlotStorage } from '../storage/slot.js';
-import type { Block, Attestation } from '../types.js';
 
 import { SlotControllerHelpers } from './helpers/slotControllerHelpers.js';
+
+import type { Block, Attestation } from '../types.js';
 
 import { EpochStorage } from '@/src/services/consensus/storage/epoch.js';
 import { ExecutionClient } from '@/src/services/execution/execution.js';

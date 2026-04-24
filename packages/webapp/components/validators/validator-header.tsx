@@ -6,11 +6,12 @@ import * as React from 'react';
 
 import AlertConfiguration from './alert-configuration';
 
+import type { ValidatorData } from '@/types/validator';
+
 import NodeSentinelIcon from '@/components/icons/nodesentinel-icon';
 import NodeSentinelWordmark from '@/components/icons/nodesentinel-wordmark';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent } from '@/components/ui/sheet';
-import type { ValidatorData } from '@/types/validator';
 import validatorMockJson from '@/validator-mock.json';
 
 const validatorData = validatorMockJson as ValidatorData;

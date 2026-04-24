@@ -1,7 +1,8 @@
-import type { Api, RawApi } from 'grammy';
 import { AsyncTask, SimpleIntervalJob, ToadScheduler } from 'toad-scheduler';
 
 import type { Logger } from '@/src/logger.js';
+import type { Api, RawApi } from 'grammy';
+
 import { processIncidentNotifications } from '@/src/scheduler/process-incident-notifications.js';
 // import { processNotifications } from '@/src/scheduler/process-notifications.js';
 import { processUsers } from '@/src/scheduler/process-users.js';

@@ -11,8 +11,9 @@ import type {
   ClusterWithCount,
   AddValidatorsResponse as AddValidatorsData,
 } from '@/routers/cluster/schemas.js';
-import { createHttpServer } from '@/server.js';
 import type { ApiResponse } from '@/utils/response.js';
+
+import { createHttpServer } from '@/server.js';
 
 // Response types using ApiResponse wrapper with schema types
 type ClusterResponse = ApiResponse<Cluster>;

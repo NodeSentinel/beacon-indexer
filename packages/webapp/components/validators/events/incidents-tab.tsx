@@ -6,12 +6,13 @@ import { useEffect, useState } from 'react';
 import { EmptyStateTab } from './empty-state-tab';
 import { EventsTabPagination } from './events-tab-pagination';
 
+import type { ClusterIncident } from '@/hooks/use-cluster-incidents';
+
 import ArrowRight from '@/components/icons/arrow-right';
 import { Badge } from '@/components/ui/badge';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { env } from '@/env';
 import { useChainStats } from '@/hooks/use-chain-stats';
-import type { ClusterIncident } from '@/hooks/use-cluster-incidents';
 import { useClusterIncidents } from '@/hooks/use-cluster-incidents';
 import { useIncidentAffectedValidators } from '@/hooks/use-incident-affected-validators';
 import {

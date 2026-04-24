@@ -1,3 +1,4 @@
+// Legacy ESLint 8 config used by the workspace packages that still invoke ESLint via .cjs resolution.
 module.exports = {
   languageOptions: {
     ecmaVersion: 2020,

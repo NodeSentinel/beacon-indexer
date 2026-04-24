@@ -1,6 +1,7 @@
 import { Composer } from 'grammy';
 
 import type { Context } from '@/src/bot/context.js';
+
 import { handleUnblockedUser } from '@/src/telegram/blocked-users.js';
 
 /**

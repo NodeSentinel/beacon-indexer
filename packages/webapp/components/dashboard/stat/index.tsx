@@ -1,4 +1,5 @@
 import NumberFlow from '@number-flow/react';
+
 import type React from 'react';
 
 import { Badge } from '@/components/ui/badge';

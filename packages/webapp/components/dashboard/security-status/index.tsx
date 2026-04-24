@@ -1,11 +1,12 @@
 import { cva, type VariantProps } from 'class-variance-authority';
 import Image from 'next/image';
 
+import type { SecurityStatus as SecurityStatusType } from '@/types/dashboard';
+
 import DashboardCard from '@/components/dashboard/card';
 import { Badge } from '@/components/ui/badge';
 import { Bullet } from '@/components/ui/bullet';
 import { cn } from '@/lib/utils';
-import type { SecurityStatus as SecurityStatusType } from '@/types/dashboard';
 
 const securityStatusItemVariants = cva('border rounded-md ring-4', {
   variants: {

@@ -1,7 +1,8 @@
 'use client';
 
-import type { LucideIcon } from 'lucide-react';
 import { Users, Coins, ArrowUpCircle, ArrowDownCircle } from 'lucide-react';
+
+import type { LucideIcon } from 'lucide-react';
 
 import { env } from '@/env';
 import { useChainStats } from '@/hooks/use-chain-stats';

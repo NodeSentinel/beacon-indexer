@@ -1,9 +1,10 @@
 import React from 'react';
 
+import type { Notification } from '@/types/dashboard';
+
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import type { Notification } from '@/types/dashboard';
 
 interface NotificationItemProps {
   notification: Notification;

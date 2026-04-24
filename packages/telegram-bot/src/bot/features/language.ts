@@ -1,7 +1,8 @@
 import { Composer } from 'grammy';
 
-import { changeLanguageData } from '@/src/bot/callback-data/change-language.js';
 import type { Context } from '@/src/bot/context.js';
+
+import { changeLanguageData } from '@/src/bot/callback-data/change-language.js';
 import { logHandle } from '@/src/bot/helpers/logging.js';
 import { i18n } from '@/src/bot/i18n.js';
 import { createChangeLanguageKeyboard } from '@/src/bot/keyboards/change-language.js';
