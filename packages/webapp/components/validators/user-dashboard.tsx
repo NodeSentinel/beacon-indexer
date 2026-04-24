@@ -5,7 +5,7 @@ import { useState, useEffect, useMemo } from 'react';
 
 import AnalyticsContent from './analytics-content';
 import ClusterOverviewContent from './cluster-overview-content';
-import EventsFeedContent from './events-feed-content';
+import EventsFeedContent from './events';
 
 import { Button } from '@/components/ui/button';
 import {

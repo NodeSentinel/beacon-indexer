@@ -2,6 +2,21 @@ import { clsx, type ClassValue } from 'clsx';
 import { format, formatDuration, intervalToDuration, parseISO } from 'date-fns';
 import { twMerge } from 'tailwind-merge';
 
+type DurationFormatConstructor = new (
+  locales?: string | string[],
+  options?: {
+    style?: 'long' | 'short' | 'narrow' | 'digital';
+    days?: 'long' | 'short' | 'narrow';
+    daysDisplay?: 'auto' | 'always';
+    hours?: 'long' | 'short' | 'narrow' | 'numeric' | '2-digit';
+    hoursDisplay?: 'auto' | 'always';
+    minutes?: 'long' | 'short' | 'narrow' | 'numeric' | '2-digit';
+    minutesDisplay?: 'auto' | 'always';
+  },
+) => {
+  format(duration: { days?: number; hours?: number; minutes?: number }): string;
+};
+
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
@@ -53,6 +68,52 @@ export function formatIncidentDuration({
       zero: false,
     },
   );
+}
+
+/** Formats an incident duration with compact units and without seconds. */
+export function formatIncidentDurationCompact({
+  closedAt,
+  durationSeconds,
+  openedAt,
+}: {
+  closedAt: string | null;
+  durationSeconds: number | null;
+  openedAt: string;
+}): string {
+  const resolvedDurationSeconds =
+    durationSeconds ??
+    Math.max(
+      0,
+      Math.floor(
+        ((closedAt ? parseISO(closedAt) : new Date()).getTime() - parseISO(openedAt).getTime()) /
+          1000,
+      ),
+    );
+
+  const duration = intervalToDuration({
+    start: 0,
+    end: resolvedDurationSeconds * 1000,
+  });
+
+  const durationFormatIntl = Intl as typeof Intl & {
+    DurationFormat: DurationFormatConstructor;
+  };
+
+  const formatter = new durationFormatIntl.DurationFormat('en', {
+    style: 'narrow',
+    days: 'narrow',
+    daysDisplay: 'auto',
+    hours: 'narrow',
+    hoursDisplay: 'auto',
+    minutes: 'narrow',
+    minutesDisplay: 'auto',
+  });
+
+  return formatter.format({
+    days: duration.days,
+    hours: duration.hours,
+    minutes: duration.minutes,
+  });
 }
 
 const WEI_PER_GWEI = 10 ** 9;
