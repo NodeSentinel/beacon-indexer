@@ -33,7 +33,6 @@ describe('Slot Processor E2E Tests', () => {
   let prisma: PrismaClient;
   let slotStorage: SlotStorage;
   let validatorsStorage: ValidatorsStorage;
-  let beaconTime: BeaconTime;
 
   beforeAll(async () => {
     if (!process.env.DATABASE_URL) {
@@ -50,14 +49,6 @@ describe('Slot Processor E2E Tests', () => {
 
     validatorsStorage = new ValidatorsStorage(prisma, process.env.DATABASE_URL!);
     slotStorage = new SlotStorage(prisma);
-    beaconTime = new BeaconTime({
-      genesisTimestamp: gnosisConfig.beacon.genesisTimestamp,
-      slotDurationMs: gnosisConfig.beacon.slotDuration,
-      slotsPerEpoch: gnosisConfig.beacon.slotsPerEpoch,
-      epochsPerSyncCommitteePeriod: gnosisConfig.beacon.epochsPerSyncCommitteePeriod,
-      lookbackSlot: 32000,
-    });
-
     await prisma.committee.deleteMany();
     await prisma.slot.deleteMany();
     await prisma.validatorDeposits.deleteMany();

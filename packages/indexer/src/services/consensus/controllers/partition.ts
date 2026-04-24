@@ -1,8 +1,7 @@
 import { BeaconTime } from '@beacon-indexer/beacon-utils/beaconTime';
-import { addHours, subHours } from 'date-fns';
+import { subHours } from 'date-fns';
 
 import {
-  getHourlyArchivePartitionName,
   getPartitionName,
   parseEpochPartitionName,
   parseSlotPartitionName,

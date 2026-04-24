@@ -16,15 +16,6 @@ function addCommandLocalizations(command: Command) {
   return command;
 }
 
-function addCommandToChats(command: Command, chats: number[]) {
-  for (const chatId of chats) {
-    command.addToScope({
-      type: 'chat',
-      chat_id: chatId,
-    });
-  }
-}
-
 export async function setCommandsHandler(ctx: CommandContext<Context>) {
   // const start = new Command('start', i18n.t('en', 'start.description')).addToScope({
   //   type: 'all_private_chats',

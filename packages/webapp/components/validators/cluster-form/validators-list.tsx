@@ -22,7 +22,7 @@ export function ValidatorsList({
   allWithdrawalAddresses,
   validatorsByAddress,
   missingValidatorsByAddress,
-  isEditMode,
+  isEditMode: _isEditMode,
   onRemoveValidator,
   onRemoveByWithdrawal,
   onAddMissingValidators,

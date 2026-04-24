@@ -104,12 +104,11 @@ function MissedAttestationsTab({
   timeRange: AnalyticsTimeRange;
 }) {
   const { data: missedData, isLoading } = useMissedAttestations(clusterFilter, null, timeRange);
-  const data = missedData ?? [];
 
   const chartData = useMemo(
     () =>
       bucketByTime(
-        data,
+        missedData ?? [],
         timeRange,
         (item) => new Date(item.timestamp).getTime(),
         (acc: { count: number; maxValidators: number } | undefined, item: MissedAttestation) => ({
@@ -123,7 +122,7 @@ function MissedAttestationsTab({
           validators: acc?.maxValidators ?? 0,
         }),
       ),
-    [data, timeRange],
+    [missedData, timeRange],
   );
 
   const missedStats = useMemo(() => {
@@ -245,13 +244,12 @@ function RewardsTab({
   const { data: chainStats } = useChainStats();
   const { data: rewardsResponse, isLoading } = useRewards(clusterFilter, null, timeRange);
 
-  const rewardsData = rewardsResponse?.items ?? [];
   const tokenPrice = rewardsResponse?.tokenPrice ?? chainStats?.tokenPrice ?? 0;
 
   const rewardsChartData = useMemo(
     () =>
       bucketByTime(
-        rewardsData,
+        rewardsResponse?.items ?? [],
         timeRange,
         (item) => new Date(item.timestamp).getTime(),
         (acc: RewardBucket | undefined, item: Reward) => ({
@@ -286,7 +284,7 @@ function RewardsTab({
           };
         },
       ),
-    [rewardsData, timeRange, tokenPrice],
+    [rewardsResponse, timeRange, tokenPrice],
   );
 
   const rewardsStats = useMemo(() => {

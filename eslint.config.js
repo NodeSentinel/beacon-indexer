@@ -80,7 +80,7 @@ export default tseslint.config(
     rules: {
       'no-unused-vars': 'off',
       '@typescript-eslint/no-unused-vars': [
-        'warn',
+        'error',
         { argsIgnorePattern: '^_', varsIgnorePattern: '^_' },
       ],
       '@typescript-eslint/explicit-function-return-type': 'off',
@@ -93,14 +93,27 @@ export default tseslint.config(
       '@typescript-eslint/no-unsafe-argument': 'off',
       '@typescript-eslint/no-namespace': ['error', { allowDeclarations: true }],
       'import/order': [
-        'warn',
+        'error',
         {
           groups: ['builtin', 'external', 'internal', 'parent', 'sibling', 'index'],
           'newlines-between': 'always',
           alphabetize: { order: 'asc', caseInsensitive: true },
         },
       ],
-      'prettier/prettier': 'warn',
+      'prettier/prettier': 'error',
+    },
+  },
+  {
+    files: ['eslint.config.cjs'],
+    languageOptions: {
+      sourceType: 'commonjs',
+      globals: {
+        module: 'readonly',
+        require: 'readonly',
+      },
+    },
+    rules: {
+      '@typescript-eslint/no-require-imports': 'off',
     },
   },
   // Next.js + TypeScript rules for the app package

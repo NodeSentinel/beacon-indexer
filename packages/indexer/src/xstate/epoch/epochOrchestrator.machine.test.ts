@@ -1,3 +1,4 @@
+/* eslint-disable import/order */
 import { BeaconTime } from '@beacon-indexer/beacon-utils/beaconTime';
 import { gnosisConfig } from '@beacon-indexer/beacon-utils/config/chain';
 import { test, expect, vi, beforeEach, afterEach, describe } from 'vitest';
@@ -11,10 +12,6 @@ import {
 import { EpochController } from '@/src/services/consensus/controllers/epoch.js';
 import { PartitionController } from '@/src/services/consensus/controllers/partition.js';
 import { SlotController } from '@/src/services/consensus/controllers/slot.js';
-
-// ============================================================================
-// Test Constants - Use Gnosis chain real values (except slotDuration for fast tests)
-// ============================================================================
 const SLOT_DURATION = 10; // 10ms - small for fast tests (real Gnosis: 5s)
 const {
   slotsPerEpoch: SLOTS_PER_EPOCH,

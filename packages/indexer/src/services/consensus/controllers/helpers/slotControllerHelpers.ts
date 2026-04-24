@@ -270,7 +270,7 @@ export class SlotControllerHelpers {
    */
   protected prepareSyncCommitteeRewards(
     syncCommitteeRewards: SyncCommitteeRewards | 'SLOT MISSED',
-    slot: number,
+    _slot: number,
   ): Array<{
     validatorIndex: number;
     syncCommitteeReward: bigint;
