@@ -1,5 +1,6 @@
 'use client';
 
+import { format, parseISO } from 'date-fns';
 import { useEffect, useState } from 'react';
 
 import { EmptyStateTab } from './empty-state-tab';
@@ -170,19 +171,8 @@ function IncidentSummary({ incident, tokenPrice }: IncidentSummaryProps) {
 
   return (
     <div className="flex-1 min-w-0 flex items-center gap-2 md:gap-3 text-left overflow-hidden">
-      <div className="min-w-0 flex items-center gap-1.5 md:gap-2 shrink overflow-hidden">
-        <span className="text-[10px] md:text-xs uppercase tracking-wide text-muted-foreground shrink-0">
-          Opened
-        </span>
-        <span className="text-xs md:text-sm font-mono text-foreground truncate">
-          {formatIncidentDateTime(incident.openedAt)}
-        </span>
-      </div>
-
-      <div className="h-4 w-px bg-border/70 shrink-0" />
-
       <Badge
-        variant={incident.status === 'open' ? 'outline-warning' : 'outline-success'}
+        variant={incident.status === 'open' ? 'outline-warning' : 'secondary'}
         className="uppercase shrink-0"
       >
         {incident.status}
@@ -190,12 +180,9 @@ function IncidentSummary({ incident, tokenPrice }: IncidentSummaryProps) {
 
       <div className="h-4 w-px bg-border/70 shrink-0" />
 
-      <div className="flex items-center gap-1.5 md:gap-2 shrink-0">
-        <span className="text-[10px] md:text-xs uppercase tracking-wide text-muted-foreground">
-          Duration
-        </span>
-        <span className="text-xs md:text-sm font-mono text-foreground">
-          {formatIncidentDurationCompact(incident)}
+      <div className="min-w-0 shrink overflow-hidden">
+        <span className="text-xs md:text-sm font-mono text-foreground truncate">
+          {format(parseISO(incident.openedAt), 'dd/MM')} ({formatIncidentDurationCompact(incident)})
         </span>
       </div>
 
