@@ -92,14 +92,7 @@ export default tseslint.config(
       '@typescript-eslint/no-unsafe-return': 'off',
       '@typescript-eslint/no-unsafe-argument': 'off',
       '@typescript-eslint/no-namespace': ['error', { allowDeclarations: true }],
-      'import/order': [
-        'error',
-        {
-          groups: ['builtin', 'external', 'internal', 'parent', 'sibling', 'index', 'type'],
-          'newlines-between': 'always',
-          alphabetize: { order: 'asc', caseInsensitive: true, orderImportKind: 'asc' },
-        },
-      ],
+      'import/order': 'off',
       'prettier/prettier': 'error',
     },
   },
