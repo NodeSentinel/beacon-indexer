@@ -1,7 +1,6 @@
 import type { ActionArgs, EventObject, MachineContext, ParameterizedObject } from 'xstate';
 
 import createLogger from '@/src/lib/pino.js';
-import { cleanContextForLogging } from '@/src/xstate/multiMachineLogger.js';
 
 // Define the log expression type that returns either string, log data object, or undefined (skip logging)
 type PinoLogExpr<

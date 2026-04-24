@@ -3,10 +3,11 @@ import chunk from 'lodash/chunk.js';
 
 import { ValidatorControllerHelpers } from './helpers/validatorControllerHelpers.js';
 
+import type { GetValidators } from '@/src/services/consensus/types.js';
+
 import createLogger from '@/src/lib/pino.js';
 import { BeaconClient } from '@/src/services/consensus/beacon.js';
 import { ValidatorsStorage } from '@/src/services/consensus/storage/validators.js';
-import type { GetValidators } from '@/src/services/consensus/types.js';
 
 export class ValidatorsController {
   private readonly logger = createLogger('ValidatorsController');

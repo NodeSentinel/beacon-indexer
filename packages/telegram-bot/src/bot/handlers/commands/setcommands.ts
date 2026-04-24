@@ -1,8 +1,9 @@
 import { Command, CommandGroup } from '@grammyjs/commands';
+
+import type { Context } from '@/src/bot/context.js';
 import type { LanguageCode } from '@grammyjs/types';
 import type { CommandContext } from 'grammy';
 
-import type { Context } from '@/src/bot/context.js';
 import { i18n } from '@/src/bot/i18n.js';
 
 function addCommandLocalizations(command: Command) {
@@ -14,15 +15,6 @@ function addCommandLocalizations(command: Command) {
     );
   });
   return command;
-}
-
-function addCommandToChats(command: Command, chats: number[]) {
-  for (const chatId of chats) {
-    command.addToScope({
-      type: 'chat',
-      chat_id: chatId,
-    });
-  }
 }
 
 export async function setCommandsHandler(ctx: CommandContext<Context>) {

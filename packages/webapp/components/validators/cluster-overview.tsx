@@ -2,10 +2,11 @@
 
 import { Settings } from 'lucide-react';
 
-import DashboardCard from '@/components/dashboard/card';
-import { Button } from '@/components/ui/button';
 import type { Cluster } from '@/types/cluster';
 import type { Stats } from '@/types/validator';
+
+import DashboardCard from '@/components/dashboard/card';
+import { Button } from '@/components/ui/button';
 
 interface ClusterOverviewProps {
   cluster: Cluster;

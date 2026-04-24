@@ -1,7 +1,8 @@
 import { create } from 'zustand';
 
-import { mockChatData } from '@/data/chat-mock';
 import type { ChatState, ChatMessage, ChatConversation } from '@/types/chat';
+
+import { mockChatData } from '@/data/chat-mock';
 
 type ChatComponentState = {
   state: ChatState;

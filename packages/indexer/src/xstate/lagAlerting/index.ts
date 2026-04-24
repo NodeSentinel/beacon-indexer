@@ -1,9 +1,10 @@
-import type { BeaconTime } from '@beacon-indexer/beacon-utils/beaconTime';
 import { createActor } from 'xstate';
 
 import { lagAlertingMachine } from './lagAlerting.machine.js';
 
 import type { SlotController } from '@/src/services/consensus/controllers/slot.js';
+import type { BeaconTime } from '@beacon-indexer/beacon-utils/beaconTime';
+
 import { logMachine } from '@/src/xstate/multiMachineLogger.js';
 
 export { lagAlertingMachine } from './lagAlerting.machine.js';

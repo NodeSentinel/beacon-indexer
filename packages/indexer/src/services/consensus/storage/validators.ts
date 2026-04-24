@@ -9,6 +9,7 @@ import { Pool, PoolClient } from 'pg';
 import { from as copyFrom } from 'pg-copy-streams';
 
 import { ValidatorControllerHelpers } from '../controllers/helpers/validatorControllerHelpers.js';
+
 import type { GetValidators } from '../types.js';
 
 export class ValidatorsStorage {

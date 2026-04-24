@@ -1,7 +1,7 @@
+import type { Logger } from '@/src/logger.js';
 import type { Api, RawApi } from 'grammy';
 
 import { getRpcClientForUser } from '@/src/api/client.js';
-import type { Logger } from '@/src/logger.js';
 import { formatStatsMessage } from '@/src/telegram/format-stats.js';
 import { editMessage, sendMessage } from '@/src/telegram/messaging.js';
 

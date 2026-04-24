@@ -7,6 +7,7 @@ import type {
   Slot,
   Attestation,
 } from '@/routers/validator/schemas.js';
+
 import { ValidatorStorage } from '@/storage/validator.js';
 import { beaconTime } from '@/utils/beaconTime.js';
 import { formatBalance } from '@/utils/tokenFormat.js';

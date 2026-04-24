@@ -3,6 +3,7 @@ import type {
   BlockRewards,
   Attestation,
 } from '@/src/services/consensus/types.js';
+
 import {
   convertVariableBitsToString,
   convertFixedBitsToString,
@@ -270,7 +271,7 @@ export class SlotControllerHelpers {
    */
   protected prepareSyncCommitteeRewards(
     syncCommitteeRewards: SyncCommitteeRewards | 'SLOT MISSED',
-    slot: number,
+    _slot: number,
   ): Array<{
     validatorIndex: number;
     syncCommitteeReward: bigint;

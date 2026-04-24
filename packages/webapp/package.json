@@ -14,7 +14,7 @@
     "dev:tunnel": "bash scripts/dev-tunnel.sh",
     "cert:setup": "bash scripts/setup-cert.sh",
     "type-check": "pnpm exec tsc --noEmit",
-    "lint": "eslint .",
+    "lint": "eslint . --max-warnings=0",
     "lint:fix": "eslint . --fix",
     "start": "next start",
     "test": "echo \"No tests for app\""

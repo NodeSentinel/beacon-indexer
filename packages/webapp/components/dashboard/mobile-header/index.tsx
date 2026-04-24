@@ -1,12 +1,13 @@
 import * as React from 'react';
 
+import type { MockData } from '@/types/dashboard';
+
 import MobileNotifications from '@/components/dashboard/notifications/mobile-notifications';
 import BellIcon from '@/components/icons/bell';
 import MonkeyIcon from '@/components/icons/monkey';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
-import type { MockData } from '@/types/dashboard';
 
 interface MobileHeaderProps {
   mockData: MockData;

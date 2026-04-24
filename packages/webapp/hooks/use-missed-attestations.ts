@@ -2,9 +2,10 @@
 
 import { useQuery } from '@tanstack/react-query';
 
+import type { MissedAttestation } from '@/types/validator';
+
 import { orpcClient } from '@/lib/orpc';
 import { useUserId } from '@/lib/user-id';
-import type { MissedAttestation } from '@/types/validator';
 
 export function useMissedAttestations(
   clusterId: string | null,

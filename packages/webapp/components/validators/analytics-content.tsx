@@ -4,6 +4,9 @@ import { HelpCircle } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Tooltip } from 'recharts';
 
+import type { ClusterFilter } from '@/types/cluster';
+import type { MissedAttestation, Reward } from '@/types/validator';
+
 import { ChartContainer } from '@/components/ui/chart';
 import {
   Select,
@@ -24,8 +27,6 @@ import { useMissedAttestations } from '@/hooks/use-missed-attestations';
 import { useRewards } from '@/hooks/use-rewards';
 import { bucketByTime, type AnalyticsTimeRange } from '@/lib/analytics-buckets';
 import { formatNumber } from '@/lib/utils';
-import type { ClusterFilter } from '@/types/cluster';
-import type { MissedAttestation, Reward } from '@/types/validator';
 
 /** Format a token value to USD string */
 function toUsd(tokenValue: number, price: number): string {
@@ -104,12 +105,11 @@ function MissedAttestationsTab({
   timeRange: AnalyticsTimeRange;
 }) {
   const { data: missedData, isLoading } = useMissedAttestations(clusterFilter, null, timeRange);
-  const data = missedData ?? [];
 
   const chartData = useMemo(
     () =>
       bucketByTime(
-        data,
+        missedData ?? [],
         timeRange,
         (item) => new Date(item.timestamp).getTime(),
         (acc: { count: number; maxValidators: number } | undefined, item: MissedAttestation) => ({
@@ -123,7 +123,7 @@ function MissedAttestationsTab({
           validators: acc?.maxValidators ?? 0,
         }),
       ),
-    [data, timeRange],
+    [missedData, timeRange],
   );
 
   const missedStats = useMemo(() => {
@@ -245,13 +245,12 @@ function RewardsTab({
   const { data: chainStats } = useChainStats();
   const { data: rewardsResponse, isLoading } = useRewards(clusterFilter, null, timeRange);
 
-  const rewardsData = rewardsResponse?.items ?? [];
   const tokenPrice = rewardsResponse?.tokenPrice ?? chainStats?.tokenPrice ?? 0;
 
   const rewardsChartData = useMemo(
     () =>
       bucketByTime(
-        rewardsData,
+        rewardsResponse?.items ?? [],
         timeRange,
         (item) => new Date(item.timestamp).getTime(),
         (acc: RewardBucket | undefined, item: Reward) => ({
@@ -286,7 +285,7 @@ function RewardsTab({
           };
         },
       ),
-    [rewardsData, timeRange, tokenPrice],
+    [rewardsResponse, timeRange, tokenPrice],
   );
 
   const rewardsStats = useMemo(() => {

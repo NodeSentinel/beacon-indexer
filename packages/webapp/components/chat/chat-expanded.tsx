@@ -2,9 +2,10 @@ import { motion } from 'motion/react';
 
 import ChatContact from './chat-contact';
 
+import type { ChatConversation } from '@/types/chat';
+
 import { Button } from '@/components/ui/button';
 import { mockChatData } from '@/data/chat-mock';
-import type { ChatConversation } from '@/types/chat';
 
 interface ChatExpandedProps {
   conversations: ChatConversation[];

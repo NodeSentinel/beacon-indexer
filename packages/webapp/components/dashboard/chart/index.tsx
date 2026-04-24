@@ -3,6 +3,8 @@
 import * as React from 'react';
 import { XAxis, YAxis, CartesianGrid, Area, AreaChart } from 'recharts';
 
+import type { MockData, TimePeriod } from '@/types/dashboard';
+
 import { Bullet } from '@/components/ui/bullet';
 import {
   ChartConfig,
@@ -12,7 +14,6 @@ import {
 } from '@/components/ui/chart';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import mockDataJson from '@/mock.json';
-import type { MockData, TimePeriod } from '@/types/dashboard';
 
 const mockData = mockDataJson as MockData;
 

@@ -73,9 +73,6 @@ export default function UserDashboard({
   // Use controlled or uncontrolled state
   const isControlled = controlledSelectedCluster !== undefined;
   const selectedCluster = isControlled ? controlledSelectedCluster : internalSelectedCluster;
-  const setSelectedCluster = isControlled
-    ? (value: ClusterFilter) => onClusterChange?.(value)
-    : setInternalSelectedCluster;
 
   const selectedClusterId = selectedCluster !== CLUSTER_FILTER_ALL ? selectedCluster : null;
   const { data: clusterDetail, isLoading: clusterDetailLoading } = useCluster(selectedClusterId);
@@ -83,9 +80,13 @@ export default function UserDashboard({
   // Auto-select first cluster when hideAllTab is true and clusters are loaded
   useEffect(() => {
     if (hideAllTab && clusters.length > 0 && selectedCluster === CLUSTER_FILTER_ALL) {
-      setSelectedCluster(clusters[0].id);
+      if (isControlled) {
+        onClusterChange?.(clusters[0].id);
+      } else {
+        setInternalSelectedCluster(clusters[0].id);
+      }
     }
-  }, [hideAllTab, clusters, selectedCluster, setSelectedCluster]);
+  }, [hideAllTab, clusters, selectedCluster, isControlled, onClusterChange]);
 
   const isAllSelected = selectedCluster === CLUSTER_FILTER_ALL;
   const detailedCluster = useMemo(
@@ -125,7 +126,15 @@ export default function UserDashboard({
   return (
     <UnderlineTabs
       value={selectedCluster}
-      onValueChange={(value) => setSelectedCluster(value as ClusterFilter)}
+      onValueChange={(value) => {
+        const clusterFilter = value as ClusterFilter;
+
+        if (isControlled) {
+          onClusterChange?.(clusterFilter);
+        } else {
+          setInternalSelectedCluster(clusterFilter);
+        }
+      }}
       className="gap-0"
     >
       <UnderlineTabsList>

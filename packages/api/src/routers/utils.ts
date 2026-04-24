@@ -23,9 +23,6 @@ const DateStringSchema = z.string().refine(
   { message: 'Date must be a valid date in format yyyy/mm/dd hh:mm:ss or yyyy-mm-ddThh:mm:ssZ' },
 );
 
-// Schema for slot number input
-const SlotNumberSchema = z.number().int().nonnegative();
-
 // Unified response schema for slot/date conversions
 const SlotDateResponseSchema = ApiResponseSchema(
   z.object({

@@ -1,6 +1,7 @@
-import type { router } from '@beacon-indexer/api/routers';
 import { createORPCClient } from '@orpc/client';
 import { RPCLink } from '@orpc/client/fetch';
+
+import type { router } from '@beacon-indexer/api/routers';
 import type { RouterClient } from '@orpc/server';
 
 import { createBotSignatureHeaders } from '@/src/api/sign.js';

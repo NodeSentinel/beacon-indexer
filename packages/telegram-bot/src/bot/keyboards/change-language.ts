@@ -1,8 +1,9 @@
 import { InlineKeyboard } from 'grammy';
 import ISO6391 from 'iso-639-1';
 
-import { changeLanguageData } from '@/src/bot/callback-data/change-language.js';
 import type { Context } from '@/src/bot/context.js';
+
+import { changeLanguageData } from '@/src/bot/callback-data/change-language.js';
 import { chunk } from '@/src/bot/helpers/keyboard.js';
 import { i18n } from '@/src/bot/i18n.js';
 

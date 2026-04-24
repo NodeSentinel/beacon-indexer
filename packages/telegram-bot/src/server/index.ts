@@ -8,6 +8,7 @@ import type { Bot } from '@/src/bot/index.js';
 import type { Config } from '@/src/config.js';
 import type { Logger } from '@/src/logger.js';
 import type { Env } from '@/src/server/environment.js';
+
 import { setLogger } from '@/src/server/middlewares/logger.js';
 import { requestId } from '@/src/server/middlewares/request-id.js';
 import { requestLogger } from '@/src/server/middlewares/request-logger.js';

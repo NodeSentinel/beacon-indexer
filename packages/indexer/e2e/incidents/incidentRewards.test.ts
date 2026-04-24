@@ -3,10 +3,11 @@ import { gnosisConfig } from '@beacon-indexer/beacon-utils/config/chain';
 import { PrismaClient } from '@beacon-indexer/db';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import type { SlotStorage } from '@/src/services/consensus/storage/slot.js';
+
 import { IncidentRewardsController } from '@/src/services/consensus/controllers/incidentRewards.js';
 import { ValidatorActivityStatusController } from '@/src/services/consensus/controllers/validatorActivityStatus.js';
 import { IncidentRewardsStorage } from '@/src/services/consensus/storage/incidentRewards.js';
-import type { SlotStorage } from '@/src/services/consensus/storage/slot.js';
 import { ValidatorActivityStatusStorage } from '@/src/services/consensus/storage/validatorActivityStatus.js';
 
 // This suite verifies reward finalization on the activity-owned incident path.

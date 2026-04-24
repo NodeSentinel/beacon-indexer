@@ -1,6 +1,6 @@
 'use client';
 
-import { ChevronDown, ChevronUp, Gift, Eye, EyeOff, Target, AlertCircle } from 'lucide-react';
+import { ChevronDown, ChevronUp, Gift, Eye, EyeOff, Target } from 'lucide-react';
 import { useState, useMemo } from 'react';
 
 import DashboardCard from '@/components/dashboard/card';
@@ -57,15 +57,6 @@ function getTotalRewards(rewards: EpochRewards): number {
     Number(rewards.target) +
     Number(rewards.source) +
     Number(rewards.inactivity)
-  );
-}
-
-function getTotalMissed(rewards: EpochRewards): number {
-  return (
-    Number(rewards.missedHead) +
-    Number(rewards.missedTarget) +
-    Number(rewards.missedSource) +
-    Number(rewards.missedInactivity)
   );
 }
 
@@ -141,15 +132,12 @@ interface EpochRowProps {
 
 function EpochRow({ epoch, isExpanded, onToggle }: EpochRowProps) {
   const totalRewards = getTotalRewards(epoch.rewards);
-  const totalMissed = getTotalMissed(epoch.rewards);
   const hasSlot = epoch.slot !== null;
   const hasBlockReward = epoch.slot?.blockRewards.blockReward !== null;
   const hasSyncReward = epoch.slot?.syncRewards.syncCommittee !== null;
   const attestationDelay = epoch.slot?.attestation.delay;
 
   const isPositive = totalRewards > 0;
-  const hasMissed = totalMissed > 0;
-
   return (
     <Collapsible open={isExpanded} onOpenChange={onToggle}>
       <div className="border border-border/50 rounded-lg overflow-hidden hover:border-border transition-colors">
