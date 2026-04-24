@@ -340,5 +340,11 @@ function getIncidentCostUsd(incident: ClusterIncident, tokenPrice: number): stri
     return null;
   }
 
-  return formatNumber(Number(incident.missedConsensusRewards) * tokenPrice);
+  const costUsd = Number(incident.missedConsensusRewards) * tokenPrice;
+
+  if (!Number.isFinite(costUsd) || costUsd <= 0) {
+    return null;
+  }
+
+  return formatNumber(costUsd);
 }
