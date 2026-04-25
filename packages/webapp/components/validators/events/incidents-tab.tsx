@@ -168,6 +168,8 @@ function IncidentItem({ incident, tokenPrice, tokenSymbol }: IncidentItemProps) 
 /** Renders the collapsed incident summary with clearer hierarchy. */
 function IncidentSummary({ incident, tokenPrice }: IncidentSummaryProps) {
   const costUsd = getIncidentCostUsd(incident, tokenPrice);
+  const openedAtLabel = format(parseISO(incident.openedAt), 'dd/MM');
+  const durationLabel = formatIncidentDurationCompact(incident).toUpperCase();
 
   return (
     <div className="flex-1 min-w-0 flex items-center gap-2 md:gap-3 text-left overflow-hidden">
@@ -181,21 +183,17 @@ function IncidentSummary({ incident, tokenPrice }: IncidentSummaryProps) {
       <div className="h-4 w-px bg-border/70 shrink-0" />
 
       <div className="min-w-0 shrink overflow-hidden">
-        <span className="text-xs md:text-sm font-mono text-foreground truncate">
-          {format(parseISO(incident.openedAt), 'dd/MM')} ({formatIncidentDurationCompact(incident)})
+        <span className="text-xs md:text-sm font-mono text-foreground uppercase truncate">
+          {openedAtLabel} DURATION: {durationLabel}
         </span>
       </div>
 
       {costUsd && (
-        <>
-          <div className="h-4 w-px bg-border/70 shrink-0" />
-          <div className="ml-auto flex items-center gap-1.5 md:gap-2 shrink-0">
-            <span className="text-[10px] md:text-xs uppercase tracking-wide text-muted-foreground">
-              Cost
-            </span>
-            <span className="text-xs md:text-sm font-mono text-destructive">${costUsd}</span>
-          </div>
-        </>
+        <div className="ml-auto shrink-0">
+          <span className="text-xs md:text-sm font-mono text-destructive uppercase">
+            COST: ${costUsd}
+          </span>
+        </div>
       )}
     </div>
   );

@@ -21,7 +21,7 @@ interface EventsFeedContentProps {
 
 /** Renders the events tabs shell for a validator cluster. */
 export default function EventsFeedContent({ clusterId }: EventsFeedContentProps) {
-  const [activeTab, setActiveTab] = useState('blocks');
+  const [activeTab, setActiveTab] = useState('incidents');
 
   return (
     <div>
@@ -31,21 +31,21 @@ export default function EventsFeedContent({ clusterId }: EventsFeedContentProps)
         </span>
         <div className="flex-1 h-px bg-primary/20" />
       </div>
-      <UnderlineTabs defaultValue="blocks" value={activeTab} onValueChange={setActiveTab}>
+      <UnderlineTabs defaultValue="incidents" value={activeTab} onValueChange={setActiveTab}>
         <UnderlineTabsList>
-          <UnderlineTabsTrigger value="blocks">Blocks</UnderlineTabsTrigger>
           <UnderlineTabsTrigger value="incidents">Incidents</UnderlineTabsTrigger>
+          <UnderlineTabsTrigger value="blocks">Blocks</UnderlineTabsTrigger>
           <UnderlineTabsTrigger value="consolidations">Consolidations</UnderlineTabsTrigger>
           <UnderlineTabsTrigger value="deposits">Deposits</UnderlineTabsTrigger>
           <UnderlineTabsTrigger value="withdrawals">Withdrawals</UnderlineTabsTrigger>
         </UnderlineTabsList>
 
-        <UnderlineTabsContent value="blocks" className="space-y-2 mt-4 min-h-[400px]">
-          <BlocksTab clusterId={clusterId} />
-        </UnderlineTabsContent>
-
         <UnderlineTabsContent value="incidents" className="space-y-2 mt-4 min-h-[400px]">
           <IncidentsTab clusterId={clusterId} isActive={activeTab === 'incidents'} />
+        </UnderlineTabsContent>
+
+        <UnderlineTabsContent value="blocks" className="space-y-2 mt-4 min-h-[400px]">
+          <BlocksTab clusterId={clusterId} />
         </UnderlineTabsContent>
 
         <UnderlineTabsContent value="consolidations" className="space-y-2 mt-4 min-h-[400px]">
