@@ -1,6 +1,6 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { z } from 'zod';
 
-import { botProcedure } from './procedures.js';
 import {
   BotIncidentNotificationListSchema,
   BotNotificationDeliveredSchema,
@@ -8,7 +8,7 @@ import {
   IncidentNotificationIdParamSchema,
 } from './schemas.js';
 
-import { BotIncidentNotificationsStorage } from '@/storage/bot-incident-notifications.js';
+import { createBotProcedure } from '@/routers/bot/procedures.js';
 import { ApiResponseSchema, errorResponse, successResponse } from '@/utils/response.js';
 
 const BotIncidentNotificationListResponseSchema = ApiResponseSchema(
@@ -26,82 +26,83 @@ type BotIncidentNotificationDeliveredResponse = z.infer<
 >;
 
 /**
- * List pending incident notifications.
- * GET /bot/incident-notifications
+ * Creates the bot incident notification routes.
  */
-export const listBotIncidentNotifications = botProcedure
-  .route({ method: 'GET', path: '/bot/incident-notifications' })
-  .input(BotNotificationListInputSchema)
-  .output(BotIncidentNotificationListResponseSchema)
-  .handler(async ({ input }) => {
-    try {
-      const storage = new BotIncidentNotificationsStorage();
-      const notifications = await storage.listPending(input.limit);
+export function createBotIncidentNotificationRoutes(params: {
+  botIncidentNotificationsStorage: any;
+  procedures: any;
+}) {
+  const botProcedure = createBotProcedure(params.procedures);
 
-      return successResponse(
-        notifications.map((notification) => ({
-          id: notification.id,
-          userId: notification.userId,
-          telegramId: notification.user.telegramId.toString(),
-          type: notification.type,
-          payload: notification.payload,
-          createdAt: notification.createdAt.toISOString(),
-        })),
-      ) as BotIncidentNotificationListResponse;
-    } catch (error) {
-      return errorResponse(
-        'LIST_INCIDENT_NOTIFICATIONS_ERROR',
-        error instanceof Error ? error.message : 'Failed to list incident notifications',
-      ) as BotIncidentNotificationListResponse;
-    }
-  });
+  const listBotIncidentNotifications = botProcedure
+    .route({ method: 'GET', path: '/bot/incident-notifications' })
+    .input(BotNotificationListInputSchema)
+    .output(BotIncidentNotificationListResponseSchema)
+    .handler(async ({ input }: any) => {
+      try {
+        const notifications = await params.botIncidentNotificationsStorage.listPending(input.limit);
 
-/**
- * Mark an open incident notification as sent.
- * PUT /bot/incident-notifications/{incidentId}/opened
- */
-export const markBotIncidentOpenedNotified = botProcedure
-  .route({ method: 'PUT', path: '/bot/incident-notifications/{incidentId}/opened' })
-  .input(IncidentNotificationIdParamSchema)
-  .output(BotIncidentNotificationDeliveredResponseSchema)
-  .handler(async ({ input }) => {
-    try {
-      const storage = new BotIncidentNotificationsStorage();
-      await storage.markOpenedNotified(input.incidentId);
+        return successResponse(
+          notifications.map((notification: any) => ({
+            id: notification.id,
+            userId: notification.userId,
+            telegramId: notification.user.telegramId.toString(),
+            type: notification.type,
+            payload: notification.payload,
+            createdAt: notification.createdAt.toISOString(),
+          })),
+        ) as BotIncidentNotificationListResponse;
+      } catch (error) {
+        return errorResponse(
+          'LIST_INCIDENT_NOTIFICATIONS_ERROR',
+          error instanceof Error ? error.message : 'Failed to list incident notifications',
+        ) as BotIncidentNotificationListResponse;
+      }
+    });
 
-      return successResponse({
-        id: input.incidentId,
-        delivered: true,
-      }) as BotIncidentNotificationDeliveredResponse;
-    } catch (error) {
-      return errorResponse(
-        'MARK_INCIDENT_OPENED_NOTIFIED_ERROR',
-        error instanceof Error ? error.message : 'Failed to mark open incident notification',
-      ) as BotIncidentNotificationDeliveredResponse;
-    }
-  });
+  const markBotIncidentOpenedNotified = botProcedure
+    .route({ method: 'PUT', path: '/bot/incident-notifications/{incidentId}/opened' })
+    .input(IncidentNotificationIdParamSchema)
+    .output(BotIncidentNotificationDeliveredResponseSchema)
+    .handler(async ({ input }: any) => {
+      try {
+        await params.botIncidentNotificationsStorage.markOpenedNotified(input.incidentId);
 
-/**
- * Mark a closed incident notification as sent.
- * PUT /bot/incident-notifications/{incidentId}/closed
- */
-export const markBotIncidentClosedNotified = botProcedure
-  .route({ method: 'PUT', path: '/bot/incident-notifications/{incidentId}/closed' })
-  .input(IncidentNotificationIdParamSchema)
-  .output(BotIncidentNotificationDeliveredResponseSchema)
-  .handler(async ({ input }) => {
-    try {
-      const storage = new BotIncidentNotificationsStorage();
-      await storage.markClosedNotified(input.incidentId);
+        return successResponse({
+          id: input.incidentId,
+          delivered: true,
+        }) as BotIncidentNotificationDeliveredResponse;
+      } catch (error) {
+        return errorResponse(
+          'MARK_INCIDENT_OPENED_NOTIFIED_ERROR',
+          error instanceof Error ? error.message : 'Failed to mark open incident notification',
+        ) as BotIncidentNotificationDeliveredResponse;
+      }
+    });
 
-      return successResponse({
-        id: input.incidentId,
-        delivered: true,
-      }) as BotIncidentNotificationDeliveredResponse;
-    } catch (error) {
-      return errorResponse(
-        'MARK_INCIDENT_CLOSED_NOTIFIED_ERROR',
-        error instanceof Error ? error.message : 'Failed to mark closed incident notification',
-      ) as BotIncidentNotificationDeliveredResponse;
-    }
-  });
+  const markBotIncidentClosedNotified = botProcedure
+    .route({ method: 'PUT', path: '/bot/incident-notifications/{incidentId}/closed' })
+    .input(IncidentNotificationIdParamSchema)
+    .output(BotIncidentNotificationDeliveredResponseSchema)
+    .handler(async ({ input }: any) => {
+      try {
+        await params.botIncidentNotificationsStorage.markClosedNotified(input.incidentId);
+
+        return successResponse({
+          id: input.incidentId,
+          delivered: true,
+        }) as BotIncidentNotificationDeliveredResponse;
+      } catch (error) {
+        return errorResponse(
+          'MARK_INCIDENT_CLOSED_NOTIFIED_ERROR',
+          error instanceof Error ? error.message : 'Failed to mark closed incident notification',
+        ) as BotIncidentNotificationDeliveredResponse;
+      }
+    });
+
+  return {
+    listBotIncidentNotifications,
+    markBotIncidentClosedNotified,
+    markBotIncidentOpenedNotified,
+  };
+}

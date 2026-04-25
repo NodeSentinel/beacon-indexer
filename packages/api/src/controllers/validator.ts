@@ -9,7 +9,7 @@ import type {
 } from '@/routers/validator/schemas.js';
 
 import { ValidatorStorage } from '@/storage/validator.js';
-import { beaconTime } from '@/utils/beaconTime.js';
+import type { BeaconHelpers } from '@/utils/beaconTime.js';
 import { formatBalance } from '@/utils/tokenFormat.js';
 
 /** Reverse map: numeric status id → Beacon API string */
@@ -22,7 +22,19 @@ const STATUS_BY_ID: Record<number, string> = Object.fromEntries(
  * Orchestrates data retrieval and transforms flat DB rows into hierarchical structure
  */
 export class ValidatorController {
-  constructor(private readonly storage: ValidatorStorage = new ValidatorStorage()) {}
+  constructor(params: {
+    beaconHelpers: BeaconHelpers;
+    chain: 'ethereum' | 'gnosis';
+    storage: ValidatorStorage;
+  }) {
+    this.storage = params.storage;
+    this.beaconHelpers = params.beaconHelpers;
+    this.chain = params.chain;
+  }
+
+  private readonly beaconHelpers: BeaconHelpers;
+  private readonly chain: 'ethereum' | 'gnosis';
+  private readonly storage: ValidatorStorage;
 
   /**
    * Get validator details with timeline grouped by epoch → slot
@@ -67,9 +79,9 @@ export class ValidatorController {
               value: STATUS_BY_ID[validatorInfoRow.status] ?? 'unknown',
             }
           : null,
-      balance: formatBalance(validatorInfoRow.balance),
+      balance: formatBalance(validatorInfoRow.balance, this.chain),
       effectiveBalance: validatorInfoRow.effective_balance
-        ? formatBalance(validatorInfoRow.effective_balance)
+        ? formatBalance(validatorInfoRow.effective_balance, this.chain)
         : null,
     };
 
@@ -82,14 +94,14 @@ export class ValidatorController {
       epochsMap.set(epochReward.epoch, {
         epoch: epochReward.epoch,
         rewards: {
-          head: formatBalance(epochReward.head),
-          target: formatBalance(epochReward.target),
-          source: formatBalance(epochReward.source),
-          inactivity: formatBalance(epochReward.inactivity),
-          missedHead: formatBalance(epochReward.missed_head),
-          missedTarget: formatBalance(epochReward.missed_target),
-          missedSource: formatBalance(epochReward.missed_source),
-          missedInactivity: formatBalance(epochReward.missed_inactivity),
+          head: formatBalance(epochReward.head, this.chain),
+          target: formatBalance(epochReward.target, this.chain),
+          source: formatBalance(epochReward.source, this.chain),
+          inactivity: formatBalance(epochReward.inactivity, this.chain),
+          missedHead: formatBalance(epochReward.missed_head, this.chain),
+          missedTarget: formatBalance(epochReward.missed_target, this.chain),
+          missedSource: formatBalance(epochReward.missed_source, this.chain),
+          missedInactivity: formatBalance(epochReward.missed_inactivity, this.chain),
         },
         slot: null,
       });
@@ -98,7 +110,7 @@ export class ValidatorController {
     // Group slots by epoch
     // A validator attests only once per epoch, so we assign a single slot per epoch
     for (const slotRow of slotRows) {
-      const epoch = beaconTime.getEpochFromSlot(slotRow.slot);
+      const epoch = this.beaconHelpers.beaconTime.getEpochFromSlot(slotRow.slot);
 
       // Ensure epoch exists in map
       if (!epochsMap.has(epoch)) {

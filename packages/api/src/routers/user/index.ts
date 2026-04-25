@@ -1,7 +1,15 @@
-import { anonymousUser } from './anonymous.js';
-import { me } from './me.js';
+import { createAnonymousUserRoute } from './anonymous.js';
+import { createMeRoute } from './me.js';
 
-export const userRouter = {
-  anonymous: anonymousUser,
-  me,
-};
+/**
+ * Creates the user router.
+ */
+export function createUserRouter(params: {
+  procedures: Parameters<typeof createAnonymousUserRoute>[0]['procedures'];
+  userStorage: Parameters<typeof createAnonymousUserRoute>[0]['userStorage'];
+}) {
+  return {
+    anonymous: createAnonymousUserRoute(params),
+    me: createMeRoute(params),
+  };
+}

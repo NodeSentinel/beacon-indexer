@@ -1,84 +1,99 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { requireOwnedCluster } from './ownership.js';
 import { ClusterDetailSchema, ClusterIdParamSchema } from './schemas.js';
 
-import { securedProcedure } from '@/lib/procedures.js';
-import { ClusterStorage } from '@/storage/cluster.js';
 import { ApiResponseSchema } from '@/utils/response.js';
 import { formatBalance } from '@/utils/tokenFormat.js';
 
 /**
- * Get cluster details with validators
- * GET /clusters/:id
+ * Creates the cluster detail route.
  */
-export const getCluster = securedProcedure
-  .route({ method: 'GET', path: '/clusters/{id}' })
-  .input(ClusterIdParamSchema)
-  .output(ApiResponseSchema(ClusterDetailSchema))
-  .handler(async ({ context, input }) => {
-    try {
-      const storage = new ClusterStorage();
-      const ownershipError = await requireOwnedCluster(storage, input.id, context.user);
-      if (ownershipError) {
-        return ownershipError;
-      }
+export function createGetClusterRoute(params: {
+  chain: 'ethereum' | 'gnosis';
+  clusterStorage: any;
+  procedures: { securedProcedure: any };
+}) {
+  const { securedProcedure } = params.procedures;
 
-      const cluster = await storage.findByIdWithValidatorsAndSnapshot(input.id);
+  return securedProcedure
+    .route({ method: 'GET', path: '/clusters/{id}' })
+    .input(ClusterIdParamSchema)
+    .output(ApiResponseSchema(ClusterDetailSchema))
+    .handler(async ({ context, input }: any) => {
+      try {
+        const ownershipError = await requireOwnedCluster(
+          params.clusterStorage,
+          input.id,
+          context.user,
+        );
+        if (ownershipError) {
+          return ownershipError;
+        }
 
-      if (!cluster) {
+        const cluster = await params.clusterStorage.findByIdWithValidatorsAndSnapshot(input.id);
+
+        if (!cluster) {
+          return {
+            success: false,
+            error: { code: 'CLUSTER_NOT_FOUND', message: `Cluster with id ${input.id} not found` },
+            meta: { timestamp: new Date().toISOString() },
+          };
+        }
+
+        const withdrawalAddresses = Array.from(
+          new Set(
+            cluster.validators.flatMap((validator: any) =>
+              validator.withdrawalAddress ? [validator.withdrawalAddress] : [],
+            ),
+          ),
+        );
+
+        let totalBalance = BigInt(0);
+        let totalEffectiveBalance = BigInt(0);
+
+        for (const validator of cluster.validators) {
+          totalBalance += validator.balance;
+          if (validator.effectiveBalance) {
+            totalEffectiveBalance += validator.effectiveBalance;
+          }
+        }
+
+        return {
+          success: true,
+          data: {
+            id: cluster.id,
+            name: cluster.name,
+            visibility: cluster.visibility as 'private' | 'shared',
+            feeRecipientAddress: cluster.feeRecipientAddress,
+            ownerId: cluster.ownerId,
+            createdAt: cluster.createdAt.toISOString(),
+            validators: cluster.validators.map((validator: any) => ({
+              validatorIndex: validator.validatorIndex,
+              withdrawalAddress: validator.withdrawalAddress,
+              status: validator.beaconStatus,
+              isInactive: validator.isInactive,
+              performanceH: validator.performanceH,
+              balance: formatBalance(validator.balance, params.chain),
+              effectiveBalance: validator.effectiveBalance
+                ? formatBalance(validator.effectiveBalance, params.chain)
+                : null,
+              pubkey: validator.pubkey,
+            })),
+            withdrawalAddresses,
+            totalBalance: formatBalance(totalBalance, params.chain),
+            totalEffectiveBalance: formatBalance(totalEffectiveBalance, params.chain),
+          },
+          meta: { timestamp: new Date().toISOString() },
+        };
+      } catch (error) {
         return {
           success: false,
-          error: { code: 'CLUSTER_NOT_FOUND', message: `Cluster with id ${input.id} not found` },
+          error: {
+            code: 'CLUSTER_GET_ERROR',
+            message: error instanceof Error ? error.message : 'Failed to get cluster',
+          },
           meta: { timestamp: new Date().toISOString() },
         };
       }
-
-      const withdrawalAddresses = Array.from(
-        new Set(
-          cluster.validators.flatMap((v) => (v.withdrawalAddress ? [v.withdrawalAddress] : [])),
-        ),
-      );
-
-      let totalBalance = BigInt(0);
-      let totalEffectiveBalance = BigInt(0);
-
-      for (const v of cluster.validators) {
-        totalBalance += v.balance;
-        if (v.effectiveBalance) {
-          totalEffectiveBalance += v.effectiveBalance;
-        }
-      }
-
-      return {
-        success: true,
-        data: {
-          id: cluster.id,
-          name: cluster.name,
-          visibility: cluster.visibility as 'private' | 'shared',
-          feeRecipientAddress: cluster.feeRecipientAddress,
-          ownerId: cluster.ownerId,
-          createdAt: cluster.createdAt.toISOString(),
-          validators: cluster.validators.map((v) => ({
-            validatorIndex: v.validatorIndex,
-            withdrawalAddress: v.withdrawalAddress,
-            status: v.beaconStatus,
-            isInactive: v.isInactive,
-            performanceH: v.performanceH,
-            balance: formatBalance(v.balance),
-            effectiveBalance: v.effectiveBalance ? formatBalance(v.effectiveBalance) : null,
-            pubkey: v.pubkey,
-          })),
-          withdrawalAddresses,
-          totalBalance: formatBalance(totalBalance),
-          totalEffectiveBalance: formatBalance(totalEffectiveBalance),
-        },
-        meta: { timestamp: new Date().toISOString() },
-      };
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to get cluster';
-      return {
-        success: false,
-        error: { code: 'CLUSTER_GET_ERROR', message },
-        meta: { timestamp: new Date().toISOString() },
-      };
-    }
-  });
+    });
+}

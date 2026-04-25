@@ -1,10 +1,10 @@
 import { config } from 'dotenv';
 import { z } from 'zod';
 
-// Load environment variables
-config({ path: new URL('../../.env', import.meta.url) });
-
-const envSchema = z.object({
+/**
+ * Validates the API environment variables.
+ */
+export const envSchema = z.object({
   // Database
   DATABASE_URL: z.string().url(),
 
@@ -25,7 +25,7 @@ const envSchema = z.object({
   // Logging
   LOG_LEVEL: z.enum(['silent', 'fatal', 'error', 'warn', 'info', 'debug', 'trace']).default('info'),
 
-  // Chain config (same as indexer)
+  // Chain config
   CHAIN: z.enum(['ethereum', 'gnosis']),
   CONSENSUS_LOOKBACK_SLOT: z.coerce.number().int().min(0).default(0),
   NATIVE_TOKEN_DECIMALS: z.coerce.number().int().min(0).default(18),
@@ -37,11 +37,25 @@ const envSchema = z.object({
 
 export type Env = z.infer<typeof envSchema>;
 
-const parsed = envSchema.safeParse(process.env);
+/**
+ * Parses the environment from a raw object.
+ */
+export function parseEnv(source: Record<string, string | undefined>): Env {
+  const parsed = envSchema.safeParse(source);
 
-if (!parsed.success) {
-  console.error('❌ Invalid environment variables:', parsed.error.flatten().fieldErrors);
-  throw new Error('Invalid environment variables');
+  if (!parsed.success) {
+    console.error('❌ Invalid environment variables:', parsed.error.flatten().fieldErrors);
+    throw new Error('Invalid environment variables');
+  }
+
+  return parsed.data;
 }
 
-export const env = parsed.data;
+/**
+ * Loads dotenv and parses the current process environment.
+ */
+export function loadEnv(): Env {
+  config({ path: new URL('../../.env', import.meta.url) });
+
+  return parseEnv(process.env);
+}

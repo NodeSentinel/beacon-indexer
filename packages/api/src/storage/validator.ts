@@ -1,7 +1,5 @@
 import { PrismaClient } from '@beacon-indexer/db';
 
-import { getPrisma } from '@/lib/prisma.js';
-
 /**
  * ValidatorStorage - Database persistence layer for validator-related operations
  * Handles all database operations using raw SQL queries for performance
@@ -39,7 +37,7 @@ interface EpochRewardsRow {
 }
 
 export class ValidatorStorage {
-  constructor(private readonly prisma: PrismaClient = getPrisma()) {}
+  constructor(private readonly prisma: PrismaClient) {}
 
   /**
    * Resolve validator index from pubkey

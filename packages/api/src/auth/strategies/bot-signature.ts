@@ -2,51 +2,55 @@ import crypto from 'node:crypto';
 
 import { ORPCError } from '@orpc/server';
 
-import { env } from '@/config/env.js';
-
-/** Maximum age of bot-signature before it's considered expired */
+/** Maximum age of bot-signature before it's considered expired. */
 const BOT_SIGNATURE_MAX_AGE_SECONDS = 60;
 
+export interface BotSignatureAuthenticator {
+  authenticateBotSignature: (signature: string, telegramId: string, timestamp: string) => void;
+}
+
 /**
- * Bot-signature authentication strategy.
- * Validates HMAC-SHA256 signature created by the telegram bot using BOT_TOKEN.
- *
- * Headers:
- *   bot-signature: HMAC-SHA256(BOT_TOKEN, telegramId + ":" + timestamp)
- *   bot-user-id: telegram user ID (string)
- *   bot-timestamp: unix timestamp in seconds (string)
+ * Creates the bot-signature authentication strategy.
  */
-export function authenticateBotSignature(
-  signature: string,
-  telegramId: string,
-  timestamp: string,
-): void {
-  // Verify timestamp freshness
-  const ts = Number(timestamp);
-  const now = Math.floor(Date.now() / 1000);
+export function createBotSignatureAuthenticator(
+  telegramBotToken: string,
+): BotSignatureAuthenticator {
+  /**
+   * Authenticates a bot-signature request.
+   */
+  function authenticateBotSignature(
+    signature: string,
+    telegramId: string,
+    timestamp: string,
+  ): void {
+    const ts = Number(timestamp);
+    const now = Math.floor(Date.now() / 1000);
 
-  if (Number.isNaN(ts) || Math.abs(now - ts) > BOT_SIGNATURE_MAX_AGE_SECONDS) {
-    throw new ORPCError('UNAUTHORIZED', {
-      message: 'Bot signature expired or invalid timestamp',
-    });
+    if (Number.isNaN(ts) || Math.abs(now - ts) > BOT_SIGNATURE_MAX_AGE_SECONDS) {
+      throw new ORPCError('UNAUTHORIZED', {
+        message: 'Bot signature expired or invalid timestamp',
+      });
+    }
+
+    const expectedSignature = crypto
+      .createHmac('sha256', telegramBotToken)
+      .update(`${telegramId}:${timestamp}`)
+      .digest('hex');
+
+    const sigBuffer = Buffer.from(signature, 'hex');
+    const expectedBuffer = Buffer.from(expectedSignature, 'hex');
+
+    if (
+      sigBuffer.length !== expectedBuffer.length ||
+      !crypto.timingSafeEqual(sigBuffer, expectedBuffer)
+    ) {
+      throw new ORPCError('UNAUTHORIZED', {
+        message: 'Invalid bot signature',
+      });
+    }
   }
 
-  // Compute expected signature
-  const expectedSignature = crypto
-    .createHmac('sha256', env.TELEGRAM_BOT_TOKEN)
-    .update(`${telegramId}:${timestamp}`)
-    .digest('hex');
-
-  // Timing-safe comparison
-  const sigBuffer = Buffer.from(signature, 'hex');
-  const expectedBuffer = Buffer.from(expectedSignature, 'hex');
-
-  if (
-    sigBuffer.length !== expectedBuffer.length ||
-    !crypto.timingSafeEqual(sigBuffer, expectedBuffer)
-  ) {
-    throw new ORPCError('UNAUTHORIZED', {
-      message: 'Invalid bot signature',
-    });
-  }
+  return {
+    authenticateBotSignature,
+  };
 }

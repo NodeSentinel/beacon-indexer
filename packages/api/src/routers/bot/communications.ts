@@ -1,8 +1,8 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { ORPCError } from '@orpc/server';
 import { z } from 'zod';
 
-import { apiKeyProcedure } from '@/lib/procedures.js';
-import { botProcedure } from '@/routers/bot/procedures.js';
+import { createBotProcedure } from '@/routers/bot/procedures.js';
 import {
   BotCommunicationDetailsSchema,
   BotCommunicationSchema,
@@ -11,7 +11,6 @@ import {
   CreateBotCommunicationSchema,
 } from '@/routers/bot/schemas.js';
 import { resolveCommunicationRecipients } from '@/storage/bot-communication-recipients.js';
-import { BotCommunicationsStorage } from '@/storage/bot-communications.js';
 import { ApiResponseSchema, errorResponse, successResponse } from '@/utils/response.js';
 
 const BotCommunicationResponseSchema = ApiResponseSchema(BotCommunicationSchema);
@@ -49,90 +48,92 @@ function mapCommunication(communication: {
 }
 
 /**
- * Creates a new pending communication through API key authentication.
- * POST /bot/communications
+ * Creates the bot communications routes.
  */
-export const createBotCommunication = apiKeyProcedure
-  .route({ method: 'POST', path: '/bot/communications' })
-  .input(CreateBotCommunicationSchema)
-  .output(BotCommunicationResponseSchema)
-  .handler(async ({ input }) => {
-    try {
-      const storage = new BotCommunicationsStorage();
-      const communication = await storage.create(input);
+export function createBotCommunicationsRoutes(params: {
+  botCommunicationsStorage: any;
+  procedures: any;
+}) {
+  const botProcedure = createBotProcedure(params.procedures);
+  const { apiKeyProcedure } = params.procedures;
 
-      return successResponse(mapCommunication(communication)) as BotCommunicationResponse;
-    } catch (error) {
-      return errorResponse(
-        'CREATE_COMMUNICATION_ERROR',
-        error instanceof Error ? error.message : 'Failed to create communication',
-      ) as BotCommunicationResponse;
-    }
-  });
-
-/**
- * Returns one communication plus the users that should receive it.
- * GET /bot/communications/{id}
- */
-export const getBotCommunication = botProcedure
-  .route({ method: 'GET', path: '/bot/communications/{id}' })
-  .input(CommunicationIdParamSchema)
-  .output(BotCommunicationDetailsResponseSchema)
-  .handler(async ({ input }) => {
-    try {
-      const storage = new BotCommunicationsStorage();
-      const communication = await storage.findById(input.id);
-
-      if (!communication) {
-        throw new ORPCError('NOT_FOUND', {
-          message: `Communication ${input.id} was not found`,
-        });
+  const createBotCommunication = apiKeyProcedure
+    .route({ method: 'POST', path: '/bot/communications' })
+    .input(CreateBotCommunicationSchema)
+    .output(BotCommunicationResponseSchema)
+    .handler(async ({ input }: any) => {
+      try {
+        return successResponse(
+          mapCommunication(await params.botCommunicationsStorage.create(input)),
+        ) as BotCommunicationResponse;
+      } catch (error) {
+        return errorResponse(
+          'CREATE_COMMUNICATION_ERROR',
+          error instanceof Error ? error.message : 'Failed to create communication',
+        ) as BotCommunicationResponse;
       }
+    });
 
-      // Load broadcast recipients only when the communication does not target explicit telegram ids.
-      const broadcastTelegramIds =
-        communication.onlyTo.length > 0 ? [] : await storage.listBroadcastTelegramIds();
-      const recipients = resolveCommunicationRecipients(broadcastTelegramIds, communication);
+  const getBotCommunication = botProcedure
+    .route({ method: 'GET', path: '/bot/communications/{id}' })
+    .input(CommunicationIdParamSchema)
+    .output(BotCommunicationDetailsResponseSchema)
+    .handler(async ({ input }: any) => {
+      try {
+        const communication = await params.botCommunicationsStorage.findById(input.id);
 
-      return successResponse({
-        ...mapCommunication(communication),
-        recipients,
-      }) as BotCommunicationDetailsResponse;
-    } catch (error) {
-      return errorResponse(
-        'GET_COMMUNICATION_ERROR',
-        error instanceof Error ? error.message : 'Failed to get communication',
-      ) as BotCommunicationDetailsResponse;
-    }
-  });
+        if (!communication) {
+          throw new ORPCError('NOT_FOUND', {
+            message: `Communication ${input.id} was not found`,
+          });
+        }
 
-/**
- * Marks a communication as sent after the bot finishes delivery attempts.
- * PUT /bot/communications/{id}/sent
- */
-export const markBotCommunicationSent = botProcedure
-  .route({ method: 'PUT', path: '/bot/communications/{id}/sent' })
-  .input(CommunicationIdParamSchema)
-  .output(BotCommunicationSentResponseSchema)
-  .handler(async ({ input }) => {
-    try {
-      const storage = new BotCommunicationsStorage();
-      const updated = await storage.markSent(input.id);
+        const broadcastTelegramIds =
+          communication.onlyTo.length > 0
+            ? []
+            : await params.botCommunicationsStorage.listBroadcastTelegramIds();
 
-      if (!updated) {
-        throw new ORPCError('CONFLICT', {
-          message: `Communication ${input.id} was already sent`,
-        });
+        return successResponse({
+          ...mapCommunication(communication),
+          recipients: resolveCommunicationRecipients(broadcastTelegramIds, communication),
+        }) as BotCommunicationDetailsResponse;
+      } catch (error) {
+        return errorResponse(
+          'GET_COMMUNICATION_ERROR',
+          error instanceof Error ? error.message : 'Failed to get communication',
+        ) as BotCommunicationDetailsResponse;
       }
+    });
 
-      return successResponse({
-        id: input.id,
-        sent: true,
-      }) as BotCommunicationSentResponse;
-    } catch (error) {
-      return errorResponse(
-        'MARK_COMMUNICATION_SENT_ERROR',
-        error instanceof Error ? error.message : 'Failed to mark communication as sent',
-      ) as BotCommunicationSentResponse;
-    }
-  });
+  const markBotCommunicationSent = botProcedure
+    .route({ method: 'PUT', path: '/bot/communications/{id}/sent' })
+    .input(CommunicationIdParamSchema)
+    .output(BotCommunicationSentResponseSchema)
+    .handler(async ({ input }: any) => {
+      try {
+        const updated = await params.botCommunicationsStorage.markSent(input.id);
+
+        if (!updated) {
+          throw new ORPCError('CONFLICT', {
+            message: `Communication ${input.id} was already sent`,
+          });
+        }
+
+        return successResponse({
+          id: input.id,
+          sent: true,
+        }) as BotCommunicationSentResponse;
+      } catch (error) {
+        return errorResponse(
+          'MARK_COMMUNICATION_SENT_ERROR',
+          error instanceof Error ? error.message : 'Failed to mark communication as sent',
+        ) as BotCommunicationSentResponse;
+      }
+    });
+
+  return {
+    createBotCommunication,
+    getBotCommunication,
+    markBotCommunicationSent,
+  };
+}

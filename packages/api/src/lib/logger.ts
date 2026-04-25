@@ -1,20 +1,26 @@
 import pino from 'pino';
 
-import { env } from '@/config/env.js';
+export type Logger = pino.Logger;
 
-export const logger = pino({
-  level: env.LOG_LEVEL,
-  transport:
-    env.NODE_ENV === 'development'
-      ? {
-          target: 'pino-pretty',
-          options: {
-            colorize: true,
-            translateTime: 'HH:MM:ss Z',
-            ignore: 'pid,hostname',
-          },
-        }
-      : undefined,
-});
-
-export type Logger = typeof logger;
+/**
+ * Creates the API logger from plain parameters.
+ */
+export function createLogger(params: {
+  logLevel: 'silent' | 'fatal' | 'error' | 'warn' | 'info' | 'debug' | 'trace';
+  nodeEnv: 'development' | 'production' | 'test';
+}): Logger {
+  return pino({
+    level: params.logLevel,
+    transport:
+      params.nodeEnv === 'development'
+        ? {
+            target: 'pino-pretty',
+            options: {
+              colorize: true,
+              translateTime: 'HH:MM:ss Z',
+              ignore: 'pid,hostname',
+            },
+          }
+        : undefined,
+  });
+}

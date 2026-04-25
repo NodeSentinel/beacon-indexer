@@ -1,12 +1,10 @@
 import { PrismaClient } from '@beacon-indexer/db';
 
-import { getPrisma } from '@/lib/prisma.js';
-
 /**
  * UserStorage - Database persistence layer for user operations
  */
 export class UserStorage {
-  constructor(private readonly prisma: PrismaClient = getPrisma()) {}
+  constructor(private readonly prisma: PrismaClient) {}
 
   /**
    * Find user by session ID (stored in username for anonymous users)

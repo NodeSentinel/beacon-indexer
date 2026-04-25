@@ -1,17 +1,27 @@
 import { ORPCError } from '@orpc/server';
 
-import { env } from '@/config/env.js';
+export interface ApiKeyAuthenticator {
+  authenticateApiKey: (header: string) => void;
+}
 
 /**
- * Authenticate by comparing the provided token directly against API_TOKEN_SECRET.
- * Used for external/non-browser clients that can't rely on origin whitelisting.
+ * Creates the API key authentication strategy.
  */
-export function authenticateApiKey(header: string): void {
-  const token = header.replace(/^Bearer\s+/i, '');
+export function createApiKeyAuthenticator(apiTokenSecret: string): ApiKeyAuthenticator {
+  /**
+   * Authenticates the API key from the Authorization header.
+   */
+  function authenticateApiKey(header: string): void {
+    const token = header.replace(/^Bearer\s+/i, '');
 
-  if (!token || token !== env.API_TOKEN_SECRET) {
-    throw new ORPCError('UNAUTHORIZED', {
-      message: 'Invalid API key',
-    });
+    if (!token || token !== apiTokenSecret) {
+      throw new ORPCError('UNAUTHORIZED', {
+        message: 'Invalid API key',
+      });
+    }
   }
+
+  return {
+    authenticateApiKey,
+  };
 }

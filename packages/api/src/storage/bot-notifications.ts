@@ -1,9 +1,7 @@
 import { PrismaClient } from '@beacon-indexer/db';
 
-import { getPrisma } from '@/lib/prisma.js';
-
 export class BotNotificationsStorage {
-  constructor(private readonly prisma: PrismaClient = getPrisma()) {}
+  constructor(private readonly prisma: PrismaClient) {}
 
   /** Lists queued validator notifications for bot delivery. */
   async listPending(limit: number) {

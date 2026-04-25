@@ -1,53 +1,49 @@
 import { PrismaClient } from '@beacon-indexer/db';
 
-import { logger } from './logger.js';
+import type { Logger } from '@/lib/logger.js';
 
-import { env } from '@/config/env.js';
+/**
+ * Builds the Prisma client with API-specific connection settings.
+ */
+export function createPrisma(databaseUrl: string, logger: Logger): PrismaClient {
+  const prismaUrl = databaseUrl.includes('?')
+    ? `${databaseUrl}&pool_timeout=30&connect_timeout=10`
+    : `${databaseUrl}?pool_timeout=30&connect_timeout=10`;
 
-// Singleton pattern for Prisma client
-let prisma: PrismaClient | null = null;
-
-export function getPrisma(): PrismaClient {
-  if (!prisma) {
-    const databaseUrl = env.DATABASE_URL.includes('?')
-      ? `${env.DATABASE_URL}&pool_timeout=30&connect_timeout=10`
-      : `${env.DATABASE_URL}?pool_timeout=30&connect_timeout=10`;
-
-    prisma = new PrismaClient({
-      datasources: {
-        db: {
-          url: databaseUrl,
-        },
+  const prisma = new PrismaClient({
+    datasources: {
+      db: {
+        url: prismaUrl,
       },
-      log: [
-        {
-          emit: 'event',
-          level: 'error',
-        },
-        {
-          emit: 'event',
-          level: 'warn',
-        },
-      ],
-    });
+    },
+    log: [
+      {
+        emit: 'event',
+        level: 'error',
+      },
+      {
+        emit: 'event',
+        level: 'warn',
+      },
+    ],
+  });
 
-    // Log Prisma errors
-    prisma.$on('error' as never, (e: { message: string; target?: string }) => {
-      logger.error({ err: e }, 'Prisma error');
-    });
+  // Hooks Prisma events into the API logger so callers only configure logging once.
+  prisma.$on('error' as never, (event: { message: string; target?: string }) => {
+    logger.error({ err: event }, 'Prisma error');
+  });
 
-    prisma.$on('warn' as never, (e: { message: string; target?: string }) => {
-      logger.warn({ warn: e }, 'Prisma warning');
-    });
-  }
+  prisma.$on('warn' as never, (event: { message: string; target?: string }) => {
+    logger.warn({ warn: event }, 'Prisma warning');
+  });
 
   return prisma;
 }
 
-export async function disconnectPrisma() {
-  if (prisma) {
-    await prisma.$disconnect();
-    prisma = null;
-    logger.info('Prisma disconnected');
-  }
+/**
+ * Disconnects Prisma and logs the shutdown result.
+ */
+export async function disconnectPrisma(prisma: PrismaClient, logger: Logger) {
+  await prisma.$disconnect();
+  logger.info('Prisma disconnected');
 }

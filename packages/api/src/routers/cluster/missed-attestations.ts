@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import {
   MissedAttestationsAllInputSchema,
   MissedAttestationsInputSchema,
@@ -6,58 +7,54 @@ import {
 } from './analytics-schemas.js';
 import { requireOwnedCluster } from './ownership.js';
 
-import { securedProcedure } from '@/lib/procedures.js';
-import { AnalyticsStorage } from '@/storage/analytics.js';
-import { ClusterStorage } from '@/storage/cluster.js';
-import { beaconTime, chainConfig } from '@/utils/beaconTime.js';
 import { ApiResponseSchema } from '@/utils/response.js';
-
-const clusterStorage = new ClusterStorage();
-const analyticsStorage = new AnalyticsStorage();
 
 const TWENTY_FOUR_HOURS_MS = 24 * 60 * 60 * 1000;
 
 /**
- * Get validator indexes for a single cluster
+ * Loads validator indexes for one cluster.
  */
-async function getValidatorIndexesForCluster(clusterId: string): Promise<number[]> {
-  const cluster = await clusterStorage.findByIdWithValidators(clusterId);
-  if (!cluster) {
-    return [];
-  }
-  return cluster.validators.map((v) => v.validatorIndex);
+async function getValidatorIndexesForCluster(
+  params: { clusterStorage: any },
+  clusterId: string,
+): Promise<number[]> {
+  const cluster = await params.clusterStorage.findByIdWithValidators(clusterId);
+  return cluster ? cluster.validators.map((validator: any) => validator.validatorIndex) : [];
 }
 
 /**
- * Fetch missed attestations for a set of validators within a time range.
- * '1h' reads pre-computed data from the snapshot table (consistent with performance_h).
- * '24h' uses the validator_hourly_archive table (historical hourly data).
+ * Loads missed attestation rows for the requested range.
  */
 async function fetchMissedAttestations(
+  params: {
+    analyticsStorage: any;
+    beaconHelpers: any;
+    clusterStorage: any;
+  },
   validatorIndexes: number[],
   range: '1h' | '24h',
 ): Promise<Array<{ timestamp: string; count: number; validatorCount: number }>> {
   if (range === '1h') {
-    const rows = await analyticsStorage.getMissedAttestationsFromSnapshot(
+    const rows = await params.analyticsStorage.getMissedAttestationsFromSnapshot(
       validatorIndexes,
-      chainConfig.beacon.slotsPerEpoch,
+      params.beaconHelpers.chainConfig.beacon.slotsPerEpoch,
     );
 
-    return rows.map((row) => ({
-      timestamp: new Date(beaconTime.getTimestampFromEpochNumber(row.epoch)).toISOString(),
+    return rows.map((row: any) => ({
+      timestamp: new Date(
+        params.beaconHelpers.beaconTime.getTimestampFromEpochNumber(row.epoch),
+      ).toISOString(),
       count: Number(row.count),
       validatorCount: Number(row.validator_count),
     }));
   }
 
-  // 24h range
-  const fromTimestamp = new Date(Date.now() - TWENTY_FOUR_HOURS_MS);
-  const rows = await analyticsStorage.getMissedAttestationsFromArchive(
+  const rows = await params.analyticsStorage.getMissedAttestationsFromArchive(
     validatorIndexes,
-    fromTimestamp,
+    new Date(Date.now() - TWENTY_FOUR_HOURS_MS),
   );
 
-  return rows.map((row) => ({
+  return rows.map((row: any) => ({
     timestamp: row.timestamp.toISOString(),
     count: Number(row.count),
     validatorCount: Number(row.validator_count),
@@ -65,56 +62,96 @@ async function fetchMissedAttestations(
 }
 
 /**
- * GET /clusters/{id}/analytics/missed-attestations?range=1h|24h
- * Returns missed attestation data for a single cluster
+ * Creates the cluster missed-attestations route.
  */
-export const getClusterMissedAttestations = securedProcedure
-  .route({ method: 'GET', path: '/clusters/{id}/analytics/missed-attestations' })
-  .input(MissedAttestationsInputSchema)
-  .output(ApiResponseSchema(MissedAttestationsResponseSchema))
-  .handler(async ({ context, input }) => {
-    const ownershipError = await requireOwnedCluster(clusterStorage, input.id, context.user);
-    if (ownershipError) {
-      return ownershipError;
-    }
+export function createClusterMissedAttestationsRoute(params: {
+  analyticsStorage: any;
+  beaconHelpers: any;
+  clusterStorage: any;
+  procedures: { securedProcedure: any };
+}) {
+  const { securedProcedure } = params.procedures;
 
-    const validatorIndexes = await getValidatorIndexesForCluster(input.id);
-    const data = await fetchMissedAttestations(validatorIndexes, input.range);
-    return { success: true, data, meta: { timestamp: new Date().toISOString() } };
-  });
+  return securedProcedure
+    .route({ method: 'GET', path: '/clusters/{id}/analytics/missed-attestations' })
+    .input(MissedAttestationsInputSchema)
+    .output(ApiResponseSchema(MissedAttestationsResponseSchema))
+    .handler(async ({ context, input }: any) => {
+      const ownershipError = await requireOwnedCluster(
+        params.clusterStorage,
+        input.id,
+        context.user,
+      );
+      if (ownershipError) {
+        return ownershipError;
+      }
 
-/**
- * GET /clusters/all/analytics/missed-attestations?ownerId=X&range=1h|24h
- * Returns missed attestation data aggregated across all clusters for an owner
- */
-export const getAllClustersMissedAttestations = securedProcedure
-  .route({ method: 'GET', path: '/clusters/all/analytics/missed-attestations' })
-  .input(MissedAttestationsAllInputSchema)
-  .output(ApiResponseSchema(MissedAttestationsResponseSchema))
-  .handler(async ({ context, input }) => {
-    // Require a resolved user so missed attestation aggregation stays scoped to one owner.
-    if (!context.user) {
       return {
-        success: false,
-        error: { code: 'UNAUTHORIZED', message: 'User authentication required' },
+        success: true,
+        data: await fetchMissedAttestations(
+          params,
+          await getValidatorIndexesForCluster(params, input.id),
+          input.range,
+        ),
         meta: { timestamp: new Date().toISOString() },
       };
-    }
-
-    const validatorIndexes = await clusterStorage.findAllValidatorIndexesByOwner(context.user!.id);
-    const data = await fetchMissedAttestations(validatorIndexes, input.range);
-    return { success: true, data, meta: { timestamp: new Date().toISOString() } };
-  });
+    });
+}
 
 /**
- * GET /validators/{index}/analytics/missed-attestations?range=1h|24h
- * Returns missed attestation data for a single validator
+ * Creates the all-clusters missed-attestations route.
  */
-export const getValidatorMissedAttestations = securedProcedure
-  .route({ method: 'GET', path: '/validators/{index}/analytics/missed-attestations' })
-  .input(MissedAttestationsValidatorInputSchema)
-  .output(ApiResponseSchema(MissedAttestationsResponseSchema))
-  .handler(async ({ input }) => {
-    const data = await fetchMissedAttestations([input.index], input.range);
-    return { success: true, data, meta: { timestamp: new Date().toISOString() } };
-  });
+export function createAllClustersMissedAttestationsRoute(params: {
+  analyticsStorage: any;
+  beaconHelpers: any;
+  clusterStorage: any;
+  procedures: { securedProcedure: any };
+}) {
+  const { securedProcedure } = params.procedures;
+
+  return securedProcedure
+    .route({ method: 'GET', path: '/clusters/all/analytics/missed-attestations' })
+    .input(MissedAttestationsAllInputSchema)
+    .output(ApiResponseSchema(MissedAttestationsResponseSchema))
+    .handler(async ({ context, input }: any) => {
+      if (!context.user) {
+        return {
+          success: false,
+          error: { code: 'UNAUTHORIZED', message: 'User authentication required' },
+          meta: { timestamp: new Date().toISOString() },
+        };
+      }
+
+      return {
+        success: true,
+        data: await fetchMissedAttestations(
+          params,
+          await params.clusterStorage.findAllValidatorIndexesByOwner(context.user.id),
+          input.range,
+        ),
+        meta: { timestamp: new Date().toISOString() },
+      };
+    });
+}
+
+/**
+ * Creates the validator missed-attestations route.
+ */
+export function createValidatorMissedAttestationsRoute(params: {
+  analyticsStorage: any;
+  beaconHelpers: any;
+  clusterStorage: any;
+  procedures: { securedProcedure: any };
+}) {
+  const { securedProcedure } = params.procedures;
+
+  return securedProcedure
+    .route({ method: 'GET', path: '/validators/{index}/analytics/missed-attestations' })
+    .input(MissedAttestationsValidatorInputSchema)
+    .output(ApiResponseSchema(MissedAttestationsResponseSchema))
+    .handler(async ({ input }: any) => ({
+      success: true,
+      data: await fetchMissedAttestations(params, [input.index], input.range),
+      meta: { timestamp: new Date().toISOString() },
+    }));
+}

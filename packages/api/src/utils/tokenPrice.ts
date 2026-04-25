@@ -1,39 +1,55 @@
 import memoizee from 'memoizee';
 import ms from 'ms';
 
-import { env } from '@/config/env.js';
-import { logger } from '@/lib/logger.js';
+import type { Logger } from '@/lib/logger.js';
 
-async function fetchTokenPrice(): Promise<number> {
-  try {
-    const response = await fetch(
-      `${env.COINGECKO_TOKEN_PRICE_API_URL}?ids=${env.COINGECKO_TOKEN_NAME}&vs_currencies=usd`,
-    );
+/**
+ * Fetches the token price for one apiUrl/tokenName pair.
+ */
+const fetchTokenPriceCached = memoizee(
+  async (apiUrl: string, tokenName: string): Promise<number> => {
+    const response = await fetch(`${apiUrl}?ids=${tokenName}&vs_currencies=usd`);
 
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
 
     const data = (await response.json()) as Record<string, { usd: number } | undefined>;
-    const price = data?.[env.COINGECKO_TOKEN_NAME]?.usd;
+    const price = data?.[tokenName]?.usd;
+
     if (typeof price !== 'number') {
-      throw new Error(`Token price not found for '${env.COINGECKO_TOKEN_NAME}'`);
+      throw new Error(`Token price not found for '${tokenName}'`);
     }
+
     return price;
+  },
+  {
+    promise: true,
+    maxAge: ms('1m'),
+    preFetch: true,
+    primitive: true,
+  },
+);
+
+/**
+ * Gets the current token price and logs failures.
+ */
+export async function getTokenPrice(
+  apiUrl: string,
+  tokenName: string,
+  logger: Logger,
+): Promise<number> {
+  try {
+    return await fetchTokenPriceCached(apiUrl, tokenName);
   } catch (error) {
     logger.error({ err: error }, 'Error fetching token price');
     throw error;
   }
 }
 
-// Memoize the function with a 1-minute TTL
-export const getTokenPrice = memoizee(fetchTokenPrice, {
-  promise: true,
-  maxAge: ms('1m'),
-  preFetch: true,
-  primitive: true,
-});
-
-export const clearTokenPriceCache = () => {
-  getTokenPrice.clear();
-};
+/**
+ * Clears the shared token price cache.
+ */
+export function clearTokenPriceCache() {
+  fetchTokenPriceCached.clear();
+}

@@ -1,5 +1,10 @@
-import { listBlockProposals } from './list.js';
+import { createListBlockProposalsRoute } from './list.js';
 
-export const blocksRouter = {
-  list: listBlockProposals,
-};
+/**
+ * Creates the blocks router.
+ */
+export function createBlocksRouter(params: Parameters<typeof createListBlockProposalsRoute>[0]) {
+  return {
+    list: createListBlockProposalsRoute(params),
+  };
+}

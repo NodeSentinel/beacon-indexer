@@ -1,9 +1,8 @@
-import { createServer } from 'node:http';
-
 import { PrismaClient } from '@beacon-indexer/db';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 
 import { E2E_SESSION_ID, userAuthHeaders } from './helpers.js';
+import { startE2EServer } from './server.js';
 
 import type {
   AddValidatorsResponse as AddValidatorsData,
@@ -11,7 +10,6 @@ import type {
   ClusterDetail,
   ClusterWithCount,
 } from '@/routers/cluster/schemas.js';
-import { createHttpServer } from '@/server.js';
 import type { ApiResponse } from '@/utils/response.js';
 
 // Response types using ApiResponse wrapper with schema types
@@ -25,8 +23,8 @@ type RemoveValidatorsResponse = ApiResponse<{ removed: number }>;
 
 describe('Cluster API E2E Tests', () => {
   let prisma: PrismaClient;
-  let server: ReturnType<typeof createServer>;
   let baseUrl: string;
+  let closeServer: () => Promise<void>;
   // Fixed test user ID (string, matching the new User.id type)
   const testOwnerId = 'e2e-test-owner-id';
   // Use a second anonymous session to simulate a different authenticated user.
@@ -59,16 +57,9 @@ describe('Cluster API E2E Tests', () => {
       },
     });
 
-    server = createHttpServer();
-    await new Promise<void>((resolve) => {
-      server.listen(0, '127.0.0.1', () => {
-        const address = server.address();
-        if (address && typeof address === 'object') {
-          baseUrl = `http://127.0.0.1:${address.port}`;
-        }
-        resolve();
-      });
-    });
+    const started = await startE2EServer();
+    baseUrl = started.baseUrl;
+    closeServer = started.close;
   });
 
   afterEach(async () => {
@@ -80,12 +71,7 @@ describe('Cluster API E2E Tests', () => {
   });
 
   afterAll(async () => {
-    await new Promise<void>((resolve, reject) => {
-      server.close((err) => {
-        if (err) reject(err);
-        else resolve();
-      });
-    });
+    await closeServer();
     await prisma.$disconnect();
   });
 

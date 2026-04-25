@@ -1,11 +1,9 @@
-import { createServer } from 'node:http';
-
 import { PrismaClient } from '@beacon-indexer/db';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 
 import { botAuthHeaders, E2E_SESSION_ID, userAuthHeaders } from './helpers.js';
+import { startE2EServer } from './server.js';
 
-import { createHttpServer } from '@/server.js';
 import type { ApiResponse } from '@/utils/response.js';
 
 type IncidentListItem = {
@@ -57,8 +55,8 @@ type IncidentNotificationPayload = {
 
 describe('Incident API E2E Tests', () => {
   let prisma: PrismaClient;
-  let server: ReturnType<typeof createServer>;
   let baseUrl: string;
+  let closeServer: () => Promise<void>;
 
   // This user matches the anonymous auth helper used in API tests.
   const anonymousOwnerId = 'e2e-test-owner-id';
@@ -126,19 +124,9 @@ describe('Incident API E2E Tests', () => {
     });
 
     // This server instance exposes the same REST handlers used in production.
-    server = createHttpServer();
-    await new Promise<void>((resolve) => {
-      server.listen(0, '127.0.0.1', () => {
-        const address = server.address();
-
-        // This local URL is used by every request in the suite.
-        if (address && typeof address === 'object') {
-          baseUrl = `http://127.0.0.1:${address.port}`;
-        }
-
-        resolve();
-      });
-    });
+    const started = await startE2EServer();
+    baseUrl = started.baseUrl;
+    closeServer = started.close;
   });
 
   afterEach(async () => {
@@ -164,12 +152,7 @@ describe('Incident API E2E Tests', () => {
 
   afterAll(async () => {
     // This closes the HTTP server before disconnecting the test database.
-    await new Promise<void>((resolve, reject) => {
-      server.close((err) => {
-        if (err) reject(err);
-        else resolve();
-      });
-    });
+    await closeServer();
 
     // This disconnect prevents hanging Vitest workers.
     await prisma.$disconnect();

@@ -1,6 +1,7 @@
 import { os } from '@orpc/server';
 
 import { AuthStrategy } from '@/auth/types.js';
+import type { Logger } from '@/lib/logger.js';
 
 export interface DbUser {
   id: string;
@@ -12,7 +13,7 @@ export interface DbUser {
  * `user` is populated by auth middleware when Telegram auth succeeds.
  */
 export interface BaseContext {
-  logger: typeof import('./logger.js').logger;
+  logger: Logger;
   headers: Record<string, string | string[] | undefined>;
   user?: DbUser;
   authStrategy?: AuthStrategy;

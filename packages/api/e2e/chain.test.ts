@@ -1,11 +1,8 @@
-import { createServer } from 'node:http';
-
 import { PrismaClient } from '@beacon-indexer/db';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { authHeaders } from './helpers.js';
-
-import { createHttpServer } from '@/server.js';
+import { FIXED_TOKEN_PRICE, startE2EServer } from './server.js';
 
 interface ChainStatsResponse {
   success: boolean;
@@ -16,6 +13,7 @@ interface ChainStatsResponse {
     validatorsEntering: number;
     validatorsExiting: number;
     validatorsConsolidating: number;
+    tokenPrice: number;
   };
   error?: {
     code: string;
@@ -28,8 +26,8 @@ interface ChainStatsResponse {
 
 describe('Chain Stats Endpoint E2E Tests', () => {
   let prisma: PrismaClient;
-  let server: ReturnType<typeof createServer>;
   let baseUrl: string;
+  let closeServer: () => Promise<void>;
 
   beforeAll(async () => {
     if (!process.env.DATABASE_URL) {
@@ -46,28 +44,16 @@ describe('Chain Stats Endpoint E2E Tests', () => {
 
     await prisma.$connect();
 
-    server = createHttpServer();
-    await new Promise<void>((resolve) => {
-      server.listen(0, '127.0.0.1', () => {
-        const address = server.address();
-        if (address && typeof address === 'object') {
-          baseUrl = `http://127.0.0.1:${address.port}`;
-        }
-        resolve();
-      });
-    });
+    const started = await startE2EServer();
+    baseUrl = started.baseUrl;
+    closeServer = started.close;
   });
 
   afterAll(async () => {
     // Clean up test data
     await prisma.$executeRaw`DELETE FROM chain_epoch_stats WHERE epoch >= 900000`;
 
-    await new Promise<void>((resolve, reject) => {
-      server.close((err) => {
-        if (err) reject(err);
-        else resolve();
-      });
-    });
+    await closeServer();
     await prisma.$disconnect();
   });
 
@@ -106,6 +92,7 @@ describe('Chain Stats Endpoint E2E Tests', () => {
       expect(body.data!.validatorsEntering).toBe(2300);
       expect(body.data!.validatorsExiting).toBe(500);
       expect(body.data!.validatorsConsolidating).toBe(50);
+      expect(body.data!.tokenPrice).toBe(FIXED_TOKEN_PRICE);
     });
 
     it('should return the latest epoch stats', async () => {

@@ -1,5 +1,10 @@
-import { getStatus } from './status.js';
+import { createIndexerStatusRoute } from './status.js';
 
-export const indexerRouter = {
-  status: getStatus,
-};
+/**
+ * Creates the indexer router.
+ */
+export function createIndexerRouter(params: Parameters<typeof createIndexerStatusRoute>[0]) {
+  return {
+    status: createIndexerStatusRoute(params),
+  };
+}

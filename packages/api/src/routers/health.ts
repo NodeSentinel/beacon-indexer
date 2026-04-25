@@ -1,7 +1,6 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { z } from 'zod';
 
-import { getPrisma } from '@/lib/prisma.js';
-import { publicProcedure } from '@/lib/procedures.js';
 import { ApiResponseSchema } from '@/utils/response.js';
 
 const HealthResponseSchema = ApiResponseSchema(
@@ -18,49 +17,49 @@ const HealthResponseSchema = ApiResponseSchema(
 );
 
 /**
- * Health check endpoint
- * Public endpoint - no authentication required
+ * Creates the health router.
  */
-export const healthCheck = publicProcedure
-  .route({ method: 'GET', path: '/health/check' })
-  .output(HealthResponseSchema)
-  .handler(async () => {
-    const prisma = getPrisma();
-    const startTime = Date.now();
+export function createHealthRouter(params: {
+  prisma: { $queryRaw: typeof import('@beacon-indexer/db').PrismaClient.prototype.$queryRaw };
+  procedures: { publicProcedure: any };
+}) {
+  const { publicProcedure } = params.procedures;
 
-    let dbStatus: 'connected' | 'disconnected' = 'disconnected';
-    let dbLatency: number | undefined;
+  const healthCheck = publicProcedure
+    .route({ method: 'GET', path: '/health/check' })
+    .output(HealthResponseSchema)
+    .handler(async () => {
+      const startTime = Date.now();
+      let dbStatus: 'connected' | 'disconnected' = 'disconnected';
+      let dbLatency: number | undefined;
 
-    try {
-      // Simple database health check
-      await prisma.$queryRaw`SELECT 1`;
-      dbStatus = 'connected';
-      dbLatency = Date.now() - startTime;
-    } catch (error) {
-      console.error(`Database health check failed: ${error}`);
-      dbStatus = 'disconnected';
-    }
+      try {
+        await params.prisma.$queryRaw`SELECT 1`;
+        dbStatus = 'connected';
+        dbLatency = Date.now() - startTime;
+      } catch (error) {
+        console.error(`Database health check failed: ${error}`);
+      }
 
-    const overallStatus = dbStatus === 'connected' ? 'healthy' : 'unhealthy';
-
-    return {
-      success: true,
-      data: {
-        status: overallStatus,
-        timestamp: new Date().toISOString(),
-        services: {
-          database: {
-            status: dbStatus,
-            latencyMs: dbLatency,
+      return {
+        success: true,
+        data: {
+          status: dbStatus === 'connected' ? 'healthy' : 'unhealthy',
+          timestamp: new Date().toISOString(),
+          services: {
+            database: {
+              status: dbStatus,
+              latencyMs: dbLatency,
+            },
           },
         },
-      },
-      meta: {
-        timestamp: new Date().toISOString(),
-      },
-    };
-  });
+        meta: {
+          timestamp: new Date().toISOString(),
+        },
+      };
+    });
 
-export const healthRouter = {
-  check: healthCheck,
-};
+  return {
+    check: healthCheck,
+  };
+}
