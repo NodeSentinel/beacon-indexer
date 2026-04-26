@@ -95,18 +95,24 @@ export default function ChainStatistics() {
       <CollapsibleTrigger asChild>
         <button
           type="button"
-          className="grid w-full grid-cols-[1fr_auto_1fr] items-center gap-2 rounded-lg text-left"
+          className="grid w-full grid-cols-[1fr_auto] items-center gap-2 rounded-lg text-left md:grid-cols-[1fr_auto_1fr]"
         >
-          <h2 className="text-[10px] md:text-xs font-normal text-muted-foreground uppercase tracking-wider">
-            Chain Statistics
-          </h2>
-          {tokenPriceLabel ? (
-            <Badge variant="outline" className="h-5 px-1.5 text-[10px] font-mono">
-              {tokenPriceLabel}
-            </Badge>
-          ) : (
-            <span className="h-5 w-16 rounded border border-primary bg-primary/10 animate-pulse" />
-          )}
+          <div className="flex min-w-0 items-center gap-2">
+            <h2 className="text-[10px] md:text-xs font-normal text-muted-foreground uppercase tracking-wider">
+              Chain Stats
+            </h2>
+            {tokenPriceLabel ? (
+              <Badge
+                variant="outline"
+                className="h-5 border-border/60 bg-transparent px-1.5 text-[10px] font-mono text-muted-foreground"
+              >
+                {tokenPriceLabel}
+              </Badge>
+            ) : (
+              <span className="h-5 w-16 rounded border border-border/60 bg-transparent animate-pulse" />
+            )}
+          </div>
+          <span className="hidden md:block" />
           <div className="flex items-center justify-end gap-2 md:gap-3">
             {syncStatus && (
               <div className="flex items-center gap-1.5">
