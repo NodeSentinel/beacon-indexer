@@ -88,7 +88,7 @@ export default function ChainStatistics() {
   const activeStakedUsd = formatNumber(activeStaked * tokenPrice, 0);
   const enteringStakedUsd = formatNumber(enteringStaked * tokenPrice, 0);
   const leavingStakedUsd = formatNumber(leavingStaked * tokenPrice, 0);
-  const lastIndexedSlot = Math.max((syncStatus?.processingSlot ?? 1) - 1, 0);
+  const lastIndexedSlot = syncStatus?.lastIndexedSlot ?? 0;
 
   return (
     <Collapsible open={isExpanded} onOpenChange={setIsExpanded} className="space-y-2">
