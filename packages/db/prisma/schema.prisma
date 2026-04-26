@@ -620,6 +620,7 @@ model Cluster {
   incidents  ClusterIncident[]
   validators ClusterValidator[]
 
+  @@index([ownerId, createdAt(sort: Desc)])
   @@map("cluster")
 }
 
