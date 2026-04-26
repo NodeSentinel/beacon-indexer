@@ -16,6 +16,7 @@
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "start": "tsx src/index.ts",
+    "prod:local": "NODE_ENV=production dotenv -e .env.prod-local -- tsx src/index.ts",
     "dev": "tsx watch src/index.ts",
     "typecheck": "tsc --noEmit",
     "lint": "eslint . --max-warnings=0",

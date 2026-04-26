@@ -1,19 +1,19 @@
 'use client';
 
 import { format, parseISO } from 'date-fns';
+import { ChevronDown } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
 import { EmptyStateTab } from './empty-state-tab';
 import { EventsTabPagination } from './events-tab-pagination';
 
-import ArrowRight from '@/components/icons/arrow-right';
 import { Badge } from '@/components/ui/badge';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { env } from '@/env';
-import { useChainStats } from '@/hooks/use-chain-stats';
 import type { ClusterIncident } from '@/hooks/use-cluster-incidents';
 import { useClusterIncidents } from '@/hooks/use-cluster-incidents';
 import { useIncidentAffectedValidators } from '@/hooks/use-incident-affected-validators';
+import { useTokenPrice } from '@/hooks/use-token-price';
 import {
   cn,
   formatIncidentDateTime,
@@ -63,7 +63,7 @@ interface AffectedValidatorsCountProps {
 /** Renders lazy-loaded cluster incidents with pagination. */
 export function IncidentsTab({ clusterId, isActive }: IncidentsTabProps) {
   const [incidentsPage, setIncidentsPage] = useState(1);
-  const { data: chainStats } = useChainStats();
+  const { data: tokenPriceData } = useTokenPrice(isActive);
   const {
     data: incidentsData,
     error,
@@ -72,7 +72,7 @@ export function IncidentsTab({ clusterId, isActive }: IncidentsTabProps) {
   const totalIncidentPages = incidentsData
     ? Math.ceil(incidentsData.totalCount / incidentsData.pageSize)
     : 0;
-  const tokenPrice = chainStats?.tokenPrice ?? 0;
+  const tokenPrice = tokenPriceData?.tokenPrice ?? 0;
   const tokenSymbol = getTokenSymbol(env.NEXT_PUBLIC_CHAIN);
 
   useEffect(() => {
@@ -139,10 +139,10 @@ function IncidentItem({ incident, tokenPrice, tokenSymbol }: IncidentItemProps) 
         <div className="flex items-center gap-2 md:gap-3 p-2 md:p-3 rounded-lg bg-accent hover:bg-accent/80 transition-colors group cursor-pointer border border-border/50 hover:border-border">
           <IncidentSummary incident={incident} tokenPrice={tokenPrice} />
 
-          <ArrowRight
+          <ChevronDown
             className={cn(
               'size-4 text-foreground/60 transition-transform flex-shrink-0',
-              isOpen && 'rotate-90',
+              isOpen && 'rotate-180',
               'group-hover:text-foreground',
             )}
           />
@@ -169,7 +169,7 @@ function IncidentItem({ incident, tokenPrice, tokenSymbol }: IncidentItemProps) 
 function IncidentSummary({ incident, tokenPrice }: IncidentSummaryProps) {
   const costUsd = getIncidentCostUsd(incident, tokenPrice);
   const openedAtLabel = format(parseISO(incident.openedAt), 'dd/MM');
-  const durationLabel = formatIncidentDurationCompact(incident).toUpperCase();
+  const durationLabel = formatIncidentDurationCompact(incident);
 
   return (
     <div className="flex-1 min-w-0 flex items-center gap-2 md:gap-3 text-left overflow-hidden">
@@ -183,16 +183,15 @@ function IncidentSummary({ incident, tokenPrice }: IncidentSummaryProps) {
       <div className="h-4 w-px bg-border/70 shrink-0" />
 
       <div className="min-w-0 shrink overflow-hidden">
-        <span className="text-xs md:text-sm font-mono text-foreground uppercase truncate">
-          {openedAtLabel} DURATION: {durationLabel}
+        <span className="text-xs md:text-sm font-mono text-foreground truncate">
+          {openedAtLabel} - {durationLabel}
         </span>
       </div>
 
       {costUsd && (
         <div className="ml-auto shrink-0">
-          <span className="text-xs md:text-sm font-mono text-destructive uppercase">
-            COST: ${costUsd}
-          </span>
+          <span className="text-xs md:text-sm font-mono text-foreground truncate">cost: </span>
+          <span className="text-xs md:text-sm font-mono text-destructive truncate">${costUsd}</span>
         </div>
       )}
     </div>
@@ -293,9 +292,7 @@ function AffectedValidatorsCount({
     return (
       <div className="flex items-center justify-between gap-4">
         <span className="text-muted-foreground text-xs md:text-sm">Validators Affected</span>
-        <span className="text-xs md:text-sm text-muted-foreground">
-          Loading affected validators...
-        </span>
+        <span className="inline-block h-4 w-8 rounded bg-foreground/5 animate-pulse" />
       </div>
     );
   }

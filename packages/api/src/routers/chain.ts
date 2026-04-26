@@ -14,10 +14,15 @@ const ChainStatsDataSchema = z.object({
   enteringStaked: z.string(),
   validatorsExiting: z.number(),
   validatorsConsolidating: z.number(),
-  tokenPrice: z.number(),
 });
 
 const ChainStatsResponseSchema = ApiResponseSchema(ChainStatsDataSchema);
+
+const TokenPriceDataSchema = z.object({
+  tokenPrice: z.number(),
+});
+
+const TokenPriceResponseSchema = ApiResponseSchema(TokenPriceDataSchema);
 
 const SyncStatusDataSchema = z.object({
   currentSlot: z.number().int(),
@@ -70,6 +75,27 @@ export function createChainRouter(params: {
         };
       }
 
+      return {
+        success: true,
+        data: {
+          epoch: latestStats.epoch,
+          totalActiveValidators: latestStats.totalActiveValidators,
+          totalStaked: formatBalance(latestStats.totalStaked, params.chain),
+          validatorsEntering: latestStats.validatorsEntering,
+          enteringStaked: formatBalance(latestStats.enteringStaked, params.chain),
+          validatorsExiting: latestStats.validatorsExiting,
+          validatorsConsolidating: latestStats.validatorsConsolidating,
+        },
+        meta: {
+          timestamp: new Date().toISOString(),
+        },
+      };
+    });
+
+  const getTokenPriceRoute = securedProcedure
+    .route({ method: 'GET', path: '/chain/token-price' })
+    .output(TokenPriceResponseSchema)
+    .handler(async () => {
       let tokenPrice = 0;
       try {
         tokenPrice = await getTokenPrice(
@@ -84,13 +110,6 @@ export function createChainRouter(params: {
       return {
         success: true,
         data: {
-          epoch: latestStats.epoch,
-          totalActiveValidators: latestStats.totalActiveValidators,
-          totalStaked: formatBalance(latestStats.totalStaked, params.chain),
-          validatorsEntering: latestStats.validatorsEntering,
-          enteringStaked: formatBalance(latestStats.enteringStaked, params.chain),
-          validatorsExiting: latestStats.validatorsExiting,
-          validatorsConsolidating: latestStats.validatorsConsolidating,
           tokenPrice,
         },
         meta: {
@@ -127,5 +146,6 @@ export function createChainRouter(params: {
   return {
     stats: getStats,
     syncStatus: getSyncStatus,
+    tokenPrice: getTokenPriceRoute,
   };
 }
