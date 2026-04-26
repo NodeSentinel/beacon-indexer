@@ -15,10 +15,10 @@ interface ClusterOverviewContentProps {
 }
 
 const PERIODS = [
-  { label: '1H', key: '1h' },
-  { label: '1D', key: '1d' },
-  { label: '1W', key: '1w' },
-  { label: '1M', key: '1m' },
+  { label: '1H', mobileLabel: '1 HOUR', key: '1h' },
+  { label: '1D', mobileLabel: '1 DAY', key: '1d' },
+  { label: '1W', mobileLabel: '1 WEEK', key: '1w' },
+  { label: '1M', mobileLabel: '1 MONTH', key: '1m' },
 ] as const;
 
 type PeriodKey = (typeof PERIODS)[number]['key'];
@@ -292,16 +292,14 @@ export default function ClusterOverviewContent({
               </div>
               <div className="grid grid-cols-5 gap-3 md:gap-4 md:text-center mt-1.5">
                 <div className="flex items-center">
-                  <p className="text-[10px] md:text-xs text-muted-foreground/60">Avg Delay</p>
+                  <p className="text-[10px] md:text-xs">Avg Delay</p>
                 </div>
-                <div>
-                  <p className="text-[10px] md:text-xs text-muted-foreground/60">-</p>
-                </div>
+                <div></div>
                 {PERIODS.filter(({ key }) => key !== '1h').map(({ key }) => {
                   const delay = getAvgDelay(key);
                   return (
                     <div key={key}>
-                      <p className="text-[10px] md:text-xs text-muted-foreground/60">
+                      <p className="text-[10px] md:text-xs">
                         {delay !== null ? `${(delay + 1).toFixed(2)} slots` : '-'}
                       </p>
                     </div>
@@ -331,45 +329,47 @@ export default function ClusterOverviewContent({
             <>
               {/* Mobile: stacked cards */}
               <div className="md:hidden space-y-2">
-                {PERIODS.map(({ key, label }) => (
-                  <div key={key} className="space-y-1.5">
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm font-normal font-semibold">{label}</span>
-                      <span className="text-sm font-normal font-semibold">
-                        {formatApy(getApy(key))}
-                      </span>
-                      <span className="text-[10px] text-muted-foreground">APY</span>
+                {PERIODS.map(({ key, mobileLabel }) => (
+                  <div key={key}>
+                    <div className="flex items-center">
+                      <span className="text-sm font-normal font-semibold">{mobileLabel}</span>
                     </div>
-                    <div className="space-y-1 text-xs">
+
+                    <div className="ml-1.5 mt-1.5 border-l border-border/40 pl-2.5 space-y-1 text-xs">
+                      <div className="flex justify-between items-center">
+                        <span className="text-muted-foreground">APY</span>
+                        <span>{formatApy(getApy(key))}</span>
+                      </div>
                       <div className="flex justify-between items-center">
                         <span className="text-muted-foreground">Consensus</span>
-                        <span className="font-mono">
+                        <span>
                           {formatValue(getConsensusReward(key))} GNO
-                          <span className="text-muted-foreground ml-1">
+                          <span className="ml-1">
                             ({formatUsd(getConsensusReward(key), gnoPrice)})
                           </span>
                         </span>
                       </div>
                       <div className="flex justify-between items-center">
                         <span className="text-muted-foreground">Missed</span>
-                        <span className="font-mono text-destructive">
+                        <span className="text-destructive">
                           {formatValue(getMissedReward(key))} GNO
-                          <span className="text-muted-foreground ml-1">
+                          <span className="ml-1">
                             ({formatUsd(getMissedReward(key), gnoPrice)})
                           </span>
                         </span>
                       </div>
                       <div className="flex justify-between items-center">
                         <span className="text-muted-foreground">Execution</span>
-                        <span className="font-mono">
+                        <span>
                           {formatValue(getExecutionReward(key)?.token ?? null)} xDAI
-                          <span className="text-muted-foreground ml-1">
+                          <span className="ml-1">
                             ({formatUsd(getExecutionReward(key)?.token ?? null, 1)})
                           </span>
                         </span>
                       </div>
-                      <div className="flex justify-end items-center border-t border-border/40 pt-1">
-                        <span className="font-mono font-semibold">
+                      <div className="flex justify-between items-center">
+                        <span className="text-muted-foreground">Total</span>
+                        <span>
                           {formatTotalUsd(
                             getConsensusReward(key),
                             gnoPrice,

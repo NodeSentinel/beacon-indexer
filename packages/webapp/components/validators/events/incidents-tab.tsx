@@ -1,12 +1,12 @@
 'use client';
 
 import { format, parseISO } from 'date-fns';
+import { ChevronDown } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
 import { EmptyStateTab } from './empty-state-tab';
 import { EventsTabPagination } from './events-tab-pagination';
 
-import ArrowRight from '@/components/icons/arrow-right';
 import { Badge } from '@/components/ui/badge';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { env } from '@/env';
@@ -139,10 +139,10 @@ function IncidentItem({ incident, tokenPrice, tokenSymbol }: IncidentItemProps) 
         <div className="flex items-center gap-2 md:gap-3 p-2 md:p-3 rounded-lg bg-accent hover:bg-accent/80 transition-colors group cursor-pointer border border-border/50 hover:border-border">
           <IncidentSummary incident={incident} tokenPrice={tokenPrice} />
 
-          <ArrowRight
+          <ChevronDown
             className={cn(
               'size-4 text-foreground/60 transition-transform flex-shrink-0',
-              isOpen && 'rotate-90',
+              isOpen && 'rotate-180',
               'group-hover:text-foreground',
             )}
           />
@@ -169,7 +169,7 @@ function IncidentItem({ incident, tokenPrice, tokenSymbol }: IncidentItemProps) 
 function IncidentSummary({ incident, tokenPrice }: IncidentSummaryProps) {
   const costUsd = getIncidentCostUsd(incident, tokenPrice);
   const openedAtLabel = format(parseISO(incident.openedAt), 'dd/MM');
-  const durationLabel = formatIncidentDurationCompact(incident).toUpperCase();
+  const durationLabel = formatIncidentDurationCompact(incident);
 
   return (
     <div className="flex-1 min-w-0 flex items-center gap-2 md:gap-3 text-left overflow-hidden">
@@ -184,13 +184,14 @@ function IncidentSummary({ incident, tokenPrice }: IncidentSummaryProps) {
 
       <div className="min-w-0 shrink overflow-hidden">
         <span className="text-xs md:text-sm font-mono text-foreground truncate">
-          {openedAtLabel} Duration: {durationLabel}
+          {openedAtLabel} - {durationLabel}
         </span>
       </div>
 
       {costUsd && (
         <div className="ml-auto shrink-0">
-          Cost: <span className="text-xs md:text-sm font-mono text-destructive">${costUsd}</span>
+          <span className="text-xs md:text-sm font-mono text-foreground truncate">cost: </span>
+          <span className="text-xs md:text-sm font-mono text-destructive truncate">${costUsd}</span>
         </div>
       )}
     </div>
