@@ -293,9 +293,7 @@ function AffectedValidatorsCount({
     return (
       <div className="flex items-center justify-between gap-4">
         <span className="text-muted-foreground text-xs md:text-sm">Validators Affected</span>
-        <span className="text-xs md:text-sm text-muted-foreground">
-          Loading affected validators...
-        </span>
+        <span className="inline-block h-4 w-8 rounded bg-foreground/5 animate-pulse" />
       </div>
     );
   }
