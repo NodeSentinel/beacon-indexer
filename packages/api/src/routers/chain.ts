@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { z } from 'zod';
 
+import type { ApiProcedures } from '@/auth/middleware.js';
 import { ApiResponseSchema } from '@/utils/response.js';
 import { formatBalance } from '@/utils/tokenFormat.js';
 import { getTokenPrice } from '@/utils/tokenPrice.js';
@@ -42,7 +43,7 @@ export function createChainRouter(params: {
     };
     slot: { findFirst: typeof import('@beacon-indexer/db').PrismaClient.prototype.slot.findFirst };
   };
-  procedures: { securedProcedure: any };
+  procedures: ApiProcedures;
   tokenPriceApiUrl: string;
   tokenPriceTokenName: string;
 }) {

@@ -7,6 +7,7 @@ import {
 } from './analytics-schemas.js';
 import { requireOwnedCluster } from './ownership.js';
 
+import type { ApiProcedures } from '@/auth/middleware.js';
 import { ApiResponseSchema } from '@/utils/response.js';
 
 const TWENTY_FOUR_HOURS_MS = 24 * 60 * 60 * 1000;
@@ -68,7 +69,7 @@ export function createClusterMissedAttestationsRoute(params: {
   analyticsStorage: any;
   beaconHelpers: any;
   clusterStorage: any;
-  procedures: { securedProcedure: any };
+  procedures: ApiProcedures;
 }) {
   const { securedProcedure } = params.procedures;
 
@@ -105,7 +106,7 @@ export function createAllClustersMissedAttestationsRoute(params: {
   analyticsStorage: any;
   beaconHelpers: any;
   clusterStorage: any;
-  procedures: { securedProcedure: any };
+  procedures: ApiProcedures;
 }) {
   const { securedProcedure } = params.procedures;
 
@@ -141,7 +142,7 @@ export function createValidatorMissedAttestationsRoute(params: {
   analyticsStorage: any;
   beaconHelpers: any;
   clusterStorage: any;
-  procedures: { securedProcedure: any };
+  procedures: ApiProcedures;
 }) {
   const { securedProcedure } = params.procedures;
 

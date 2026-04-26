@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { BlockProposalsInputSchema, BlockProposalsOutputSchema } from './schemas.js';
 
+import type { ApiProcedures } from '@/auth/middleware.js';
 import { ApiResponseSchema } from '@/utils/response.js';
 import { formatBalance, formatWeiToToken } from '@/utils/tokenFormat.js';
 
@@ -23,7 +24,7 @@ export function createListBlockProposalsRoute(params: {
   };
   chain: 'ethereum' | 'gnosis';
   nativeTokenDecimals: number;
-  procedures: { securedProcedure: any };
+  procedures: ApiProcedures;
 }) {
   const { securedProcedure } = params.procedures;
 

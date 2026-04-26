@@ -3,6 +3,7 @@ import { z } from 'zod';
 
 import { ClusterSummarySchema } from './schemas.js';
 
+import type { ApiProcedures } from '@/auth/middleware.js';
 import { ApiResponseSchema, errorResponse, successResponse } from '@/utils/response.js';
 
 const ClusterSummaryResponseSchema = ApiResponseSchema(ClusterSummarySchema);
@@ -13,7 +14,7 @@ type ClusterSummaryResponse = z.infer<typeof ClusterSummaryResponseSchema>;
  */
 export function createClusterSummaryRoute(params: {
   clusterStorage: any;
-  procedures: { apiKeyProcedure: any };
+  procedures: ApiProcedures;
 }) {
   const { apiKeyProcedure } = params.procedures;
 

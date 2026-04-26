@@ -1,13 +1,14 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { AnonymousUserInputSchema, UserResponseSchema } from './schemas.js';
 
+import type { ApiProcedures } from '@/auth/middleware.js';
 import { ApiResponseSchema } from '@/utils/response.js';
 
 /**
  * Creates the anonymous user route.
  */
 export function createAnonymousUserRoute(params: {
-  procedures: { securedProcedure: any };
+  procedures: ApiProcedures;
   userStorage: {
     getOrCreateAnonymous: (sessionId: string) => Promise<{ id: string; username: string }>;
   };

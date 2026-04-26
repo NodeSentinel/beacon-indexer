@@ -6,6 +6,7 @@ import {
   ClusterIdParamSchema,
 } from './schemas.js';
 
+import type { ApiProcedures } from '@/auth/middleware.js';
 import { ApiResponseSchema } from '@/utils/response.js';
 
 /**
@@ -13,7 +14,7 @@ import { ApiResponseSchema } from '@/utils/response.js';
  */
 export function createAddValidatorsRoute(params: {
   clusterStorage: any;
-  procedures: { securedProcedure: any };
+  procedures: ApiProcedures;
 }) {
   const { securedProcedure } = params.procedures;
 

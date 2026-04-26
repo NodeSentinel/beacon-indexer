@@ -8,6 +8,7 @@ import {
   IncidentNotificationIdParamSchema,
 } from './schemas.js';
 
+import type { ApiDependencies } from '@/dependencies.js';
 import { createBotProcedure } from '@/routers/bot/procedures.js';
 import { ApiResponseSchema, errorResponse, successResponse } from '@/utils/response.js';
 
@@ -30,7 +31,7 @@ type BotIncidentNotificationDeliveredResponse = z.infer<
  */
 export function createBotIncidentNotificationRoutes(params: {
   botIncidentNotificationsStorage: any;
-  procedures: any;
+  procedures: ApiDependencies['procedures'];
 }) {
   const botProcedure = createBotProcedure(params.procedures);
 

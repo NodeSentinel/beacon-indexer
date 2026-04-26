@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { z } from 'zod';
 
+import type { ApiProcedures } from '@/auth/middleware.js';
 import { ApiResponseSchema, errorResponse, successResponse } from '@/utils/response.js';
 
 const DateStringSchema = z.string().refine(
@@ -41,7 +42,7 @@ export function createUtilsRouter(params: {
       getTimestampFromSlotNumber: (slot: number) => number;
     };
   };
-  procedures: { securedProcedure: any };
+  procedures: ApiProcedures;
 }) {
   const { securedProcedure } = params.procedures;
 

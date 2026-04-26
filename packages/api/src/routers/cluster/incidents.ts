@@ -10,6 +10,7 @@ import {
   ClusterIncidentsResponseSchema,
 } from './schemas.js';
 
+import type { ApiProcedures } from '@/auth/middleware.js';
 import { ApiResponseSchema } from '@/utils/response.js';
 import { formatBalance } from '@/utils/tokenFormat.js';
 
@@ -77,7 +78,7 @@ function missingValidatorsUserResponse(): ClusterIncidentAffectedValidatorsApiRe
 export function createClusterIncidentRoutes(params: {
   chain: 'ethereum' | 'gnosis';
   incidentStorage: any;
-  procedures: { securedProcedure: any };
+  procedures: ApiProcedures;
 }) {
   const { securedProcedure } = params.procedures;
 

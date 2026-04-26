@@ -3,6 +3,7 @@ import { format } from 'date-fns';
 
 import { IndexerStatusSchema } from './schemas.js';
 
+import type { ApiProcedures } from '@/auth/middleware.js';
 import { ApiResponseSchema } from '@/utils/response.js';
 
 /**
@@ -31,7 +32,7 @@ export function createIndexerStatusRoute(params: {
     chainConfig: { beacon: { slotDuration: number } };
   };
   prisma: any;
-  procedures: { securedProcedure: any };
+  procedures: ApiProcedures;
   systemConfigController: {
     getArchive: () => Promise<any>;
     getIndexerConfig: () => Promise<any>;

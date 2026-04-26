@@ -1,13 +1,14 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { ValidatorSearchInputSchema, ValidatorSearchResponseSchema } from './schemas.js';
 
+import type { ApiProcedures } from '@/auth/middleware.js';
 import { ApiResponseSchema } from '@/utils/response.js';
 
 /**
  * Creates the validator search route.
  */
 export function createSearchValidatorsRoute(params: {
-  procedures: { securedProcedure: any };
+  procedures: ApiProcedures;
   validatorStorage: any;
 }) {
   const { securedProcedure } = params.procedures;

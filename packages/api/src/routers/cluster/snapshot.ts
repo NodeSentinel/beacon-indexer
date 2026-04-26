@@ -2,6 +2,7 @@
 import { requireOwnedCluster } from './ownership.js';
 import { ClusterIdParamSchema, ClusterSnapshotSchema } from './schemas.js';
 
+import type { ApiProcedures } from '@/auth/middleware.js';
 import { ApiResponseSchema } from '@/utils/response.js';
 import { formatBalance, formatWeiToToken } from '@/utils/tokenFormat.js';
 import { getTokenPrice } from '@/utils/tokenPrice.js';
@@ -14,7 +15,7 @@ export function createClusterSnapshotRoute(params: {
   clusterStorage: any;
   logger: import('@/lib/logger.js').Logger;
   nativeTokenDecimals: number;
-  procedures: { securedProcedure: any };
+  procedures: ApiProcedures;
   tokenPriceApiUrl: string;
   tokenPriceTokenName: string;
 }) {

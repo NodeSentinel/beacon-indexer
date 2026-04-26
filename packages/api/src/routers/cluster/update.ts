@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { requireOwnedCluster } from './ownership.js';
 import { ClusterIdParamSchema, ClusterSchema, UpdateClusterInputSchema } from './schemas.js';
 
+import type { ApiProcedures } from '@/auth/middleware.js';
 import { ApiResponseSchema } from '@/utils/response.js';
 
 /**
@@ -11,7 +12,7 @@ import { ApiResponseSchema } from '@/utils/response.js';
  */
 export function createUpdateClusterRoute(params: {
   clusterStorage: any;
-  procedures: { securedProcedure: any };
+  procedures: ApiProcedures;
 }) {
   const { securedProcedure } = params.procedures;
 

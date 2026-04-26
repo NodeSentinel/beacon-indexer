@@ -9,6 +9,9 @@ import { createUtilsRouter } from './utils.js';
 import { createValidatorRouter } from './validator/index.js';
 import type { ApiDependencies } from '@/dependencies.js';
 
+export type Router = ReturnType<typeof createRouter>;
+export declare const router: Router;
+
 /**
  * Creates the top-level API router tree.
  */

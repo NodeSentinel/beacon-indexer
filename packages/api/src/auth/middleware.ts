@@ -17,17 +17,12 @@ interface AuthProcedureDeps {
   userStorage: UserStorage;
 }
 
-export interface ApiProcedures {
-  apiKeyProcedure: any;
-  publicProcedure: typeof publicProcedure;
-  securedProcedure: any;
-  telegramAuthProcedure: any;
-}
+export type ApiProcedures = ReturnType<typeof createAuthProcedures>;
 
 /**
  * Builds the API auth procedures from explicit dependencies.
  */
-export function createAuthProcedures(deps: AuthProcedureDeps): ApiProcedures {
+export function createAuthProcedures(deps: AuthProcedureDeps) {
   /**
    * Reads a string header from the raw request headers.
    */

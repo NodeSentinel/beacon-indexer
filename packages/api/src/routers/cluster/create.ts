@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { ClusterWithCountSchema, CreateClusterInputSchema } from './schemas.js';
 
+import type { ApiProcedures } from '@/auth/middleware.js';
 import { ApiResponseSchema } from '@/utils/response.js';
 
 /**
@@ -8,7 +9,7 @@ import { ApiResponseSchema } from '@/utils/response.js';
  */
 export function createCreateClusterRoute(params: {
   clusterStorage: any;
-  procedures: { securedProcedure: any };
+  procedures: ApiProcedures;
 }) {
   const { securedProcedure } = params.procedures;
 

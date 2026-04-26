@@ -2,6 +2,7 @@
 import { ORPCError } from '@orpc/server';
 import { z } from 'zod';
 
+import type { ApiDependencies } from '@/dependencies.js';
 import { createBotProcedure } from '@/routers/bot/procedures.js';
 import {
   BotCommunicationDetailsSchema,
@@ -50,10 +51,9 @@ function mapCommunication(communication: {
 /**
  * Creates the bot communications routes.
  */
-export function createBotCommunicationsRoutes(params: {
-  botCommunicationsStorage: any;
-  procedures: any;
-}) {
+export function createBotCommunicationsRoutes(
+  params: Pick<ApiDependencies, 'botCommunicationsStorage' | 'procedures'>,
+) {
   const botProcedure = createBotProcedure(params.procedures);
   const { apiKeyProcedure } = params.procedures;
 

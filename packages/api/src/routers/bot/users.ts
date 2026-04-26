@@ -8,6 +8,7 @@ import {
   UpdateMessageIdSchema,
 } from './schemas.js';
 
+import type { ApiDependencies } from '@/dependencies.js';
 import { createBotProcedure } from '@/routers/bot/procedures.js';
 import { ApiResponseSchema, errorResponse, successResponse } from '@/utils/response.js';
 
@@ -20,7 +21,9 @@ type BotUserResponse = z.infer<typeof BotUserResponseSchema>;
 /**
  * Creates the bot users routes.
  */
-export function createBotUsersRoutes(params: { botUsersStorage: any; procedures: any }) {
+export function createBotUsersRoutes(
+  params: Pick<ApiDependencies, 'botUsersStorage' | 'procedures'>,
+) {
   const botProcedure = createBotProcedure(params.procedures);
 
   const listBotUsers = botProcedure

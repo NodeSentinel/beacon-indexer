@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { z } from 'zod';
 
+import type { ApiProcedures } from '@/auth/middleware.js';
 import { ApiResponseSchema } from '@/utils/response.js';
 
 const HealthResponseSchema = ApiResponseSchema(
@@ -21,7 +22,7 @@ const HealthResponseSchema = ApiResponseSchema(
  */
 export function createHealthRouter(params: {
   prisma: { $queryRaw: typeof import('@beacon-indexer/db').PrismaClient.prototype.$queryRaw };
-  procedures: { publicProcedure: any };
+  procedures: ApiProcedures;
 }) {
   const { publicProcedure } = params.procedures;
 

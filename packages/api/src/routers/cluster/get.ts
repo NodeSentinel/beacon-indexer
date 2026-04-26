@@ -2,6 +2,7 @@
 import { requireOwnedCluster } from './ownership.js';
 import { ClusterDetailSchema, ClusterIdParamSchema } from './schemas.js';
 
+import type { ApiProcedures } from '@/auth/middleware.js';
 import { ApiResponseSchema } from '@/utils/response.js';
 import { formatBalance } from '@/utils/tokenFormat.js';
 
@@ -11,7 +12,7 @@ import { formatBalance } from '@/utils/tokenFormat.js';
 export function createGetClusterRoute(params: {
   chain: 'ethereum' | 'gnosis';
   clusterStorage: any;
-  procedures: { securedProcedure: any };
+  procedures: ApiProcedures;
 }) {
   const { securedProcedure } = params.procedures;
 
@@ -41,7 +42,7 @@ export function createGetClusterRoute(params: {
         }
 
         const withdrawalAddresses = Array.from(
-          new Set(
+          new Set<string>(
             cluster.validators.flatMap((validator: any) =>
               validator.withdrawalAddress ? [validator.withdrawalAddress] : [],
             ),

@@ -3,12 +3,13 @@ import { ORPCError } from '@orpc/server';
 
 import { UserResponseSchema } from './schemas.js';
 
+import type { ApiProcedures } from '@/auth/middleware.js';
 import { ApiResponseSchema } from '@/utils/response.js';
 
 /**
  * Creates the current-user route.
  */
-export function createMeRoute(params: { procedures: { securedProcedure: any } }) {
+export function createMeRoute(params: { procedures: ApiProcedures }) {
   const { securedProcedure } = params.procedures;
 
   return securedProcedure
