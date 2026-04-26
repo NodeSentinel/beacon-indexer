@@ -95,42 +95,42 @@ export default function ChainStatistics() {
       <CollapsibleTrigger asChild>
         <button
           type="button"
-          className="grid w-full grid-cols-[1fr_auto] items-center gap-2 rounded-lg text-left md:grid-cols-[1fr_auto_1fr]"
+          className="flex w-full items-center gap-2 rounded-lg text-left md:gap-3"
         >
-          <div className="flex min-w-0 items-center gap-2">
-            <h2 className="text-[10px] md:text-xs font-normal text-muted-foreground uppercase tracking-wider">
-              Chain Stats
+          {tokenPriceLabel ? (
+            <Badge
+              variant="outline"
+              className="h-5 shrink-0 border-border/60 bg-transparent px-1.5 text-[10px] font-mono text-muted-foreground"
+            >
+              {tokenPriceLabel}
+            </Badge>
+          ) : (
+            <span className="h-5 w-16 shrink-0 rounded border border-border/60 bg-transparent animate-pulse" />
+          )}
+          {syncStatus && (
+            <Badge
+              variant="outline"
+              className="h-5 min-w-0 border-border/60 bg-transparent px-1.5 text-[10px] font-mono text-muted-foreground"
+            >
+              <div
+                className={`h-1.5 w-1.5 shrink-0 rounded-full ${syncStatus.isSynced ? 'bg-chart-2' : 'bg-warning animate-pulse'}`}
+              />
+              <span className="truncate">
+                <span className="hidden md:inline">indexing: </span>
+                {formatNumber(syncStatus.currentSlot ?? 0)}
+                {'/'}
+                {formatNumber(lastIndexedSlot)}
+              </span>
+            </Badge>
+          )}
+          <div className="ml-auto flex shrink-0 items-center gap-1">
+            <h2 className="text-[10px] font-normal text-muted-foreground md:text-xs">
+              Chain stats
             </h2>
-            {tokenPriceLabel ? (
-              <Badge
-                variant="outline"
-                className="h-5 border-border/60 bg-transparent px-1.5 text-[10px] font-mono text-muted-foreground"
-              >
-                {tokenPriceLabel}
-              </Badge>
-            ) : (
-              <span className="h-5 w-16 rounded border border-border/60 bg-transparent animate-pulse" />
-            )}
-          </div>
-          <span className="hidden md:block" />
-          <div className="flex items-center justify-end gap-2 md:gap-3">
-            {syncStatus && (
-              <div className="flex items-center gap-1.5">
-                <div
-                  className={`w-1.5 h-1.5 rounded-full ${syncStatus.isSynced ? 'bg-chart-2' : 'bg-warning animate-pulse'}`}
-                />
-                <span className="text-[10px] md:text-xs font-mono text-muted-foreground">
-                  <span className="hidden md:inline">indexing: </span>
-                  {formatNumber(syncStatus.currentSlot ?? 0)}
-                  {'/'}
-                  {formatNumber(lastIndexedSlot)}
-                </span>
-              </div>
-            )}
             {isExpanded ? (
-              <ChevronUp className="size-4 text-muted-foreground" />
+              <ChevronUp className="size-4 shrink-0 text-muted-foreground" />
             ) : (
-              <ChevronDown className="size-4 text-muted-foreground" />
+              <ChevronDown className="size-4 shrink-0 text-muted-foreground" />
             )}
           </div>
         </button>
