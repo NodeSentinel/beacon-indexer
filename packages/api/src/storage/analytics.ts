@@ -1,13 +1,11 @@
 import { PrismaClient } from '@beacon-indexer/db';
 
-import { getPrisma } from '@/lib/prisma.js';
-
 /**
  * AnalyticsStorage - Database persistence layer for analytics queries
  * Uses raw SQL for aggregated missed attestation data
  */
 export class AnalyticsStorage {
-  constructor(private readonly prisma: PrismaClient = getPrisma()) {}
+  constructor(private readonly prisma: PrismaClient) {}
 
   /**
    * Get missed attestations from the performance snapshot table (1h data)

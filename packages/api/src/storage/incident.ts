@@ -1,7 +1,5 @@
 import { ClusterIncidentStatus, Prisma, PrismaClient } from '@beacon-indexer/db';
 
-import { getPrisma } from '@/lib/prisma.js';
-
 type ListClusterIncidentsParams = {
   ownerId: string;
   clusterId: string;
@@ -32,7 +30,7 @@ type ListIncidentAffectedValidatorsParams = {
  * Reads and updates cluster incidents using ownership-scoped queries.
  */
 export class IncidentStorage {
-  constructor(private readonly prisma: PrismaClient = getPrisma()) {}
+  constructor(private readonly prisma: PrismaClient) {}
 
   /**
    * Confirms the cluster belongs to the authenticated user.

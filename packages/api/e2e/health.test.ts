@@ -1,9 +1,7 @@
-import { createServer } from 'node:http';
-
 import { PrismaClient } from '@beacon-indexer/db';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
-import { createHttpServer } from '@/server.js';
+import { startE2EServer } from './server.js';
 
 interface HealthResponse {
   success: boolean;
@@ -24,8 +22,8 @@ interface HealthResponse {
 
 describe('Health Endpoint E2E Tests', () => {
   let prisma: PrismaClient;
-  let server: ReturnType<typeof createServer>;
   let baseUrl: string;
+  let closeServer: () => Promise<void>;
 
   beforeAll(async () => {
     if (!process.env.DATABASE_URL) {
@@ -43,26 +41,14 @@ describe('Health Endpoint E2E Tests', () => {
 
     await prisma.$connect();
 
-    // Start the HTTP server
-    server = createHttpServer();
-    await new Promise<void>((resolve) => {
-      server.listen(0, '127.0.0.1', () => {
-        const address = server.address();
-        if (address && typeof address === 'object') {
-          baseUrl = `http://127.0.0.1:${address.port}`;
-        }
-        resolve();
-      });
-    });
+    // Start the HTTP server with the real API bootstrap wiring.
+    const started = await startE2EServer();
+    baseUrl = started.baseUrl;
+    closeServer = started.close;
   });
 
   afterAll(async () => {
-    await new Promise<void>((resolve, reject) => {
-      server.close((err) => {
-        if (err) reject(err);
-        else resolve();
-      });
-    });
+    await closeServer();
     await prisma.$disconnect();
   });
 

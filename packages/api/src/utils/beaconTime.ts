@@ -1,20 +1,29 @@
-// Re-export BeaconTime and chain config from consensus-utils
 import { BeaconTime, getChainConfig } from '@beacon-indexer/beacon-utils';
 
-import { env } from '../config/env.js';
+export interface BeaconHelpers {
+  beaconTime: BeaconTime;
+  chainConfig: ReturnType<typeof getChainConfig>;
+}
 
-// Get chain configuration
-const chainConfig = getChainConfig(env.CHAIN);
+/**
+ * Creates the chain configuration and BeaconTime helper from plain parameters.
+ */
+export function createBeaconHelpers(params: {
+  chain: 'ethereum' | 'gnosis';
+  lookbackSlot: number;
+}): BeaconHelpers {
+  const chainConfig = getChainConfig(params.chain);
+  const beaconTime = new BeaconTime({
+    genesisTimestamp: chainConfig.beacon.genesisTimestamp,
+    slotDurationMs: chainConfig.beacon.slotDuration,
+    slotsPerEpoch: chainConfig.beacon.slotsPerEpoch,
+    epochsPerSyncCommitteePeriod: chainConfig.beacon.epochsPerSyncCommitteePeriod,
+    lookbackSlot: params.lookbackSlot,
+    delaySlotsToHead: chainConfig.beacon.delaySlotsToHead,
+  });
 
-// Create singleton BeaconTime instance
-export const beaconTime = new BeaconTime({
-  genesisTimestamp: chainConfig.beacon.genesisTimestamp,
-  slotDurationMs: chainConfig.beacon.slotDuration,
-  slotsPerEpoch: chainConfig.beacon.slotsPerEpoch,
-  epochsPerSyncCommitteePeriod: chainConfig.beacon.epochsPerSyncCommitteePeriod,
-  lookbackSlot: env.CONSENSUS_LOOKBACK_SLOT,
-  delaySlotsToHead: chainConfig.beacon.delaySlotsToHead,
-});
-
-// Re-export chain config for convenience
-export { chainConfig };
+  return {
+    beaconTime,
+    chainConfig,
+  };
+}

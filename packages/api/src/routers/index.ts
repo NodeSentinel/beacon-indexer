@@ -1,21 +1,30 @@
-import { blocksRouter } from './blocks/index.js';
-import { botRouter } from './bot/index.js';
-import { chainRouter } from './chain.js';
-import { clusterRouter } from './cluster/index.js';
-import { healthRouter } from './health.js';
-import { indexerRouter } from './indexer/index.js';
-import { userRouter } from './user/index.js';
-import { utilsRouter } from './utils.js';
-import { validatorRouter } from './validator/index.js';
+import { createBlocksRouter } from './blocks/index.js';
+import { createBotRouter } from './bot/index.js';
+import { createChainRouter } from './chain.js';
+import { createClusterRouter } from './cluster/index.js';
+import { createHealthRouter } from './health.js';
+import { createIndexerRouter } from './indexer/index.js';
+import { createUserRouter } from './user/index.js';
+import { createUtilsRouter } from './utils.js';
+import { createValidatorRouter } from './validator/index.js';
+import type { ApiDependencies } from '@/dependencies.js';
 
-export const router = {
-  blocks: blocksRouter,
-  bot: botRouter,
-  chain: chainRouter,
-  cluster: clusterRouter,
-  health: healthRouter,
-  indexer: indexerRouter,
-  user: userRouter,
-  utils: utilsRouter,
-  validator: validatorRouter,
-};
+export type Router = ReturnType<typeof createRouter>;
+export declare const router: Router;
+
+/**
+ * Creates the top-level API router tree.
+ */
+export function createRouter(deps: ApiDependencies) {
+  return {
+    blocks: createBlocksRouter(deps),
+    bot: createBotRouter(deps),
+    chain: createChainRouter(deps),
+    cluster: createClusterRouter(deps),
+    health: createHealthRouter(deps),
+    indexer: createIndexerRouter(deps),
+    user: createUserRouter(deps),
+    utils: createUtilsRouter(deps),
+    validator: createValidatorRouter(deps),
+  };
+}

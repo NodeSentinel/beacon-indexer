@@ -1,12 +1,10 @@
 import { PrismaClient } from '@beacon-indexer/db';
 
-import { getPrisma } from '@/lib/prisma.js';
-
 /**
  * Stores broadcast communications used by the Telegram bot.
  */
 export class BotCommunicationsStorage {
-  constructor(private readonly prisma: PrismaClient = getPrisma()) {}
+  constructor(private readonly prisma: PrismaClient) {}
 
   /**
    * Creates a new communication in pending state.

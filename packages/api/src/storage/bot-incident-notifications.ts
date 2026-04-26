@@ -1,7 +1,5 @@
 import { ClusterIncidentStatus, Prisma, PrismaClient } from '@beacon-indexer/db';
 
-import { getPrisma } from '@/lib/prisma.js';
-
 type IncidentNotificationType = 'incident_opened' | 'incident_closed';
 
 const incidentNotificationSelect = {
@@ -64,7 +62,7 @@ function getIncidentNotificationCreatedAt(incident: DueIncidentNotification): Da
 }
 
 export class BotIncidentNotificationsStorage {
-  constructor(private readonly prisma: PrismaClient = getPrisma()) {}
+  constructor(private readonly prisma: PrismaClient) {}
 
   /** Lists cluster incident notifications due for bot delivery. */
   async listPending(limit: number) {

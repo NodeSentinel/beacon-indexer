@@ -1,33 +1,34 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { ORPCError } from '@orpc/server';
 
 import { UserResponseSchema } from './schemas.js';
 
-import { securedProcedure } from '@/lib/procedures.js';
+import type { ApiProcedures } from '@/auth/middleware.js';
 import { ApiResponseSchema } from '@/utils/response.js';
 
 /**
- * Get the current authenticated user
- * GET /users/me
- *
- * Works for both Telegram and anonymous users — returns the DB user
- * resolved by the middleware. Returns 401 if no user in context (API key auth).
+ * Creates the current-user route.
  */
-export const me = securedProcedure
-  .route({ method: 'GET', path: '/users/me' })
-  .output(ApiResponseSchema(UserResponseSchema))
-  .handler(async ({ context }) => {
-    if (!context.user) {
-      throw new ORPCError('UNAUTHORIZED', {
-        message: 'No user in context',
-      });
-    }
+export function createMeRoute(params: { procedures: ApiProcedures }) {
+  const { securedProcedure } = params.procedures;
 
-    return {
-      success: true,
-      data: {
-        id: context.user.id,
-        username: context.user.username,
-      },
-      meta: { timestamp: new Date().toISOString() },
-    };
-  });
+  return securedProcedure
+    .route({ method: 'GET', path: '/users/me' })
+    .output(ApiResponseSchema(UserResponseSchema))
+    .handler(async ({ context }: any) => {
+      if (!context.user) {
+        throw new ORPCError('UNAUTHORIZED', {
+          message: 'No user in context',
+        });
+      }
+
+      return {
+        success: true,
+        data: {
+          id: context.user.id,
+          username: context.user.username,
+        },
+        meta: { timestamp: new Date().toISOString() },
+      };
+    });
+}

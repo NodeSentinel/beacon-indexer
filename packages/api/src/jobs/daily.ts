@@ -1,17 +1,14 @@
 import cron from 'node-cron';
 
-import { logger } from '@/lib/logger.js';
+import type { Logger } from '@/lib/logger.js';
 
 /**
- * Register daily jobs
- * These jobs run once per day for daily aggregations
+ * Registers the daily jobs.
  */
-export function registerDailyJobs() {
-  // Run at midnight UTC (00:00)
+export function registerDailyJobs(logger: Logger) {
   cron.schedule('0 0 * * *', async () => {
     try {
       logger.info('Starting daily aggregation job');
-
       logger.info('Daily aggregation job completed');
     } catch (error) {
       logger.error({ err: error }, 'Error in daily aggregation job');

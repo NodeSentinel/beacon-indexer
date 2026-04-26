@@ -1,37 +1,40 @@
-import {
-  createBotCommunication,
-  getBotCommunication,
-  markBotCommunicationSent,
-} from './communications.js';
-import {
-  listBotIncidentNotifications,
-  markBotIncidentClosedNotified,
-  markBotIncidentOpenedNotified,
-} from './incident-notifications.js';
-import {
-  deleteBotNotification,
-  listBotNotifications,
-  markBotNotificationDelivered,
-} from './notifications.js';
-import {
-  listBotUsers,
-  setBotUserBlocked,
-  setBotUserUnblocked,
-  updateBotUserMessageId,
-} from './users.js';
+import { createBotCommunicationsRoutes } from './communications.js';
+import { createBotIncidentNotificationRoutes } from './incident-notifications.js';
+import { createBotNotificationRoutes } from './notifications.js';
+import { createBotUsersRoutes } from './users.js';
+import type { ApiDependencies } from '@/dependencies.js';
 
-export const botRouter = {
-  createCommunication: createBotCommunication,
-  deleteNotification: deleteBotNotification,
-  getCommunication: getBotCommunication,
-  incidentNotifications: listBotIncidentNotifications,
-  notifications: listBotNotifications,
-  setIncidentClosedNotified: markBotIncidentClosedNotified,
-  setIncidentOpenedNotified: markBotIncidentOpenedNotified,
-  markCommunicationSent: markBotCommunicationSent,
-  setNotificationDelivered: markBotNotificationDelivered,
-  users: listBotUsers,
-  updateMessageId: updateBotUserMessageId,
-  setBlocked: setBotUserBlocked,
-  setUnblocked: setBotUserUnblocked,
-};
+/**
+ * Creates the bot router.
+ */
+export function createBotRouter(
+  deps: Pick<
+    ApiDependencies,
+    | 'botCommunicationsStorage'
+    | 'botIncidentNotificationsStorage'
+    | 'botNotificationsStorage'
+    | 'botUsersStorage'
+    | 'procedures'
+  >,
+) {
+  const communications = createBotCommunicationsRoutes(deps);
+  const incidentNotifications = createBotIncidentNotificationRoutes(deps);
+  const notifications = createBotNotificationRoutes(deps);
+  const users = createBotUsersRoutes(deps);
+
+  return {
+    createCommunication: communications.createBotCommunication,
+    deleteNotification: notifications.deleteBotNotification,
+    getCommunication: communications.getBotCommunication,
+    incidentNotifications: incidentNotifications.listBotIncidentNotifications,
+    notifications: notifications.listBotNotifications,
+    setIncidentClosedNotified: incidentNotifications.markBotIncidentClosedNotified,
+    setIncidentOpenedNotified: incidentNotifications.markBotIncidentOpenedNotified,
+    markCommunicationSent: communications.markBotCommunicationSent,
+    setNotificationDelivered: notifications.markBotNotificationDelivered,
+    users: users.listBotUsers,
+    updateMessageId: users.updateBotUserMessageId,
+    setBlocked: users.setBotUserBlocked,
+    setUnblocked: users.setBotUserUnblocked,
+  };
+}

@@ -1,46 +1,41 @@
+import type { PrismaClient } from '@beacon-indexer/db';
+
 import { registerDailyJobs } from './daily.js';
 import { registerHourlyJobs } from './hourly.js';
 import { registerPerMinuteJobs } from './per-minute.js';
 import { registerPerSecondJobs } from './per-second.js';
 
-import { logger } from '@/lib/logger.js';
+import type { Logger } from '@/lib/logger.js';
 
 let jobsStarted = false;
 
 /**
- * Start all cron jobs
+ * Starts the API cron jobs.
  */
-export function startJobs() {
+export function startJobs(params: { logger: Logger; prisma: PrismaClient }) {
   if (jobsStarted) {
-    logger.warn('Jobs already started, skipping');
+    params.logger.warn('Jobs already started, skipping');
     return;
   }
 
-  logger.info('Starting cron jobs...');
-
-  // Register all job types
-  registerPerSecondJobs();
-  registerPerMinuteJobs();
-  registerHourlyJobs();
-  registerDailyJobs();
-
+  params.logger.info('Starting cron jobs...');
+  registerPerSecondJobs(params.logger);
+  registerPerMinuteJobs(params);
+  registerHourlyJobs(params.logger);
+  registerDailyJobs(params.logger);
   jobsStarted = true;
-  logger.info('All cron jobs started');
+  params.logger.info('All cron jobs started');
 }
 
 /**
- * Stop all cron jobs
- * Note: node-cron doesn't have a built-in way to stop all jobs,
- * but we can track this for graceful shutdown
+ * Stops the API cron jobs bookkeeping.
  */
-export function stopJobs() {
+export function stopJobs(logger: Logger) {
   if (!jobsStarted) {
     return;
   }
 
   logger.info('Stopping cron jobs...');
-  // In a real implementation, you might want to track cron instances
-  // and call .destroy() on them, but for now we just log
   jobsStarted = false;
   logger.info('Cron jobs stopped');
 }

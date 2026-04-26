@@ -1,7 +1,5 @@
 import { PrismaClient } from '@beacon-indexer/db';
 
-import { getPrisma } from '@/lib/prisma.js';
-
 /**
  * SystemConfigStorage - Database persistence layer for system configuration tables
  * Handles all database operations for helper/config tables like Archive and IndexerConfig
@@ -23,7 +21,7 @@ interface IndexerConfigRow {
 }
 
 export class SystemConfigStorage {
-  constructor(private readonly prisma: PrismaClient = getPrisma()) {}
+  constructor(private readonly prisma: PrismaClient) {}
 
   /**
    * Get archive configuration

@@ -1,32 +1,27 @@
+import type { PrismaClient } from '@beacon-indexer/db';
 import cron from 'node-cron';
 
-import { logger } from '@/lib/logger.js';
-import { getPrisma } from '@/lib/prisma.js';
+import type { Logger } from '@/lib/logger.js';
 
 /**
- * Register per-minute jobs
- * These jobs run every minute for frequent checks
+ * Registers the per-minute jobs.
  */
-export function registerPerMinuteJobs() {
-  // Example: Check indexer health and log metrics
+export function registerPerMinuteJobs(params: { logger: Logger; prisma: PrismaClient }) {
   cron.schedule('* * * * *', async () => {
     try {
-      const prisma = getPrisma();
-
-      // Quick health check
-      const lastProcessedSlot = await prisma.slot.findFirst({
+      const lastProcessedSlot = await params.prisma.slot.findFirst({
         where: { processed: true },
         orderBy: { slot: 'desc' },
         select: { slot: true },
       });
 
       if (lastProcessedSlot) {
-        logger.debug({ lastProcessedSlot: lastProcessedSlot.slot }, 'Indexer status check');
+        params.logger.debug({ lastProcessedSlot: lastProcessedSlot.slot }, 'Indexer status check');
       }
     } catch (error) {
-      logger.error({ err: error }, 'Error in per-minute job');
+      params.logger.error({ err: error }, 'Error in per-minute job');
     }
   });
 
-  logger.info('Per-minute jobs registered');
+  params.logger.info('Per-minute jobs registered');
 }

@@ -1,7 +1,5 @@
 import { ClusterVisibility, PrismaClient } from '@beacon-indexer/db';
 
-import { getPrisma } from '@/lib/prisma.js';
-
 interface CreateClusterData {
   name: string;
   ownerId: string;
@@ -25,7 +23,7 @@ interface UpdateClusterWithValidatorsData extends UpdateClusterData {
  * Uses Prisma ORM for standard CRUD operations
  */
 export class ClusterStorage {
-  constructor(private readonly prisma: PrismaClient = getPrisma()) {}
+  constructor(private readonly prisma: PrismaClient) {}
 
   /**
    * Removes duplicate validator indexes while preserving the first occurrence.

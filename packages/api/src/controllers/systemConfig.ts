@@ -18,7 +18,7 @@ interface IndexerConfig {
 }
 
 export class SystemConfigController {
-  constructor(private readonly storage: SystemConfigStorage = new SystemConfigStorage()) {}
+  constructor(private readonly storage: SystemConfigStorage) {}
 
   /**
    * Get archive configuration

@@ -1,19 +1,14 @@
 import cron from 'node-cron';
 
-import { logger } from '@/lib/logger.js';
+import type { Logger } from '@/lib/logger.js';
 
 /**
- * Register per-second jobs
- * These are very light jobs that run every second
+ * Registers the per-second jobs.
  */
-export function registerPerSecondJobs() {
-  // Example: Update cached current slot/epoch
-  // This can be useful for real-time monitoring
+export function registerPerSecondJobs(logger: Logger) {
   cron.schedule('* * * * * *', async () => {
     try {
-      // Light operations only - avoid heavy DB queries here
-      // This is just a placeholder for future lightweight operations
-      // logger.debug('Per-second job executed');
+      // Placeholder for future lightweight background work.
     } catch (error) {
       logger.error({ err: error }, 'Error in per-second job');
     }

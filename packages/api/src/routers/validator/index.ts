@@ -1,68 +1,81 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { z } from 'zod';
 
 import { ValidatorDetailsSchema } from './schemas.js';
-import { searchValidators } from './search.js';
+import { createSearchValidatorsRoute } from './search.js';
 
-import { ValidatorController } from '@/controllers/validator.js';
-import { securedProcedure } from '@/lib/procedures.js';
-import { getValidatorMissedAttestations } from '@/routers/cluster/missed-attestations.js';
-import { getValidatorRewards } from '@/routers/cluster/rewards.js';
+import type { ApiDependencies } from '@/dependencies.js';
+import { createValidatorMissedAttestationsRoute } from '@/routers/cluster/missed-attestations.js';
+import { createValidatorRewardsRoute } from '@/routers/cluster/rewards.js';
 import { ApiResponseSchema } from '@/utils/response.js';
 
 /**
- * Get validator details with timeline grouped by epoch → slot
- * Accepts id as path parameter - can be validatorIndex (number) or pubkey (string, 98 chars)
- * Determines type by checking if id is a number or string length
+ * Creates the validator router.
  */
-export const getValidator = securedProcedure
-  .route({ method: 'GET', path: '/validator/{id}' })
-  .input(
-    z.object({
-      id: z.string(), // Path params come as strings
-    }),
-  )
-  .output(ApiResponseSchema(ValidatorDetailsSchema))
-  .handler(async ({ input }) => {
-    try {
-      const controller = new ValidatorController();
+export function createValidatorRouter(
+  deps: Pick<
+    ApiDependencies,
+    | 'analyticsStorage'
+    | 'beaconHelpers'
+    | 'chain'
+    | 'clusterStorage'
+    | 'logger'
+    | 'nativeTokenDecimals'
+    | 'procedures'
+    | 'tokenPriceApiUrl'
+    | 'tokenPriceTokenName'
+    | 'validatorController'
+    | 'validatorStorage'
+  >,
+) {
+  const { securedProcedure } = deps.procedures;
 
-      // Determine if id is number or pubkey by checking if it's a valid number
-      let id: number | string;
-      const parsed = Number(input.id);
-      if (!isNaN(parsed) && parsed > 0 && Number.isInteger(parsed)) {
-        id = parsed;
-      } else {
-        // Otherwise treat as pubkey
-        id = input.id;
+  const getValidator = securedProcedure
+    .route({ method: 'GET', path: '/validator/{id}' })
+    .input(
+      z.object({
+        id: z.string(),
+      }),
+    )
+    .output(ApiResponseSchema(ValidatorDetailsSchema))
+    .handler(async ({ input }: any) => {
+      try {
+        let id: number | string;
+        const parsed = Number(input.id);
+
+        if (!isNaN(parsed) && parsed > 0 && Number.isInteger(parsed)) {
+          id = parsed;
+        } else {
+          id = input.id;
+        }
+
+        const details = await deps.validatorController.getDetails(id);
+
+        return {
+          success: true,
+          data: details,
+          meta: {
+            timestamp: new Date().toISOString(),
+          },
+        };
+      } catch (error) {
+        return {
+          success: false,
+          error: {
+            code: 'VALIDATOR_DETAILS_ERROR',
+            message: error instanceof Error ? error.message : 'Failed to get validator details',
+          },
+          meta: {
+            timestamp: new Date().toISOString(),
+          },
+        };
       }
+    });
 
-      const details = await controller.getDetails(id);
-
-      return {
-        success: true,
-        data: details,
-        meta: {
-          timestamp: new Date().toISOString(),
-        },
-      };
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to get validator details';
-      return {
-        success: false,
-        error: {
-          code: 'VALIDATOR_DETAILS_ERROR',
-          message,
-        },
-        meta: {
-          timestamp: new Date().toISOString(),
-        },
-      };
-    }
-  });
-
-export const validatorRouter = {
-  getValidator,
-  search: searchValidators,
-  missedAttestations: getValidatorMissedAttestations,
-  rewards: getValidatorRewards,
-};
+  return {
+    getValidator,
+    missedAttestations: createValidatorMissedAttestationsRoute(deps),
+    rewards: createValidatorRewardsRoute(deps),
+    search: createSearchValidatorsRoute(deps),
+  };
+}
