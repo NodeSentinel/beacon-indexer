@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import { z } from 'zod';
 
 import {
@@ -32,7 +31,7 @@ export function createBotUsersRoutes(
     .handler(async () => {
       try {
         return successResponse(
-          (await params.botUsersStorage.listNotifiableUsers()).map((user: any) => ({
+          (await params.botUsersStorage.listNotifiableUsers()).map((user) => ({
             id: user.id,
             telegramId: user.telegramId!.toString(),
             username: user.username,
@@ -51,7 +50,7 @@ export function createBotUsersRoutes(
     .route({ method: 'PUT', path: '/bot/users/{telegramId}/message-id' })
     .input(UpdateMessageIdSchema)
     .output(BotUserResponseSchema)
-    .handler(async ({ input }: any) => {
+    .handler(async ({ input }) => {
       try {
         const user = await params.botUsersStorage.updateMessageId(
           BigInt(input.telegramId),
@@ -76,7 +75,7 @@ export function createBotUsersRoutes(
     .route({ method: 'PUT', path: '/bot/users/{telegramId}/blocked' })
     .input(TelegramIdParamSchema)
     .output(BotUserResponseSchema)
-    .handler(async ({ input }: any) => {
+    .handler(async ({ input }) => {
       try {
         const user = await params.botUsersStorage.setBlocked(BigInt(input.telegramId));
 
@@ -98,7 +97,7 @@ export function createBotUsersRoutes(
     .route({ method: 'PUT', path: '/bot/users/{telegramId}/unblocked' })
     .input(TelegramIdParamSchema)
     .output(BotUserResponseSchema)
-    .handler(async ({ input }: any) => {
+    .handler(async ({ input }) => {
       try {
         const user = await params.botUsersStorage.setUnblocked(BigInt(input.telegramId));
 

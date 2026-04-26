@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import { z } from 'zod';
 
 import {
@@ -10,7 +9,7 @@ import {
   ClusterIncidentsResponseSchema,
 } from './schemas.js';
 
-import type { ApiProcedures } from '@/auth/middleware.js';
+import type { ApiDependencies } from '@/dependencies.js';
 import { ApiResponseSchema } from '@/utils/response.js';
 import { formatBalance } from '@/utils/tokenFormat.js';
 
@@ -75,18 +74,16 @@ function missingValidatorsUserResponse(): ClusterIncidentAffectedValidatorsApiRe
 /**
  * Creates the cluster incidents routes.
  */
-export function createClusterIncidentRoutes(params: {
-  chain: 'ethereum' | 'gnosis';
-  incidentStorage: any;
-  procedures: ApiProcedures;
-}) {
+export function createClusterIncidentRoutes(
+  params: Pick<ApiDependencies, 'chain' | 'incidentStorage' | 'procedures'>,
+) {
   const { securedProcedure } = params.procedures;
 
   const listClusterIncidents = securedProcedure
     .route({ method: 'GET', path: '/clusters/{id}/incidents' })
     .input(ClusterIncidentsInputSchema)
     .output(ClusterIncidentsApiResponseSchema)
-    .handler(async ({ context, input }: any) => {
+    .handler(async ({ context, input }) => {
       if (!context.user) {
         return missingUserResponse();
       }
@@ -120,7 +117,7 @@ export function createClusterIncidentRoutes(params: {
         return {
           success: true,
           data: {
-            incidents: rows.map((row: any) => ({
+            incidents: rows.map((row) => ({
               id: row.id,
               status: row.status,
               openedAt: row.opened_at.toISOString(),
@@ -168,7 +165,7 @@ export function createClusterIncidentRoutes(params: {
     .route({ method: 'POST', path: '/clusters/{id}/incidents/opened-notified' })
     .input(ClusterIncidentsInputSchema.pick({ id: true }))
     .output(ClusterIncidentNotificationApiResponseSchema)
-    .handler(async ({ context, input }: any) => {
+    .handler(async ({ context, input }) => {
       if (!context.user) {
         return missingNotificationUserResponse();
       }
@@ -218,7 +215,7 @@ export function createClusterIncidentRoutes(params: {
     .route({ method: 'POST', path: '/clusters/incidents/{incidentId}/closed-notified' })
     .input(ClusterIncidentIdParamSchema)
     .output(ClusterIncidentNotificationApiResponseSchema)
-    .handler(async ({ context, input }: any) => {
+    .handler(async ({ context, input }) => {
       if (!context.user) {
         return missingNotificationUserResponse();
       }
@@ -284,7 +281,7 @@ export function createClusterIncidentRoutes(params: {
     .route({ method: 'GET', path: '/clusters/incidents/{incidentId}/affected-validators' })
     .input(ClusterIncidentAffectedValidatorsInputSchema)
     .output(ClusterIncidentAffectedValidatorsApiResponseSchema)
-    .handler(async ({ context, input }: any) => {
+    .handler(async ({ context, input }) => {
       if (!context.user) {
         return missingValidatorsUserResponse();
       }
@@ -318,7 +315,7 @@ export function createClusterIncidentRoutes(params: {
         return {
           success: true,
           data: {
-            validators: rows.map((row: any) => ({
+            validators: rows.map((row) => ({
               validatorIndex: row.validator_index,
               inactiveFromSlot: row.inactive_from_slot,
               inactiveToSlot: row.inactive_to_slot,

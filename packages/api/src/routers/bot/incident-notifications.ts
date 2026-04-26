@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import { z } from 'zod';
 
 import {
@@ -30,7 +29,7 @@ type BotIncidentNotificationDeliveredResponse = z.infer<
  * Creates the bot incident notification routes.
  */
 export function createBotIncidentNotificationRoutes(params: {
-  botIncidentNotificationsStorage: any;
+  botIncidentNotificationsStorage: ApiDependencies['botIncidentNotificationsStorage'];
   procedures: ApiDependencies['procedures'];
 }) {
   const botProcedure = createBotProcedure(params.procedures);
@@ -39,12 +38,12 @@ export function createBotIncidentNotificationRoutes(params: {
     .route({ method: 'GET', path: '/bot/incident-notifications' })
     .input(BotNotificationListInputSchema)
     .output(BotIncidentNotificationListResponseSchema)
-    .handler(async ({ input }: any) => {
+    .handler(async ({ input }) => {
       try {
         const notifications = await params.botIncidentNotificationsStorage.listPending(input.limit);
 
         return successResponse(
-          notifications.map((notification: any) => ({
+          notifications.map((notification) => ({
             id: notification.id,
             userId: notification.userId,
             telegramId: notification.user.telegramId.toString(),
@@ -65,7 +64,7 @@ export function createBotIncidentNotificationRoutes(params: {
     .route({ method: 'PUT', path: '/bot/incident-notifications/{incidentId}/opened' })
     .input(IncidentNotificationIdParamSchema)
     .output(BotIncidentNotificationDeliveredResponseSchema)
-    .handler(async ({ input }: any) => {
+    .handler(async ({ input }) => {
       try {
         await params.botIncidentNotificationsStorage.markOpenedNotified(input.incidentId);
 
@@ -85,7 +84,7 @@ export function createBotIncidentNotificationRoutes(params: {
     .route({ method: 'PUT', path: '/bot/incident-notifications/{incidentId}/closed' })
     .input(IncidentNotificationIdParamSchema)
     .output(BotIncidentNotificationDeliveredResponseSchema)
-    .handler(async ({ input }: any) => {
+    .handler(async ({ input }) => {
       try {
         await params.botIncidentNotificationsStorage.markClosedNotified(input.incidentId);
 
