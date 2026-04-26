@@ -1,6 +1,19 @@
+import { readFile } from 'node:fs/promises';
+
 import { describe, expect, it, vi } from 'vitest';
 
+// Keeps this storage-unit test independent from the API runtime environment.
+vi.mock('@/lib/prisma.js', () => ({
+  getPrisma: vi.fn(),
+}));
+
 import { ClusterStorage } from './cluster.js';
+
+const schemaUrl = new URL('../../../db/prisma/schema.prisma', import.meta.url);
+const migrationUrl = new URL(
+  '../../../db/prisma/migrations/20251210144216_initial/migration.sql',
+  import.meta.url,
+);
 
 describe('ClusterStorage.getSummary', () => {
   it('returns total cluster count and validator count per cluster', async () => {
@@ -80,5 +93,39 @@ describe('ClusterStorage.getSummary', () => {
     });
     // Confirms users are counted without loading user rows.
     expect(count).toHaveBeenCalledWith();
+  });
+});
+
+describe('ClusterStorage query performance safeguards', () => {
+  it('keeps the owner cluster list backed by a matching index', async () => {
+    // This case verifies the hot owner-scoped cluster listing has schema and migration indexes.
+    const [schema, migration] = await Promise.all([
+      readFile(schemaUrl, 'utf8'),
+      readFile(migrationUrl, 'utf8'),
+    ]);
+
+    // Confirms Prisma schema documents the owner/date index used by listByOwner.
+    expect(schema).toContain('@@index([ownerId, createdAt(sort: Desc)])');
+    // Confirms the initial migration creates the same physical Postgres index.
+    expect(migration).toContain(
+      'CREATE INDEX "cluster_owner_id_created_at_idx" ON "public"."cluster"("owner_id", "created_at" DESC);',
+    );
+  });
+
+  it('builds cluster snapshots without rejoining membership for status breakdown', async () => {
+    // This case protects the snapshot aggregation from scanning cluster membership twice.
+    const queryRaw = vi.fn().mockResolvedValue([]);
+    const storage = new ClusterStorage({ $queryRaw: queryRaw } as never);
+
+    // Executes the method so the Prisma tagged SQL is constructed through real code.
+    await storage.getClusterSnapshot('cluster-a');
+
+    // Reads the raw SQL template sent to Prisma for structural assertions.
+    const sql = Array.from(queryRaw.mock.calls[0]?.[0] ?? []).join('?');
+
+    // Confirms the joined validator snapshot set is materialized once for reuse.
+    expect(sql).toContain('WITH merged_snapshot AS MATERIALIZED');
+    // Confirms status breakdown reuses the merged snapshot instead of a second membership join.
+    expect(sql).not.toContain('FROM cluster_validator cv2');
   });
 });

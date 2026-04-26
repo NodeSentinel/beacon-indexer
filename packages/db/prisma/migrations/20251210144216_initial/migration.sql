@@ -512,6 +512,9 @@ CREATE UNIQUE INDEX "user_telegram_id_key" ON "public"."user"("telegram_id");
 CREATE UNIQUE INDEX "user_username_key" ON "public"."user"("username");
 
 -- CreateIndex
+CREATE INDEX "cluster_owner_id_created_at_idx" ON "public"."cluster"("owner_id", "created_at" DESC);
+
+-- CreateIndex
 CREATE INDEX "cluster_validator_validator_index_idx" ON "public"."cluster_validator"("validator_index");
 
 -- CreateIndex

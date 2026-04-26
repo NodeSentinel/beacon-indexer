@@ -32,6 +32,6 @@ export async function processUsers(
     } catch (err) {
       log.error({ err, telegramId: user.telegramId }, 'Error notifying user');
     }
-    await delay(10_000, signal);
+    await delay(1_000, signal);
   }
 }

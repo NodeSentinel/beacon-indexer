@@ -468,7 +468,7 @@ export class ClusterStorage {
         beacon_status_breakdown: string;
       }>
     >`
-      WITH merged_snapshot AS (
+      WITH merged_snapshot AS MATERIALIZED (
         SELECT
           cv.validator_index,
           vsa.is_inactive,
@@ -573,11 +573,10 @@ export class ClusterStorage {
         COALESCE(
           (SELECT json_object_agg(bs, cnt)::text
            FROM (
-             SELECT b2.beacon_status::text AS bs, COUNT(*)::int AS cnt
-             FROM cluster_validator cv2
-             JOIN validators_snapshot_balances b2 ON cv2.validator_index = b2.validator_index
-             WHERE cv2.cluster_id = ${clusterId}
-             GROUP BY b2.beacon_status
+             SELECT merged_snapshot.beacon_status::text AS bs, COUNT(*)::int AS cnt
+             FROM merged_snapshot
+             WHERE merged_snapshot.beacon_status IS NOT NULL
+             GROUP BY merged_snapshot.beacon_status
            ) sub),
           '{}'
         ) AS beacon_status_breakdown
