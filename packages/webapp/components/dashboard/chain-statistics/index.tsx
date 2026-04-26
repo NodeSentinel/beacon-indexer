@@ -6,6 +6,7 @@ import type { LucideIcon } from 'lucide-react';
 
 import { useState } from 'react';
 
+import { Badge } from '@/components/ui/badge';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { env } from '@/env';
 import { useChainStats } from '@/hooks/use-chain-stats';
@@ -63,10 +64,17 @@ export default function ChainStatistics() {
   const [isExpanded, setIsExpanded] = useState(false);
   const { data: chainStats, isLoading: isChainStatsLoading } = useChainStats(isExpanded);
   const { data: syncStatus } = useSyncStatus();
-  const { data: tokenPriceData, isLoading: isTokenPriceLoading } = useTokenPrice(isExpanded);
+  const { data: tokenPriceData, isLoading: isTokenPriceLoading } = useTokenPrice();
   const tokenSymbol = getTokenSymbol(env.NEXT_PUBLIC_CHAIN);
 
   const tokenPrice = tokenPriceData?.tokenPrice ?? 0;
+  const tokenPriceLabel =
+    tokenPrice > 0
+      ? `${tokenSymbol} $${tokenPrice.toLocaleString('en-US', {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2,
+        })}`
+      : null;
   const totalStaked = chainStats ? parseFloat(chainStats.totalStaked) : 0;
   const activeValidators = chainStats?.totalActiveValidators ?? 0;
   const joiningValidators = chainStats?.validatorsEntering ?? 0;
@@ -87,19 +95,27 @@ export default function ChainStatistics() {
       <CollapsibleTrigger asChild>
         <button
           type="button"
-          className="flex w-full items-center justify-between gap-2 rounded-lg text-left"
+          className="grid w-full grid-cols-[1fr_auto_1fr] items-center gap-2 rounded-lg text-left"
         >
           <h2 className="text-[10px] md:text-xs font-normal text-muted-foreground uppercase tracking-wider">
             Chain Statistics
           </h2>
-          <div className="flex items-center gap-2 md:gap-3">
+          {tokenPriceLabel ? (
+            <Badge variant="outline" className="h-5 px-1.5 text-[10px] font-mono">
+              {tokenPriceLabel}
+            </Badge>
+          ) : (
+            <span className="h-5 w-16 rounded border border-primary bg-primary/10 animate-pulse" />
+          )}
+          <div className="flex items-center justify-end gap-2 md:gap-3">
             {syncStatus && (
               <div className="flex items-center gap-1.5">
                 <div
                   className={`w-1.5 h-1.5 rounded-full ${syncStatus.isSynced ? 'bg-chart-2' : 'bg-warning animate-pulse'}`}
                 />
                 <span className="text-[10px] md:text-xs font-mono text-muted-foreground">
-                  indexing: {formatNumber(syncStatus.currentSlot ?? 0)}
+                  <span className="hidden md:inline">indexing: </span>
+                  {formatNumber(syncStatus.currentSlot ?? 0)}
                   {'/'}
                   {formatNumber(lastIndexedSlot)}
                 </span>
