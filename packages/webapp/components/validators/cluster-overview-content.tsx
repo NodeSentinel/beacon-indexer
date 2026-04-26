@@ -3,8 +3,8 @@
 import { Settings } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
-import { useChainStats } from '@/hooks/use-chain-stats';
 import { useClusterSnapshot } from '@/hooks/use-cluster-snapshot';
+import { useTokenPrice } from '@/hooks/use-token-price';
 import { formatNumber } from '@/lib/utils';
 import type { Cluster } from '@/types/cluster';
 
@@ -65,9 +65,9 @@ export default function ClusterOverviewContent({
   onManage,
   showManageButton = false,
 }: ClusterOverviewContentProps) {
-  const { data: chainStats } = useChainStats();
   const { data: snapshot, isLoading: snapshotLoading } = useClusterSnapshot(cluster.id);
-  const gnoPrice = chainStats?.tokenPrice ?? 0;
+  const { data: tokenPriceData } = useTokenPrice();
+  const gnoPrice = tokenPriceData?.tokenPrice ?? 0;
   const statusCounts = cluster.validators.reduce(
     (acc, v) => {
       acc[v.status] = (acc[v.status] || 0) + 1;

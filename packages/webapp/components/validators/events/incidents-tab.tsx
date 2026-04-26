@@ -10,10 +10,10 @@ import ArrowRight from '@/components/icons/arrow-right';
 import { Badge } from '@/components/ui/badge';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { env } from '@/env';
-import { useChainStats } from '@/hooks/use-chain-stats';
 import type { ClusterIncident } from '@/hooks/use-cluster-incidents';
 import { useClusterIncidents } from '@/hooks/use-cluster-incidents';
 import { useIncidentAffectedValidators } from '@/hooks/use-incident-affected-validators';
+import { useTokenPrice } from '@/hooks/use-token-price';
 import {
   cn,
   formatIncidentDateTime,
@@ -63,7 +63,7 @@ interface AffectedValidatorsCountProps {
 /** Renders lazy-loaded cluster incidents with pagination. */
 export function IncidentsTab({ clusterId, isActive }: IncidentsTabProps) {
   const [incidentsPage, setIncidentsPage] = useState(1);
-  const { data: chainStats } = useChainStats();
+  const { data: tokenPriceData } = useTokenPrice(isActive);
   const {
     data: incidentsData,
     error,
@@ -72,7 +72,7 @@ export function IncidentsTab({ clusterId, isActive }: IncidentsTabProps) {
   const totalIncidentPages = incidentsData
     ? Math.ceil(incidentsData.totalCount / incidentsData.pageSize)
     : 0;
-  const tokenPrice = chainStats?.tokenPrice ?? 0;
+  const tokenPrice = tokenPriceData?.tokenPrice ?? 0;
   const tokenSymbol = getTokenSymbol(env.NEXT_PUBLIC_CHAIN);
 
   useEffect(() => {
@@ -183,16 +183,14 @@ function IncidentSummary({ incident, tokenPrice }: IncidentSummaryProps) {
       <div className="h-4 w-px bg-border/70 shrink-0" />
 
       <div className="min-w-0 shrink overflow-hidden">
-        <span className="text-xs md:text-sm font-mono text-foreground uppercase truncate">
-          {openedAtLabel} DURATION: {durationLabel}
+        <span className="text-xs md:text-sm font-mono text-foreground truncate">
+          {openedAtLabel} Duration: {durationLabel}
         </span>
       </div>
 
       {costUsd && (
         <div className="ml-auto shrink-0">
-          <span className="text-xs md:text-sm font-mono text-destructive uppercase">
-            COST: ${costUsd}
-          </span>
+          Cost: <span className="text-xs md:text-sm font-mono text-destructive">${costUsd}</span>
         </div>
       )}
     </div>

@@ -13,6 +13,19 @@ interface ChainStatsResponse {
     validatorsEntering: number;
     validatorsExiting: number;
     validatorsConsolidating: number;
+  };
+  error?: {
+    code: string;
+    message: string;
+  };
+  meta: {
+    timestamp: string;
+  };
+}
+
+interface TokenPriceResponse {
+  success: boolean;
+  data?: {
     tokenPrice: number;
   };
   error?: {
@@ -69,8 +82,12 @@ describe('Chain Stats Endpoint E2E Tests', () => {
       expect(body.error!.code).toBe('NOT_FOUND');
     });
 
+    // Verifies that chain stats return validator totals without token price data.
     it('should return stats when data exists', async () => {
+      // Reset test stats rows so the assertion reads only this scenario data.
       await prisma.$executeRaw`DELETE FROM chain_epoch_stats WHERE epoch >= 900000`;
+
+      // Insert one synthetic latest stats row for the route to return.
       await prisma.$executeRaw`
         INSERT INTO chain_epoch_stats (epoch, total_active_validators, total_staked, validators_entering, validators_exiting, validators_consolidating)
         VALUES (999999, 450000, 14400000000000000, 2300, 500, 50)
@@ -84,6 +101,7 @@ describe('Chain Stats Endpoint E2E Tests', () => {
 
       const body = (await response.json()) as ChainStatsResponse;
 
+      // Confirm the stats payload contains only chain statistics.
       expect(body.success).toBe(true);
       expect(body.data).toBeDefined();
       expect(body.data!.epoch).toBe(999999);
@@ -92,7 +110,7 @@ describe('Chain Stats Endpoint E2E Tests', () => {
       expect(body.data!.validatorsEntering).toBe(2300);
       expect(body.data!.validatorsExiting).toBe(500);
       expect(body.data!.validatorsConsolidating).toBe(50);
-      expect(body.data!.tokenPrice).toBe(FIXED_TOKEN_PRICE);
+      expect(body.data).not.toHaveProperty('tokenPrice');
     });
 
     it('should return the latest epoch stats', async () => {
@@ -126,6 +144,22 @@ describe('Chain Stats Endpoint E2E Tests', () => {
       expect(body.meta).toBeDefined();
       expect(body.meta.timestamp).toBeDefined();
       expect(() => new Date(body.meta.timestamp)).not.toThrow();
+    });
+  });
+
+  describe('GET /chain/token-price', () => {
+    // Verifies that token price has its own endpoint separate from chain stats.
+    it('should return the current token price', async () => {
+      // Request the dedicated price route with normal auth headers.
+      const response = await fetch(`${baseUrl}/chain/token-price`, { headers: authHeaders() });
+      const body = (await response.json()) as TokenPriceResponse;
+
+      // Confirm the route returns the stubbed token price used by the e2e server.
+      expect(response.ok).toBe(true);
+      expect(response.status).toBe(200);
+      expect(body.success).toBe(true);
+      expect(body.data).toBeDefined();
+      expect(body.data!.tokenPrice).toBe(FIXED_TOKEN_PRICE);
     });
   });
 });

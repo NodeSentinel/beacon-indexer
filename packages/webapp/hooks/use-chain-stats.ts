@@ -4,7 +4,8 @@ import { useQuery } from '@tanstack/react-query';
 
 import { orpcClient } from '@/lib/orpc';
 
-export function useChainStats() {
+/** Fetches the latest chain statistics when the caller enables the query. */
+export function useChainStats(enabled = true) {
   return useQuery({
     queryKey: ['chainStats'],
     queryFn: async () => {
@@ -14,6 +15,7 @@ export function useChainStats() {
       }
       return response.data;
     },
+    enabled,
     refetchInterval: 30_000,
   });
 }

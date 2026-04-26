@@ -19,9 +19,9 @@ import {
   UnderlineTabsList,
   UnderlineTabsTrigger,
 } from '@/components/underline-tabs';
-import { useChainStats } from '@/hooks/use-chain-stats';
 import { useMissedAttestations } from '@/hooks/use-missed-attestations';
 import { useRewards } from '@/hooks/use-rewards';
+import { useTokenPrice } from '@/hooks/use-token-price';
 import { type AnalyticsTimeRange, bucketByTime } from '@/lib/analytics-buckets';
 import { formatNumber } from '@/lib/utils';
 import type { ClusterFilter } from '@/types/cluster';
@@ -241,10 +241,10 @@ function RewardsTab({
   clusterFilter: ClusterFilter;
   timeRange: AnalyticsTimeRange;
 }) {
-  const { data: chainStats } = useChainStats();
+  const { data: tokenPriceData } = useTokenPrice();
   const { data: rewardsResponse, isLoading } = useRewards(clusterFilter, null, timeRange);
 
-  const tokenPrice = rewardsResponse?.tokenPrice ?? chainStats?.tokenPrice ?? 0;
+  const tokenPrice = rewardsResponse?.tokenPrice ?? tokenPriceData?.tokenPrice ?? 0;
 
   const rewardsChartData = useMemo(
     () =>
