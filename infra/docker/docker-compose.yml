@@ -151,6 +151,34 @@ services:
       - '127.0.0.1:3002:3002'
     depends_on:
       - prometheus
+      - loki
+    networks:
+      - app-network
+
+  loki:
+    image: grafana/loki:3.1.1
+    container_name: loki
+    restart: unless-stopped
+    command: -config.file=/etc/loki/config.yml
+    volumes:
+      - ../monitoring/loki.yml:/etc/loki/config.yml:ro
+      - loki_data:/loki
+    ports:
+      - '127.0.0.1:3100:3100'
+    networks:
+      - app-network
+
+  promtail:
+    image: grafana/promtail:3.1.1
+    container_name: promtail
+    restart: unless-stopped
+    command: -config.file=/etc/promtail/config.yml
+    volumes:
+      - ../monitoring/promtail.yml:/etc/promtail/config.yml:ro
+      - ../../packages/indexer/logs:/var/log/indexer:ro
+      - promtail_positions:/tmp
+    depends_on:
+      - loki
     networks:
       - app-network
 
@@ -198,3 +226,5 @@ volumes:
   beacon_postgres_data:
   prometheus_data:
   grafana_data:
+  loki_data:
+  promtail_positions:
