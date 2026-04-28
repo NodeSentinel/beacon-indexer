@@ -305,7 +305,7 @@ export const getMultiMachineLogger = (): MultiMachineLogger => {
  */
 export const logRemoveMachine = (machineId: string, finalState?: string) => {
   const logger = getMultiMachineLogger();
-  getMachineTracer().finalizeState(machineId, finalState);
+  getMachineTracer().finalizeTrace(machineId, finalState);
   logger.markMachineAsFinal(machineId, finalState);
 };
 
@@ -321,7 +321,19 @@ export const logMachine = (
 ) => {
   const logger = getMultiMachineLogger();
   logger.addLog(machineId, state, context);
-  getMachineTracer().trackState(machineId, state, context, traceOptions);
+
+  const tracer = getMachineTracer();
+  const definition = traceOptions?.buildTrace
+    ? traceOptions.buildTrace({
+        machineId,
+        state,
+        context,
+        traceRootId: traceOptions.traceRootId,
+        parentMachineId: traceOptions.parentMachineId,
+      })
+    : tracer.createDefaultDefinition(machineId, state, traceOptions);
+
+  tracer.trackTrace(machineId, definition);
 };
 
 /**
@@ -330,7 +342,7 @@ export const logMachine = (
 export const removeMachine = (machineId: string) => {
   const logger = getMultiMachineLogger();
   logger.removeMachine(machineId);
-  getMachineTracer().finalizeState(machineId);
+  getMachineTracer().finalizeTrace(machineId);
 };
 
 /**

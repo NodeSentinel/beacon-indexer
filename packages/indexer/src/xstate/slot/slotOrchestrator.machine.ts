@@ -18,6 +18,7 @@ import { getEpochSlots } from '@/src/services/consensus/utils/misc.js';
 import { logActor, logRemoveMachine } from '@/src/xstate/multiMachineLogger.js';
 import { pinoLog } from '@/src/xstate/pinoLog.js';
 import { slotProcessorMachine } from '@/src/xstate/slot/slotProcessor.machine.js';
+import { buildSlotTrace } from '@/src/xstate/slot/slotTrace.js';
 
 export interface SlotOrchestratorContext {
   epoch: number;
@@ -185,6 +186,23 @@ export const slotOrchestratorMachine = setup({
             logActor(actor, slotId, {
               parentMachineId: `slotOrchestrator:${context.epoch}`,
               traceRootId: context.traceRootId,
+              buildTrace: ({ context, machineId, parentMachineId, state, traceRootId }) =>
+                buildSlotTrace('slotProcessor', {
+                  machineId,
+                  state,
+                  context: context as {
+                    epoch?: number;
+                    slot?: number;
+                    startSlot?: number;
+                    endSlot?: number;
+                    currentSlot?: number | null;
+                    lookbackSlot?: number;
+                    traceRootId?: string;
+                  },
+                  traceRootId,
+                  parentMachineId,
+                  messagePrefix: 'slotProcessor',
+                }),
             });
 
             return actor;

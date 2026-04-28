@@ -8,6 +8,7 @@ import { SlotController } from '@/src/services/consensus/controllers/slot.js';
 import { ValidatorsController } from '@/src/services/consensus/controllers/validators.js';
 import { logActor } from '@/src/xstate/multiMachineLogger.js';
 import { pinoLog } from '@/src/xstate/pinoLog.js';
+import { buildSlotTrace } from '@/src/xstate/slot/slotTrace.js';
 
 export const epochProcessorMachine = setup({
   types: {} as {
@@ -603,6 +604,29 @@ export const epochProcessorMachine = setup({
                         logActor(actor, orchestratorId, {
                           parentMachineId: `epochProcessor:${context.epoch}`,
                           traceRootId: context.traceRootId,
+                          buildTrace: ({
+                            context,
+                            machineId,
+                            parentMachineId,
+                            state,
+                            traceRootId,
+                          }) =>
+                            buildSlotTrace('slotOrchestrator', {
+                              machineId,
+                              state,
+                              context: context as {
+                                epoch?: number;
+                                slot?: number;
+                                startSlot?: number;
+                                endSlot?: number;
+                                currentSlot?: number | null;
+                                lookbackSlot?: number;
+                                traceRootId?: string;
+                              },
+                              traceRootId,
+                              parentMachineId,
+                              messagePrefix: 'slotOrchestrator',
+                            }),
                         });
 
                         return {

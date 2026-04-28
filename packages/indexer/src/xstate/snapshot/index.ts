@@ -5,6 +5,7 @@ import { snapshotMachine } from './snapshot.machine.js';
 
 import { SnapshotController } from '@/src/services/consensus/controllers/snapshot.js';
 import { logMachine } from '@/src/xstate/multiMachineLogger.js';
+import { buildTraceDefinition } from '@/src/xstate/traceUtils.js';
 
 export { snapshotMachine } from './snapshot.machine.js';
 
@@ -30,7 +31,20 @@ export const getSnapshotActor = (
   });
 
   actor.subscribe((snapshot) => {
-    logMachine('snapshot', `State: ${JSON.stringify(snapshot.value)}`);
+    // Trace the snapshot machine with its current state only.
+    logMachine('snapshot', `State: ${JSON.stringify(snapshot.value)}`, undefined, {
+      buildTrace: ({ context, machineId, parentMachineId, state, traceRootId }) =>
+        buildTraceDefinition({
+          machineGroup: 'snapshot',
+          machineName: 'snapshot',
+          machineId,
+          state,
+          context,
+          traceRootId,
+          parentMachineId,
+          messagePrefix: 'snapshot',
+        }),
+    });
   });
 
   return actor;

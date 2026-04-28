@@ -12,6 +12,7 @@ import { chainStatsMachine } from '@/src/xstate/chainStats/chainStats.machine.js
 import { epochCreationMachine } from '@/src/xstate/epoch/epochCreator.machine.js';
 import { epochOrchestratorMachine } from '@/src/xstate/epoch/epochOrchestrator.machine.js';
 import { logMachine } from '@/src/xstate/multiMachineLogger.js';
+import { buildTraceDefinition } from '@/src/xstate/traceUtils.js';
 
 export const getCreateEpochActor = (epochController: EpochController, slotDuration: number) => {
   const actor = createActor(epochCreationMachine, {
@@ -21,9 +22,28 @@ export const getCreateEpochActor = (epochController: EpochController, slotDurati
   actor.subscribe((snapshot) => {
     const { context } = snapshot;
 
-    logMachine('epochCreator', `State: ${JSON.stringify(snapshot.value)}`, {
-      slotDuration: context.slotDuration,
-    });
+    // Trace the epoch creator state with only the fields it owns.
+    logMachine(
+      'epochCreator',
+      `State: ${JSON.stringify(snapshot.value)}`,
+      {
+        slotDuration: context.slotDuration,
+      },
+      {
+        buildTrace: ({ context, machineId, parentMachineId, state, traceRootId }) =>
+          buildTraceDefinition({
+            machineGroup: 'epoch',
+            machineName: 'epochCreator',
+            machineId,
+            state,
+            context,
+            traceRootId,
+            parentMachineId,
+            fieldKeys: ['slotDuration'],
+            messagePrefix: 'epochCreator',
+          }),
+      },
+    );
   });
 
   return actor;
@@ -67,12 +87,33 @@ export const getEpochOrchestratorActor = (
       .map((e) => parseInt(e))
       .sort((a, b) => a - b);
 
-    logMachine('epochOrchestrator', `State: ${JSON.stringify(snapshot.value)}`, {
-      // Active epochs being processed
-      activeEpochs,
-      // Epochs status map
-      epochsStatus: context.epochs,
-    });
+    // Trace the orchestrator state with the current active epoch set.
+    logMachine(
+      'epochOrchestrator',
+      `State: ${JSON.stringify(snapshot.value)}`,
+      {
+        // Active epochs being processed
+        activeEpochs,
+        // Epochs status map
+        epochsStatus: context.epochs,
+      },
+      {
+        buildTrace: ({ context, machineId, parentMachineId, state, traceRootId }) =>
+          buildTraceDefinition({
+            machineGroup: 'epoch',
+            machineName: 'epochOrchestrator',
+            machineId,
+            state,
+            context,
+            traceRootId,
+            parentMachineId,
+            fields: {
+              activeEpochs: activeEpochs.join(','),
+            },
+            messagePrefix: 'epochOrchestrator',
+          }),
+      },
+    );
   });
 
   return actor;

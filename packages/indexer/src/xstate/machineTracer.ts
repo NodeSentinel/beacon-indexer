@@ -2,39 +2,30 @@ import { randomUUID } from 'crypto';
 import fs from 'fs';
 import path from 'path';
 
-import type { TraceUpdateOptions } from './traceTypes.js';
+import type { TraceDefinition, TraceOptions } from './traceTypes.js';
+import { formatStatePath } from './traceUtils.js';
 
 type TraceEventKind = 'span.start' | 'span.end' | 'span.abort';
 
 interface ActiveSpan {
   spanId: string;
   machineId: string;
-  state: string;
-  traceId: string;
-  parentSpanId: string | null;
+  definition: TraceDefinition;
   startedAt: number;
-  payload?: Record<string, unknown>;
 }
 
-interface TraceEvent {
+interface TraceEvent extends TraceDefinition {
   timestamp: string;
   kind: TraceEventKind;
-  message: string;
-  machineGroup: string;
-  machineName: string;
-  traceId: string;
   spanId: string;
   parentSpanId: string | null;
   machineId: string;
-  task: string;
   durationMs?: number;
   reason?: string;
-  payload?: Record<string, unknown>;
 }
 
 class MachineTracer {
   private activeSpans = new Map<string, ActiveSpan>();
-  private traceFilePath: string;
   private traceStream: fs.WriteStream;
 
   constructor() {
@@ -44,22 +35,18 @@ class MachineTracer {
       fs.mkdirSync(logsDir, { recursive: true });
     }
 
-    this.traceFilePath = path.join(logsDir, 'xstate-traces.ndjson');
-    this.traceStream = fs.createWriteStream(this.traceFilePath, { flags: 'a' });
+    const traceFilePath = path.join(logsDir, 'xstate-traces.ndjson');
+    this.traceStream = fs.createWriteStream(traceFilePath, { flags: 'a' });
     this.traceStream.on('error', (error) => {
       console.error('Error writing trace file:', error);
     });
   }
 
   /**
-   * Track a machine state and emit span start/end events.
+   * Track a machine trace and emit span start/end events.
    */
-  trackState(machineId: string, state: unknown, context?: unknown, options?: TraceUpdateOptions) {
-    const nextState = this.formatState(state);
+  trackTrace(machineId: string, definition: TraceDefinition) {
     const now = Date.now();
-    const traceId = options?.traceRootId || machineId;
-    const parentSpanId = options?.parentMachineId || null;
-    const payload = this.buildPayload(machineId, nextState, context, traceId, parentSpanId);
     const current = this.activeSpans.get(machineId);
 
     if (!current) {
@@ -67,111 +54,73 @@ class MachineTracer {
       this.activeSpans.set(machineId, {
         spanId,
         machineId,
-        state: nextState,
-        traceId,
-        parentSpanId,
+        definition,
         startedAt: now,
-        payload,
       });
 
       this.writeEvent({
         timestamp: new Date(now).toISOString(),
         kind: 'span.start',
-        message: this.buildMessage(machineId, nextState, payload),
-        machineGroup: this.getMachineGroup(machineId),
-        machineName: this.getMachineName(machineId),
-        traceId,
         spanId,
-        parentSpanId,
+        parentSpanId: definition.parentSpanId ?? null,
         machineId,
-        task: nextState,
-        payload,
+        ...definition,
       });
       return;
     }
 
-    if (current.state === nextState) {
+    if (this.sameDefinition(current.definition, definition)) {
       return;
     }
 
     this.writeEvent({
       timestamp: new Date(now).toISOString(),
       kind: 'span.end',
-      message: this.buildMessage(
-        machineId,
-        current.state,
-        current.payload,
-        now - current.startedAt,
-      ),
-      machineGroup: this.getMachineGroup(machineId),
-      machineName: this.getMachineName(machineId),
-      traceId: current.traceId,
       spanId: current.spanId,
-      parentSpanId: current.parentSpanId,
+      parentSpanId: current.definition.parentSpanId ?? null,
       machineId,
-      task: current.state,
       durationMs: now - current.startedAt,
-      payload: current.payload,
+      ...current.definition,
     });
 
     const spanId = randomUUID();
     this.activeSpans.set(machineId, {
       spanId,
       machineId,
-      state: nextState,
-      traceId,
-      parentSpanId,
+      definition,
       startedAt: now,
-      payload,
     });
 
     this.writeEvent({
       timestamp: new Date(now).toISOString(),
       kind: 'span.start',
-      message: this.buildMessage(machineId, nextState, payload),
-      machineGroup: this.getMachineGroup(machineId),
-      machineName: this.getMachineName(machineId),
-      traceId,
       spanId,
-      parentSpanId,
+      parentSpanId: definition.parentSpanId ?? null,
       machineId,
-      task: nextState,
-      payload,
+      ...definition,
     });
   }
 
   /**
    * Finish the active span for a machine.
    */
-  finalizeState(machineId: string, reason?: string, context?: unknown) {
+  finalizeTrace(machineId: string, reason?: string) {
     const current = this.activeSpans.get(machineId);
     if (!current) {
       return;
     }
 
     const now = Date.now();
-    const payload = this.buildPayload(
-      machineId,
-      current.state,
-      context ?? current.payload ?? null,
-      current.traceId,
-      current.parentSpanId,
-    );
 
     this.writeEvent({
       timestamp: new Date(now).toISOString(),
       kind: 'span.end',
-      message: this.buildMessage(machineId, current.state, payload, now - current.startedAt),
-      machineGroup: this.getMachineGroup(machineId),
-      machineName: this.getMachineName(machineId),
-      traceId: current.traceId,
       spanId: current.spanId,
-      parentSpanId: current.parentSpanId,
+      parentSpanId: current.definition.parentSpanId ?? null,
       machineId,
-      task: current.state,
       durationMs: now - current.startedAt,
       reason,
-      payload,
+      ...current.definition,
     });
 
     this.activeSpans.delete(machineId);
@@ -187,22 +136,12 @@ class MachineTracer {
       this.writeEvent({
         timestamp: new Date(now).toISOString(),
         kind: 'span.abort',
-        message: this.buildMessage(
-          current.machineId,
-          current.state,
-          current.payload,
-          now - current.startedAt,
-        ),
-        machineGroup: this.getMachineGroup(current.machineId),
-        machineName: this.getMachineName(current.machineId),
-        traceId: current.traceId,
         spanId: current.spanId,
-        parentSpanId: current.parentSpanId,
+        parentSpanId: current.definition.parentSpanId ?? null,
         machineId: current.machineId,
-        task: current.state,
         durationMs: now - current.startedAt,
         reason: 'shutdown',
-        payload: current.payload,
+        ...current.definition,
       });
     }
 
@@ -211,157 +150,41 @@ class MachineTracer {
   }
 
   /**
-   * Convert a snapshot state into a stable string.
+   * Build a default trace definition when a machine doesn't provide one.
    */
-  private formatState(state: unknown) {
-    if (typeof state === 'string') {
-      return state.replace(/^State:\s*/, '');
-    }
-
-    try {
-      return this.summarizeState(state);
-    } catch {
-      return String(state);
-    }
-  }
-
-  /**
-   * Turn a nested XState snapshot into a short readable task label.
-   */
-  private summarizeState(state: unknown) {
-    if (!state || typeof state !== 'object' || Array.isArray(state)) {
-      return String(state);
-    }
-
-    const paths: string[] = [];
-
-    const walk = (value: unknown, prefix: string[] = []) => {
-      if (typeof value === 'string') {
-        paths.push([...prefix, value].join('.'));
-        return;
-      }
-
-      if (!value || typeof value !== 'object' || Array.isArray(value)) {
-        paths.push(prefix.join('.'));
-        return;
-      }
-
-      const entries = Object.entries(value as Record<string, unknown>);
-      if (entries.length === 0) {
-        paths.push(prefix.join('.'));
-        return;
-      }
-
-      for (const [key, child] of entries) {
-        walk(child, [...prefix, key]);
-      }
-    };
-
-    walk(state);
-
-    return paths.filter(Boolean).join(', ');
-  }
-
-  /**
-   * Build a flat payload that Loki can query without recursive cleaning.
-   */
-  private buildPayload(
+  createDefaultDefinition(
     machineId: string,
-    task: string,
-    context: unknown,
-    traceId: string,
-    parentSpanId: string | null,
-  ) {
-    const payload: Record<string, unknown> = {
-      machine_id: machineId,
-      machine_group: this.getMachineGroup(machineId),
-      machine_name: this.getMachineName(machineId),
-      task,
-      trace_id: traceId,
-      parent_span_id: parentSpanId,
+    state: unknown,
+    options?: TraceOptions,
+  ): TraceDefinition {
+    return {
+      machineGroup: 'other',
+      machineName: machineId,
+      traceId: options?.traceRootId || machineId,
+      parentSpanId: options?.parentMachineId || null,
+      task: formatStatePath(state),
     };
-
-    if (context && typeof context === 'object') {
-      const source = context as Record<string, unknown>;
-      for (const key of [
-        'epoch',
-        'slot',
-        'startSlot',
-        'endSlot',
-        'currentSlot',
-        'lookbackSlot',
-        'slotDuration',
-        'slotsPerEpoch',
-        'maxParallelEpochs',
-      ]) {
-        const value = source[key];
-        if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
-          payload[key] = value;
-        }
-      }
-    }
-
-    return payload;
   }
 
   /**
-   * Build a short human-readable message for Grafana.
-   */
-  private buildMessage(
-    machineId: string,
-    task: string,
-    payload: Record<string, unknown> | undefined,
-    durationMs?: number,
-  ) {
-    const parts = [`${this.getMachineGroup(machineId)} ${machineId}`, task];
-    const fields = payload ?? {};
-
-    if (typeof fields.epoch === 'number') {
-      parts.push(`epoch=${fields.epoch}`);
-    }
-    if (typeof fields.slot === 'number') {
-      parts.push(`slot=${fields.slot}`);
-    }
-    if (typeof durationMs === 'number') {
-      parts.push(`durationMs=${durationMs}`);
-    }
-    return parts.join(' | ');
-  }
-
-  /**
-   * Map a machine id to a stable high-level group.
-   */
-  private getMachineGroup(machineId: string) {
-    if (machineId.startsWith('epoch')) {
-      return 'epoch';
-    }
-    if (machineId.startsWith('slot')) {
-      return 'slot';
-    }
-    if (machineId.toLowerCase().includes('archive')) {
-      return 'archive';
-    }
-    if (machineId.startsWith('snapshot')) {
-      return 'snapshot';
-    }
-    return 'other';
-  }
-
-  /**
-   * Map a machine id to a stable machine name for Loki labels.
-   */
-  private getMachineName(machineId: string) {
-    return machineId.split(':')[0] || machineId;
-  }
-
-  /**
-   * Append a trace event to the NDJSON file.
+   * Write a trace event to the NDJSON stream.
    */
   private writeEvent(event: TraceEvent) {
-    const line = `${JSON.stringify(event)}\n`;
-    if (!this.traceStream.write(line)) {
-      this.traceStream.once('drain', () => {});
-    }
+    this.traceStream.write(`${JSON.stringify(event)}\n`);
+  }
+
+  /**
+   * Compare two definitions by their stable fields.
+   */
+  private sameDefinition(left: TraceDefinition, right: TraceDefinition) {
+    return (
+      left.machineGroup === right.machineGroup &&
+      left.machineName === right.machineName &&
+      left.traceId === right.traceId &&
+      left.parentSpanId === right.parentSpanId &&
+      left.task === right.task &&
+      JSON.stringify(left.fields ?? {}) === JSON.stringify(right.fields ?? {})
+    );
   }
 }
 

@@ -7,6 +7,7 @@ import { EpochController } from '@/src/services/consensus/controllers/epoch.js';
 import { PartitionController } from '@/src/services/consensus/controllers/partition.js';
 import { SlotController } from '@/src/services/consensus/controllers/slot.js';
 import { ValidatorsController } from '@/src/services/consensus/controllers/validators.js';
+import { buildEpochTrace } from '@/src/xstate/epoch/epochTrace.js';
 import { logActor } from '@/src/xstate/multiMachineLogger.js';
 import { pinoLog } from '@/src/xstate/pinoLog.js';
 
@@ -138,6 +139,19 @@ export const epochWorkerMachine = setup({
             logActor(actor, epochId, {
               parentMachineId: `epochWorker:${context.epoch}`,
               traceRootId: context.traceRootId,
+              buildTrace: ({ context, machineId, parentMachineId, state, traceRootId }) =>
+                buildEpochTrace('epochProcessor', {
+                  machineId,
+                  state,
+                  context: context as {
+                    epoch?: number;
+                    startSlot?: number;
+                    endSlot?: number;
+                    traceRootId?: string;
+                  },
+                  traceRootId,
+                  parentMachineId,
+                }),
             });
 
             return actor;
