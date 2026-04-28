@@ -2,6 +2,8 @@ import { randomUUID } from 'crypto';
 import fs from 'fs';
 import path from 'path';
 
+import type { TraceUpdateOptions } from './traceTypes.js';
+
 type TraceEventKind = 'span.start' | 'span.end' | 'span.abort';
 
 interface ActiveSpan {
@@ -30,14 +32,10 @@ interface TraceEvent {
   payload?: Record<string, unknown>;
 }
 
-interface TraceUpdateOptions {
-  parentMachineId?: string;
-  traceRootId?: string;
-}
-
 class MachineTracer {
   private activeSpans = new Map<string, ActiveSpan>();
   private traceFilePath: string;
+  private traceStream: fs.WriteStream;
 
   constructor() {
     const logsDir = process.env.LOG_DIR || path.join(process.cwd(), 'logs');
@@ -47,6 +45,10 @@ class MachineTracer {
     }
 
     this.traceFilePath = path.join(logsDir, 'xstate-traces.ndjson');
+    this.traceStream = fs.createWriteStream(this.traceFilePath, { flags: 'a' });
+    this.traceStream.on('error', (error) => {
+      console.error('Error writing trace file:', error);
+    });
   }
 
   /**
@@ -205,6 +207,7 @@ class MachineTracer {
     }
 
     this.activeSpans.clear();
+    this.traceStream.end();
   }
 
   /**
@@ -355,7 +358,10 @@ class MachineTracer {
    * Append a trace event to the NDJSON file.
    */
   private writeEvent(event: TraceEvent) {
-    fs.appendFileSync(this.traceFilePath, `${JSON.stringify(event)}\n`);
+    const line = `${JSON.stringify(event)}\n`;
+    if (!this.traceStream.write(line)) {
+      this.traceStream.once('drain', () => {});
+    }
   }
 }
 

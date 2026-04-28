@@ -4,6 +4,7 @@ import path from 'path';
 
 import { cleanContextForLogging as cleanContextForLoggingUtil } from './loggingUtils.js';
 import { getMachineTracer } from './machineTracer.js';
+import type { TraceOptions } from './traceTypes.js';
 
 interface MachineLogEntry {
   timestamp: string;
@@ -283,11 +284,6 @@ export class MultiMachineLogger {
       return cleanState;
     }
   }
-}
-
-interface TraceOptions {
-  parentMachineId?: string;
-  traceRootId?: string;
 }
 
 // Global instance
