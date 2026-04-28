@@ -34,6 +34,7 @@ export const epochProcessorMachine = setup({
         validatorsController?: ValidatorsController;
         slotController: SlotController;
       };
+      traceRootId: string;
       // Actors
       actors: {
         slotOrchestratorActor?: ActorRefFrom<typeof slotOrchestratorMachine> | null;
@@ -64,6 +65,7 @@ export const epochProcessorMachine = setup({
         validatorsController?: ValidatorsController;
         slotController: SlotController;
       };
+      traceRootId: string;
     };
   },
   actors: {
@@ -288,6 +290,7 @@ export const epochProcessorMachine = setup({
       },
       config: input.config,
       services: input.services,
+      traceRootId: input.traceRootId,
       actors: {
         slotOrchestratorActor: null,
       },
@@ -593,10 +596,14 @@ export const epochProcessorMachine = setup({
                             lookbackSlot: context.config.lookbackSlot,
                             slotController: context.services.slotController,
                             slotDuration: context.config.slotDuration,
+                            traceRootId: context.traceRootId,
                           },
                         });
 
-                        logActor(actor, orchestratorId);
+                        logActor(actor, orchestratorId, {
+                          parentMachineId: `epochProcessor:${context.epoch}`,
+                          traceRootId: context.traceRootId,
+                        });
 
                         return {
                           ...context.actors,

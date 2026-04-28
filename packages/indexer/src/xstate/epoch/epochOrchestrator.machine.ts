@@ -310,6 +310,7 @@ export const epochOrchestratorMachine = setup({
                         beaconTime: context.services.beaconTime,
                         validatorsController: context.services.validatorsController,
                         slotController: context.services.slotController,
+                        traceRootId: `epoch:${epoch}`,
                       };
                     },
                   }),

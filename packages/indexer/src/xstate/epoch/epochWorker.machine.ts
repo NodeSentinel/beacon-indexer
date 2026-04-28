@@ -35,6 +35,7 @@ export const epochWorkerMachine = setup({
       beaconTime: BeaconTime;
       validatorsController?: ValidatorsController;
       slotController: SlotController;
+      traceRootId: string;
     };
     events: { type: 'EPOCH_COMPLETED'; machineId: string };
     input: {
@@ -48,6 +49,7 @@ export const epochWorkerMachine = setup({
       beaconTime: BeaconTime;
       validatorsController?: ValidatorsController;
       slotController: SlotController;
+      traceRootId: string;
     };
   },
   actors: {
@@ -74,6 +76,7 @@ export const epochWorkerMachine = setup({
     beaconTime: input.beaconTime,
     validatorsController: input.validatorsController,
     slotController: input.slotController,
+    traceRootId: input.traceRootId,
   }),
   states: {
     creatingPartitions: {
@@ -128,10 +131,14 @@ export const epochWorkerMachine = setup({
                   validatorsController: context.validatorsController,
                   slotController: context.slotController,
                 },
+                traceRootId: context.traceRootId,
               },
             });
 
-            logActor(actor, epochId);
+            logActor(actor, epochId, {
+              parentMachineId: `epochWorker:${context.epoch}`,
+              traceRootId: context.traceRootId,
+            });
 
             return actor;
           },

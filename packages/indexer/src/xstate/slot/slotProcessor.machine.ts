@@ -32,6 +32,7 @@ export interface SlotProcessorContext {
   };
   lookbackSlot: number;
   slotDuration: number;
+  traceRootId: string;
 }
 
 export interface SlotProcessorInput {
@@ -40,6 +41,7 @@ export interface SlotProcessorInput {
   lookbackSlot: number;
   slotController: SlotController;
   slotDuration: number;
+  traceRootId: string;
 }
 
 export const slotProcessorMachine = setup({
@@ -171,6 +173,7 @@ export const slotProcessorMachine = setup({
     },
     lookbackSlot: input.lookbackSlot,
     slotDuration: input.slotDuration,
+    traceRootId: input.traceRootId,
   }),
 
   states: {

@@ -26,6 +26,7 @@ export interface SlotOrchestratorContext {
   currentSlot: number | null;
   lookbackSlot: number;
   slotDuration: number;
+  traceRootId: string;
 
   slotActor: ActorRefFrom<typeof slotProcessorMachine> | null;
 
@@ -37,6 +38,7 @@ export interface SlotOrchestratorInput {
   lookbackSlot: number;
   slotController: SlotController;
   slotDuration: number;
+  traceRootId: string;
 }
 
 // Extract the SLOTS_COMPLETED event type for reuse in other machines
@@ -87,6 +89,7 @@ export const slotOrchestratorMachine = setup({
       lookbackSlot: input.lookbackSlot,
       slotController: input.slotController,
       slotDuration: input.slotDuration,
+      traceRootId: input.traceRootId,
     };
   },
   states: {
@@ -174,11 +177,15 @@ export const slotOrchestratorMachine = setup({
                 lookbackSlot: context.lookbackSlot,
                 slotController: context.slotController,
                 slotDuration: context.slotDuration,
+                traceRootId: context.traceRootId,
               },
             });
 
             // Automatically log the actor's state and context
-            logActor(actor, slotId);
+            logActor(actor, slotId, {
+              parentMachineId: `slotOrchestrator:${context.epoch}`,
+              traceRootId: context.traceRootId,
+            });
 
             return actor;
           },
