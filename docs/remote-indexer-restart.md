@@ -59,7 +59,8 @@ On the VPS:
 
 ```sh
 # Create a user used only for remote operations.
-sudo adduser ops
+# This avoids the interactive password prompt.
+sudo adduser --disabled-password --gecos "" ops
 ```
 
 Allow only the restart command:
