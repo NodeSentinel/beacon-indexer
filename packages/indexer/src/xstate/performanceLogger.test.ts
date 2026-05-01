@@ -94,8 +94,12 @@ describe('performanceLogger', () => {
     // Configure the Loki endpoint before importing the logger module.
     process.env.LOKI_URL = 'http://loki.test/loki/api/v1/push';
 
+    // Spy on console errors so the test can verify the diagnostic output.
+    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+
     // Mock a failed network call to prove logging never throws back into XState.
-    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('Loki is unavailable')));
+    const lokiError = new Error('Loki is unavailable');
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(lokiError));
 
     // Load the actions after the environment and fetch mock are ready.
     const { endPerformanceTask, startPerformanceTask } = await importPerformanceLogger();
@@ -108,5 +112,13 @@ describe('performanceLogger', () => {
     expect(() => {
       endPerformanceTask('syncing')(buildActionArgs({ epoch: 7 }));
     }).not.toThrow();
+
+    // The rejected push promise should still emit a diagnostic for operators.
+    await vi.waitFor(() => {
+      expect(consoleErrorSpy).toHaveBeenCalledWith(
+        '[PerformanceLogger] Failed to push performance log to Loki',
+        lokiError,
+      );
+    });
   });
 });

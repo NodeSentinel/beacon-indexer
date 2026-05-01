@@ -178,6 +178,7 @@ export const slotProcessorMachine = setup({
     gettingSlot: {
       description: 'Getting the slot from the database and checking if already processed.',
       entry: [
+        startPerformanceTask('TOTAL'),
         startPerformanceTask('getSlot'),
         pinoLog(({ context }) => `Getting slot ${context.slot}`, 'SlotProcessor:gettingSlot'),
       ],
@@ -648,6 +649,7 @@ export const slotProcessorMachine = setup({
 
     completed: {
       entry: [
+        endPerformanceTask('TOTAL'),
         sendParent({ type: 'SLOT_COMPLETED' }),
         pinoLog(({ context }) => `Completed slot ${context.slot}`, 'SlotProcessor:slotCompleted'),
       ],

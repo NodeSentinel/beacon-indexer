@@ -324,6 +324,7 @@ export const epochProcessorMachine = setup({
       description:
         'processing beacon epoch data. Note that data can be processed at different times, some 1 epoch ahead and some after the epoch started.',
       entry: [
+        startPerformanceTask('TOTAL'),
         startPerformanceTask('epochProcessing'),
         pinoLog(
           ({ context }) => `Starting epoch processing for epoch ${context.epoch}`,
@@ -969,6 +970,7 @@ export const epochProcessorMachine = setup({
       },
     },
     epochCompleted: {
+      entry: endPerformanceTask('TOTAL'),
       type: 'final',
     },
   },

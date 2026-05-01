@@ -41,8 +41,9 @@ function pushPerformanceLine(line: string) {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
-  }).catch(() => {
-    // Ignore logging failures so a Loki outage never affects state machines.
+  }).catch((error) => {
+    // Keep Loki failures visible while preserving non-critical logging behavior.
+    console.error('[PerformanceLogger] Failed to push performance log to Loki', error);
   });
 }
 
