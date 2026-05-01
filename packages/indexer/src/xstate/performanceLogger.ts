@@ -1,22 +1,49 @@
-import fs from 'fs';
-import path from 'path';
 import type { ActionArgs, EventObject, MachineContext } from 'xstate';
 
-const logsDir = process.env.LOG_DIR || path.join(process.cwd(), 'logs');
-const logFilePath = path.join(logsDir, 'xstate-performance.log');
+// This action is shared by many XState machines. Passing this optional, non-critical
+// log sink through every machine input/context would pollute their domain contracts.
+const lokiUrl = process.env.LOKI_URL;
 const startedAtByTask = new Map<string, number>();
 
 /**
- * Appends one plain-text measurement line to the performance log.
+ * Builds the Loki timestamp format from the current wall-clock time.
  */
-function appendLine(line: string) {
-  // Create the logs directory lazily so local and Docker runs both work.
-  if (!fs.existsSync(logsDir)) {
-    fs.mkdirSync(logsDir, { recursive: true });
+function getLokiTimestamp() {
+  // Loki expects timestamps as nanoseconds in a string.
+  return `${BigInt(Date.now()) * 1_000_000n}`;
+}
+
+/**
+ * Sends one performance measurement directly to Loki.
+ */
+function pushPerformanceLine(line: string) {
+  // Performance logs are optional, so local runs can omit Loki completely.
+  if (!lokiUrl) {
+    return;
   }
 
-  // Loki reads this file as plain text, one measurement per line.
-  fs.appendFileSync(logFilePath, `${line}\n`);
+  // The labels keep these logs queryable without mixing them with normal app logs.
+  const body = {
+    streams: [
+      {
+        stream: {
+          app: 'beacon-chain-validators-monitor',
+          job: 'indexer-xstate-performance',
+          source: 'xstate',
+        },
+        values: [[getLokiTimestamp(), line]],
+      },
+    ],
+  };
+
+  // Loki is not critical for indexing, so this intentionally does not await.
+  void fetch(lokiUrl, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  }).catch(() => {
+    // Ignore logging failures so a Loki outage never affects state machines.
+  });
 }
 
 /**
@@ -75,8 +102,8 @@ export function endPerformanceTask<TContext extends MachineContext, TEvent exten
       return;
     }
 
-    // Write the final plain-text duration and remove the active timer.
-    appendLine(`${scope} | ${task} | ${Date.now() - startedAt}ms`);
+    // Push the final plain-text duration and remove the active timer.
+    pushPerformanceLine(`${scope} | ${task} | ${Date.now() - startedAt}ms`);
     startedAtByTask.delete(key);
   };
 }
