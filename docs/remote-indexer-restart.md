@@ -35,15 +35,15 @@ https://login.tailscale.com/admin/settings/ssh
 
 ## Step 3: Create The Restart Command On The VPS
 
-Use the real repo path on the VPS:
+Run from the root of the repo
 
 ```sh
 
 # Make the repo script executable.
-chmod +x "beacon-chain-validators-monitor/infra/docker/bin/restart-indexer"
+chmod +x "infra/docker/bin/restart-indexer"
 
 # Create a short global command.
-sudo ln -sf "beacon-chain-validators-monitor/infra/docker/bin/restart-indexer" /usr/local/bin/restart-indexer
+sudo ln -sf "$(pwd)/infra/docker/bin/restart-indexer" /usr/local/bin/restart-indexer
 ```
 
 Test it on the VPS:

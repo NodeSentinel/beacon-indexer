@@ -3,8 +3,19 @@
 # Stop immediately if changing directory or restarting the service fails.
 set -eu
 
-# Resolve this script path so the command works from any current directory.
-SCRIPT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
+# Resolve symlinks so /usr/local/bin/restart-indexer still finds the repo.
+SCRIPT_PATH="$0"
+while [ -L "$SCRIPT_PATH" ]; do
+  SCRIPT_DIR="$(CDPATH= cd -- "$(dirname -- "$SCRIPT_PATH")" && pwd)"
+  SCRIPT_PATH="$(readlink "$SCRIPT_PATH")"
+  case "$SCRIPT_PATH" in
+    /*) ;;
+    *) SCRIPT_PATH="$SCRIPT_DIR/$SCRIPT_PATH" ;;
+  esac
+done
+
+# Resolve this script directory so the command works from any current directory.
+SCRIPT_DIR="$(CDPATH= cd -- "$(dirname -- "$SCRIPT_PATH")" && pwd)"
 
 # Move to the docker compose directory that contains the production stack.
 cd "$SCRIPT_DIR/.."
