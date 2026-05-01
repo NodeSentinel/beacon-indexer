@@ -1,0 +1,13 @@
+#!/bin/sh
+
+# Stop immediately if changing directory or restarting the service fails.
+set -eu
+
+# Resolve this script path so the command works from any current directory.
+SCRIPT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
+
+# Move to the docker compose directory that contains the production stack.
+cd "$SCRIPT_DIR/.."
+
+# Restart only the indexer service from the NodeSentinel Docker Compose stack.
+exec docker compose restart indexer
