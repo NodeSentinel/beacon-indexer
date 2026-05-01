@@ -7,7 +7,6 @@ import { EpochController } from '@/src/services/consensus/controllers/epoch.js';
 import { PartitionController } from '@/src/services/consensus/controllers/partition.js';
 import { SlotController } from '@/src/services/consensus/controllers/slot.js';
 import { ValidatorsController } from '@/src/services/consensus/controllers/validators.js';
-import { endPerformanceTask, startPerformanceTask } from '@/src/xstate/performanceLogger.js';
 import { pinoLog } from '@/src/xstate/pinoLog.js';
 
 /**
@@ -78,14 +77,12 @@ export const epochWorkerMachine = setup({
   states: {
     creatingPartitions: {
       entry: [
-        startPerformanceTask('creatingPartitions'),
         pinoLog(
           ({ context }) =>
             `Ensuring tables partitions for epoch ${context.epoch} exist before processing`,
           'EpochWorker',
         ),
       ],
-      exit: endPerformanceTask('creatingPartitions'),
       invoke: {
         src: 'createPartitionsForTables',
         input: ({ context }) => ({
@@ -112,7 +109,6 @@ export const epochWorkerMachine = setup({
     },
     runningProcessor: {
       entry: [
-        startPerformanceTask('runningProcessor'),
         assign({
           epochActor: ({ context, spawn }) => {
             const epochId = `epochProcessor:${context.epoch}`;
@@ -141,7 +137,6 @@ export const epochWorkerMachine = setup({
         }),
         pinoLog(({ context }) => `Processing epoch ${context.epoch}`, 'EpochWorker'),
       ],
-      exit: endPerformanceTask('runningProcessor'),
     },
     completed: {
       type: 'final',

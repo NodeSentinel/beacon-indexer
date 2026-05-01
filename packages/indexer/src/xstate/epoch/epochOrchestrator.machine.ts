@@ -21,7 +21,6 @@ import { EpochController } from '@/src/services/consensus/controllers/epoch.js';
 import { PartitionController } from '@/src/services/consensus/controllers/partition.js';
 import { SlotController } from '@/src/services/consensus/controllers/slot.js';
 import { ValidatorsController } from '@/src/services/consensus/controllers/validators.js';
-import { endPerformanceTask, startPerformanceTask } from '@/src/xstate/performanceLogger.js';
 import { pinoLog } from '@/src/xstate/pinoLog.js';
 
 /**
@@ -246,7 +245,6 @@ export const epochOrchestratorMachine = setup({
       states: {
         releasingCompletedEpochs: {
           entry: [
-            startPerformanceTask('releasingCompletedEpochs'),
             pinoLog(({ context }) => {
               const epochsToRelease = getEpochsToRelease(context.epochs);
               if (epochsToRelease.length) {
@@ -271,14 +269,11 @@ export const epochOrchestratorMachine = setup({
               return `Queue after dequeue: ${formatQueueState(context.epochs, self)}`;
             }, 'EpochOrchestrator'),
           ],
-          exit: endPerformanceTask('releasingCompletedEpochs'),
           after: {
             0: { target: 'spawningEpochs' },
           },
         },
         spawningEpochs: {
-          entry: startPerformanceTask('spawningEpochs'),
-          exit: endPerformanceTask('spawningEpochs'),
           invoke: {
             src: 'getMinEpochToProcessExcluding',
             input: ({ context }) => {
