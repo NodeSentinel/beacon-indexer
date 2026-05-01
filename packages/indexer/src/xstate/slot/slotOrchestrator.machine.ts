@@ -15,10 +15,10 @@ import { ActorRefFrom, assign, fromPromise, sendParent, setup, stopChild } from 
 
 import { SlotController } from '@/src/services/consensus/controllers/slot.js';
 import { getEpochSlots } from '@/src/services/consensus/utils/misc.js';
-import { logActor, logRemoveMachine } from '@/src/xstate/multiMachineLogger.js';
+import { logRemoveMachine } from '@/src/xstate/multiMachineLogger.js';
+import { endPerformanceTask, startPerformanceTask } from '@/src/xstate/performanceLogger.js';
 import { pinoLog } from '@/src/xstate/pinoLog.js';
 import { slotProcessorMachine } from '@/src/xstate/slot/slotProcessor.machine.js';
-import { buildSlotTrace } from '@/src/xstate/slot/slotTrace.js';
 
 export interface SlotOrchestratorContext {
   epoch: number;
@@ -27,7 +27,6 @@ export interface SlotOrchestratorContext {
   currentSlot: number | null;
   lookbackSlot: number;
   slotDuration: number;
-  traceRootId: string;
 
   slotActor: ActorRefFrom<typeof slotProcessorMachine> | null;
 
@@ -39,7 +38,6 @@ export interface SlotOrchestratorInput {
   lookbackSlot: number;
   slotController: SlotController;
   slotDuration: number;
-  traceRootId: string;
 }
 
 // Extract the SLOTS_COMPLETED event type for reuse in other machines
@@ -90,15 +88,18 @@ export const slotOrchestratorMachine = setup({
       lookbackSlot: input.lookbackSlot,
       slotController: input.slotController,
       slotDuration: input.slotDuration,
-      traceRootId: input.traceRootId,
     };
   },
   states: {
     findingNextSlot: {
-      entry: pinoLog(
-        ({ context }) => `Finding next slot to process for epoch ${context.epoch}`,
-        'SlotOrchestrator',
-      ),
+      entry: [
+        startPerformanceTask('findingNextSlot'),
+        pinoLog(
+          ({ context }) => `Finding next slot to process for epoch ${context.epoch}`,
+          'SlotOrchestrator',
+        ),
+      ],
+      exit: endPerformanceTask('findingNextSlot'),
       invoke: {
         src: 'findNextSlotStatus',
         input: ({ context }) => ({
@@ -166,6 +167,7 @@ export const slotOrchestratorMachine = setup({
 
     spawningSlotProcessor: {
       entry: [
+        startPerformanceTask('spawningSlotProcessor'),
         assign({
           slotActor: ({ context, spawn }) => {
             const slotId = `slotProcessor:${context.epoch}:${context.currentSlot}`;
@@ -178,31 +180,7 @@ export const slotOrchestratorMachine = setup({
                 lookbackSlot: context.lookbackSlot,
                 slotController: context.slotController,
                 slotDuration: context.slotDuration,
-                traceRootId: context.traceRootId,
               },
-            });
-
-            // Automatically log the actor's state and context
-            logActor(actor, slotId, {
-              parentMachineId: `slotOrchestrator:${context.epoch}`,
-              traceRootId: context.traceRootId,
-              buildTrace: ({ context, machineId, parentMachineId, state, traceRootId }) =>
-                buildSlotTrace('slotProcessor', {
-                  machineId,
-                  state,
-                  context: context as {
-                    epoch?: number;
-                    slot?: number;
-                    startSlot?: number;
-                    endSlot?: number;
-                    currentSlot?: number | null;
-                    lookbackSlot?: number;
-                    traceRootId?: string;
-                  },
-                  traceRootId,
-                  parentMachineId,
-                  messagePrefix: 'slotProcessor',
-                }),
             });
 
             return actor;
@@ -214,6 +192,7 @@ export const slotOrchestratorMachine = setup({
           'SlotOrchestrator',
         ),
       ],
+      exit: endPerformanceTask('spawningSlotProcessor'),
       on: {
         SLOT_COMPLETED: {
           target: 'slotComplete',

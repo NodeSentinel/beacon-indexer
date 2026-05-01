@@ -7,8 +7,7 @@ import { EpochController } from '@/src/services/consensus/controllers/epoch.js';
 import { PartitionController } from '@/src/services/consensus/controllers/partition.js';
 import { SlotController } from '@/src/services/consensus/controllers/slot.js';
 import { ValidatorsController } from '@/src/services/consensus/controllers/validators.js';
-import { buildEpochTrace } from '@/src/xstate/epoch/epochTrace.js';
-import { logActor } from '@/src/xstate/multiMachineLogger.js';
+import { endPerformanceTask, startPerformanceTask } from '@/src/xstate/performanceLogger.js';
 import { pinoLog } from '@/src/xstate/pinoLog.js';
 
 /**
@@ -36,7 +35,6 @@ export const epochWorkerMachine = setup({
       beaconTime: BeaconTime;
       validatorsController?: ValidatorsController;
       slotController: SlotController;
-      traceRootId: string;
     };
     events: { type: 'EPOCH_COMPLETED'; machineId: string };
     input: {
@@ -50,7 +48,6 @@ export const epochWorkerMachine = setup({
       beaconTime: BeaconTime;
       validatorsController?: ValidatorsController;
       slotController: SlotController;
-      traceRootId: string;
     };
   },
   actors: {
@@ -77,15 +74,18 @@ export const epochWorkerMachine = setup({
     beaconTime: input.beaconTime,
     validatorsController: input.validatorsController,
     slotController: input.slotController,
-    traceRootId: input.traceRootId,
   }),
   states: {
     creatingPartitions: {
-      entry: pinoLog(
-        ({ context }) =>
-          `Ensuring tables partitions for epoch ${context.epoch} exist before processing`,
-        'EpochWorker',
-      ),
+      entry: [
+        startPerformanceTask('creatingPartitions'),
+        pinoLog(
+          ({ context }) =>
+            `Ensuring tables partitions for epoch ${context.epoch} exist before processing`,
+          'EpochWorker',
+        ),
+      ],
+      exit: endPerformanceTask('creatingPartitions'),
       invoke: {
         src: 'createPartitionsForTables',
         input: ({ context }) => ({
@@ -112,6 +112,7 @@ export const epochWorkerMachine = setup({
     },
     runningProcessor: {
       entry: [
+        startPerformanceTask('runningProcessor'),
         assign({
           epochActor: ({ context, spawn }) => {
             const epochId = `epochProcessor:${context.epoch}`;
@@ -132,26 +133,7 @@ export const epochWorkerMachine = setup({
                   validatorsController: context.validatorsController,
                   slotController: context.slotController,
                 },
-                traceRootId: context.traceRootId,
               },
-            });
-
-            logActor(actor, epochId, {
-              parentMachineId: `epochWorker:${context.epoch}`,
-              traceRootId: context.traceRootId,
-              buildTrace: ({ context, machineId, parentMachineId, state, traceRootId }) =>
-                buildEpochTrace('epochProcessor', {
-                  machineId,
-                  state,
-                  context: context as {
-                    epoch?: number;
-                    startSlot?: number;
-                    endSlot?: number;
-                    traceRootId?: string;
-                  },
-                  traceRootId,
-                  parentMachineId,
-                }),
             });
 
             return actor;
@@ -159,6 +141,7 @@ export const epochWorkerMachine = setup({
         }),
         pinoLog(({ context }) => `Processing epoch ${context.epoch}`, 'EpochWorker'),
       ],
+      exit: endPerformanceTask('runningProcessor'),
     },
     completed: {
       type: 'final',

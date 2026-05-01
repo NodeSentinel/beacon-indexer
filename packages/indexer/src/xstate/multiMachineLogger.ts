@@ -2,13 +2,9 @@
 import fs from 'fs';
 import path from 'path';
 
-import { cleanContextForLogging as cleanContextForLoggingUtil } from './loggingUtils.js';
-import { getMachineTracer } from './machineTracer.js';
-import type { TraceOptions } from './traceTypes.js';
-
 interface MachineLogEntry {
   timestamp: string;
-  state: unknown;
+  state: string;
   context?: Record<string, unknown>;
 }
 
@@ -54,7 +50,7 @@ export class MultiMachineLogger {
    * Add or update a machine log entry
    * This function handles both machine registration and state updates
    */
-  addLog(machineId: string, state: unknown, context?: Record<string, unknown>) {
+  addLog(machineId: string, state: string, context?: Record<string, unknown>) {
     const machine = this.getOrCreateMachine(machineId);
 
     // Don't update if machine is already in final state
@@ -148,7 +144,7 @@ export class MultiMachineLogger {
           lastUpdate: machine.currentLog.timestamp,
           state: this.parseState(machine.currentLog.state),
           context: machine.currentLog.context
-            ? cleanContextForLoggingUtil(machine.currentLog.context) || null
+            ? this.cleanContext(machine.currentLog.context)
             : null,
           isFinal: machine.isFinal,
         };
@@ -238,7 +234,7 @@ export class MultiMachineLogger {
             type?: string;
           },
           context: machine.currentLog.context
-            ? cleanContextForLoggingUtil(machine.currentLog.context) || null
+            ? this.cleanContext(machine.currentLog.context)
             : null,
         };
       } else {
@@ -257,8 +253,6 @@ export class MultiMachineLogger {
     } catch (error) {
       console.error('Error writing final status:', error);
     }
-
-    getMachineTracer().done();
   }
 
   /**
@@ -271,17 +265,117 @@ export class MultiMachineLogger {
   /**
    * Parse and clean state data - handles JSON parsing and removes prefixes
    */
-  private parseState(state: unknown): unknown {
-    if (typeof state !== 'string') {
-      return state;
-    }
-
+  private parseState(state: string): unknown {
+    // Remove "State: " prefix if present
     const cleanState = state.replace(/^State:\s*/, '');
 
+    // If JSON.parse fails, return the cleaned string value
     try {
       return JSON.parse(cleanState) as unknown;
     } catch {
       return cleanState;
+    }
+  }
+
+  /**
+   * Clean context data to remove circular references and non-serializable objects
+   */
+  private cleanContext(context: unknown): Record<string, unknown> | null {
+    if (!context || typeof context !== 'object') {
+      return null;
+    }
+
+    //const cleaned: Record<string, unknown> = {};
+    const seen = new WeakSet();
+
+    const cleanValue = (value: unknown): unknown => {
+      // Handle primitives
+      if (value === null || value === undefined) {
+        return null;
+      }
+      if (typeof value !== 'object') {
+        return value;
+      }
+
+      // Handle circular references
+      if (seen.has(value as object)) {
+        return '[Circular]';
+      }
+
+      // Skip functions and non-serializable objects
+      if (value instanceof Function) {
+        return '[Function]';
+      }
+      if (value instanceof Error) {
+        return {
+          name: value.name,
+          message: value.message,
+          stack: value.stack,
+        };
+      }
+
+      // Handle arrays
+      if (Array.isArray(value)) {
+        seen.add(value);
+        return value.map((item) => cleanValue(item));
+      }
+
+      // Handle objects - skip complex objects that might have circular refs
+      if (
+        value instanceof Date ||
+        value instanceof RegExp ||
+        value instanceof Map ||
+        value instanceof Set
+      ) {
+        return String(value);
+      }
+
+      // Check for common non-serializable patterns
+      const obj = value as Record<string, unknown>;
+      if (
+        '_originalClient' in obj ||
+        'subscribe' in obj ||
+        'getSnapshot' in obj ||
+        'send' in obj ||
+        'id' in obj
+      ) {
+        // This looks like an XState actor or similar complex object
+        // Only include safe properties
+        const safe: Record<string, unknown> = {};
+        if ('id' in obj && typeof obj.id === 'string') {
+          safe.id = obj.id;
+        }
+        if ('type' in obj && typeof obj.type === 'string') {
+          safe.type = obj.type;
+        }
+        return safe;
+      }
+
+      // Recursively clean object properties
+      seen.add(value);
+      const cleanedObj: Record<string, unknown> = {};
+      for (const [key, val] of Object.entries(obj)) {
+        // Skip internal/private properties
+        if (key.startsWith('_') || key === 'subscribe' || key === 'send') {
+          continue;
+        }
+        try {
+          cleanedObj[key] = cleanValue(val);
+        } catch {
+          // Skip properties that can't be cleaned
+          cleanedObj[key] = '[Non-serializable]';
+        }
+      }
+      return cleanedObj;
+    };
+
+    try {
+      const result = cleanValue(context);
+      return typeof result === 'object' && result !== null && !Array.isArray(result)
+        ? (result as Record<string, unknown>)
+        : null;
+    } catch {
+      return null;
     }
   }
 }
@@ -305,7 +399,6 @@ export const getMultiMachineLogger = (): MultiMachineLogger => {
  */
 export const logRemoveMachine = (machineId: string, finalState?: string) => {
   const logger = getMultiMachineLogger();
-  getMachineTracer().finalizeTrace(machineId, finalState);
   logger.markMachineAsFinal(machineId, finalState);
 };
 
@@ -313,27 +406,9 @@ export const logRemoveMachine = (machineId: string, finalState?: string) => {
  * Unified function to log machine state (handles both registration and updates)
  * Use this for all machine logging - it will automatically handle machine registration
  */
-export const logMachine = (
-  machineId: string,
-  state: unknown,
-  context?: Record<string, unknown>,
-  traceOptions?: TraceOptions,
-) => {
+export const logMachine = (machineId: string, state: string, context?: Record<string, unknown>) => {
   const logger = getMultiMachineLogger();
   logger.addLog(machineId, state, context);
-
-  const tracer = getMachineTracer();
-  const definition = traceOptions?.buildTrace
-    ? traceOptions.buildTrace({
-        machineId,
-        state,
-        context,
-        traceRootId: traceOptions.traceRootId,
-        parentMachineId: traceOptions.parentMachineId,
-      })
-    : tracer.createDefaultDefinition(machineId, state, traceOptions);
-
-  tracer.trackTrace(machineId, definition);
 };
 
 /**
@@ -342,7 +417,6 @@ export const logMachine = (
 export const removeMachine = (machineId: string) => {
   const logger = getMultiMachineLogger();
   logger.removeMachine(machineId);
-  getMachineTracer().finalizeTrace(machineId);
 };
 
 /**
@@ -350,7 +424,102 @@ export const removeMachine = (machineId: string) => {
  * Helper function to clean context before serialization
  */
 export function cleanContextForLogging(context: unknown): Record<string, unknown> | undefined {
-  return cleanContextForLoggingUtil(context);
+  if (!context || typeof context !== 'object') {
+    return undefined;
+  }
+
+  //const cleaned: Record<string, unknown> = {};
+  const seen = new WeakSet();
+
+  const cleanValue = (value: unknown): unknown => {
+    // Handle primitives
+    if (value === null || value === undefined) {
+      return null;
+    }
+    if (typeof value !== 'object') {
+      return value;
+    }
+
+    // Handle circular references
+    if (seen.has(value as object)) {
+      return '[Circular]';
+    }
+
+    // Skip functions and non-serializable objects
+    if (value instanceof Function) {
+      return '[Function]';
+    }
+    if (value instanceof Error) {
+      return {
+        name: value.name,
+        message: value.message,
+        stack: value.stack,
+      };
+    }
+
+    // Handle arrays
+    if (Array.isArray(value)) {
+      seen.add(value);
+      return value.map((item) => cleanValue(item));
+    }
+
+    // Handle objects - skip complex objects that might have circular refs
+    if (
+      value instanceof Date ||
+      value instanceof RegExp ||
+      value instanceof Map ||
+      value instanceof Set
+    ) {
+      return String(value);
+    }
+
+    // Check for common non-serializable patterns
+    const obj = value as Record<string, unknown>;
+    if (
+      '_originalClient' in obj ||
+      'subscribe' in obj ||
+      'getSnapshot' in obj ||
+      'send' in obj ||
+      'id' in obj
+    ) {
+      // This looks like an XState actor or similar complex object
+      // Only include safe properties
+      const safe: Record<string, unknown> = {};
+      if ('id' in obj && typeof obj.id === 'string') {
+        safe.id = obj.id;
+      }
+      if ('type' in obj && typeof obj.type === 'string') {
+        safe.type = obj.type;
+      }
+      return safe;
+    }
+
+    // Recursively clean object properties
+    seen.add(value);
+    const cleanedObj: Record<string, unknown> = {};
+    for (const [key, val] of Object.entries(obj)) {
+      // Skip internal/private properties
+      if (key.startsWith('_') || key === 'subscribe' || key === 'send') {
+        continue;
+      }
+      try {
+        cleanedObj[key] = cleanValue(val);
+      } catch {
+        // Skip properties that can't be cleaned
+        cleanedObj[key] = '[Non-serializable]';
+      }
+    }
+    return cleanedObj;
+  };
+
+  try {
+    const result = cleanValue(context);
+    return typeof result === 'object' && result !== null && !Array.isArray(result)
+      ? (result as Record<string, unknown>)
+      : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 /**
@@ -365,7 +534,6 @@ export const logActor = (
     subscribe: (callback: (snapshot: { value: unknown; context?: unknown }) => void) => void;
   },
   machineId?: string,
-  traceOptions?: TraceOptions,
 ) => {
   const id = machineId || actor.id;
 
@@ -374,7 +542,7 @@ export const logActor = (
     const { context } = snapshot;
     // Clean context before logging to avoid circular references
     const cleanedContext = cleanContextForLogging(context);
-    logMachine(id, snapshot.value, cleanedContext, traceOptions);
+    logMachine(id, `State: ${JSON.stringify(snapshot.value)}`, cleanedContext);
   });
 };
 

@@ -177,7 +177,6 @@ function createProcessorMachineDefaultInput(
       validatorsController: mockValidatorsController,
       slotController: mockSlotController,
     },
-    traceRootId: `epoch:${epoch}`,
   };
 }
 

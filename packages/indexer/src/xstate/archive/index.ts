@@ -8,7 +8,6 @@ import { DailyArchiveController } from '@/src/services/consensus/controllers/dai
 import { HourlyArchiveController } from '@/src/services/consensus/controllers/hourlyArchive.js';
 import { MonthlyArchiveController } from '@/src/services/consensus/controllers/monthlyArchive.js';
 import { logMachine } from '@/src/xstate/multiMachineLogger.js';
-import { buildTraceDefinition } from '@/src/xstate/traceUtils.js';
 
 export { hourlyArchiveMachine } from './hourlyArchive.machine.js';
 export { dailyArchiveMachine } from './dailyArchive.machine.js';
@@ -26,20 +25,7 @@ export const getHourlyArchiveActor = (hourlyArchiveController: HourlyArchiveCont
   });
 
   actor.subscribe((snapshot) => {
-    // Trace the hourly archive machine with its current state only.
-    logMachine('hourlyArchive', `State: ${JSON.stringify(snapshot.value)}`, undefined, {
-      buildTrace: ({ context, machineId, parentMachineId, state, traceRootId }) =>
-        buildTraceDefinition({
-          machineGroup: 'archive',
-          machineName: 'hourlyArchive',
-          machineId,
-          state,
-          context,
-          traceRootId,
-          parentMachineId,
-          messagePrefix: 'hourlyArchive',
-        }),
-    });
+    logMachine('hourlyArchive', `State: ${JSON.stringify(snapshot.value)}`);
   });
 
   return actor;
@@ -56,20 +42,7 @@ export const getDailyArchiveActor = (dailyArchiveController: DailyArchiveControl
   });
 
   actor.subscribe((snapshot) => {
-    // Trace the daily archive machine with its current state only.
-    logMachine('dailyArchive', `State: ${JSON.stringify(snapshot.value)}`, undefined, {
-      buildTrace: ({ context, machineId, parentMachineId, state, traceRootId }) =>
-        buildTraceDefinition({
-          machineGroup: 'archive',
-          machineName: 'dailyArchive',
-          machineId,
-          state,
-          context,
-          traceRootId,
-          parentMachineId,
-          messagePrefix: 'dailyArchive',
-        }),
-    });
+    logMachine('dailyArchive', `State: ${JSON.stringify(snapshot.value)}`);
   });
 
   return actor;
@@ -86,20 +59,7 @@ export const getMonthlyArchiveActor = (monthlyArchiveController: MonthlyArchiveC
   });
 
   actor.subscribe((snapshot) => {
-    // Trace the monthly archive machine with its current state only.
-    logMachine('monthlyArchive', `State: ${JSON.stringify(snapshot.value)}`, undefined, {
-      buildTrace: ({ context, machineId, parentMachineId, state, traceRootId }) =>
-        buildTraceDefinition({
-          machineGroup: 'archive',
-          machineName: 'monthlyArchive',
-          machineId,
-          state,
-          context,
-          traceRootId,
-          parentMachineId,
-          messagePrefix: 'monthlyArchive',
-        }),
-    });
+    logMachine('monthlyArchive', `State: ${JSON.stringify(snapshot.value)}`);
   });
 
   return actor;
