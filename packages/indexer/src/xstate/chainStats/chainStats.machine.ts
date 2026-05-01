@@ -1,6 +1,7 @@
 import { fromPromise, setup } from 'xstate';
 
 import { ChainStatsController } from '@/src/services/consensus/controllers/chainStats.js';
+import { endPerformanceTask, startPerformanceTask } from '@/src/xstate/performanceLogger.js';
 import { pinoLog } from '@/src/xstate/pinoLog.js';
 
 export const chainStatsMachine = setup({
@@ -44,6 +45,8 @@ export const chainStatsMachine = setup({
     },
     computing: {
       description: 'Computing and upserting chain stats for the epoch',
+      entry: startPerformanceTask('computing'),
+      exit: endPerformanceTask('computing'),
       invoke: {
         src: 'runComputeStats',
         input: ({ context, event }) => ({

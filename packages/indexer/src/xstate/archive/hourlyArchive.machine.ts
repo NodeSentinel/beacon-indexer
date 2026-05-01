@@ -1,6 +1,7 @@
 import { fromPromise, setup } from 'xstate';
 
 import { HourlyArchiveController } from '@/src/services/consensus/controllers/hourlyArchive.js';
+import { endPerformanceTask, startPerformanceTask } from '@/src/xstate/performanceLogger.js';
 import { pinoLog } from '@/src/xstate/pinoLog.js';
 
 /**
@@ -62,6 +63,8 @@ export const hourlyArchiveMachine = setup({
     },
     archiving: {
       description: 'Archiving the oldest eligible hour',
+      entry: startPerformanceTask('archiving'),
+      exit: endPerformanceTask('archiving'),
       invoke: {
         src: 'runArchive',
         input: ({ context }) => {

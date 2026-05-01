@@ -7,7 +7,6 @@ import { EpochController } from '@/src/services/consensus/controllers/epoch.js';
 import { PartitionController } from '@/src/services/consensus/controllers/partition.js';
 import { SlotController } from '@/src/services/consensus/controllers/slot.js';
 import { ValidatorsController } from '@/src/services/consensus/controllers/validators.js';
-import { logActor } from '@/src/xstate/multiMachineLogger.js';
 import { pinoLog } from '@/src/xstate/pinoLog.js';
 
 /**
@@ -77,11 +76,13 @@ export const epochWorkerMachine = setup({
   }),
   states: {
     creatingPartitions: {
-      entry: pinoLog(
-        ({ context }) =>
-          `Ensuring tables partitions for epoch ${context.epoch} exist before processing`,
-        'EpochWorker',
-      ),
+      entry: [
+        pinoLog(
+          ({ context }) =>
+            `Ensuring tables partitions for epoch ${context.epoch} exist before processing`,
+          'EpochWorker',
+        ),
+      ],
       invoke: {
         src: 'createPartitionsForTables',
         input: ({ context }) => ({
@@ -130,8 +131,6 @@ export const epochWorkerMachine = setup({
                 },
               },
             });
-
-            logActor(actor, epochId);
 
             return actor;
           },

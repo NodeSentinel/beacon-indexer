@@ -11,19 +11,10 @@ import { monthlyArchiveMachine } from '@/src/xstate/archive/monthlyArchive.machi
 import { chainStatsMachine } from '@/src/xstate/chainStats/chainStats.machine.js';
 import { epochCreationMachine } from '@/src/xstate/epoch/epochCreator.machine.js';
 import { epochOrchestratorMachine } from '@/src/xstate/epoch/epochOrchestrator.machine.js';
-import { logMachine } from '@/src/xstate/multiMachineLogger.js';
 
 export const getCreateEpochActor = (epochController: EpochController, slotDuration: number) => {
   const actor = createActor(epochCreationMachine, {
     input: { slotDuration, epochController },
-  });
-
-  actor.subscribe((snapshot) => {
-    const { context } = snapshot;
-
-    logMachine('epochCreator', `State: ${JSON.stringify(snapshot.value)}`, {
-      slotDuration: context.slotDuration,
-    });
   });
 
   return actor;
@@ -57,22 +48,6 @@ export const getEpochOrchestratorActor = (
       monthlyArchiveActor,
       chainStatsActor,
     },
-  });
-
-  actor.subscribe((snapshot) => {
-    const { context } = snapshot;
-
-    // Get information about active epochs
-    const activeEpochs = Object.keys(context.epochs)
-      .map((e) => parseInt(e))
-      .sort((a, b) => a - b);
-
-    logMachine('epochOrchestrator', `State: ${JSON.stringify(snapshot.value)}`, {
-      // Active epochs being processed
-      activeEpochs,
-      // Epochs status map
-      epochsStatus: context.epochs,
-    });
   });
 
   return actor;

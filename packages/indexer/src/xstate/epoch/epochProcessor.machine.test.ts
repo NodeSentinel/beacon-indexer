@@ -14,6 +14,16 @@ import { ValidatorsController } from '@/src/services/consensus/controllers/valid
 import { MAX_PARALLEL_EPOCHS } from '@/src/xstate/epoch/epochOrchestrator.machine.js';
 import { epochProcessorMachine } from '@/src/xstate/epoch/epochProcessor.machine.js';
 
+const performanceLoggerMocks = vi.hoisted(() => ({
+  calls: [] as Array<{ task: string; type: 'end' | 'start' }>,
+  endPerformanceTask: vi.fn((task: string) => () => {
+    performanceLoggerMocks.calls.push({ task, type: 'end' });
+  }),
+  startPerformanceTask: vi.fn((task: string) => () => {
+    performanceLoggerMocks.calls.push({ task, type: 'start' });
+  }),
+}));
+
 // ============================================================================
 // Test Constants
 // ============================================================================
@@ -99,6 +109,8 @@ vi.mock('@/src/xstate/pinoLog.js', () => ({
   pinoLog: vi.fn(() => () => {}),
 }));
 
+vi.mock('@/src/xstate/performanceLogger.js', () => performanceLoggerMocks);
+
 vi.mock('@/src/xstate/multiMachineLogger.js', () => ({
   logActor: vi.fn(),
 }));
@@ -112,6 +124,7 @@ vi.mock('@/src/xstate/multiMachineLogger.js', () => ({
  */
 function resetMocks() {
   vi.clearAllMocks();
+  performanceLoggerMocks.calls.length = 0;
   (mockEpochController.fetchCommittees as ReturnType<typeof vi.fn>).mockResolvedValue(undefined);
   (mockEpochController.getEpochByNumber as ReturnType<typeof vi.fn>).mockResolvedValue({
     committeesFetched: true,
@@ -928,6 +941,10 @@ describe('epochProcessorMachine', () => {
 
       // Verify parent reached completed state (proves the full lifecycle worked)
       expect(parentActor.getSnapshot().value).toBe('completed');
+
+      // Verify the epoch processor records one total duration around the full work.
+      expect(performanceLoggerMocks.calls).toContainEqual({ task: 'TOTAL', type: 'start' });
+      expect(performanceLoggerMocks.calls).toContainEqual({ task: 'TOTAL', type: 'end' });
 
       parentActor.stop();
     });

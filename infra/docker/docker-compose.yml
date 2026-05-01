@@ -69,6 +69,7 @@ services:
     environment:
       - DOCKER_ENV=true
       - LOG_DIR=/app/logs
+      - LOKI_URL=http://loki:3100/loki/api/v1/push
     build:
       context: ../..
       dockerfile: infra/docker/Dockerfile.services
@@ -78,6 +79,8 @@ services:
     depends_on:
       migrate:
         condition: service_completed_successfully
+      loki:
+        condition: service_started
     networks:
       - app-network
 
@@ -97,6 +100,25 @@ services:
         condition: service_completed_successfully
     ports:
       - '3000:3000'
+    networks:
+      - app-network
+
+  bot:
+    container_name: bot
+    restart: on-failure
+    env_file:
+      - ../../packages/telegram-bot/.env
+    environment:
+      - DOCKER_ENV=true
+    build:
+      context: ../..
+      dockerfile: infra/docker/Dockerfile.services
+      target: bot
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      api:
+        condition: service_started
     networks:
       - app-network
 
@@ -151,6 +173,20 @@ services:
       - '127.0.0.1:3002:3002'
     depends_on:
       - prometheus
+      - loki
+    networks:
+      - app-network
+
+  loki:
+    image: grafana/loki:3.1.1
+    container_name: loki
+    restart: unless-stopped
+    command: -config.file=/etc/loki/config.yml
+    volumes:
+      - ../monitoring/loki.yml:/etc/loki/config.yml:ro
+      - loki_data:/loki
+    ports:
+      - '127.0.0.1:3100:3100'
     networks:
       - app-network
 
@@ -171,25 +207,6 @@ services:
     networks:
       - app-network
 
-  bot:
-    container_name: bot
-    restart: on-failure
-    env_file:
-      - ../../packages/telegram-bot/.env
-    environment:
-      - DOCKER_ENV=true
-    build:
-      context: ../..
-      dockerfile: infra/docker/Dockerfile.services
-      target: bot
-    depends_on:
-      migrate:
-        condition: service_completed_successfully
-      api:
-        condition: service_started
-    networks:
-      - app-network
-
 networks:
   app-network:
     driver: bridge
@@ -198,3 +215,4 @@ volumes:
   beacon_postgres_data:
   prometheus_data:
   grafana_data:
+  loki_data:

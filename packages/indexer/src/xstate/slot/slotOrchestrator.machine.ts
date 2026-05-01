@@ -15,7 +15,7 @@ import { ActorRefFrom, assign, fromPromise, sendParent, setup, stopChild } from 
 
 import { SlotController } from '@/src/services/consensus/controllers/slot.js';
 import { getEpochSlots } from '@/src/services/consensus/utils/misc.js';
-import { logActor, logRemoveMachine } from '@/src/xstate/multiMachineLogger.js';
+import { logRemoveMachine } from '@/src/xstate/multiMachineLogger.js';
 import { pinoLog } from '@/src/xstate/pinoLog.js';
 import { slotProcessorMachine } from '@/src/xstate/slot/slotProcessor.machine.js';
 
@@ -91,10 +91,12 @@ export const slotOrchestratorMachine = setup({
   },
   states: {
     findingNextSlot: {
-      entry: pinoLog(
-        ({ context }) => `Finding next slot to process for epoch ${context.epoch}`,
-        'SlotOrchestrator',
-      ),
+      entry: [
+        pinoLog(
+          ({ context }) => `Finding next slot to process for epoch ${context.epoch}`,
+          'SlotOrchestrator',
+        ),
+      ],
       invoke: {
         src: 'findNextSlotStatus',
         input: ({ context }) => ({
@@ -176,9 +178,6 @@ export const slotOrchestratorMachine = setup({
                 slotDuration: context.slotDuration,
               },
             });
-
-            // Automatically log the actor's state and context
-            logActor(actor, slotId);
 
             return actor;
           },

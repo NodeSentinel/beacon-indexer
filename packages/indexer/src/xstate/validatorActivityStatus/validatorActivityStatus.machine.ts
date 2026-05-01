@@ -1,6 +1,7 @@
 import { fromPromise, setup } from 'xstate';
 
 import { ValidatorActivityStatusController } from '@/src/services/consensus/controllers/validatorActivityStatus.js';
+import { endPerformanceTask, startPerformanceTask } from '@/src/xstate/performanceLogger.js';
 import { pinoLog } from '@/src/xstate/pinoLog.js';
 
 const VALIDATOR_ACTIVITY_STATUS_POLLING_INTERVAL_MS = 1000;
@@ -68,6 +69,8 @@ export const validatorActivityStatusMachine = setup({
       },
     },
     syncing: {
+      entry: startPerformanceTask('syncing'),
+      exit: endPerformanceTask('syncing'),
       invoke: {
         // Execute one refresh pass and always return to the waiting state whether
         // the pass succeeded or failed.

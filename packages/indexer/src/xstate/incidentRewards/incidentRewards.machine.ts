@@ -1,6 +1,7 @@
 import { fromPromise, setup } from 'xstate';
 
 import { IncidentRewardsController } from '@/src/services/consensus/controllers/incidentRewards.js';
+import { endPerformanceTask, startPerformanceTask } from '@/src/xstate/performanceLogger.js';
 import { pinoLog } from '@/src/xstate/pinoLog.js';
 
 const runSync = fromPromise(
@@ -50,6 +51,8 @@ export const incidentRewardsMachine = setup({
       },
     },
     syncing: {
+      entry: startPerformanceTask('syncing'),
+      exit: endPerformanceTask('syncing'),
       invoke: {
         // Run a single reward sync pass and always return to waiting, whether the
         // pass completed normally or failed.
