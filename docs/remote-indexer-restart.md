@@ -79,14 +79,43 @@ ops ALL=(root) NOPASSWD: /usr/local/bin/restart-indexer
 
 ## Step 5: Restart From Your Phone
 
-From your phone SSH app or shortcut:
+Find the VPS Tailscale name or IP:
 
 ```sh
-# Replace this with the VPS name shown in Tailscale.
+# Show the VPS name and Tailscale IP.
+tailscale status
+```
+
+Use either value in the SSH command:
+
+```sh
+# Replace this with the VPS name or Tailscale IP.
 ssh ops@<VPS_TAILSCALE_NAME> 'sudo /usr/local/bin/restart-indexer'
 ```
 
-That is the command to save as the phone shortcut.
+## Step 6: Add A One-Tap iPhone Shortcut
+
+On the iPhone:
+
+1. Open **Shortcuts**.
+2. Tap `+`.
+3. Search for **Run Script over SSH**.
+4. Set **Host** to the VPS Tailscale name or IP.
+5. Set **User** to `ops`.
+6. Set **Script** to:
+
+```sh
+# Restart the indexer service.
+sudo /usr/local/bin/restart-indexer
+```
+
+Then:
+
+1. Name it `Restart Indexer`.
+2. Tap the share button.
+3. Tap **Add to Home Screen**.
+
+After that, restarting the indexer is one tap from the iPhone home screen.
 
 ## Notes
 
