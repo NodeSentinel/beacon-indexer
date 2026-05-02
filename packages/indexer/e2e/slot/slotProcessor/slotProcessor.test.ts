@@ -90,11 +90,8 @@ describe('Slot Processor E2E Tests', () => {
 
       // Create execution client mock
       const mockExecutionClient = new ExecutionClient({
-        executionBlockscoutUrl: 'http://mock-execution',
-        executionEtherscanUrl: 'http://mock-execution-backup',
-        executionQuicknodeUrl: 'http://mock-quicknode',
-        chainId: gnosisConfig.blockchain.chainId,
-        slotDuration: gnosisConfig.beacon.slotDuration,
+        mainExecutionRpc: 'http://mock-execution',
+        bkpExecutionRpc: 'http://mock-execution-backup',
         requestsPerSecond: 3,
       });
 
@@ -246,11 +243,8 @@ describe('Slot Processor E2E Tests', () => {
 
       // Create execution client mock
       const mockExecutionClient = new ExecutionClient({
-        executionBlockscoutUrl: 'http://mock-execution',
-        executionEtherscanUrl: 'http://mock-execution-backup',
-        executionQuicknodeUrl: 'http://mock-quicknode',
-        chainId: gnosisConfig.blockchain.chainId,
-        slotDuration: gnosisConfig.beacon.slotDuration,
+        mainExecutionRpc: 'http://mock-execution',
+        bkpExecutionRpc: 'http://mock-execution-backup',
         requestsPerSecond: 3,
       });
 
@@ -358,7 +352,7 @@ describe('Slot Processor E2E Tests', () => {
    * fetchExecutionRewards tests verify that execution layer rewards
    * (priority fees from the fee recipient) are correctly fetched and stored.
    *
-   * The QuickNode calculation test uses real JSON-RPC batch response data captured
+   * The execution RPC calculation test uses real JSON-RPC batch response data captured
    * from Gnosis block 45214731. The mock data is injected at the axios level so
    * the full getBlock() code path (hex parsing, baseFee subtraction, receipt iteration)
    * is exercised end-to-end.
@@ -367,17 +361,15 @@ describe('Slot Processor E2E Tests', () => {
     let executionClient: ExecutionClient;
     let slotControllerWithMock: SlotController;
 
-    // Real data from Gnosis block 45214731 fetched via QuickNode JSON-RPC batch
+    // Real data from Gnosis block 45214731 fetched via execution JSON-RPC batch.
     const BLOCK_NUMBER = 45214731;
     const SLOT = 24519343; // reuse an existing test slot number
     const EXPECTED_FEE_RECIPIENT = '0x86ead908fb5d6f900ff109c9e26f79300f99271a';
     // Verified against Blockscout Miner Reward for the same block
     const EXPECTED_REWARD = '1173967697074274';
 
-    // Real QuickNode JSON-RPC batch response for block 45214731 (Gnosis)
-    // Captured via: POST https://holy-sly-needle.xdai.quiknode.pro/...
-    // with [eth_getBlockByNumber, eth_getBlockReceipts] batch
-    const quicknodeBatchResponse = [
+    // Real execution JSON-RPC batch response for block 45214731 on Gnosis.
+    const executionRpcBatchResponse = [
       {
         jsonrpc: '2.0',
         id: 1,
@@ -421,16 +413,11 @@ describe('Slot Processor E2E Tests', () => {
       await prisma.validatorDeposits.deleteMany();
       await prisma.validatorConsolidationsRequests.deleteMany();
 
-      // Create execution client with only QuickNode configured (Gnosis chain).
-      // Blockscout URL is set to an unreachable address so the fallback chain
-      // reaches QuickNode, whose axios POST is intercepted below.
+      // Create execution client with generic execution RPC endpoints.
+      // The main RPC URL is intercepted below so the production JSON-RPC path runs.
       executionClient = new ExecutionClient({
-        executionBlockscoutUrl: 'http://0.0.0.0:1',
-        executionEtherscanUrl: 'http://0.0.0.0:1',
-        executionQuicknodeUrl: 'http://mock-quicknode',
-        executionQuicknodeKey: 'test-key',
-        chainId: gnosisConfig.blockchain.chainId,
-        slotDuration: gnosisConfig.beacon.slotDuration,
+        mainExecutionRpc: 'http://mock-execution-rpc',
+        bkpExecutionRpc: 'http://mock-execution-rpc-backup',
         requestsPerSecond: 3,
       });
 
@@ -477,8 +464,8 @@ describe('Slot Processor E2E Tests', () => {
       getBlockSpy.mockRestore();
     });
 
-    it('should calculate execution rewards from QuickNode JSON-RPC data and store in DB', async () => {
-      // Intercept the axios POST call that getBlock() makes to QuickNode.
+    it('should calculate execution rewards from execution JSON-RPC data and store in DB', async () => {
+      // Intercept the axios POST call that getBlock() makes to the execution RPC.
       // The real batch JSON-RPC response is returned so the full priority fee
       // calculation (hex parsing, baseFee subtraction, gasUsed multiplication)
       // runs through the production code path.
@@ -486,17 +473,17 @@ describe('Slot Processor E2E Tests', () => {
         .axiosInstance;
       const postSpy = vi
         .spyOn(axiosInstance, 'post' as never)
-        .mockResolvedValueOnce({ data: quicknodeBatchResponse } as never);
+        .mockResolvedValueOnce({ data: executionRpcBatchResponse } as never);
 
-      // Call fetchExecutionRewards — this triggers getBlock() which calls QuickNode
+      // Call fetchExecutionRewards — this triggers getBlock() which calls the execution RPC.
       await slotControllerWithMock.fetchExecutionRewards(SLOT, BLOCK_NUMBER);
 
-      // Verify the QuickNode batch POST was called with the correct URL and params
+      // Verify the execution RPC batch POST was called with the correct URL and params.
       expect(postSpy).toHaveBeenCalledOnce();
       const [url, body] = postSpy.mock.calls[0] as [string, unknown[]];
-      // URL should be base + key
-      expect(url).toBe('http://mock-quicknode/test-key');
-      // Body should be a JSON-RPC batch array
+      // URL should be the configured main execution RPC.
+      expect(url).toBe('http://mock-execution-rpc');
+      // Body should be a JSON-RPC batch array.
       expect(Array.isArray(body)).toBe(true);
       expect(body).toHaveLength(2);
 
@@ -586,11 +573,8 @@ describe('Slot Processor E2E Tests', () => {
 
       // Create execution client mock
       const mockExecutionClient = new ExecutionClient({
-        executionBlockscoutUrl: 'http://mock-execution',
-        executionEtherscanUrl: 'http://mock-execution-backup',
-        executionQuicknodeUrl: 'http://mock-quicknode',
-        chainId: gnosisConfig.blockchain.chainId,
-        slotDuration: gnosisConfig.beacon.slotDuration,
+        mainExecutionRpc: 'http://mock-execution',
+        bkpExecutionRpc: 'http://mock-execution-backup',
         requestsPerSecond: 3,
       });
 

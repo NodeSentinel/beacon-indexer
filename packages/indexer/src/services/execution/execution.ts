@@ -1,15 +1,12 @@
 import axios, { AxiosInstance, InternalAxiosRequestConfig } from 'axios';
 import ms from 'ms';
 import pLimit from 'p-limit';
-import pRetry from 'p-retry';
 
 import { logError, logRequest, logResponse } from '@/src/lib/httpPino.js';
 import {
-  Blockscout_Blocks,
-  Etherscan_BlockReward,
   JsonRpcResponse,
-  QuickNode_Block,
-  QuickNode_TransactionReceipt,
+  RpcBlock,
+  RpcTransactionReceipt,
 } from '@/src/services/execution/types.js';
 
 export type BlockResponse = {
@@ -20,20 +17,13 @@ export type BlockResponse = {
 };
 
 export interface ExecutionClientConfig {
-  executionBlockscoutUrl: string;
-  executionBlockscoutKey?: string;
-  executionEtherscanUrl: string;
-  executionEtherscanKey?: string;
-  executionQuicknodeUrl: string;
-  executionQuicknodeKey?: string;
-  chainId: number;
-  slotDuration: number;
+  mainExecutionRpc: string;
+  bkpExecutionRpc: string;
   requestsPerSecond: number;
 }
 
 /**
- * ExecutionClient - Client for execution layer endpoints
- * Similar pattern to BeaconClient, receives configuration via constructor
+ * ExecutionClient fetches execution block rewards from generic JSON-RPC endpoints.
  */
 export class ExecutionClient {
   private readonly axiosInstance: AxiosInstance;
@@ -45,7 +35,7 @@ export class ExecutionClient {
     this.limiter = pLimit(config.requestsPerSecond);
     this.axiosInstance = axios.create({ timeout: ms('2.5s') });
 
-    // Setup interceptors
+    // Log every execution RPC request before it is sent.
     this.axiosInstance.interceptors.request.use(async (config: InternalAxiosRequestConfig) => {
       logRequest(config);
       return config;
@@ -54,163 +44,122 @@ export class ExecutionClient {
     this.axiosInstance.interceptors.response.use(logResponse, logError);
   }
 
+  /**
+   * Fetch execution block rewards from the main RPC and fallback RPC.
+   */
   async getBlock(blockNumber: number): Promise<BlockResponse | null> {
     return this.limiter(async () => {
-      // Define endpoints
-      const etherscanEndpoint = {
-        name: 'Etherscan',
-        fetch: async (): Promise<BlockResponse> => {
-          // https://api.etherscan.io/v2/api?chainid=1&module=block&action=getblockreward&blockno=2165403&apikey=YourApiKeyToken
-          const url = `${this.config.executionEtherscanUrl}/api?chainid=${this.config.chainId}&module=block&action=getblockreward&blockno=${blockNumber}&apikey=${this.config.executionEtherscanKey || ''}`;
-          const response = await this.axiosInstance.get<Etherscan_BlockReward>(url);
-          const blockInfo = response.data;
-
-          if (blockInfo.status !== '1' || blockInfo.message !== 'OK') {
-            throw new Error(
-              `Etherscan API error: ${blockInfo.message} (status: ${blockInfo.status})`,
-            );
-          }
-
-          if (!blockInfo.result?.blockMiner || !blockInfo.result?.blockReward) {
-            throw new Error(`Unexpected Etherscan block response: ${JSON.stringify(blockInfo)}`);
-          }
-
-          return {
-            address: blockInfo.result.blockMiner,
-            timestamp: new Date(Number(blockInfo.result.timeStamp) * 1000),
-            amount: blockInfo.result.blockReward,
-            blockNumber: Number(blockInfo.result.blockNumber),
-          };
-        },
-      };
-
-      const blockscoutEndpoint = {
-        name: 'Blockscout',
-        fetch: async (): Promise<BlockResponse> => {
-          const url = `${this.config.executionBlockscoutUrl}/api/v2/blocks/${blockNumber}`;
-          const response = await this.axiosInstance.get<Blockscout_Blocks>(url);
-          const blockInfo = response.data;
-          const minerReward = blockInfo.rewards.find((r) => r.type === 'Miner Reward');
-
-          if (!minerReward || blockInfo.rewards.length === 0) {
-            return {
-              address: blockInfo.miner?.hash ?? '',
-              timestamp: new Date(blockInfo.timestamp),
-              amount: '0',
-              blockNumber: blockInfo.height,
-            };
-          }
-
-          if (!blockInfo.miner || !blockInfo.miner.hash) {
-            throw new Error(`Unexpected block response: ${JSON.stringify(blockInfo)}`);
-          }
-
-          return {
-            address: blockInfo.miner.hash,
-            timestamp: new Date(blockInfo.timestamp),
-            amount: minerReward?.reward ?? '0',
-            blockNumber: blockInfo.height,
-          };
-        },
-      };
-
-      const quicknodeEndpoint = {
-        name: 'QuickNode',
-        fetch: async (): Promise<BlockResponse> => {
-          const baseUrl = this.config.executionQuicknodeUrl.replace(/\/$/, '');
-          const quicknodeUrl = this.config.executionQuicknodeKey
-            ? `${baseUrl}/${this.config.executionQuicknodeKey}`
-            : baseUrl;
-          const hexBlock = `0x${blockNumber.toString(16)}`;
-
-          // Single batch JSON-RPC request for block header + receipts
-          const batchRes = await this.axiosInstance.post<
-            [JsonRpcResponse<QuickNode_Block>, JsonRpcResponse<QuickNode_TransactionReceipt[]>]
-          >(quicknodeUrl, [
-            {
-              jsonrpc: '2.0',
-              id: 1,
-              method: 'eth_getBlockByNumber',
-              params: [hexBlock, false],
-            },
-            { jsonrpc: '2.0', id: 2, method: 'eth_getBlockReceipts', params: [hexBlock] },
-          ]);
-
-          const [blockRpc, receiptsRpc] = batchRes.data;
-
-          if (blockRpc.error) {
-            throw new Error(`QuickNode eth_getBlockByNumber error: ${blockRpc.error.message}`);
-          }
-          if (receiptsRpc.error) {
-            throw new Error(`QuickNode eth_getBlockReceipts error: ${receiptsRpc.error.message}`);
-          }
-
-          const block = blockRpc.result;
-          const receipts = receiptsRpc.result;
-
-          if (!block || !receipts) {
-            throw new Error(`QuickNode returned null for block ${blockNumber}`);
-          }
-
-          const baseFee = BigInt(block.baseFeePerGas);
-
-          // Total priority fees = sum of (effectiveGasPrice - baseFeePerGas) * gasUsed
-          let totalPriorityFees = 0n;
-          for (const receipt of receipts) {
-            const effectiveGasPrice = BigInt(receipt.effectiveGasPrice);
-            const gasUsed = BigInt(receipt.gasUsed);
-            const tip = effectiveGasPrice - baseFee;
-            if (tip > 0n) {
-              totalPriorityFees += tip * gasUsed;
-            }
-          }
-
-          return {
-            address: block.miner,
-            timestamp: new Date(Number(BigInt(block.timestamp)) * 1000),
-            amount: totalPriorityFees.toString(),
-            blockNumber: Number(BigInt(block.number)),
-          };
-        },
-      };
-
-      // Gnosis: Blockscout > QuickNode (Etherscan doesn't support getblockreward for Gnosis)
-      // Ethereum: Etherscan > Blockscout > QuickNode
-      const isGnosis = this.config.chainId === 100;
-      const endpoints = isGnosis
-        ? [quicknodeEndpoint, blockscoutEndpoint]
-        : [etherscanEndpoint, quicknodeEndpoint, blockscoutEndpoint];
-
-      // Try all endpoints in sequence, then backoff and retry the full cycle
-      return await pRetry(
-        async () => {
-          let lastError: unknown;
-
-          for (const endpoint of endpoints) {
-            try {
-              return await endpoint.fetch();
-            } catch (error) {
-              const status = axios.isAxiosError(error) ? error.response?.status : undefined;
-              const responseData = axios.isAxiosError(error) ? error.response?.data : undefined;
-
-              const context =
-                `[${endpoint.name}] failed for block ${blockNumber}` +
-                (status ? ` (HTTP ${status})` : '') +
-                (responseData
-                  ? ` - response: ${JSON.stringify(responseData)}`
-                  : ` - ${error instanceof Error ? error.message : String(error)}`);
-
-              lastError = new Error(context, { cause: error });
-            }
-          }
-
-          throw lastError || new Error(`All endpoints failed for block ${blockNumber}`);
-        },
-        {
-          retries: 30,
-          minTimeout: ms('1s'),
-        },
-      );
+      return await this.fetchBlockWithFallback(blockNumber);
     });
+  }
+
+  /**
+   * Try main and backup RPC endpoints as a pair before applying exponential backoff.
+   */
+  private async fetchBlockWithFallback(blockNumber: number): Promise<BlockResponse> {
+    const maxCycles = 5;
+    const baseDelayMs = 100;
+    let lastError: unknown;
+
+    for (let cycle = 0; cycle < maxCycles; cycle++) {
+      for (const endpoint of this.getRpcEndpoints()) {
+        try {
+          return await this.fetchBlockFromRpc(endpoint.url, blockNumber);
+        } catch (error) {
+          lastError = new Error(
+            `[${endpoint.name}] failed for block ${blockNumber} - ${
+              error instanceof Error ? error.message : String(error)
+            }`,
+            { cause: error },
+          );
+        }
+      }
+
+      if (cycle < maxCycles - 1) {
+        await this.wait(baseDelayMs * Math.pow(2, cycle));
+      }
+    }
+
+    throw lastError || new Error(`All execution RPC endpoints failed for block ${blockNumber}`);
+  }
+
+  /**
+   * Return the execution RPC endpoints in the order they should be tried.
+   */
+  private getRpcEndpoints(): Array<{ name: 'MAIN' | 'BKP'; url: string }> {
+    return [
+      { name: 'MAIN', url: this.config.mainExecutionRpc },
+      { name: 'BKP', url: this.config.bkpExecutionRpc },
+    ];
+  }
+
+  /**
+   * Fetch and parse one execution block using standard JSON-RPC methods.
+   */
+  private async fetchBlockFromRpc(url: string, blockNumber: number): Promise<BlockResponse> {
+    const hexBlock = `0x${blockNumber.toString(16)}`;
+
+    // Fetch the block header and receipts together so reward calculation uses one block view.
+    const batchRes = await this.axiosInstance.post<
+      [JsonRpcResponse<RpcBlock>, JsonRpcResponse<RpcTransactionReceipt[]>]
+    >(url, [
+      {
+        jsonrpc: '2.0',
+        id: 1,
+        method: 'eth_getBlockByNumber',
+        params: [hexBlock, false],
+      },
+      { jsonrpc: '2.0', id: 2, method: 'eth_getBlockReceipts', params: [hexBlock] },
+    ]);
+
+    const [blockRpc, receiptsRpc] = batchRes.data;
+
+    if (blockRpc.error) {
+      throw new Error(`eth_getBlockByNumber error: ${blockRpc.error.message}`);
+    }
+    if (receiptsRpc.error) {
+      throw new Error(`eth_getBlockReceipts error: ${receiptsRpc.error.message}`);
+    }
+
+    const block = blockRpc.result;
+    const receipts = receiptsRpc.result;
+
+    if (!block || !receipts) {
+      throw new Error(`Execution RPC returned null for block ${blockNumber}`);
+    }
+
+    return {
+      address: block.miner,
+      timestamp: new Date(Number(BigInt(block.timestamp)) * 1000),
+      amount: this.calculatePriorityFees(block.baseFeePerGas, receipts),
+      blockNumber: Number(BigInt(block.number)),
+    };
+  }
+
+  /**
+   * Calculate the total priority fees paid to the execution block fee recipient.
+   */
+  private calculatePriorityFees(baseFeePerGas: string, receipts: RpcTransactionReceipt[]): string {
+    const baseFee = BigInt(baseFeePerGas);
+    let totalPriorityFees = 0n;
+
+    for (const receipt of receipts) {
+      const effectiveGasPrice = BigInt(receipt.effectiveGasPrice);
+      const gasUsed = BigInt(receipt.gasUsed);
+      const tip = effectiveGasPrice - baseFee;
+
+      if (tip > 0n) {
+        totalPriorityFees += tip * gasUsed;
+      }
+    }
+
+    return totalPriorityFees.toString();
+  }
+
+  /**
+   * Wait for the given number of milliseconds before the next retry cycle.
+   */
+  private async wait(delayMs: number): Promise<void> {
+    await new Promise((resolve) => setTimeout(resolve, delayMs));
   }
 }
