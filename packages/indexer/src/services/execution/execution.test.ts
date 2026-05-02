@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { ExecutionClient } from '@/src/services/execution/execution.js';
 
@@ -10,11 +10,17 @@ describe('ExecutionClient', () => {
   // This hook resets mocks and creates a clean execution client before each test.
   beforeEach(() => {
     vi.restoreAllMocks();
+    vi.useRealTimers();
     executionClient = new ExecutionClient({
       mainExecutionRpc: 'http://main-rpc',
       bkpExecutionRpc: 'http://bkp-rpc',
       requestsPerSecond: 3,
     });
+  });
+
+  // This hook restores fake timers if a test exits before its local cleanup runs.
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   // This test verifies that getBlock calculates the fee recipient reward from JSON-RPC data.
@@ -61,6 +67,120 @@ describe('ExecutionClient', () => {
 
     // This assertion verifies the generic RPC URL is called directly without provider-specific keys.
     expect(postSpy.mock.calls[0]?.[0]).toBe('http://main-rpc');
+  });
+
+  // This test verifies that JSON-RPC batch responses are matched by response id, not array order.
+  it('matches JSON-RPC batch responses by id when the RPC returns them out of order', async () => {
+    // This response intentionally returns receipts before the block response.
+    const rpcBatchResponse = [
+      {
+        jsonrpc: '2.0',
+        id: 2,
+        result: [{ gasUsed: '0x1', effectiveGasPrice: '0xb' }],
+      },
+      {
+        jsonrpc: '2.0',
+        id: 1,
+        result: {
+          number: '0xa',
+          timestamp: '0x64',
+          miner: '0xfeeRecipient',
+          baseFeePerGas: '0xa',
+        },
+      },
+    ];
+
+    // This spy returns the out-of-order batch from the main RPC endpoint.
+    const axiosInstance = (executionClient as unknown as { axiosInstance: { post: unknown } })
+      .axiosInstance;
+    vi.spyOn(axiosInstance, 'post' as never).mockResolvedValueOnce({
+      data: rpcBatchResponse,
+    } as never);
+
+    // This call verifies the client uses response ids to find the block and receipts.
+    await expect(executionClient.getBlock(10)).resolves.toMatchObject({
+      address: '0xfeeRecipient',
+      amount: '1',
+      blockNumber: 10,
+    });
+  });
+
+  // This test verifies that waiting retries do not hold the RPC concurrency limiter.
+  it('does not hold a concurrency slot while a failed block waits before retrying', async () => {
+    // This client has one RPC slot so a sleeping retry would block all other blocks.
+    executionClient = new ExecutionClient({
+      mainExecutionRpc: 'http://main-rpc',
+      bkpExecutionRpc: 'http://bkp-rpc',
+      requestsPerSecond: 1,
+    });
+
+    // This fake timer lets the test pause the first request during its backoff delay.
+    vi.useFakeTimers();
+
+    // This successful response is returned for the second block while the first block waits.
+    const successResponse = [
+      {
+        jsonrpc: '2.0',
+        id: 1,
+        result: {
+          number: '0xb',
+          timestamp: '0x64',
+          miner: '0xfeeRecipient',
+          baseFeePerGas: '0xa',
+        },
+      },
+      {
+        jsonrpc: '2.0',
+        id: 2,
+        result: [{ gasUsed: '0x1', effectiveGasPrice: '0xb' }],
+      },
+    ];
+
+    // This spy fails block 10 but succeeds for block 11.
+    const axiosInstance = (executionClient as unknown as { axiosInstance: { post: unknown } })
+      .axiosInstance;
+    const postSpy = vi.spyOn(axiosInstance, 'post' as never).mockImplementation(((
+      url: string,
+      body: Array<{ params: string[] }>,
+    ) => {
+      const requestedBlock = body[0]?.params[0];
+      if (requestedBlock === '0xb') {
+        return Promise.resolve({ data: successResponse });
+      }
+      return Promise.reject(new Error(`failed ${url}`));
+    }) as never);
+
+    // This request fails against main and backup, then waits before retrying.
+    const failedBlockPromise = executionClient.getBlock(10).catch((error: unknown) => error);
+
+    // This timer advance lets the first request enter its first backoff delay.
+    await vi.advanceTimersByTimeAsync(0);
+
+    // This request should use the free RPC slot while the first request is sleeping.
+    const successfulBlockPromise = executionClient.getBlock(11);
+
+    // This timer advance lets the second request make its network call.
+    await vi.advanceTimersByTimeAsync(0);
+
+    // This assertion proves the second block was not blocked by the first block's sleep.
+    await expect(successfulBlockPromise).resolves.toMatchObject({
+      address: '0xfeeRecipient',
+      amount: '1',
+      blockNumber: 11,
+    });
+
+    // This assertion verifies that the second request reached the RPC during the first backoff.
+    expect(postSpy.mock.calls.map((call) => call[0])).toContain('http://main-rpc');
+    expect(postSpy.mock.calls).toHaveLength(3);
+
+    // This timer advance lets the failed first block exhaust its retry cycles.
+    await vi.advanceTimersByTimeAsync(100 + 200 + 400 + 800);
+    const failedBlockError = await failedBlockPromise;
+    expect(failedBlockError).toBeInstanceOf(Error);
+    expect((failedBlockError as Error).message).toContain('[BKP] failed for block 10');
+
+    // This cleanup restores real timers for the rest of the test process.
+    vi.useRealTimers();
   });
 
   // This test verifies that getBlock tries main then backup as a pair before each backoff delay.

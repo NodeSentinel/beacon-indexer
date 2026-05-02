@@ -13,6 +13,6 @@ export type RpcTransactionReceipt = {
 export type JsonRpcResponse<T> = {
   jsonrpc: string;
   id: number;
-  result: T;
+  result?: T;
   error?: { code: number; message: string };
 };

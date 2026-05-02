@@ -48,9 +48,7 @@ export class ExecutionClient {
    * Fetch execution block rewards from the main RPC and fallback RPC.
    */
   async getBlock(blockNumber: number): Promise<BlockResponse | null> {
-    return this.limiter(async () => {
-      return await this.fetchBlockWithFallback(blockNumber);
-    });
+    return await this.fetchBlockWithFallback(blockNumber);
   }
 
   /**
@@ -67,9 +65,7 @@ export class ExecutionClient {
           return await this.fetchBlockFromRpc(endpoint.url, blockNumber);
         } catch (error) {
           lastError = new Error(
-            `[${endpoint.name}] failed for block ${blockNumber} - ${
-              error instanceof Error ? error.message : String(error)
-            }`,
+            `[${endpoint.name}] failed for block ${blockNumber}${this.formatErrorContext(error)}`,
             { cause: error },
           );
         }
@@ -100,19 +96,36 @@ export class ExecutionClient {
     const hexBlock = `0x${blockNumber.toString(16)}`;
 
     // Fetch the block header and receipts together so reward calculation uses one block view.
-    const batchRes = await this.axiosInstance.post<
-      [JsonRpcResponse<RpcBlock>, JsonRpcResponse<RpcTransactionReceipt[]>]
-    >(url, [
-      {
-        jsonrpc: '2.0',
-        id: 1,
-        method: 'eth_getBlockByNumber',
-        params: [hexBlock, false],
-      },
-      { jsonrpc: '2.0', id: 2, method: 'eth_getBlockReceipts', params: [hexBlock] },
-    ]);
+    const batchRes = await this.limiter(() =>
+      this.axiosInstance.post<
+        Array<JsonRpcResponse<RpcBlock> | JsonRpcResponse<RpcTransactionReceipt[]>>
+      >(url, [
+        {
+          jsonrpc: '2.0',
+          id: 1,
+          method: 'eth_getBlockByNumber',
+          params: [hexBlock, false],
+        },
+        { jsonrpc: '2.0', id: 2, method: 'eth_getBlockReceipts', params: [hexBlock] },
+      ]),
+    );
 
-    const [blockRpc, receiptsRpc] = batchRes.data;
+    const responses = batchRes.data;
+
+    if (!Array.isArray(responses)) {
+      throw new Error(`Execution RPC returned invalid batch response for block ${blockNumber}`);
+    }
+
+    const blockRpc = responses.find((response) => response.id === 1) as
+      | JsonRpcResponse<RpcBlock>
+      | undefined;
+    const receiptsRpc = responses.find((response) => response.id === 2) as
+      | JsonRpcResponse<RpcTransactionReceipt[]>
+      | undefined;
+
+    if (!blockRpc || !receiptsRpc) {
+      throw new Error(`Execution RPC batch response missing results for block ${blockNumber}`);
+    }
 
     if (blockRpc.error) {
       throw new Error(`eth_getBlockByNumber error: ${blockRpc.error.message}`);
@@ -161,5 +174,19 @@ export class ExecutionClient {
    */
   private async wait(delayMs: number): Promise<void> {
     await new Promise((resolve) => setTimeout(resolve, delayMs));
+  }
+
+  /**
+   * Format HTTP and RPC error context for retry failure messages.
+   */
+  private formatErrorContext(error: unknown): string {
+    const status = axios.isAxiosError(error) ? error.response?.status : undefined;
+    const responseData = axios.isAxiosError(error) ? error.response?.data : undefined;
+    const message = error instanceof Error ? error.message : String(error);
+
+    return (
+      (status ? ` (HTTP ${status})` : '') +
+      (responseData ? ` - response: ${JSON.stringify(responseData)}` : ` - ${message}`)
+    );
   }
 }
