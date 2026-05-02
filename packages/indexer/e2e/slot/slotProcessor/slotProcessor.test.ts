@@ -498,16 +498,18 @@ describe('Slot Processor E2E Tests', () => {
       postSpy.mockRestore();
     });
 
-    it('should throw error when getBlock returns null', async () => {
-      // Mock getBlock to return null (block not found)
-      const getBlockSpy = vi.spyOn(executionClient, 'getBlock').mockResolvedValueOnce(null);
+    it('should not update execution rewards when getBlock throws', async () => {
+      // Mock getBlock to throw when the execution RPC cannot return the block.
+      const getBlockSpy = vi
+        .spyOn(executionClient, 'getBlock')
+        .mockRejectedValueOnce(new Error(`Block ${BLOCK_NUMBER} not found`));
 
-      // Should throw error for missing block
+      // Should propagate the execution client error.
       await expect(
         slotControllerWithMock.fetchExecutionRewards(SLOT, BLOCK_NUMBER),
       ).rejects.toThrow(`Block ${BLOCK_NUMBER} not found`);
 
-      // Verify slot was NOT updated
+      // Verify slot was NOT updated.
       const slotData = await slotStorage.getBaseSlot(SLOT);
       expect(slotData.executionRewardsFetched).toBe(false);
 

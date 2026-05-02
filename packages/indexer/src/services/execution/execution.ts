@@ -47,7 +47,7 @@ export class ExecutionClient {
   /**
    * Fetch execution block rewards from the main RPC and fallback RPC.
    */
-  async getBlock(blockNumber: number): Promise<BlockResponse | null> {
+  async getBlock(blockNumber: number): Promise<BlockResponse> {
     return await this.fetchBlockWithFallback(blockNumber);
   }
 

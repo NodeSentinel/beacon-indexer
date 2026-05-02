@@ -179,9 +179,6 @@ export class SlotController extends SlotControllerHelpers {
     }
 
     const blockInfo = await this.executionClient.getBlock(blockNumber);
-    if (!blockInfo) {
-      throw new Error(`Block ${blockNumber} not found`);
-    }
     await this.slotStorage.saveExecutionRewardsAndUpdateSlot(
       slot,
       blockInfo.amount,
