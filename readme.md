@@ -40,106 +40,28 @@ The code is written in TypeScript and uses XState to orchestrate the data fetchi
    ```
 
 3. **Environment setup**
-   - Create per-package env files:
-     - `packages/db/.env` (PostgreSQL connection for Prisma)
-     - `packages/indexer/.env` (indexer service runtime)
-     - `packages/telegram-bot/.env` (bot runtime)
-     - `packages/webapp/.env.local` (Next.js dev)
-   - See "Environment variables" below for full templates.
+   - Create runtime env files under `env/<chain>/<env>/`.
+   - See [`docs/runtime-env.md`](docs/runtime-env.md) for the current env layout and commands.
 
 4. **Start the services**
    ```bash
-   docker compose up
+   pnpm up:dev -- --chain=gnosis --all
    ```
 
 ### Development only
 
 - pnpm install
-- Create `.env` files in each package (see Environment variables section)
-- docker compose up postgres
-- pnpm db:dev:reset
+- Create runtime env files under `env/<chain>/<env>/`
+- pnpm up:dev -- --chain=gnosis
+- pnpm prisma:reset -- --chain=gnosis
 - pnpm build
-- pnpm dev:indexer
+- pnpm dev:indexer -- --chain=gnosis --env=dev
 
 ## Environment variables
 
-### packages/db/.env
-
-Used by Prisma scripts to construct `DATABASE_URL`. This file contains only PostgreSQL connection parameters.
-
-```bash
-# PostgreSQL Infrastructure
-POSTGRES_USER=beacon_user
-POSTGRES_PASSWORD=your_secure_password_here
-POSTGRES_DB=beacon_indexer
-POSTGRES_HOST=localhost
-POSTGRES_PORT=5432
-
-# Docker flag (set to true when running in Docker)
-DOCKER_ENV=false
-```
-
-### packages/indexer/.env
-
-Runtime variables for the indexer service.
-
-```bash
-# Database
-DATABASE_URL="postgresql://beacon_user:your_secure_password_here@localhost:5432/beacon_indexer?schema=public"
-
-# Blockchain
-CHAIN="gnosis"
-CONSENSUS_LOOKBACK_SLOT=0
-CONSENSUS_ARCHIVE_API_URL="https://archive-node.example.com"
-CONSENSUS_FULL_API_URL="https://full-node.example.com"
-CONSENSUS_API_REQUEST_PER_SECOND=10
-
-# Execution Layer
-EXECUTION_API_URL="https://execution-api.example.com"
-EXECUTION_API_KEY=""
-EXECUTION_API_BKP_URL="https://backup-execution-api.example.com"
-EXECUTION_API_BKP_KEY=""
-EXECUTION_API_REQUEST_PER_SECOND=10
-
-# Logging
-LOG_OUTPUT="console"
-LOG_LEVEL="info"
-TZ="UTC"
-```
-
-### packages/telegram-bot/.env
-
-Runtime variables for the Telegram bot.
-
-```bash
-# Database
-DATABASE_URL="postgresql://beacon_user:your_secure_password_here@localhost:5432/beacon_indexer?schema=public"
-
-# Bot Configuration
-BOT_TOKEN="1234567890:ABCdefGHIjklMNOpqrsTUVwxyz"
-BOT_MODE="polling" # or 'webhook'
-BOT_ALLOWED_UPDATES="[]"
-BOT_ADMINS="[]"
-
-# Webhook mode only
-# BOT_WEBHOOK="https://your-domain.com/webhook"
-# BOT_WEBHOOK_SECRET="your_webhook_secret_min_12_chars"
-# SERVER_HOST="0.0.0.0"
-# SERVER_PORT="80"
-
-# Logging
-DEBUG="false"
-LOG_LEVEL="info"
-```
-
-### packages/webapp/.env.local
-
-Next.js conventions: `.env.local` for local development. Only `NEXT_PUBLIC_*` are exposed to the browser.
-
-```bash
-NEXT_PUBLIC_API_URL="http://localhost:3000/api"
-NEXT_PUBLIC_BOT_USERNAME="YourBotUsername"
-```
+Runtime env files are organized by chain and environment. See
+[`docs/runtime-env.md`](docs/runtime-env.md) for the current `pnpm up:*`,
+`pnpm dev:*`, and Prisma workflow.
 
 ## Architecture
 

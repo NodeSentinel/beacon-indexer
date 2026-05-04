@@ -1,10 +1,6 @@
 import { getChainConfig } from '@beacon-indexer/beacon-utils/config/chain';
 import { createEnv } from '@t3-oss/env-core';
-import { config } from 'dotenv';
 import { z } from 'zod';
-
-// Load .env from the indexer package root
-config({ path: new URL('../../.env', import.meta.url) });
 
 export const env = createEnv({
   clientPrefix: 'IF_NOT_PROVIDED_IT_FAILS',

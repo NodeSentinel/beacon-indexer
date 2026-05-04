@@ -3,7 +3,7 @@ import { isOriginAllowed } from './auth/origin.js';
 import { createBotSignatureAuthenticator } from './auth/strategies/bot-signature.js';
 import { createTelegramAuthenticator } from './auth/strategies/telegram.js';
 import { createApiKeyAuthenticator } from './auth/strategies/token.js';
-import { loadEnv } from './config/env.js';
+import { env } from './config/env.js';
 import { SystemConfigController } from './controllers/systemConfig.js';
 import { ValidatorController } from './controllers/validator.js';
 import { startJobs, stopJobs } from './jobs/index.js';
@@ -28,7 +28,6 @@ import { createBeaconHelpers } from './utils/beaconTime.js';
  * Bootstraps the API runtime.
  */
 async function main() {
-  const env = loadEnv();
   const logger = createLogger({
     logLevel: env.LOG_LEVEL,
     nodeEnv: env.NODE_ENV,
