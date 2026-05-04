@@ -159,7 +159,7 @@ function waitForPostgres() {
       return;
     }
 
-    spawnSync('sleep', ['1'], { stdio: 'ignore' });
+    spawnSync(process.execPath, ['-e', 'setTimeout(() => {}, 1000)'], { stdio: 'ignore' });
   }
 
   throw new Error('PostgreSQL failed to start after 60 seconds');

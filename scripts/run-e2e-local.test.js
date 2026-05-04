@@ -30,7 +30,7 @@ test('builds e2e postgres docker run command', () => {
   assert.ok(command.args.includes('POSTGRES_DB=e2e_beacon'));
   assert.ok(command.args.includes('POSTGRES_USER=e2e_user'));
   assert.ok(command.args.includes('POSTGRES_PASSWORD=e2e_password'));
-  assert.ok(command.args.includes('5499:5432'));
+  assert.ok(command.args.includes('5440:5432'));
 });
 
 // Verifies that migrations run against the fixed e2e database URL.
@@ -48,7 +48,7 @@ test('builds e2e migration command', () => {
   ]);
   assert.equal(
     command.env.DATABASE_URL,
-    'postgresql://e2e_user:e2e_password@localhost:5499/e2e_beacon?schema=public',
+    'postgresql://e2e_user:e2e_password@localhost:5440/e2e_beacon?schema=public',
   );
 });
 

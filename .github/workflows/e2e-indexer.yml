@@ -55,7 +55,7 @@ jobs:
             -e POSTGRES_DB=e2e_beacon \
             -e POSTGRES_USER=e2e_user \
             -e POSTGRES_PASSWORD=e2e_password \
-            -p 5499:5432 \
+            -p 5440:5432 \
             --tmpfs /var/lib/postgresql/data \
             -d postgres:16
 
@@ -76,13 +76,13 @@ jobs:
 
       - name: Setup database
         run: |
-          DATABASE_URL="postgresql://e2e_user:e2e_password@localhost:5499/e2e_beacon?schema=public" \
+          DATABASE_URL="postgresql://e2e_user:e2e_password@localhost:5440/e2e_beacon?schema=public" \
           pnpm --filter @beacon-indexer/db exec prisma migrate deploy --schema=prisma/schema.prisma
 
       - name: Run e2e tests
         run: |
           cd packages/indexer
-          DATABASE_URL="postgresql://e2e_user:e2e_password@localhost:5499/e2e_beacon?schema=public" \
+          DATABASE_URL="postgresql://e2e_user:e2e_password@localhost:5440/e2e_beacon?schema=public" \
           pnpm vitest run --config vitest.e2e.config.ts --no-coverage
 
       - name: Cleanup

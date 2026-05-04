@@ -37,29 +37,41 @@ export function serviceEnvPath(rootDir, chain, env, service) {
   return path.join(rootDir, 'env', chain, env, `${service}.env`);
 }
 
-// Parses simple KEY=value env files without expanding shell syntax.
+// Expands ${VAR} references from previously parsed values or the process env.
+function expandEnvValue(value, env) {
+  return value.replace(
+    /\$\{([A-Z0-9_]+)\}/g,
+    (match, key) => env[key] ?? process.env[key] ?? match,
+  );
+}
+
+// Parses KEY=value env files and expands ${VAR} references in declaration order.
 export function readEnvFile(filePath) {
   if (!existsSync(filePath)) {
     return {};
   }
 
-  return Object.fromEntries(
-    readFileSync(filePath, 'utf8')
-      .split(/\r?\n/)
-      .map((line) => line.trim())
-      .filter((line) => line && !line.startsWith('#'))
-      .filter((line) => line.includes('='))
-      .map((line) => {
-        const separator = line.indexOf('=');
-        const key = line.slice(0, separator).trim();
-        const value = line
-          .slice(separator + 1)
-          .trim()
-          .replace(/^["']|["']$/g, '');
+  const env = {};
+  const lines = readFileSync(filePath, 'utf8').split(/\r?\n/);
 
-        return [key, value];
-      }),
-  );
+  for (const rawLine of lines) {
+    const line = rawLine.trim();
+
+    if (!line || line.startsWith('#') || !line.includes('=')) {
+      continue;
+    }
+
+    const separator = line.indexOf('=');
+    const key = line.slice(0, separator).trim();
+    const value = line
+      .slice(separator + 1)
+      .trim()
+      .replace(/^["']|["']$/g, '');
+
+    env[key] = expandEnvValue(value, env);
+  }
+
+  return env;
 }
 
 // Stops command execution when a required env file is missing.
