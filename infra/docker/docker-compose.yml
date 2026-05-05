@@ -9,10 +9,12 @@ services:
     env_file:
       - ${DB_ENV_FILE:-../../packages/db/.env}
     ports:
-      - '5432:5432'
+      - '${POSTGRES_PORT}:${POSTGRES_PORT}'
     volumes:
       - beacon_postgres_data:/var/lib/postgresql/data
     command:
+      - -c
+      - port=${POSTGRES_PORT}
       - -c
       - max_wal_size=2GB
       - -c
@@ -32,7 +34,7 @@ services:
       - -c
       - pg_stat_statements.track=all
     healthcheck:
-      test: ['CMD-SHELL', 'pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}']
+      test: ['CMD-SHELL', 'pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB} -p $${POSTGRES_PORT}']
       interval: 5s
       timeout: 5s
       retries: 5
@@ -53,7 +55,6 @@ services:
         condition: service_healthy
     command: >
       sh -c "
-        export DATABASE_URL=postgresql://$$POSTGRES_USER:$$POSTGRES_PASSWORD@postgres:5432/$$POSTGRES_DB?schema=public &&
         echo 'Waiting for database to be ready...' &&
         pnpm exec prisma migrate deploy --schema=./packages/db/prisma/schema.prisma &&
         echo 'Database migration completed successfully!'
@@ -99,7 +100,7 @@ services:
       migrate:
         condition: service_completed_successfully
     ports:
-      - '3000:3000'
+      - '${API_PORT}:${API_PORT}'
     networks:
       - app-network
 
@@ -132,7 +133,7 @@ services:
       - /bin/sh
       - -c
       - |
-        export DATA_SOURCE_NAME="postgresql://$${POSTGRES_USER}:$${POSTGRES_PASSWORD}@postgres:5432/$${POSTGRES_DB}?sslmode=disable"
+        export DATA_SOURCE_NAME="postgresql://$${POSTGRES_USER}:$${POSTGRES_PASSWORD}@$${POSTGRES_HOST}:$${POSTGRES_PORT}/$${POSTGRES_DB}?sslmode=disable"
         exec postgres_exporter --collector.stat_statements
     depends_on:
       postgres:

@@ -46,16 +46,18 @@ Docker commands use the env files as-is, so hostnames should point to container 
 
 ```sh
 # Starts the full production Docker stack.
-pnpm up:prod -- --chain=gnosis --all
+pnpm docker:up:prod -- --chain=gnosis --all
 
 # Starts the local Docker infra plus selected services.
-pnpm up:dev -- --chain=gnosis --indexer --api
+pnpm docker:up:dev -- --chain=gnosis --indexer --api
 
 # Starts the full local Docker stack.
-pnpm up:dev -- --chain=gnosis --all
+pnpm docker:up:dev -- --chain=gnosis --all
 ```
 
 Production requires `--all`. Partial production stacks are rejected.
+
+`POSTGRES_PORT` is the database port for the selected chain and environment. Docker uses the service hostname from `db.env`; standalone commands override only `POSTGRES_HOST` to `localhost`.
 
 ## Standalone Services
 
@@ -63,10 +65,10 @@ Standalone commands use `dotenvx --overload` and inline host overrides.
 
 ```sh
 # Runs API locally against the dev database endpoint on localhost.
-pnpm dev:api -- --chain=gnosis --env=dev
+pnpm host:api -- --chain=gnosis --env=dev
 
 # Runs API locally against the prod database endpoint on localhost.
-pnpm dev:api -- --chain=gnosis --env=prod
+pnpm host:api -- --chain=gnosis --env=prod
 ```
 
 For API and indexer, the runner loads:
@@ -75,10 +77,16 @@ For API and indexer, the runner loads:
 - inline `POSTGRES_HOST=localhost`
 - `env/<chain>/<env>/<service>.env`
 
-For bot and webapp, the runner loads:
+For bot, the runner loads:
 
-- inline `API_HOST=localhost`
+- `env/<chain>/<env>/api.env`
 - `env/<chain>/<env>/<service>.env`
+- inline `API_URL=http://localhost:${API_PORT}`
+
+For webapp, the runner loads:
+
+- `env/<chain>/<env>/api.env`
+- `env/<chain>/<env>/webapp.env`
 
 ## Prisma
 

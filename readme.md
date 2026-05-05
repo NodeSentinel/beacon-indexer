@@ -45,23 +45,23 @@ The code is written in TypeScript and uses XState to orchestrate the data fetchi
 
 4. **Start the services**
    ```bash
-   pnpm up:dev -- --chain=gnosis --all
+   pnpm docker:up:dev -- --chain=gnosis --all
    ```
 
 ### Development only
 
 - pnpm install
 - Create runtime env files under `env/<chain>/<env>/`
-- pnpm up:dev -- --chain=gnosis
+- pnpm docker:up:dev -- --chain=gnosis
 - pnpm prisma:reset -- --chain=gnosis
 - pnpm build
-- pnpm dev:indexer -- --chain=gnosis --env=dev
+- pnpm host:indexer -- --chain=gnosis --env=dev
 
 ## Environment variables
 
 Runtime env files are organized by chain and environment. See
-[`docs/runtime-env.md`](docs/runtime-env.md) for the current `pnpm up:*`,
-`pnpm dev:*`, and Prisma workflow.
+[`docs/runtime-env.md`](docs/runtime-env.md) for the current `pnpm docker:*`,
+`pnpm host:*`, and Prisma workflow.
 
 ## Architecture
 
@@ -122,7 +122,7 @@ The system uses XState to coordinate data processing through a hierarchical stat
 
 ### Development
 
-- `dev:indexer`: Start the indexer service in development mode with hot reload. Requires PostgreSQL to be running and database migrations to be applied.
+- `host:indexer`: Start the indexer service on the host with hot reload. Requires PostgreSQL to be running and database migrations to be applied.
 
 ### Database Management (Development Only)
 

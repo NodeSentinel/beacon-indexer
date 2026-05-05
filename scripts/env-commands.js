@@ -11,6 +11,7 @@ import {
 } from './runtime-helpers.js';
 
 const DOCKER_SERVICES = ['indexer', 'api', 'bot'];
+const DOCKER_ENV_SERVICES = ['db', 'indexer', 'api', 'bot'];
 const BASE_DOCKER_DEV_SERVICES = ['postgres', 'loki', 'prometheus', 'grafana'];
 const PACKAGE_BY_SERVICE = {
   api: '@beacon-indexer/api',
@@ -24,6 +25,7 @@ export function parseDockerArgs(args) {
   const chain = getFlagValue(args, 'chain');
   const env = hasFlag(args, 'prod') ? 'prod' : getFlagValue(args, 'env');
   const all = hasFlag(args, 'all');
+  const down = hasFlag(args, 'down');
   const selectedServices = DOCKER_SERVICES.filter((service) => hasFlag(args, service));
 
   assertChain(chain);
@@ -33,7 +35,7 @@ export function parseDockerArgs(args) {
     throw new Error('--all cannot be combined with --indexer, --api, or --bot.');
   }
 
-  if (env === 'prod' && !all) {
+  if (env === 'prod' && !all && !down) {
     throw new Error('Production Docker requires --all.');
   }
 
@@ -41,35 +43,53 @@ export function parseDockerArgs(args) {
     chain,
     env,
     all,
+    down,
     selectedServices,
   };
 }
 
 // Builds the docker compose command and environment from parsed arguments.
 export function buildDockerCommand(parsed, rootDir = process.cwd()) {
-  const dbEnvFile = serviceEnvPath(rootDir, parsed.chain, parsed.env, 'db');
-  const dbEnv = readEnvFile(dbEnvFile);
-  const services = parsed.all ? [] : [...BASE_DOCKER_DEV_SERVICES, ...parsed.selectedServices];
-  const enabledServices = parsed.all
-    ? ['db', 'indexer', 'api', 'bot']
-    : ['db', ...parsed.selectedServices];
+  const services = parsed.down
+    ? []
+    : parsed.all
+      ? []
+      : [...BASE_DOCKER_DEV_SERVICES, ...parsed.selectedServices];
+  const enabledServices = parsed.down
+    ? [...DOCKER_ENV_SERVICES]
+    : parsed.all
+      ? [...DOCKER_ENV_SERVICES]
+      : ['db', ...parsed.selectedServices];
+
+  if (!enabledServices.includes('api') && enabledServices.includes('bot')) {
+    enabledServices.push('api');
+  }
   const serviceEnv = Object.fromEntries(
     enabledServices
-      .filter((service) => ['db', 'indexer', 'api', 'bot'].includes(service))
+      .filter((service) => DOCKER_ENV_SERVICES.includes(service))
       .map((service) => [
         `${service.toUpperCase()}_ENV_FILE`,
         serviceEnvPath(rootDir, parsed.chain, parsed.env, service),
       ]),
   );
+  const dockerEnv = Object.values(serviceEnv).reduce(
+    (env, filePath) => ({
+      ...env,
+      ...readEnvFile(filePath),
+    }),
+    {},
+  );
   const args = [
     'compose',
     '-f',
     path.join(rootDir, 'infra/docker/docker-compose.yml'),
-    'up',
+    parsed.down ? 'down' : 'up',
     ...services,
-    '-d',
-    '--build',
   ];
+
+  if (!parsed.down) {
+    args.push('-d', '--build');
+  }
 
   return {
     command: 'docker',
@@ -77,7 +97,7 @@ export function buildDockerCommand(parsed, rootDir = process.cwd()) {
     services,
     env: {
       ...serviceEnv,
-      ...dbEnv,
+      ...dockerEnv,
     },
     requiredEnvFiles: Object.values(serviceEnv),
   };
@@ -110,10 +130,6 @@ export function buildDevCommand(parsed, rootDir = process.cwd()) {
 
   if (parsed.service === 'indexer') {
     dotenvxArgs.push('--env', 'LOKI_HOST=localhost');
-  }
-
-  if (['bot', 'webapp'].includes(parsed.service)) {
-    dotenvxArgs.push('--env', 'API_HOST=localhost');
   }
 
   dotenvxArgs.push('-f', envFile, '--');

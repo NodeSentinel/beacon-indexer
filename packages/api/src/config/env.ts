@@ -6,7 +6,7 @@ const serverEnv = {
   DATABASE_URL: z.string().url(),
 
   // Server
-  PORT: z.coerce.number().int().positive().default(3000),
+  API_PORT: z.coerce.number().int().positive().default(3000),
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
 
   // Auth

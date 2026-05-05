@@ -6,7 +6,7 @@ The API supports **both REST and RPC** implemented with **oRPC**; any new proced
 
 ## Setup and run
 
-- From repo root: `pnpm dev:api` or `pnpm build:api`.
+- From repo root: `pnpm host:api` or `pnpm build:api`.
 - From this package: `pnpm dev` (development server).
 
 ## API role

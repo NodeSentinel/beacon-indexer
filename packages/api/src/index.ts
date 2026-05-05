@@ -155,8 +155,8 @@ async function main() {
     logger.info('Database connected successfully');
 
     await new Promise<void>((resolve, reject) => {
-      server.listen(env.PORT, '0.0.0.0', () => {
-        logger.info(`HTTP server listening on port ${env.PORT}`);
+      server.listen(env.API_PORT, '0.0.0.0', () => {
+        logger.info(`HTTP server listening on port ${env.API_PORT}`);
         resolve();
       });
 
