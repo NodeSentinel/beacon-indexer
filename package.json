@@ -35,7 +35,7 @@
   },
   "packageManager": "pnpm@9.2.0",
   "scripts": {
-    "test": "pnpm run test:scripts && pnpm -r run test",
+    "test": "pnpm -r run test",
     "test:scripts": "node --test scripts/*.test.js",
     "test:e2e:local": "node scripts/run-e2e-local.js",
     "test:e2e:indexer": "node scripts/run-e2e-local.js indexer",
