@@ -188,16 +188,24 @@ export class BeaconTime {
   }
 
   /**
-   * Calculate the first slot of the UTC hour that contains the given slot.
+   * Calculate the first slot starting inside the UTC hour that contains the given slot.
    * Partitions are aligned to UTC hour boundaries (e.g., 10:00, 11:00, 12:00).
    *
    * @param slot - The slot number
-   * @returns The first slot of the UTC hour containing this slot
+   * @returns The first slot whose start timestamp is inside the containing UTC hour
    */
   getSlotAtStartOfUTCHourContaining(slot: number): number {
     const ts = this.getTimestampFromSlotNumber(slot);
     const hourStartTs = Math.floor(ts / 3_600_000) * 3_600_000; // floor to UTC hour
-    return this.getSlotNumberFromTimestamp(hourStartTs);
+
+    if (hourStartTs <= this.genesisTimestamp) {
+      return 0;
+    }
+
+    const hourStartSlot = this.getSlotNumberFromTimestamp(hourStartTs);
+    const hourStartSlotTs = this.getTimestampFromSlotNumber(hourStartSlot);
+
+    return hourStartSlotTs < hourStartTs ? hourStartSlot + 1 : hourStartSlot;
   }
 
   /**

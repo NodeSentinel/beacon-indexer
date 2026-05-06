@@ -50,7 +50,7 @@ function createPartitionController(lookbackSlot: number) {
 describe('PartitionController', () => {
   // This suite locks the first Ethereum committee partition when lookback starts inside a UTC hour.
   describe('createPartitionsToProcessEpoch', () => {
-    it('starts the first committee partition at lookback when the UTC hour boundary slot is before lookback', async () => {
+    it('starts the first committee partition at the first slot inside its UTC hour', async () => {
       // Use the real Ethereum lookback slot that starts at 2026-05-05T18:00:11Z.
       const lookbackSlot = 14264999;
 
@@ -62,8 +62,8 @@ describe('PartitionController', () => {
         createPartitionController(lookbackSlot);
 
       // Verify the real edge condition before creating partitions.
-      const hourBoundarySlot = beaconTime.getSlotAtStartOfUTCHourContaining(lookbackSlot);
-      expect(hourBoundarySlot).toBe(14264998);
+      const firstSlotInHour = beaconTime.getSlotAtStartOfUTCHourContaining(lookbackSlot);
+      expect(firstSlotInHour).toBe(lookbackSlot);
 
       // Create both committee and epoch_rewards partitions for the epoch.
       await partitionController.createPartitionsToProcessEpoch(epoch);
@@ -86,9 +86,9 @@ describe('PartitionController', () => {
         epochRewardsPartition?.partitionName ?? '',
       );
 
-      // Confirm the committee partition starts at lookback, not the earlier UTC boundary slot.
+      // Confirm the committee partition starts at the first indexed slot in the UTC hour.
       expect(parsedCommittee?.start).toBe(lookbackSlot);
-      expect(parsedCommittee?.start).not.toBe(hourBoundarySlot);
+      expect(parsedCommittee?.start).toBe(firstSlotInHour);
 
       // Confirm committee and epoch_rewards are both named for the same 18:00 UTC hour.
       expect(parsedCommittee?.datetime?.toISOString()).toBe('2026-05-05T18:00:00.000Z');
@@ -143,6 +143,35 @@ describe('PartitionController', () => {
       expect(
         new Set(epochRewardsPartitions.map((partition) => partition?.datetime?.toISOString())),
       ).toEqual(new Set(['2026-05-05T18:00:00.000Z']));
+    });
+
+    it('creates adjacent Ethereum committee partitions without slot overlap at a UTC hour boundary', async () => {
+      // Use the real Ethereum lookback slot that starts at 2026-05-05T18:00:11Z.
+      const lookbackSlot = 14264999;
+
+      // Process the epoch that crosses from the 18:00 UTC hour into the 19:00 UTC hour.
+      const boundaryEpoch = 445790;
+
+      // Build the controller with an in-memory storage mock.
+      const { createdPartitions, partitionController } = createPartitionController(lookbackSlot);
+
+      // Create the committee partitions needed for the boundary-crossing epoch.
+      await partitionController.createPartitionForCommittee(boundaryEpoch);
+
+      // Parse the created committee partitions so ranges and hour suffixes can be asserted.
+      const committeePartitions = createdPartitions
+        .filter((partition) => partition.tableName === PARTITION_TABLE_NAMES.COMMITTEE)
+        .map((partition) => parseSlotPartitionName(partition.partitionName));
+
+      // Confirm the boundary-crossing epoch creates the 18:00 and 19:00 hour partitions.
+      expect(committeePartitions).toHaveLength(2);
+
+      // Confirm adjacent slot ranges meet without sharing a slot.
+      expect(committeePartitions[0]?.end).toBe(14265298);
+      expect(committeePartitions[1]?.start).toBe(14265299);
+
+      // Confirm the second partition is named for the 19:00 UTC hour.
+      expect(committeePartitions[1]?.datetime?.toISOString()).toBe('2026-05-05T19:00:00.000Z');
     });
   });
 });

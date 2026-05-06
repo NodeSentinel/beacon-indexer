@@ -120,8 +120,7 @@ export class PartitionController {
     // if endSlot is still within partitionOne, only 1 partition
     if (endSlot <= partitionOne.endSlot) return [partitionOne];
 
-    const partitionTwoFirstSlot = this.beaconTime.getSlotAtStartOfUTCHourContaining(endSlot);
-    if (partitionTwoFirstSlot === partitionOneFirstSlot) return [partitionOne]; // paranoia / safety
+    const partitionTwoFirstSlot = partitionOne.endSlot + 1;
 
     return [partitionOne, this.makeHourPartitionForSlot(tableNamePrefix, partitionTwoFirstSlot)];
   }

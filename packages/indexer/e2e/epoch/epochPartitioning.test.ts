@@ -251,10 +251,10 @@ describe('Partitioning by epoch', () => {
     it('should create partition aligned to UTC hour boundary using epochs', async () => {
       // Epoch 1586252: slots 25380032-25380047 (Dec-16-2025 13:58:20 - 13:59:35 UTC)
       // lookbackSlot: 25380000 (before this epoch)
-      // Expected partition: epoch_rewards_1586209-1586253_YYYYMMDDHH (UTC hour boundary for 13:00 UTC)
-      // Note: epoch 1586208 starts at 12:00 UTC, so first epoch in 13:00 UTC hour is 1586209
+      // Expected partition: epoch_rewards_1586250-1586253_YYYYMMDDHH (lookback epoch to 13:00 UTC hour end)
+      // Note: lookbackSlot 25380000 is inside epoch 1586250, so this first hour is partial.
       const epoch = 1586252;
-      const startEpoch = 1586209;
+      const startEpoch = 1586250;
       const endEpoch = 1586253;
 
       // Calculate UTC hour timestamp from the start epoch using real Gnosis chain data
@@ -278,7 +278,7 @@ describe('Partitioning by epoch', () => {
 
       expect(partitionExists[0]?.exists).toBe(true);
 
-      // Verify partition has correct range [1586209, 1586254)
+      // Verify partition has correct range [1586250, 1586254)
       const partitionInfo = await prisma.$queryRaw<Array<{ partition_expression: string }>>`
         SELECT pg_get_expr(c.relpartbound, c.oid) as partition_expression
         FROM pg_class c
@@ -287,7 +287,7 @@ describe('Partitioning by epoch', () => {
 
       expect(partitionInfo).toHaveLength(1);
       const expression = partitionInfo[0].partition_expression;
-      expect(expression).toContain('1586209');
+      expect(expression).toContain('1586250');
       expect(expression).toContain('1586254'); // exclusive end
 
       // Verify the partition is actually a child of epoch_rewards table
@@ -302,9 +302,9 @@ describe('Partitioning by epoch', () => {
     });
 
     it('should be idempotent - calling multiple times should not cause errors', async () => {
-      // Epoch 1586252 should create partition epoch_rewards_1586209-1586253_YYYYMMDDHH
+      // Epoch 1586252 should create partition epoch_rewards_1586250-1586253_YYYYMMDDHH
       const epoch = 1586252;
-      const startEpoch = 1586209;
+      const startEpoch = 1586250;
       const endEpoch = 1586253;
 
       // Calculate expected partition name using real Gnosis chain timestamps
