@@ -4,7 +4,7 @@ This package is the Next.js web app that consumes the API. Root project context:
 
 ## Setup and run
 
-- From repo root: `pnpm dev:app` (requires API built and running if calling it).
+- From repo root: `pnpm host:app` (requires API built and running if calling it).
 - From this package: `pnpm dev` (Next.js dev server).
 - Build: `pnpm build` (from root: `pnpm build:app`).
 

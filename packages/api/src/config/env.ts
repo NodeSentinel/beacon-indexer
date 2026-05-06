@@ -1,15 +1,12 @@
-import { config } from 'dotenv';
+import { createEnv } from '@t3-oss/env-core';
 import { z } from 'zod';
 
-/**
- * Validates the API environment variables.
- */
-export const envSchema = z.object({
+const serverEnv = {
   // Database
   DATABASE_URL: z.string().url(),
 
   // Server
-  PORT: z.coerce.number().int().positive().default(3000),
+  API_PORT: z.coerce.number().int().positive().default(3000),
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
 
   // Auth
@@ -33,29 +30,19 @@ export const envSchema = z.object({
   // Coingecko
   COINGECKO_TOKEN_PRICE_API_URL: z.string().url(),
   COINGECKO_TOKEN_NAME: z.string().min(1),
-});
-
-export type Env = z.infer<typeof envSchema>;
+};
 
 /**
- * Parses the environment from a raw object.
+ * Validates API runtime environment variables.
  */
-export function parseEnv(source: Record<string, string | undefined>): Env {
-  const parsed = envSchema.safeParse(source);
-
-  if (!parsed.success) {
-    console.error('❌ Invalid environment variables:', parsed.error.flatten().fieldErrors);
-    throw new Error('Invalid environment variables');
-  }
-
-  return parsed.data;
+export function parseApiEnv(runtimeEnv: Record<string, string | undefined> = process.env) {
+  return createEnv({
+    clientPrefix: 'IF_NOT_PROVIDED_IT_FAILS',
+    client: {},
+    server: serverEnv,
+    runtimeEnv,
+    emptyStringAsUndefined: true,
+  });
 }
 
-/**
- * Loads dotenv and parses the current process environment.
- */
-export function loadEnv(): Env {
-  config({ path: new URL('../../.env', import.meta.url) });
-
-  return parseEnv(process.env);
-}
+export const env = parseApiEnv();

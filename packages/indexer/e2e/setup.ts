@@ -1,5 +1,5 @@
 const E2E_DATABASE_URL =
-  'postgresql://e2e_user:e2e_password@localhost:5499/e2e_beacon?schema=public';
+  'postgresql://e2e_user:e2e_password@localhost:5440/e2e_beacon?schema=public';
 
 /**
  * Forces indexer e2e tests to use the local Docker test database.

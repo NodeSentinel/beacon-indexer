@@ -5,7 +5,7 @@ import { isOriginAllowed } from '@/auth/origin.js';
 import { createBotSignatureAuthenticator } from '@/auth/strategies/bot-signature.js';
 import { createTelegramAuthenticator } from '@/auth/strategies/telegram.js';
 import { createApiKeyAuthenticator } from '@/auth/strategies/token.js';
-import { parseEnv } from '@/config/env.js';
+import { parseApiEnv } from '@/config/env.js';
 import { SystemConfigController } from '@/controllers/systemConfig.js';
 import { ValidatorController } from '@/controllers/validator.js';
 import { createLogger } from '@/lib/logger.js';
@@ -120,25 +120,29 @@ export async function startE2EServer(overrides: E2EServerOverrides = {}): Promis
       ? await startTokenPriceStubServer({ tokenName })
       : null;
 
-  const env = parseEnv({
-    ...process.env,
-    ALLOWED_ORIGINS: overrides.allowedOrigins ?? process.env.ALLOWED_ORIGINS,
-    API_TOKEN_SECRET: overrides.apiTokenSecret ?? process.env.API_TOKEN_SECRET,
+  const env = parseApiEnv({
+    ALLOWED_ORIGINS: overrides.allowedOrigins ?? process.env.ALLOWED_ORIGINS!,
+    API_TOKEN_SECRET: overrides.apiTokenSecret ?? process.env.API_TOKEN_SECRET!,
     CHAIN: overrides.chain ?? process.env.CHAIN,
-    CONSENSUS_LOOKBACK_SLOT:
-      overrides.consensusLookbackSlot?.toString() ?? process.env.CONSENSUS_LOOKBACK_SLOT,
+    CONSENSUS_LOOKBACK_SLOT: String(
+      overrides.consensusLookbackSlot ?? process.env.CONSENSUS_LOOKBACK_SLOT ?? 0,
+    ),
     COINGECKO_TOKEN_PRICE_API_URL:
       overrides.tokenPriceApiUrl ??
       tokenPriceStub?.apiUrl ??
-      process.env.COINGECKO_TOKEN_PRICE_API_URL,
+      process.env.COINGECKO_TOKEN_PRICE_API_URL!,
     COINGECKO_TOKEN_NAME: tokenName,
-    DATABASE_URL: overrides.databaseUrl ?? process.env.DATABASE_URL,
-    NATIVE_TOKEN_DECIMALS:
-      overrides.nativeTokenDecimals?.toString() ?? process.env.NATIVE_TOKEN_DECIMALS,
-    TELEGRAM_BOT_TOKEN: overrides.telegramBotToken ?? process.env.TELEGRAM_BOT_TOKEN,
-    TELEGRAM_INIT_DATA_MAX_AGE_SECONDS:
-      overrides.telegramInitDataMaxAgeSeconds?.toString() ??
-      process.env.TELEGRAM_INIT_DATA_MAX_AGE_SECONDS,
+    DATABASE_URL: overrides.databaseUrl ?? process.env.DATABASE_URL!,
+    NATIVE_TOKEN_DECIMALS: String(
+      overrides.nativeTokenDecimals ?? process.env.NATIVE_TOKEN_DECIMALS ?? 18,
+    ),
+    NODE_ENV: process.env.NODE_ENV ?? 'test',
+    TELEGRAM_BOT_TOKEN: overrides.telegramBotToken ?? process.env.TELEGRAM_BOT_TOKEN!,
+    TELEGRAM_INIT_DATA_MAX_AGE_SECONDS: String(
+      overrides.telegramInitDataMaxAgeSeconds ??
+        process.env.TELEGRAM_INIT_DATA_MAX_AGE_SECONDS ??
+        60 * 60 * 24 * 7,
+    ),
   });
   const logger = createLogger({
     logLevel: 'silent',

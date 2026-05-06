@@ -1,5 +1,5 @@
 const E2E_DATABASE_URL =
-  'postgresql://e2e_user:e2e_password@localhost:5499/e2e_beacon?schema=public';
+  'postgresql://e2e_user:e2e_password@localhost:5440/e2e_beacon?schema=public';
 const E2E_API_TOKEN_SECRET = 'e2e-test-api-token-secret-1234567890';
 const E2E_TELEGRAM_BOT_TOKEN = 'e2e-test-telegram-bot-token';
 const E2E_ALLOWED_ORIGINS = 'http://localhost:3000';

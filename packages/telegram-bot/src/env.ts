@@ -1,9 +1,5 @@
 import { createEnv } from '@t3-oss/env-core';
-import { config } from 'dotenv';
 import { z } from 'zod';
-
-// Load environment variables from .env file in the telegram-bot package root
-config({ path: new URL('../.env', import.meta.url) });
 
 // Telegram allowed update types
 // https://core.telegram.org/bots/api#update
