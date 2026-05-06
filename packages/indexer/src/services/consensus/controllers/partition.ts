@@ -62,12 +62,13 @@ export class PartitionController {
   // Helper to create a partition for a UTC hour
   private makeHourPartitionForSlot(tableNamePrefix: string, startSlot: number): SlotPartitionInfo {
     const hourStartTs = this.beaconTime.getTimestampFromSlotNumber(startSlot);
-    const hourEndTs = hourStartTs + 3_600_000; // add 1 hour in milliseconds
-    const hourEndSlotExclusive = this.beaconTime.getSlotNumberFromTimestamp(hourEndTs);
-    const endSlot = hourEndSlotExclusive - 1; // Convert to inclusive
+    const hourTimestamp = getUTCDatetimeFlooredToHour(hourStartTs);
+    const hourEndTs = hourTimestamp.getTime() + 3_600_000; // add 1 hour in milliseconds
+    const hourEndSlot = this.beaconTime.getSlotNumberFromTimestamp(hourEndTs);
+    const hourEndSlotTs = this.beaconTime.getTimestampFromSlotNumber(hourEndSlot);
+    const endSlot = hourEndSlotTs === hourEndTs ? hourEndSlot - 1 : hourEndSlot;
 
     // Calculate UTC hour timestamp for datetime suffix
-    const hourTimestamp = getUTCDatetimeFlooredToHour(hourStartTs);
     const name = getPartitionName(tableNamePrefix, startSlot, endSlot, hourTimestamp);
 
     return {
@@ -82,12 +83,13 @@ export class PartitionController {
     tableName: string,
     startEpoch: number,
     endEpoch: number, // inclusive
+    hourTimestamp?: Date,
   ): EpochPartitionInfo {
     // Calculate UTC hour timestamp from start epoch for datetime suffix
     const epochTimestamp = this.beaconTime.getTimestampFromEpochNumber(startEpoch);
-    const hourTimestamp = getUTCDatetimeFlooredToHour(epochTimestamp);
+    const partitionHourTimestamp = hourTimestamp ?? getUTCDatetimeFlooredToHour(epochTimestamp);
 
-    const name = getPartitionName(tableName, startEpoch, endEpoch, hourTimestamp);
+    const name = getPartitionName(tableName, startEpoch, endEpoch, partitionHourTimestamp);
 
     return {
       name,
@@ -110,17 +112,61 @@ export class PartitionController {
     const firstSlotToProcess = Math.max(startSlot, this.beaconTime.getLookbackSlot());
     if (firstSlotToProcess > endSlot) return [];
 
-    const partitionOneFirstSlot =
-      this.beaconTime.getSlotAtStartOfUTCHourContaining(firstSlotToProcess);
+    // The first committee partition may start inside a UTC hour when lookbackSlot does.
+    const hourBoundarySlot = this.beaconTime.getSlotAtStartOfUTCHourContaining(firstSlotToProcess);
+    const partitionOneFirstSlot = Math.max(this.beaconTime.getLookbackSlot(), hourBoundarySlot);
     const partitionOne = this.makeHourPartitionForSlot(tableNamePrefix, partitionOneFirstSlot);
 
     // if endSlot is still within partitionOne, only 1 partition
-    if (endSlot < partitionOne.endSlot) return [partitionOne];
+    if (endSlot <= partitionOne.endSlot) return [partitionOne];
 
     const partitionTwoFirstSlot = this.beaconTime.getSlotAtStartOfUTCHourContaining(endSlot);
     if (partitionTwoFirstSlot === partitionOneFirstSlot) return [partitionOne]; // paranoia / safety
 
     return [partitionOne, this.makeHourPartitionForSlot(tableNamePrefix, partitionTwoFirstSlot)];
+  }
+
+  /**
+   * Checks whether a UTC hour is the first hour that contains indexed data.
+   */
+  private isLookbackHour(hourStartDate: Date): boolean {
+    const lookbackSlot = this.beaconTime.getLookbackSlot();
+    const lookbackSlotTimestamp = this.beaconTime.getTimestampFromSlotNumber(lookbackSlot);
+    const lookbackHourStart = getUTCDatetimeFlooredToHour(lookbackSlotTimestamp);
+
+    return lookbackHourStart.getTime() === hourStartDate.getTime();
+  }
+
+  /**
+   * Calculates the epoch_rewards partition for the first partial UTC hour.
+   */
+  private calculateLookbackHourEpochPartition(
+    tableNamePrefix: string,
+    hourStartDate: Date,
+  ): EpochPartitionInfo {
+    const lookbackSlot = this.beaconTime.getLookbackSlot();
+    const lookbackEpoch = this.beaconTime.getEpochFromSlot(lookbackSlot);
+    const nextHourTimestamp = hourStartDate.getTime() + 3_600_000;
+    const endEpochExclusive = this.beaconTime.getFirstEpochStartingAtOrAfter(nextHourTimestamp);
+    const endEpoch = endEpochExclusive - 1;
+
+    return this.makeEpochPartition(tableNamePrefix, lookbackEpoch, endEpoch, hourStartDate);
+  }
+
+  /**
+   * Calculates the epoch_rewards partition for a regular full UTC hour.
+   */
+  private calculateRegularHourEpochPartition(
+    tableNamePrefix: string,
+    hourStartDate: Date,
+  ): EpochPartitionInfo {
+    const hourStartTimestamp = hourStartDate.getTime();
+    const nextHourTimestamp = hourStartTimestamp + 3_600_000;
+    const startEpoch = this.beaconTime.getFirstEpochStartingAtOrAfter(hourStartTimestamp);
+    const endEpochExclusive = this.beaconTime.getFirstEpochStartingAtOrAfter(nextHourTimestamp);
+    const endEpoch = endEpochExclusive - 1;
+
+    return this.makeEpochPartition(tableNamePrefix, startEpoch, endEpoch, hourStartDate);
   }
 
   /**
@@ -156,20 +202,20 @@ export class PartitionController {
    * even if it ends at 14:01.
    */
   private calculateEpochPartition(epoch: number, tableNamePrefix: string): EpochPartitionInfo {
-    // Use the epoch's start timestamp directly
-    const epochTimestamp = this.beaconTime.getTimestampFromEpochNumber(epoch);
+    const { startSlot } = this.beaconTime.getEpochSlots(epoch);
+    const lookbackSlot = this.beaconTime.getLookbackSlot();
+    const firstSlotToProcess = Math.max(startSlot, lookbackSlot);
 
-    // Round to UTC hour boundary using existing helper
+    // Use indexed data time, not epoch start time, for the first partial lookback hour.
+    const epochTimestamp = this.beaconTime.getTimestampFromSlotNumber(firstSlotToProcess);
     const hourStartDate = getUTCDatetimeFlooredToHour(epochTimestamp);
-    const hourStartTimestamp = hourStartDate.getTime();
-    const nextHourTimestamp = hourStartTimestamp + 3_600_000; // add 1 hour
 
-    // Get first epoch starting at or after each hour boundary
-    const startEpoch = this.beaconTime.getFirstEpochStartingAtOrAfter(hourStartTimestamp);
-    const endEpochExclusive = this.beaconTime.getFirstEpochStartingAtOrAfter(nextHourTimestamp);
-    const endEpoch = endEpochExclusive - 1; // Convert to inclusive
+    // The first lookback hour can include an epoch that started before the UTC hour.
+    if (this.isLookbackHour(hourStartDate)) {
+      return this.calculateLookbackHourEpochPartition(tableNamePrefix, hourStartDate);
+    }
 
-    return this.makeEpochPartition(tableNamePrefix, startEpoch, endEpoch);
+    return this.calculateRegularHourEpochPartition(tableNamePrefix, hourStartDate);
   }
 
   /**
