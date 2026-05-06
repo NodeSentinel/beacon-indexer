@@ -72,9 +72,9 @@ describe('Partitioning by epoch', () => {
     it('should create partition aligned to UTC hour boundary', async () => {
       // Epoch 1586252: slots 25380032-25380047 (Dec-16-2025 13:58:20 - 13:59:35 UTC)
       // lookbackSlot: 25380000 (before this epoch)
-      // Expected partition: committee_25379332-25380051_YYYYMMDDHH (UTC hour boundary for 13:00 UTC)
+      // Expected partition: committee_25380000-25380051_YYYYMMDDHH (lookback to 13:00 UTC hour end)
       const epoch = 1586252;
-      const startSlot = 25379332;
+      const startSlot = 25380000;
       const endSlot = 25380051;
 
       // Calculate UTC hour timestamp from the start slot using real Gnosis chain data
@@ -98,7 +98,7 @@ describe('Partitioning by epoch', () => {
 
       expect(partitionExists[0]?.exists).toBe(true);
 
-      // Verify partition has correct range [25379332, 25380052)
+      // Verify partition has correct range [25380000, 25380052)
       const partitionInfo = await prisma.$queryRaw<Array<{ partition_expression: string }>>`
         SELECT pg_get_expr(c.relpartbound, c.oid) as partition_expression
         FROM pg_class c
@@ -107,7 +107,7 @@ describe('Partitioning by epoch', () => {
 
       expect(partitionInfo).toHaveLength(1);
       const expression = partitionInfo[0].partition_expression;
-      expect(expression).toContain('25379332');
+      expect(expression).toContain('25380000');
       expect(expression).toContain('25380052'); // exclusive end
 
       // Verify the partition is actually a child of committee table
@@ -125,12 +125,12 @@ describe('Partitioning by epoch', () => {
       // Epoch 1586253: slots 25380048-25380063 (Dec-16-2025 01:59:40 PM +UTC - 02:00:55 PM +UTC)
       // (crosses UTC hour boundary from 13:00 to 14:00)
       // Expected partitions:
-      // - committee_25379332-25380051_YYYYMMDDHH (13:00 UTC hour)
+      // - committee_25380000-25380051_YYYYMMDDHH (lookback to 13:00 UTC hour end)
       // - committee_25380052-25380771_YYYYMMDDHH (14:00 UTC hour)
       const epoch = 1586253;
 
       // Calculate expected partition names using real Gnosis chain timestamps
-      const startSlot0 = 25379332;
+      const startSlot0 = 25380000;
       const endSlot0 = 25380051;
       const startSlot0Timestamp = beaconTimeWithLookback.getTimestampFromSlotNumber(startSlot0);
       const hourTimestamp0 = getUTCDatetimeFlooredToHour(startSlot0Timestamp);
@@ -184,16 +184,16 @@ describe('Partitioning by epoch', () => {
         WHERE c.relname = ${expectedPartition1Name}
       `;
 
-      expect(partition0Info[0].partition_expression).toContain('25379332');
+      expect(partition0Info[0].partition_expression).toContain('25380000');
       expect(partition0Info[0].partition_expression).toContain('25380052'); // exclusive end
       expect(partition1Info[0].partition_expression).toContain('25380052');
       expect(partition1Info[0].partition_expression).toContain('25380772'); // exclusive end
     });
 
     it('should be idempotent - calling multiple times should not cause errors', async () => {
-      // Epoch 1586252 should create partition committee_25379332-25380051_YYYYMMDDHH
+      // Epoch 1586252 should create partition committee_25380000-25380051_YYYYMMDDHH
       const epoch = 1586252;
-      const startSlot = 25379332;
+      const startSlot = 25380000;
       const endSlot = 25380051;
 
       // Calculate expected partition name using real Gnosis chain timestamps
@@ -251,10 +251,10 @@ describe('Partitioning by epoch', () => {
     it('should create partition aligned to UTC hour boundary using epochs', async () => {
       // Epoch 1586252: slots 25380032-25380047 (Dec-16-2025 13:58:20 - 13:59:35 UTC)
       // lookbackSlot: 25380000 (before this epoch)
-      // Expected partition: epoch_rewards_1586209-1586253_YYYYMMDDHH (UTC hour boundary for 13:00 UTC)
-      // Note: epoch 1586208 starts at 12:00 UTC, so first epoch in 13:00 UTC hour is 1586209
+      // Expected partition: epoch_rewards_1586250-1586253_YYYYMMDDHH (lookback epoch to 13:00 UTC hour end)
+      // Note: lookbackSlot 25380000 is inside epoch 1586250, so this first hour is partial.
       const epoch = 1586252;
-      const startEpoch = 1586209;
+      const startEpoch = 1586250;
       const endEpoch = 1586253;
 
       // Calculate UTC hour timestamp from the start epoch using real Gnosis chain data
@@ -278,7 +278,7 @@ describe('Partitioning by epoch', () => {
 
       expect(partitionExists[0]?.exists).toBe(true);
 
-      // Verify partition has correct range [1586209, 1586254)
+      // Verify partition has correct range [1586250, 1586254)
       const partitionInfo = await prisma.$queryRaw<Array<{ partition_expression: string }>>`
         SELECT pg_get_expr(c.relpartbound, c.oid) as partition_expression
         FROM pg_class c
@@ -287,7 +287,7 @@ describe('Partitioning by epoch', () => {
 
       expect(partitionInfo).toHaveLength(1);
       const expression = partitionInfo[0].partition_expression;
-      expect(expression).toContain('1586209');
+      expect(expression).toContain('1586250');
       expect(expression).toContain('1586254'); // exclusive end
 
       // Verify the partition is actually a child of epoch_rewards table
@@ -302,9 +302,9 @@ describe('Partitioning by epoch', () => {
     });
 
     it('should be idempotent - calling multiple times should not cause errors', async () => {
-      // Epoch 1586252 should create partition epoch_rewards_1586209-1586253_YYYYMMDDHH
+      // Epoch 1586252 should create partition epoch_rewards_1586250-1586253_YYYYMMDDHH
       const epoch = 1586252;
-      const startEpoch = 1586209;
+      const startEpoch = 1586250;
       const endEpoch = 1586253;
 
       // Calculate expected partition name using real Gnosis chain timestamps
