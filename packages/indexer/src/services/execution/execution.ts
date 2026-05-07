@@ -33,7 +33,7 @@ export class ExecutionClient {
   constructor(config: ExecutionClientConfig) {
     this.config = config;
     this.limiter = pLimit(config.requestsPerSecond);
-    this.axiosInstance = axios.create({ timeout: ms('2.5s') });
+    this.axiosInstance = axios.create();
 
     // Log every execution RPC request before it is sent.
     this.axiosInstance.interceptors.request.use(async (config: InternalAxiosRequestConfig) => {
@@ -99,15 +99,21 @@ export class ExecutionClient {
     const batchRes = await this.limiter(() =>
       this.axiosInstance.post<
         Array<JsonRpcResponse<RpcBlock> | JsonRpcResponse<RpcTransactionReceipt[]>>
-      >(url, [
+      >(
+        url,
+        [
+          {
+            jsonrpc: '2.0',
+            id: 1,
+            method: 'eth_getBlockByNumber',
+            params: [hexBlock, false],
+          },
+          { jsonrpc: '2.0', id: 2, method: 'eth_getBlockReceipts', params: [hexBlock] },
+        ],
         {
-          jsonrpc: '2.0',
-          id: 1,
-          method: 'eth_getBlockByNumber',
-          params: [hexBlock, false],
+          timeout: ms('5s'),
         },
-        { jsonrpc: '2.0', id: 2, method: 'eth_getBlockReceipts', params: [hexBlock] },
-      ]),
+      ),
     );
 
     const responses = batchRes.data;

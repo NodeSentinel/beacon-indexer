@@ -218,6 +218,10 @@ export class BeaconClient extends ReliableRequestClient {
       const res = await this.axiosInstance.post<GetValidatorsBalances>(
         `${url}/eth/v1/beacon/states/${stateId}/validator_balances`,
         validatorIndexes,
+        {
+          // Timeout is 20% above the largest observed slow validator state response.
+          timeout: 9_000,
+        },
       );
       return res.data.data;
     }, 'archive');
@@ -238,6 +242,10 @@ export class BeaconClient extends ReliableRequestClient {
           ids: validatorIndexes,
           statuses,
         },
+        {
+          // Timeout is 20% above the largest observed slow validator state response.
+          timeout: 9_000,
+        },
       );
       return res.data.data;
     }, 'archive');
@@ -254,6 +262,10 @@ export class BeaconClient extends ReliableRequestClient {
       const res = await this.axiosInstance.post<AttestationRewards>(
         `${url}/eth/v1/beacon/rewards/attestations/${epoch}`,
         validatorIndexes.map((id) => id.toString()),
+        {
+          // Timeout is 20% above the largest observed slow attestation rewards response.
+          timeout: 9_000,
+        },
       );
       return res.data;
     }, 'archive');
@@ -276,6 +288,10 @@ export class BeaconClient extends ReliableRequestClient {
       async (url) => {
         const res = await this.axiosInstance.get<BlockRewards>(
           `${url}/eth/v1/beacon/rewards/blocks/${slot}`,
+          {
+            // Timeout is 20% above the largest observed slow block rewards response.
+            timeout: 11_000,
+          },
         );
         return res.data;
       },
@@ -296,6 +312,10 @@ export class BeaconClient extends ReliableRequestClient {
         const res = await this.axiosInstance.post<SyncCommitteeRewards>(
           `${url}/eth/v1/beacon/rewards/sync_committee/${slot}`,
           validatorIndexes,
+          {
+            // Timeout is 20% above the largest observed slow sync committee rewards response.
+            timeout: 11_000,
+          },
         );
         return res.data;
       },
