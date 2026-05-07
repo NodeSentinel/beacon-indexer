@@ -220,7 +220,7 @@ export class BeaconClient extends ReliableRequestClient {
         validatorIndexes,
         {
           // Timeout is 20% above the largest observed slow validator state response.
-          timeout: 9_000,
+          timeout: 15_000,
         },
       );
       return res.data.data;
@@ -243,8 +243,7 @@ export class BeaconClient extends ReliableRequestClient {
           statuses,
         },
         {
-          // Timeout is 20% above the largest observed slow validator state response.
-          timeout: 9_000,
+          timeout: 15_000,
         },
       );
       return res.data.data;
