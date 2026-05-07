@@ -119,7 +119,8 @@ export function ValidatorInputField({
   onKeyDown,
   validationState,
 }: ValidatorInputFieldProps) {
-  const isLoading = validationState === 'validating' || isSearching;
+  const hasInput = inputValue.trim().length > 0;
+  const isLoading = hasInput && (validationState === 'validating' || isSearching);
 
   return (
     <div className="space-y-2">

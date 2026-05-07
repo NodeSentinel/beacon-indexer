@@ -31,6 +31,9 @@ export function WithdrawalAddressCard({
       {/* Header */}
       <div className="flex items-center gap-2 px-3 py-2 bg-muted/30 border-b border-border/50 group">
         <div className="flex-1 min-w-0">
+          <span className="text-[10px] font-medium text-muted-foreground block">
+            Withdrawal address
+          </span>
           <span className="font-mono text-xs truncate block">{address}</span>
           <span className="text-[10px] text-muted-foreground">
             {validators.length} of {totalCount} validators

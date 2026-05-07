@@ -156,8 +156,9 @@ export function useValidatorInput({
   }, [knownWithdrawalAddresses, discoveredWithdrawalAddresses]);
 
   // Fetch validators for all withdrawal addresses (known + discovered)
-  const { isLoading: isLoadingAddresses, validatorsByWithdrawalAddress } =
-    useGetValidatorsFromWithdrawalAddresses(allWithdrawalAddressesToFetch);
+  const { validatorsByWithdrawalAddress } = useGetValidatorsFromWithdrawalAddresses(
+    allWithdrawalAddressesToFetch,
+  );
 
   // Compute all unique withdrawal addresses from current validators
   const allWithdrawalAddresses = useMemo(() => {
@@ -222,8 +223,7 @@ export function useValidatorInput({
     searchByPubkey.isPending ||
     searchByPubkeys.isPending ||
     searchByWithdrawal.isPending ||
-    searchByWithdrawalAddresses.isPending ||
-    isLoadingAddresses;
+    searchByWithdrawalAddresses.isPending;
 
   const handleAddValidator = async () => {
     if (!inputValue.trim()) return;
