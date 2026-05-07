@@ -155,6 +155,8 @@ export default tseslint.config(
       // Package-specific patterns
       'packages/db/dist/**',
       'packages/db/generated/**',
+      // Next genera este archivo y puede cambiarlo fuera del control del lint.
+      'packages/webapp/next-env.d.ts',
       'packages/indexer/dist/**',
     ],
   },
