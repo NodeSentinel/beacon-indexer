@@ -1,6 +1,6 @@
+import AlertConfiguration from '@/components/cluster/alert-configuration';
 import DashboardPageLayout from '@/components/dashboard/layout';
 import GearIcon from '@/components/icons/gear';
-import AlertConfiguration from '@/components/validators/alert-configuration';
 import type { ValidatorData } from '@/types/validator';
 import validatorMockJson from '@/validator-mock.json';
 

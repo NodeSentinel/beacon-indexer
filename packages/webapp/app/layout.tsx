@@ -8,8 +8,8 @@ import './globals.css';
 
 import type React from 'react';
 
+import ValidatorHeader from '@/components/cluster/validator-header';
 import { TelegramProvider } from '@/components/telegram/TelegramProvider';
-import ValidatorHeader from '@/components/validators/validator-header';
 import { QueryProvider } from '@/lib/query-provider';
 import { V0Provider } from '@/lib/v0-context';
 

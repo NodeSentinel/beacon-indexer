@@ -6,6 +6,9 @@ import { useEffect, useState } from 'react';
 import type React from 'react';
 import { isAddress } from 'viem';
 
+import { DeleteClusterDialog } from '@/components/cluster/cluster-form/delete-cluster-dialog';
+import { FeeRecipientInput } from '@/components/cluster/cluster-form/fee-recipient-input';
+import { ValidatorInput } from '@/components/cluster/cluster-form/validator-input';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -16,9 +19,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { DeleteClusterDialog } from '@/components/validators/cluster-form/delete-cluster-dialog';
-import { FeeRecipientInput } from '@/components/validators/cluster-form/fee-recipient-input';
-import { ValidatorInput } from '@/components/validators/cluster-form/validator-input';
 import {
   useCluster,
   useCreateCluster,

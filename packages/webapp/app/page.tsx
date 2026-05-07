@@ -2,11 +2,11 @@
 
 import { useMemo, useState } from 'react';
 
+import ClusterForm from '@/components/cluster/cluster-form';
+import NotificationBanner, { type Notification } from '@/components/cluster/notification-banner';
+import UserDashboard from '@/components/cluster/user-dashboard';
 import ChainStatistics from '@/components/dashboard/chain-statistics';
 import { Sheet, SheetContent, SheetTitle } from '@/components/ui/sheet';
-import ClusterForm from '@/components/validators/cluster-form';
-import NotificationBanner, { type Notification } from '@/components/validators/notification-banner';
-import UserDashboard from '@/components/validators/user-dashboard';
 import { useClusters } from '@/hooks/use-clusters';
 import { toClusterList } from '@/lib/cluster-adapter';
 import { useUserId } from '@/lib/user-id';
