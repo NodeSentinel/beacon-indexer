@@ -32,6 +32,7 @@ export function ValidatorInput({
     closeBulkAction,
     errorMessage,
     handleAddValidator,
+    handleCategoryChange,
     handleConfirmBulkAdd,
     handleConfirmBulkRemove,
     handleInputChange,
@@ -41,6 +42,7 @@ export function ValidatorInput({
     isSearching,
     missingValidatorsByAddress,
     removeValidator,
+    selectedSearchCategory,
     validationState,
     validatorsByAddress,
   } = useValidatorInput({
@@ -53,12 +55,14 @@ export function ValidatorInput({
     <div className="space-y-4">
       <ValidatorInputField
         inputValue={inputValue}
+        selectedCategory={selectedSearchCategory}
         validationState={validationState}
         errorMessage={errorMessage}
         isSearching={isSearching}
         isMobile={isMobile}
         helpDialogOpen={helpDialogOpen}
         onHelpDialogChange={setHelpDialogOpen}
+        onCategoryChange={handleCategoryChange}
         onInputChange={handleInputChange}
         onKeyDown={handleKeyDown}
         onAdd={handleAddValidator}

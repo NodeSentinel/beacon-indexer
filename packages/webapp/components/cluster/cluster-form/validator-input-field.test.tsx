@@ -13,15 +13,41 @@ import { WithdrawalAddressCard } from './withdrawal-address-card';
 const noop = () => {};
 
 describe('ValidatorInputField', () => {
+  it('renders category tabs without the unsupported lido category', () => {
+    const markup = renderToStaticMarkup(
+      <ValidatorInputField
+        inputValue=""
+        selectedCategory="index"
+        validationState="idle"
+        errorMessage=""
+        isSearching={false}
+        isMobile={false}
+        helpDialogOpen={false}
+        onCategoryChange={noop}
+        onHelpDialogChange={noop}
+        onInputChange={noop}
+        onKeyDown={noop}
+        onAdd={noop}
+      />,
+    );
+
+    assert.match(markup, /Index/);
+    assert.match(markup, /Pub Key/);
+    assert.match(markup, /Withdrawal/);
+    assert.doesNotMatch(markup, /Lido/);
+  });
+
   it('keeps the add button label stable when the empty input has background loading', () => {
     const markup = renderToStaticMarkup(
       <ValidatorInputField
         inputValue=""
+        selectedCategory="index"
         validationState="idle"
         errorMessage=""
         isSearching
         isMobile={false}
         helpDialogOpen={false}
+        onCategoryChange={noop}
         onHelpDialogChange={noop}
         onInputChange={noop}
         onKeyDown={noop}

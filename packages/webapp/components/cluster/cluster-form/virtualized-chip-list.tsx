@@ -20,7 +20,7 @@ export function VirtualizedChipList({ maxHeight, onRemoveValidator, validators }
         {validators.map((validator) => (
           <ValidatorChip
             key={validator.id}
-            index={validator.index}
+            validator={validator}
             onRemove={() => onRemoveValidator(validator.id)}
           />
         ))}

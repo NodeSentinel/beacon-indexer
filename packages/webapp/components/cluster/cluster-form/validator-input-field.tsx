@@ -1,6 +1,6 @@
 'use client';
 
-import { Check, HelpCircle, Loader2, X } from 'lucide-react';
+import { Check, Hash, HelpCircle, KeyRound, Loader2, WalletCards, X } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import {
@@ -14,21 +14,51 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { cn } from '@/lib/utils';
+import type { ValidatorSearchCategory } from '@/lib/validator-search-input';
 
 type ValidationState = 'idle' | 'validating' | 'valid' | 'invalid';
 
 interface ValidatorInputFieldProps {
   inputValue: string;
+  selectedCategory: ValidatorSearchCategory;
   validationState: ValidationState;
   errorMessage: string;
   isSearching: boolean;
   isMobile: boolean;
   helpDialogOpen: boolean;
+  onCategoryChange: (category: ValidatorSearchCategory) => void;
   onHelpDialogChange: (open: boolean) => void;
   onInputChange: (value: string) => void;
   onKeyDown: (e: React.KeyboardEvent<HTMLInputElement>) => void;
   onAdd: () => void;
 }
+
+const CATEGORY_OPTIONS: Array<{
+  value: ValidatorSearchCategory;
+  label: string;
+  placeholder: string;
+  icon: typeof Hash;
+}> = [
+  {
+    value: 'index',
+    label: 'Index',
+    placeholder: 'Enter validator index (e.g., 1631439)',
+    icon: Hash,
+  },
+  {
+    value: 'pubkey',
+    label: 'Pub Key',
+    placeholder: 'Enter validator public key',
+    icon: KeyRound,
+  },
+  {
+    value: 'withdrawalAddress',
+    label: 'Withdrawal',
+    placeholder: 'Enter withdrawal address',
+    icon: WalletCards,
+  },
+];
 
 function HelpContent() {
   return (
@@ -114,29 +144,62 @@ export function ValidatorInputField({
   isMobile,
   isSearching,
   onAdd,
+  onCategoryChange,
   onHelpDialogChange,
   onInputChange,
   onKeyDown,
+  selectedCategory,
   validationState,
 }: ValidatorInputFieldProps) {
   const hasInput = inputValue.trim().length > 0;
   const isLoading = hasInput && (validationState === 'validating' || isSearching);
+  const activeCategory = CATEGORY_OPTIONS.find((category) => category.value === selectedCategory);
+  const ActiveIcon = activeCategory?.icon ?? Hash;
 
   return (
-    <div className="space-y-2">
+    <div className="space-y-4">
       <div className="flex items-center gap-2">
-        <Label htmlFor="validator-input">Validators</Label>
+        <Label htmlFor="validator-input" className="text-lg font-bold">
+          Validators
+        </Label>
         <HelpButton isMobile={isMobile} open={helpDialogOpen} onOpenChange={onHelpDialogChange} />
       </div>
-      <div className="flex gap-2">
+
+      <div className="grid grid-cols-3 gap-1 rounded-xl bg-muted p-1">
+        {CATEGORY_OPTIONS.map((category) => {
+          const Icon = category.icon;
+          const isSelected = selectedCategory === category.value;
+
+          return (
+            <button
+              key={category.value}
+              type="button"
+              onClick={() => onCategoryChange(category.value)}
+              className={cn(
+                'flex h-12 items-center justify-center gap-2 rounded-lg px-2 text-sm font-bold transition-colors sm:text-base',
+                isSelected
+                  ? 'bg-background text-foreground shadow-sm'
+                  : 'text-muted-foreground hover:text-foreground',
+              )}
+              aria-pressed={isSelected}
+            >
+              <Icon className="size-5" />
+              <span>{category.label}</span>
+            </button>
+          );
+        })}
+      </div>
+
+      <div className="flex gap-3">
         <div className="relative flex-1">
+          <ActiveIcon className="pointer-events-none absolute left-4 top-1/2 size-5 -translate-y-1/2 text-muted-foreground" />
           <Input
             id="validator-input"
             value={inputValue}
             onChange={(e) => onInputChange(e.target.value)}
             onKeyDown={onKeyDown}
-            placeholder="Index, public key, or withdrawal address"
-            className={`pr-10 ${
+            placeholder={activeCategory?.placeholder}
+            className={`h-14 rounded-xl pl-12 pr-10 text-base shadow-sm ${
               validationState === 'valid'
                 ? 'border-green-500'
                 : validationState === 'invalid'
@@ -157,6 +220,7 @@ export function ValidatorInputField({
           onClick={onAdd}
           disabled={!inputValue.trim() || isLoading}
           variant="secondary"
+          className="h-14 rounded-xl px-6 text-base normal-case"
         >
           {isLoading ? 'Adding...' : 'Add'}
         </Button>

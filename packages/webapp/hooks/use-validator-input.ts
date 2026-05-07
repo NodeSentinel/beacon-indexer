@@ -1,7 +1,6 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { isAddress, isHex, size } from 'viem';
 
 import { useToast } from '@/hooks/use-toast';
 import {
@@ -13,6 +12,10 @@ import {
   useSearchByWithdrawalAddress,
   useSearchByWithdrawalAddresses,
 } from '@/hooks/use-validator-search';
+import {
+  parseValidatorSearchInput,
+  type ValidatorSearchCategory,
+} from '@/lib/validator-search-input';
 
 export type ValidatorItem = {
   id: string;
@@ -32,77 +35,12 @@ export type BulkAction = {
   validators: ValidatorItem[];
 } | null;
 
-type InputType = 'index' | 'pubkey' | 'withdrawalAddress' | 'unknown';
-
 const BULK_ADD_THRESHOLD = 10;
 
 interface UseValidatorInputProps {
   validators: ValidatorItem[];
   onValidatorsChange: (validators: ValidatorItem[]) => void;
   withdrawalAddresses?: string[];
-}
-
-/**
- * Detect the type of a single input value
- */
-function detectInputType(value: string): InputType {
-  const trimmed = value.trim();
-  if (!trimmed) return 'unknown';
-
-  // Check if it's a validator index (number)
-  if (/^\d+$/.test(trimmed)) {
-    return 'index';
-  }
-
-  // Check if it's a pubkey (48 bytes = 96 hex chars, with 0x prefix = 98 chars)
-  if (isHex(trimmed, { strict: true }) && size(trimmed) === 48) {
-    return 'pubkey';
-  }
-
-  // Check if it's a withdrawal address (0x + 40 hex chars)
-  if (isAddress(trimmed)) {
-    return 'withdrawalAddress';
-  }
-
-  return 'unknown';
-}
-
-/**
- * Parse comma-separated input and detect types
- * Returns null if types are mixed or invalid
- */
-function parseInput(input: string): {
-  type: InputType;
-  values: string[];
-  invalidValues: string[];
-} | null {
-  const parts = input
-    .split(',')
-    .map((s) => s.trim())
-    .filter((s) => s.length > 0);
-
-  if (parts.length === 0) {
-    return null;
-  }
-
-  const types = parts.map((p) => detectInputType(p));
-  const validTypes = types.filter((t) => t !== 'unknown');
-  const uniqueTypes = [...new Set(validTypes)];
-
-  // Check for mixed types
-  if (uniqueTypes.length > 1) {
-    return null; // Mixed types
-  }
-
-  const type = uniqueTypes[0] || 'unknown';
-  const invalidValues = parts.filter((_, i) => types[i] === 'unknown');
-  const validValues = parts.filter((_, i) => types[i] !== 'unknown');
-
-  return {
-    type,
-    values: validValues,
-    invalidValues,
-  };
 }
 
 /**
@@ -131,6 +69,8 @@ export function useValidatorInput({
   const [validationState, setValidationState] = useState<ValidationState>('idle');
   const [errorMessage, setErrorMessage] = useState('');
   const [bulkAction, setBulkAction] = useState<BulkAction>(null);
+  const [selectedSearchCategory, setSelectedSearchCategory] =
+    useState<ValidatorSearchCategory>('index');
 
   // Track withdrawal addresses discovered when adding validators by index/pubkey
   // These are addresses not in knownWithdrawalAddresses but found from validators added
@@ -234,20 +174,12 @@ export function useValidatorInput({
     const trimmed = inputValue.trim();
 
     try {
-      // Parse input to detect type and values
-      const parsed = parseInput(trimmed);
+      // Parse input according to the selected search category.
+      const parsed = parseValidatorSearchInput(trimmed, selectedSearchCategory);
 
       if (!parsed) {
         setValidationState('invalid');
-        setErrorMessage(
-          'Cannot mix different input types. Use only indexes, pubkeys, or addresses.',
-        );
-        return;
-      }
-
-      if (parsed.type === 'unknown') {
-        setValidationState('invalid');
-        setErrorMessage('Invalid format. Enter validator index, public key, or withdrawal address');
+        setErrorMessage('Enter a validator search value');
         return;
       }
 
@@ -322,7 +254,7 @@ export function useValidatorInput({
         .filter((r) => !existingIndexes.has(r.index))
         .map((r, i) => ({
           id: `${Date.now()}-${i}`,
-          type: parsed.type === 'pubkey' ? ('pubkey' as const) : ('index' as const),
+          type: 'index' as const,
           value: r.index.toString(),
           index: r.index,
           displayName: `Validator #${r.index}`,
@@ -521,6 +453,13 @@ export function useValidatorInput({
     setErrorMessage('');
   };
 
+  const handleCategoryChange = (category: ValidatorSearchCategory) => {
+    setSelectedSearchCategory(category);
+    setInputValue('');
+    setValidationState('idle');
+    setErrorMessage('');
+  };
+
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') {
       e.preventDefault();
@@ -534,6 +473,7 @@ export function useValidatorInput({
     // State
     validators,
     inputValue,
+    selectedSearchCategory,
     validationState,
     errorMessage,
     bulkAction,
@@ -550,6 +490,7 @@ export function useValidatorInput({
     removeValidator,
     addMissingValidators,
     handleInputChange,
+    handleCategoryChange,
     handleKeyDown,
     closeBulkAction,
   };
