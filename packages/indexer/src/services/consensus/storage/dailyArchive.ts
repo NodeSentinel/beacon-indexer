@@ -206,7 +206,7 @@ export class DailyArchiveStorage {
         `;
       },
       {
-        timeout: ms('30m'),
+        timeout: ms('45m'),
       },
     );
   }
