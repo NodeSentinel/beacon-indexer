@@ -103,6 +103,23 @@ export class SlotController extends SlotControllerHelpers {
   }
 
   /**
+   * Start fetching block rewards before the slot reaches the normal processing path.
+   */
+  prefetchBlockRewards(slot: number) {
+    this.beaconClient.prefetchBlockRewards(slot);
+  }
+
+  /**
+   * Start fetching sync committee rewards before the slot reaches the normal processing path.
+   */
+  async prefetchSyncCommitteeRewards(slot: number) {
+    const epoch = this.beaconTime.getEpochFromSlot(slot);
+    const validators = await this.slotStorage.getSyncCommitteeValidators(epoch);
+
+    this.beaconClient.prefetchSyncCommitteeRewards(slot, validators);
+  }
+
+  /**
    * Process attestations for a slot
    * Checks if already processed before processing.
    * Throws an error if committee sizes are not available for all slots.
