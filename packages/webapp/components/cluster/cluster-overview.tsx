@@ -4,6 +4,8 @@ import { Settings } from 'lucide-react';
 
 import DashboardCard from '@/components/dashboard/card';
 import { Button } from '@/components/ui/button';
+import { env } from '@/env';
+import { getTokenSymbol } from '@/lib/utils';
 import type { Cluster } from '@/types/cluster';
 import type { Stats } from '@/types/validator';
 
@@ -73,6 +75,9 @@ export default function ClusterOverview({
   };
 
   const totalValidators = cluster.validatorCount ?? cluster.validators.length;
+  const tokenSymbol = getTokenSymbol(env.NEXT_PUBLIC_CHAIN);
+  const executionTokenSymbol = env.NEXT_PUBLIC_CHAIN === 'gnosis' ? 'xDAI' : tokenSymbol;
+  const balanceDecimals = env.NEXT_PUBLIC_CHAIN === 'ethereum' ? 4 : 2;
 
   const balanceUsd = (cluster.totalBalance * gnoPrice).toFixed(2);
   const effectiveBalanceUsd = (cluster.totalEffectiveBalance * gnoPrice).toFixed(0);
@@ -118,21 +123,21 @@ export default function ClusterOverview({
           <div>
             <p className="text-xs text-muted-foreground mb-0.5 md:mb-1">BALANCE</p>
             <span className="text-base md:text-xl font-display">
-              {cluster.totalBalance.toFixed(2)} GNO
+              {cluster.totalBalance.toFixed(balanceDecimals)} {tokenSymbol}
             </span>
             <p className="text-xs text-muted-foreground">${balanceUsd}</p>
           </div>
           <div>
             <p className="text-xs text-muted-foreground mb-0.5 md:mb-1">EFFECTIVE BALANCE</p>
             <span className="text-base md:text-xl font-display">
-              {cluster.totalEffectiveBalance.toFixed(0)} GNO
+              {cluster.totalEffectiveBalance.toFixed(0)} {tokenSymbol}
             </span>
             <p className="text-xs text-muted-foreground">${effectiveBalanceUsd}</p>
           </div>
           <div className="col-span-2 md:col-span-1">
             <p className="text-xs text-muted-foreground mb-0.5 md:mb-1">CLAIMABLE</p>
             <span className="text-base md:text-xl font-display text-white">
-              {cluster.claimableRewards.toFixed(2)} GNO
+              {cluster.claimableRewards.toFixed(balanceDecimals)} {tokenSymbol}
             </span>
             <p className="text-xs text-muted-foreground">${claimableUsd}</p>
           </div>
@@ -189,7 +194,7 @@ export default function ClusterOverview({
                 <div className="text-sm font-display text-white">{stats.apyDay.toFixed(2)}%</div>
                 <div className="space-y-0.5">
                   <div className="text-base font-mono font-semibold">
-                    {stats.gnoDay.toFixed(2)} GNO
+                    {stats.gnoDay.toFixed(2)} {tokenSymbol}
                   </div>
                   <div className="text-xs text-muted-foreground">
                     ${(stats.gnoDay * gnoPrice).toFixed(2)}
@@ -197,13 +202,13 @@ export default function ClusterOverview({
                 </div>
                 <div className="space-y-0.5">
                   <div className="text-base font-mono font-semibold text-destructive">
-                    {stats.missedDay.toFixed(2)} GNO
+                    {stats.missedDay.toFixed(2)} {tokenSymbol}
                   </div>
                   <div className="text-xs text-muted-foreground">-</div>
                 </div>
                 <div className="space-y-0.5">
                   <div className="text-base font-mono font-semibold">
-                    {stats.xdaiDay.toFixed(2)} xDAI
+                    {stats.xdaiDay.toFixed(2)} {executionTokenSymbol}
                   </div>
                   <div className="text-xs text-muted-foreground">${stats.xdaiDay.toFixed(2)}</div>
                 </div>
@@ -216,7 +221,7 @@ export default function ClusterOverview({
                 <div className="text-sm font-display text-white">{stats.apyWeek.toFixed(2)}%</div>
                 <div className="space-y-0.5">
                   <div className="text-base font-mono font-semibold">
-                    {stats.gnoWeek.toFixed(2)} GNO
+                    {stats.gnoWeek.toFixed(2)} {tokenSymbol}
                   </div>
                   <div className="text-xs text-muted-foreground">
                     ${(stats.gnoWeek * gnoPrice).toFixed(2)}
@@ -224,13 +229,13 @@ export default function ClusterOverview({
                 </div>
                 <div className="space-y-0.5">
                   <div className="text-base font-mono font-semibold text-destructive">
-                    {stats.missedWeek.toFixed(2)} GNO
+                    {stats.missedWeek.toFixed(2)} {tokenSymbol}
                   </div>
                   <div className="text-xs text-muted-foreground">-</div>
                 </div>
                 <div className="space-y-0.5">
                   <div className="text-base font-mono font-semibold">
-                    {stats.xdaiWeek.toFixed(2)} xDAI
+                    {stats.xdaiWeek.toFixed(2)} {executionTokenSymbol}
                   </div>
                   <div className="text-xs text-muted-foreground">${stats.xdaiWeek.toFixed(2)}</div>
                 </div>
@@ -243,7 +248,7 @@ export default function ClusterOverview({
                 <div className="text-sm font-display text-white">{stats.apyMonth.toFixed(2)}%</div>
                 <div className="space-y-0.5">
                   <div className="text-base font-mono font-semibold">
-                    {stats.gnoMonth.toFixed(2)} GNO
+                    {stats.gnoMonth.toFixed(2)} {tokenSymbol}
                   </div>
                   <div className="text-xs text-muted-foreground">
                     ${(stats.gnoMonth * gnoPrice).toFixed(2)}
@@ -251,13 +256,13 @@ export default function ClusterOverview({
                 </div>
                 <div className="space-y-0.5">
                   <div className="text-base font-mono font-semibold text-destructive">
-                    {stats.missedMonth.toFixed(2)} GNO
+                    {stats.missedMonth.toFixed(2)} {tokenSymbol}
                   </div>
                   <div className="text-xs text-muted-foreground">-</div>
                 </div>
                 <div className="space-y-0.5">
                   <div className="text-base font-mono font-semibold">
-                    {stats.xdaiMonth.toFixed(2)} xDAI
+                    {stats.xdaiMonth.toFixed(2)} {executionTokenSymbol}
                   </div>
                   <div className="text-xs text-muted-foreground">${stats.xdaiMonth.toFixed(2)}</div>
                 </div>
