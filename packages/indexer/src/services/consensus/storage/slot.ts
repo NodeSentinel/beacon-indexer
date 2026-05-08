@@ -1,5 +1,6 @@
 import { Prisma, PrismaClient } from '@beacon-indexer/db';
 import chunk from 'lodash/chunk.js';
+import { LRUCache } from 'lru-cache';
 import ms from 'ms';
 
 /**
@@ -10,6 +11,12 @@ import ms from 'ms';
  * All business logic, data conversion, and processing happens in the controller layer.
  */
 export class SlotStorage {
+  private readonly syncCommitteeValidatorsCache = new LRUCache<number, string[]>({
+    max: 3,
+    ttl: ms('1h'),
+    fetchMethod: (epoch) => this.fetchSyncCommitteeValidators(epoch),
+  });
+
   constructor(private readonly prisma: PrismaClient) {}
 
   /**
@@ -159,9 +166,9 @@ export class SlotStorage {
   }
 
   /**
-   * Get sync committee validators for an epoch
+   * Fetch sync committee validators for an epoch from storage.
    */
-  async getSyncCommitteeValidators(epoch: number) {
+  private async fetchSyncCommitteeValidators(epoch: number) {
     const syncCommittee = await this.prisma.syncCommittee.findFirst({
       where: {
         fromEpoch: { lte: epoch },
@@ -172,7 +179,14 @@ export class SlotStorage {
       },
     });
 
-    return syncCommittee?.validators ?? [];
+    return (syncCommittee?.validators as string[] | undefined) ?? [];
+  }
+
+  /**
+   * Get sync committee validators for an epoch.
+   */
+  async getSyncCommitteeValidators(epoch: number) {
+    return (await this.syncCommitteeValidatorsCache.fetch(epoch)) ?? [];
   }
 
   /**

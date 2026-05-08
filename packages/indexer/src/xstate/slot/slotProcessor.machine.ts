@@ -152,6 +152,14 @@ export const slotProcessorMachine = setup({
         input.slotController.updateSlotProcessed(input.slot),
     ),
   },
+  actions: {
+    prefetchNextSlotRewards: ({ context }) => {
+      context.slotController.prefetchBlockRewards(context.slot + 1);
+      void context.slotController
+        .prefetchSyncCommitteeRewards(context.slot + 1)
+        .catch(() => undefined);
+    },
+  },
   guards: {
     isSlotMissed: ({ context }) => context.beaconBlockData?.rawData === 'SLOT MISSED',
     isLookbackSlot: ({ context }) => context.slot === context.lookbackSlot,
@@ -240,6 +248,7 @@ export const slotProcessorMachine = setup({
         'Fetches the beacon block from the consensus layer API and save the response in the context to be processed by internal states',
       entry: [
         startPerformanceTask('fetchBeaconBlock'),
+        'prefetchNextSlotRewards',
         pinoLog(
           ({ context }) => `Fetching beacon block data for slot ${context.slot}`,
           'SlotProcessor:fetchingBeaconData',
