@@ -110,16 +110,6 @@ export class SlotController extends SlotControllerHelpers {
   }
 
   /**
-   * Start fetching sync committee rewards before the slot reaches the normal processing path.
-   */
-  async prefetchSyncCommitteeRewards(slot: number) {
-    const epoch = this.beaconTime.getEpochFromSlot(slot);
-    const validators = await this.slotStorage.getSyncCommitteeValidators(epoch);
-
-    this.beaconClient.prefetchSyncCommitteeRewards(slot, validators);
-  }
-
-  /**
    * Process attestations for a slot
    * Checks if already processed before processing.
    * Throws an error if committee sizes are not available for all slots.
@@ -202,6 +192,25 @@ export class SlotController extends SlotControllerHelpers {
       blockInfo.address,
       blockInfo.blockNumber,
     );
+  }
+
+  /**
+   * Start fetching sync committee rewards before the slot reaches the normal processing path.
+   */
+  async prefetchSyncCommitteeRewards(slot: number) {
+    const isSyncCommitteeFetched = await this.slotStorage.isSyncCommitteeFetchedForSlot(slot);
+    if (isSyncCommitteeFetched) {
+      return;
+    }
+
+    const epoch = this.beaconTime.getEpochFromSlot(slot);
+    const syncCommitteeValidators = await this.slotStorage.getSyncCommitteeValidators(epoch);
+    if (syncCommitteeValidators.length === 0) {
+      // No validators in sync committee for this epoch, skip prefetching rewards
+      return;
+    }
+
+    this.beaconClient.prefetchSyncCommitteeRewards(slot, syncCommitteeValidators);
   }
 
   /**
