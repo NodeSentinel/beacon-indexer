@@ -126,6 +126,38 @@ describe('BeaconClient reward cache', () => {
     expect(postSpy).toHaveBeenCalledTimes(1);
   });
 
+  // This test verifies sync committee reward cache keys do not depend on validator order.
+  it('coalesces sync committee reward requests when validator order differs', async () => {
+    // This client exercises the public sync committee rewards cache key builder.
+    const beaconClient = new BeaconClient({
+      fullNodeUrl: 'http://full-node',
+      fullNodeConcurrency: 1,
+      fullNodeRetries: 0,
+      archiveNodeUrl: 'http://archive-node',
+      archiveNodeConcurrency: 1,
+      archiveNodeRetries: 0,
+      baseDelay: 1,
+      slotStartIndexing: 1,
+      slotsPerEpoch: 32,
+    });
+
+    // This spy resolves the beacon sync committee rewards endpoint with a minimal response.
+    const axiosInstance = (beaconClient as unknown as { axiosInstance: { post: unknown } })
+      .axiosInstance;
+    const postSpy = vi.spyOn(axiosInstance, 'post' as never).mockResolvedValue({
+      data: {
+        data: [],
+      },
+    } as never);
+
+    // These calls use the same validators in different orders.
+    await beaconClient.getSyncCommitteeRewards(1, ['2', '1']);
+    await beaconClient.getSyncCommitteeRewards(1, ['1', '2']);
+
+    // This assertion verifies both calls use one canonical cache entry.
+    expect(postSpy).toHaveBeenCalledTimes(1);
+  });
+
   // This test verifies sync committee rewards skip the cache and API when there are no validators.
   it('returns empty sync committee rewards without a request when validators are empty', async () => {
     // This client exercises the public sync committee rewards method.

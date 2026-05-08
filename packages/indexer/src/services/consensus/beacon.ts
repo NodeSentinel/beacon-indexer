@@ -148,7 +148,7 @@ export class BeaconClient extends ReliableRequestClient {
    * Build a stable cache key for sync committee rewards requests.
    */
   private getSyncCommitteeRewardsCacheKey(slot: number, validatorIndexes: string[]): string {
-    return `${slot}:${validatorIndexes.join(',')}`;
+    return `${slot}:${[...validatorIndexes].sort().join(',')}`;
   }
 
   /**
