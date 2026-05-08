@@ -140,6 +140,9 @@ export class BeaconClient extends ReliableRequestClient {
       async (url) => {
         const res = await this.axiosInstance.get<GetCommittees>(
           `${url}/eth/v1/beacon/states/${stateId}/committees?epoch=${epoch}`,
+          {
+            timeout: 10_000,
+          },
         );
         return res.data.data;
       },
@@ -167,7 +170,9 @@ export class BeaconClient extends ReliableRequestClient {
   async getBlock(slot: number): Promise<Block | 'SLOT MISSED'> {
     return this.makeReliableRequest<Block | 'SLOT MISSED'>(
       async (url) => {
-        const res = await this.axiosInstance.get<Block>(`${url}/eth/v2/beacon/blocks/${slot}`);
+        const res = await this.axiosInstance.get<Block>(`${url}/eth/v2/beacon/blocks/${slot}`, {
+          timeout: 10_000,
+        });
         return res.data;
       },
       'archive',

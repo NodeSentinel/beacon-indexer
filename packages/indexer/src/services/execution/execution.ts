@@ -111,7 +111,7 @@ export class ExecutionClient {
           { jsonrpc: '2.0', id: 2, method: 'eth_getBlockReceipts', params: [hexBlock] },
         ],
         {
-          timeout: ms('5s'),
+          timeout: ms('15s'),
         },
       ),
     );
