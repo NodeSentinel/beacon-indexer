@@ -156,8 +156,13 @@ export class BeaconClient extends ReliableRequestClient {
    */
   private parseSyncCommitteeRewardsCacheKey(key: string): [number, string[]] {
     const separatorIndex = key.indexOf(':');
+    if (separatorIndex === -1) {
+      throw new Error(`Invalid sync committee rewards cache key: ${key}`);
+    }
+
     const slot = Number(key.slice(0, separatorIndex));
-    const validatorIndexes = key.slice(separatorIndex + 1).split(',');
+    const validatorIndexesString = key.slice(separatorIndex + 1);
+    const validatorIndexes = validatorIndexesString ? validatorIndexesString.split(',') : [];
 
     return [slot, validatorIndexes];
   }
@@ -352,7 +357,12 @@ export class BeaconClient extends ReliableRequestClient {
    * Get block rewards for a specific slot using the prefetch cache.
    */
   getBlockRewards = async (slot: number): Promise<BlockRewards | 'SLOT MISSED'> => {
-    return (await this.blockRewardsCache.fetch(slot))!;
+    const rewards = await this.blockRewardsCache.fetch(slot);
+    if (rewards === undefined) {
+      throw new Error(`Failed to fetch block rewards for slot ${slot} from cache.`);
+    }
+
+    return rewards;
   };
 
   /**
@@ -381,7 +391,7 @@ export class BeaconClient extends ReliableRequestClient {
    * Prefetch sync committee rewards for a delayed slot without blocking slot processing.
    */
   prefetchSyncCommitteeRewards(slot: number, validatorIndexes: string[]): void {
-    if (!this.isIndexerDelayed({ value: slot, type: 'slot' })) {
+    if (!this.isIndexerDelayed({ value: slot, type: 'slot' }) || validatorIndexes.length === 0) {
       return;
     }
 
@@ -396,7 +406,16 @@ export class BeaconClient extends ReliableRequestClient {
     slot: number,
     validatorIndexes: string[],
   ): Promise<SyncCommitteeRewards> => {
+    if (validatorIndexes.length === 0) {
+      return { data: [], execution_optimistic: false, finalized: true };
+    }
+
     const key = this.getSyncCommitteeRewardsCacheKey(slot, validatorIndexes);
-    return (await this.syncCommitteeRewardsCache.fetch(key))!;
+    const rewards = await this.syncCommitteeRewardsCache.fetch(key);
+    if (rewards === undefined) {
+      throw new Error(`Failed to fetch sync committee rewards for slot ${slot} from cache.`);
+    }
+
+    return rewards;
   };
 }

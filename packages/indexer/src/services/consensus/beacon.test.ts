@@ -125,4 +125,34 @@ describe('BeaconClient reward cache', () => {
     // This assertion verifies only one underlying HTTP request was made for the slot.
     expect(postSpy).toHaveBeenCalledTimes(1);
   });
+
+  // This test verifies sync committee rewards skip the cache and API when there are no validators.
+  it('returns empty sync committee rewards without a request when validators are empty', async () => {
+    // This client exercises the public sync committee rewards method.
+    const beaconClient = new BeaconClient({
+      fullNodeUrl: 'http://full-node',
+      fullNodeConcurrency: 1,
+      fullNodeRetries: 0,
+      archiveNodeUrl: 'http://archive-node',
+      archiveNodeConcurrency: 1,
+      archiveNodeRetries: 0,
+      baseDelay: 1,
+      slotStartIndexing: 1,
+      slotsPerEpoch: 32,
+    });
+
+    // This spy verifies the endpoint is not called for an empty validator list.
+    const axiosInstance = (beaconClient as unknown as { axiosInstance: { post: unknown } })
+      .axiosInstance;
+    const postSpy = vi.spyOn(axiosInstance, 'post' as never);
+
+    // This call covers epochs where storage has no sync committee validators.
+    const result = await beaconClient.getSyncCommitteeRewards(1, []);
+
+    // This assertion verifies callers still receive the expected empty rewards shape.
+    expect(result).toEqual({ data: [], execution_optimistic: false, finalized: true });
+
+    // This assertion verifies no beacon request was made.
+    expect(postSpy).not.toHaveBeenCalled();
+  });
 });
