@@ -179,7 +179,7 @@ export class BeaconClient extends ReliableRequestClient {
         const res = await this.axiosInstance.get<GetCommittees>(
           `${url}/eth/v1/beacon/states/${stateId}/committees?epoch=${epoch}`,
           {
-            timeout: ms('10s'),
+            timeout: ms('15s'),
           },
         );
         return res.data.data;
@@ -286,7 +286,7 @@ export class BeaconClient extends ReliableRequestClient {
           statuses,
         },
         {
-          timeout: ms('15s'),
+          timeout: ms('20s'),
         },
       );
       return res.data.data;
