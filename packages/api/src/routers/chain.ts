@@ -1,7 +1,9 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
+import { formatDuration, intervalToDuration } from 'date-fns';
 import { z } from 'zod';
 
 import type { ApiProcedures } from '@/auth/middleware.js';
+import type { ValidatorStorage } from '@/storage/validator.js';
 import { ApiResponseSchema } from '@/utils/response.js';
 import { formatBalance } from '@/utils/tokenFormat.js';
 import { getTokenPrice } from '@/utils/tokenPrice.js';
@@ -28,9 +30,68 @@ const SyncStatusDataSchema = z.object({
   currentSlot: z.number().int(),
   processingSlot: z.number().int(),
   slotDurationMs: z.number().int(),
+  distanceToHead: z.object({
+    slots: z.number().int(),
+    milliseconds: z.number().int(),
+    days: z.number().int(),
+    hours: z.number().int(),
+    minutes: z.number().int(),
+    formatted: z.string(),
+  }),
 });
 
 const SyncStatusResponseSchema = ApiResponseSchema(SyncStatusDataSchema);
+
+const StakeDistributionGroupSchema = z.object({
+  stakeGroup: z.string(),
+  withdrawalAddressCount: z.number().int(),
+  validatorCount: z.number().int(),
+  totalEffective: z.string(),
+  token: z.string(),
+});
+
+const StakeDistributionDataSchema = z.object({
+  groups: z.array(StakeDistributionGroupSchema),
+});
+
+const StakeDistributionResponseSchema = ApiResponseSchema(StakeDistributionDataSchema);
+
+/**
+ * Returns the consensus token symbol for the configured chain.
+ */
+function getConsensusTokenSymbol(chain: 'ethereum' | 'gnosis'): 'ETH' | 'GNO' {
+  return chain === 'gnosis' ? 'GNO' : 'ETH';
+}
+
+/**
+ * Formats a slot distance as day, hour, and minute parts.
+ */
+function getDistanceToHead(params: {
+  currentSlot: number;
+  processingSlot: number;
+  slotDurationMs: number;
+}) {
+  const slots = Math.max(params.currentSlot - params.processingSlot, 0);
+  const milliseconds = slots * params.slotDurationMs;
+  const duration = intervalToDuration({ start: 0, end: milliseconds });
+  const days = duration.days ?? 0;
+  const hours = duration.hours ?? 0;
+  const minutes = duration.minutes ?? 0;
+
+  const formatted = formatDuration(
+    { days, hours, minutes },
+    { format: ['days', 'hours', 'minutes'] },
+  );
+
+  return {
+    slots,
+    milliseconds,
+    days,
+    hours,
+    minutes,
+    formatted,
+  };
+}
 
 /**
  * Creates the chain router.
@@ -51,6 +112,7 @@ export function createChainRouter(params: {
   procedures: ApiProcedures;
   tokenPriceApiUrl: string;
   tokenPriceTokenName: string;
+  validatorStorage: ValidatorStorage;
 }) {
   const { securedProcedure } = params.procedures;
 
@@ -118,6 +180,33 @@ export function createChainRouter(params: {
       };
     });
 
+  const getStakeDistribution = securedProcedure
+    .route({ method: 'GET', path: '/chain/stake-distribution' })
+    .output(StakeDistributionResponseSchema)
+    .handler(async () => {
+      const token = getConsensusTokenSymbol(params.chain);
+      const rows = await params.validatorStorage.getStakeDistributionByWithdrawalAddress({
+        gweiPerTokenMultiplier: params.chain === 'gnosis' ? 32 : 1,
+        tokenSymbol: token,
+      });
+
+      return {
+        success: true,
+        data: {
+          groups: rows.map((row) => ({
+            stakeGroup: row.stake_group,
+            withdrawalAddressCount: Number(row.withdrawal_address_count),
+            validatorCount: Number(row.validator_count),
+            totalEffective: formatBalance(row.total_effective_gwei, params.chain),
+            token,
+          })),
+        },
+        meta: {
+          timestamp: new Date().toISOString(),
+        },
+      };
+    });
+
   const getSyncStatus = securedProcedure
     .route({ method: 'GET', path: '/chain/sync-status' })
     .output(SyncStatusResponseSchema)
@@ -130,12 +219,19 @@ export function createChainRouter(params: {
         select: { slot: true },
       });
 
+      const processingSlot = lastProcessedSlot ? lastProcessedSlot.slot + 1 : 0;
+
       return {
         success: true,
         data: {
           currentSlot,
-          processingSlot: lastProcessedSlot ? lastProcessedSlot.slot + 1 : 0,
+          processingSlot,
           slotDurationMs: params.beaconHelpers.chainConfig.beacon.slotDuration,
+          distanceToHead: getDistanceToHead({
+            currentSlot,
+            processingSlot,
+            slotDurationMs: params.beaconHelpers.chainConfig.beacon.slotDuration,
+          }),
         },
         meta: {
           timestamp: new Date().toISOString(),
@@ -145,6 +241,7 @@ export function createChainRouter(params: {
 
   return {
     stats: getStats,
+    stakeDistribution: getStakeDistribution,
     syncStatus: getSyncStatus,
     tokenPrice: getTokenPriceRoute,
   };

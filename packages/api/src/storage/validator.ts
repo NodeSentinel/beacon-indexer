@@ -36,6 +36,13 @@ interface EpochRewardsRow {
   missed_inactivity: bigint;
 }
 
+export interface StakeDistributionRow {
+  stake_group: string;
+  withdrawal_address_count: number | bigint;
+  validator_count: number | bigint;
+  total_effective_gwei: bigint | string | null;
+}
+
 export class ValidatorStorage {
   constructor(private readonly prisma: PrismaClient) {}
 
@@ -128,6 +135,69 @@ export class ValidatorStorage {
     `;
 
     return result;
+  }
+
+  /**
+   * Gets unique withdrawal addresses grouped by total effective stake buckets.
+   */
+  async getStakeDistributionByWithdrawalAddress(params: {
+    gweiPerTokenMultiplier: number;
+    tokenSymbol: string;
+  }): Promise<StakeDistributionRow[]> {
+    return this.prisma.$queryRaw<StakeDistributionRow[]>`
+      WITH stake_groups AS (
+        SELECT *
+        FROM (
+          VALUES
+            (1, ${`<640 ${params.tokenSymbol}`}, 0::numeric, 640::numeric),
+            (2, ${`640-3,200 ${params.tokenSymbol}`}, 640::numeric, 3200::numeric),
+            (3, ${`3,200-9,600 ${params.tokenSymbol}`}, 3200::numeric, 9600::numeric),
+            (4, ${`9,600-32,000 ${params.tokenSymbol}`}, 9600::numeric, 32000::numeric),
+            (5, ${`>=32,000 ${params.tokenSymbol}`}, 32000::numeric, NULL::numeric)
+        ) AS groups(sort_order, stake_group, min_eth, max_eth)
+      ),
+      stake_group_bounds AS (
+        SELECT
+          sort_order,
+          stake_group,
+          min_eth * 1000000000 * ${params.gweiPerTokenMultiplier} AS min_gwei,
+          max_eth * 1000000000 * ${params.gweiPerTokenMultiplier} AS max_gwei
+        FROM stake_groups
+      ),
+      stake_by_withdrawal_address AS (
+        SELECT
+          withdrawal_address,
+          COUNT(*)::int AS validator_count,
+          SUM(effective_balance)::numeric AS total_effective_gwei
+        FROM validator
+        WHERE withdrawal_address IS NOT NULL
+          AND effective_balance IS NOT NULL
+        GROUP BY withdrawal_address
+      ),
+      bucketed AS (
+        SELECT
+          stake_group_bounds.sort_order,
+          stake_group_bounds.stake_group,
+          stake_by_withdrawal_address.validator_count,
+          stake_by_withdrawal_address.total_effective_gwei
+        FROM stake_by_withdrawal_address
+        JOIN stake_group_bounds
+          ON stake_by_withdrawal_address.total_effective_gwei >= stake_group_bounds.min_gwei
+         AND (
+           stake_group_bounds.max_gwei IS NULL
+           OR stake_by_withdrawal_address.total_effective_gwei < stake_group_bounds.max_gwei
+         )
+      )
+      SELECT
+        stake_groups.stake_group,
+        COUNT(bucketed.total_effective_gwei)::int AS withdrawal_address_count,
+        COALESCE(SUM(bucketed.validator_count), 0)::int AS validator_count,
+        COALESCE(SUM(bucketed.total_effective_gwei), 0)::text AS total_effective_gwei
+      FROM stake_groups
+      LEFT JOIN bucketed ON bucketed.sort_order = stake_groups.sort_order
+      GROUP BY stake_groups.sort_order, stake_groups.stake_group
+      ORDER BY stake_groups.sort_order
+    `;
   }
 
   /**
