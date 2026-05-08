@@ -198,11 +198,6 @@ export class SlotController extends SlotControllerHelpers {
    * Start fetching sync committee rewards before the slot reaches the normal processing path.
    */
   async prefetchSyncCommitteeRewards(slot: number) {
-    const isSyncCommitteeFetched = await this.slotStorage.isSyncCommitteeFetchedForSlot(slot);
-    if (isSyncCommitteeFetched) {
-      return;
-    }
-
     const epoch = this.beaconTime.getEpochFromSlot(slot);
     const syncCommitteeValidators = await this.slotStorage.getSyncCommitteeValidators(epoch);
     if (syncCommitteeValidators.length === 0) {
