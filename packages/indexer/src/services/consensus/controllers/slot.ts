@@ -9,6 +9,10 @@ import { SlotControllerHelpers } from './helpers/slotControllerHelpers.js';
 import { EpochStorage } from '@/src/services/consensus/storage/epoch.js';
 import { ExecutionClient } from '@/src/services/execution/execution.js';
 
+type ExecutionRequestWithdrawals = NonNullable<
+  Block['data']['message']['body']['execution_requests']
+>['withdrawals'];
+
 /**
  * SlotController - Business logic layer for slot-related operations
  */
@@ -362,10 +366,7 @@ export class SlotController extends SlotControllerHelpers {
    * Process execution requests withdrawals
    * Checks if already processed before processing.
    */
-  async processErWithdrawals(
-    slot: number,
-    withdrawals: NonNullable<Block['data']['message']['body']['execution_requests']>['withdrawals'],
-  ) {
+  async processErWithdrawals(slot: number, withdrawals: ExecutionRequestWithdrawals) {
     const baseSlot = await this.slotStorage.getBaseSlot(slot);
     if (baseSlot.erWithdrawalsFetched) {
       return;
@@ -373,8 +374,10 @@ export class SlotController extends SlotControllerHelpers {
 
     await this.slotStorage.saveValidatorWithdrawalsRequests(
       baseSlot.slot,
-      withdrawals.map((withdrawal) => ({
+      withdrawals.map((withdrawal, requestIndex) => ({
         slot: baseSlot.slot,
+        requestIndex,
+        sourceAddress: withdrawal.source_address,
         pubKey: withdrawal.validator_pubkey,
         amount: BigInt(withdrawal.amount),
       })),

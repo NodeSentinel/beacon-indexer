@@ -183,11 +183,14 @@ model validatorExits {
 }
 
 model validatorWithdrawalsRequests {
-  slot   Int    @map("slot")
-  pubKey String @map("pub_key") @db.VarChar(98)
-  amount BigInt @map("amount")
+  slot          Int     @map("slot")
+  requestIndex  Int     @map("request_index")
+  sourceAddress String? @map("source_address") @db.VarChar(42)
+  pubKey        String  @map("pub_key") @db.VarChar(98)
+  amount        BigInt  @map("amount")
 
-  @@id([slot, pubKey])
+  @@id([slot, requestIndex])
+  @@index([pubKey, slot(sort: Desc)], map: "validator_request_withdrawals_pub_key_slot_idx")
   @@map("validator_request_withdrawals")
 }
 

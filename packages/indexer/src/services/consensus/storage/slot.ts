@@ -780,6 +780,7 @@ export class SlotStorage {
   async getValidatorWithdrawalsRequestsForSlot(slot: number) {
     return this.prisma.validatorWithdrawalsRequests.findMany({
       where: { slot },
+      orderBy: { requestIndex: 'asc' },
     });
   }
 

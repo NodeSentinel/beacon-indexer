@@ -767,6 +767,8 @@ describe('Slot Processor E2E Tests', () => {
       it('should verify withdrawal requests from execution requests were saved correctly', async () => {
         // Expected withdrawal request from block_24672001.json
         const expectedWithdrawalRequest = {
+          requestIndex: 0,
+          sourceAddress: '0xcc717037652940f319272b0bf57591e41d157f95',
           pubKey:
             '0xa5256ce2de7b9bd44f3dc7e368d27386b1958373e7c04bcb97805bf382ecd6cd56716499f4dc625f3fab6f2cfca8fa0b',
           amount: BigInt('640000000'),
@@ -782,6 +784,8 @@ describe('Slot Processor E2E Tests', () => {
         // Verify the withdrawal request matches expected data
         const actual = withdrawalRequests[0];
         expect(actual.slot).toBe(slot24672001);
+        expect(actual.requestIndex).toBe(expectedWithdrawalRequest.requestIndex);
+        expect(actual.sourceAddress).toBe(expectedWithdrawalRequest.sourceAddress);
         expect(actual.pubKey).toBe(expectedWithdrawalRequest.pubKey);
         expect(actual.amount.toString()).toBe(expectedWithdrawalRequest.amount.toString());
       });
