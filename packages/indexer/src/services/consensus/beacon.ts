@@ -67,7 +67,7 @@ export class BeaconClient extends ReliableRequestClient {
     { ignoreErrors?: boolean } | undefined
   >({
     max: 5,
-    ttl: ms('1m'),
+    ttl: ms('3m'),
     fetchMethod: async (key, _staleValue, { context }) => {
       const [slot, validatorIndexes] = this.parseSyncCommitteeRewardsCacheKey(key);
       // null marks ignored prefetch errors as handled so makeReliableRequest does not retry.
@@ -79,7 +79,7 @@ export class BeaconClient extends ReliableRequestClient {
             `${url}/eth/v1/beacon/rewards/sync_committee/${slot}`,
             validatorIndexes,
             {
-              timeout: ms('45s'),
+              timeout: ms('1m'),
             },
           );
           return res.data;
@@ -332,7 +332,7 @@ export class BeaconClient extends ReliableRequestClient {
         `${url}/eth/v1/beacon/rewards/attestations/${epoch}`,
         validatorIndexes.map((id) => id.toString()),
         {
-          timeout: ms('45s'),
+          timeout: ms('1m'),
         },
       );
       return res.data;
@@ -359,7 +359,7 @@ export class BeaconClient extends ReliableRequestClient {
         const res = await this.axiosInstance.get<BlockRewards>(
           `${url}/eth/v1/beacon/rewards/blocks/${slot}`,
           {
-            timeout: ms('45s'),
+            timeout: ms('1m'),
           },
         );
         return res.data;
