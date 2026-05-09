@@ -160,3 +160,20 @@ export const REWARD_UNIT = 'GWei';
 export function getTokenSymbol(chain: 'gnosis' | 'ethereum'): string {
   return chain === 'gnosis' ? 'GNO' : 'ETH';
 }
+
+export interface TokenConfig {
+  balanceDecimals: number;
+  executionTokenSymbol: string;
+  tokenSymbol: string;
+}
+
+/** Builds token labels and balance precision for a chain. */
+export function getTokenConfig(chain: 'gnosis' | 'ethereum'): TokenConfig {
+  const tokenSymbol = getTokenSymbol(chain);
+
+  return {
+    balanceDecimals: chain === 'ethereum' ? 4 : 2,
+    executionTokenSymbol: chain === 'gnosis' ? 'xDAI' : tokenSymbol,
+    tokenSymbol,
+  };
+}

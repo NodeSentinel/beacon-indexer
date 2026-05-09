@@ -2,10 +2,11 @@
 
 import { Settings } from 'lucide-react';
 
+import { getClusterStatusDisplay } from '@/components/cluster/utils';
 import DashboardCard from '@/components/dashboard/card';
 import { Button } from '@/components/ui/button';
 import { env } from '@/env';
-import { getTokenSymbol } from '@/lib/utils';
+import { getTokenConfig } from '@/lib/utils';
 import type { Cluster } from '@/types/cluster';
 import type { Stats } from '@/types/validator';
 
@@ -24,60 +25,11 @@ export default function ClusterOverview({
   showManageButton = true,
   stats,
 }: ClusterOverviewProps) {
-  const statusCounts = cluster.validators.reduce(
-    (acc, v) => {
-      acc[v.status] = (acc[v.status] || 0) + 1;
-      return acc;
-    },
-    {} as Record<string, number>,
-  );
-
-  const getStatusDisplay = () => {
-    const displays: { emoji: string; count: number; label: string; color: string }[] = [];
-
-    if (statusCounts.active)
-      displays.push({
-        emoji: '🟢',
-        count: statusCounts.active,
-        label: 'active',
-        color: 'text-success',
-      });
-    if (statusCounts.inactive)
-      displays.push({
-        emoji: '🟡',
-        count: statusCounts.inactive,
-        label: 'inactive',
-        color: 'text-warning',
-      });
-    if (statusCounts.active_exiting)
-      displays.push({
-        emoji: '🟠',
-        count: statusCounts.active_exiting,
-        label: 'active exiting',
-        color: 'text-orange-500',
-      });
-    if (statusCounts.slashed)
-      displays.push({
-        emoji: '🚫',
-        count: statusCounts.slashed,
-        label: 'slashed',
-        color: 'text-destructive',
-      });
-    if (statusCounts.exited)
-      displays.push({
-        emoji: '🔚',
-        count: statusCounts.exited,
-        label: 'exited',
-        color: 'text-muted-foreground',
-      });
-
-    return displays;
-  };
-
+  const statusDisplay = getClusterStatusDisplay(cluster.validators);
   const totalValidators = cluster.validatorCount ?? cluster.validators.length;
-  const tokenSymbol = getTokenSymbol(env.NEXT_PUBLIC_CHAIN);
-  const executionTokenSymbol = env.NEXT_PUBLIC_CHAIN === 'gnosis' ? 'xDAI' : tokenSymbol;
-  const balanceDecimals = env.NEXT_PUBLIC_CHAIN === 'ethereum' ? 4 : 2;
+  const { balanceDecimals, executionTokenSymbol, tokenSymbol } = getTokenConfig(
+    env.NEXT_PUBLIC_CHAIN,
+  );
 
   const balanceUsd = (cluster.totalBalance * gnoPrice).toFixed(2);
   const effectiveBalanceUsd = (cluster.totalEffectiveBalance * gnoPrice).toFixed(0);
@@ -110,8 +62,8 @@ export default function ClusterOverview({
           <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-primary/10 text-primary border border-primary/20 font-semibold text-xs md:text-sm">
             {totalValidators} VALIDATOR{totalValidators !== 1 ? 'S' : ''}
           </span>
-          {getStatusDisplay().map((status, idx) => (
-            <div key={idx} className="flex items-center gap-1.5">
+          {statusDisplay.map((status) => (
+            <div key={status.label} className="flex items-center gap-1.5">
               <span className="text-sm">{status.emoji}</span>
               <span className={`text-sm font-semibold ${status.color}`}>{status.count}</span>
               <span className="text-xs text-muted-foreground capitalize">{status.label}</span>

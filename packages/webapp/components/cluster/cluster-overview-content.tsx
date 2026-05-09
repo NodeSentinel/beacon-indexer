@@ -2,10 +2,12 @@
 
 import { Settings } from 'lucide-react';
 
+import { getClusterStatusDisplay } from '@/components/cluster/utils';
 import { Button } from '@/components/ui/button';
+import { env } from '@/env';
 import { useClusterSnapshot } from '@/hooks/use-cluster-snapshot';
 import { useTokenPrice } from '@/hooks/use-token-price';
-import { formatNumber } from '@/lib/utils';
+import { formatNumber, getTokenConfig } from '@/lib/utils';
 import type { Cluster } from '@/types/cluster';
 
 interface ClusterOverviewContentProps {
@@ -68,55 +70,10 @@ export default function ClusterOverviewContent({
   const { data: snapshot, isLoading: snapshotLoading } = useClusterSnapshot(cluster.id);
   const { data: tokenPriceData } = useTokenPrice();
   const gnoPrice = tokenPriceData?.tokenPrice ?? 0;
-  const statusCounts = cluster.validators.reduce(
-    (acc, v) => {
-      acc[v.status] = (acc[v.status] || 0) + 1;
-      return acc;
-    },
-    {} as Record<string, number>,
+  const statusDisplay = getClusterStatusDisplay(cluster.validators);
+  const { balanceDecimals, executionTokenSymbol, tokenSymbol } = getTokenConfig(
+    env.NEXT_PUBLIC_CHAIN,
   );
-
-  const getStatusDisplay = () => {
-    const displays: { emoji: string; count: number; label: string; color: string }[] = [];
-
-    if (statusCounts.active)
-      displays.push({
-        emoji: '🟢',
-        count: statusCounts.active,
-        label: 'active',
-        color: 'text-success',
-      });
-    if (statusCounts.inactive)
-      displays.push({
-        emoji: '🟡',
-        count: statusCounts.inactive,
-        label: 'inactive',
-        color: 'text-warning',
-      });
-    if (statusCounts.active_exiting)
-      displays.push({
-        emoji: '🟠',
-        count: statusCounts.active_exiting,
-        label: 'active exiting',
-        color: 'text-orange-500',
-      });
-    if (statusCounts.slashed)
-      displays.push({
-        emoji: '🚫',
-        count: statusCounts.slashed,
-        label: 'slashed',
-        color: 'text-destructive',
-      });
-    if (statusCounts.exited)
-      displays.push({
-        emoji: '🔚',
-        count: statusCounts.exited,
-        label: 'exited',
-        color: 'text-muted-foreground',
-      });
-
-    return displays;
-  };
 
   const totalValidators = cluster.validatorCount ?? cluster.validators.length;
 
@@ -200,10 +157,10 @@ export default function ClusterOverviewContent({
               {totalValidators} Validator{totalValidators !== 1 ? 's' : ''}
             </span>
 
-            {getStatusDisplay().length > 0 && (
+            {statusDisplay.length > 0 && (
               <>
                 <div className="flex items-center gap-2.5 md:gap-3 flex-wrap">
-                  {getStatusDisplay().map((status) => (
+                  {statusDisplay.map((status) => (
                     <div key={status.label} className="inline-flex items-center gap-1.5 shrink-0">
                       <span className="text-sm">{status.emoji}</span>
                       <span
@@ -246,21 +203,21 @@ export default function ClusterOverviewContent({
             <div>
               <p className="text-[10px] md:text-xs text-muted-foreground mb-0.5">Balance</p>
               <p className="text-sm md:text-lg font-normal font-semibold">
-                {cluster.totalBalance.toFixed(2)} GNO
+                {cluster.totalBalance.toFixed(balanceDecimals)} {tokenSymbol}
               </p>
               <p className="text-[10px] text-muted-foreground">${balanceUsd}</p>
             </div>
             <div>
               <p className="text-[10px] md:text-xs text-muted-foreground mb-0.5">Effective</p>
               <p className="text-sm md:text-lg font-normal font-semibold">
-                {cluster.totalEffectiveBalance.toFixed(0)} GNO
+                {cluster.totalEffectiveBalance.toFixed(0)} {tokenSymbol}
               </p>
               <p className="text-[10px] text-muted-foreground">${effectiveBalanceUsd}</p>
             </div>
             <div>
               <p className="text-[10px] md:text-xs text-muted-foreground mb-0.5">Claimable</p>
               <p className="text-sm md:text-lg font-normal font-semibold">
-                {cluster.claimableRewards.toFixed(2)} GNO
+                {cluster.claimableRewards.toFixed(balanceDecimals)} {tokenSymbol}
               </p>
               <p className="text-[10px] text-muted-foreground">${claimableUsd}</p>
             </div>
@@ -343,7 +300,7 @@ export default function ClusterOverviewContent({
                       <div className="flex justify-between items-center">
                         <span className="text-muted-foreground">Consensus</span>
                         <span>
-                          {formatValue(getConsensusReward(key))} GNO
+                          {formatValue(getConsensusReward(key))} {tokenSymbol}
                           <span className="ml-1">
                             ({formatUsd(getConsensusReward(key), gnoPrice)})
                           </span>
@@ -352,7 +309,7 @@ export default function ClusterOverviewContent({
                       <div className="flex justify-between items-center">
                         <span className="text-muted-foreground">Missed</span>
                         <span className="text-destructive">
-                          {formatValue(getMissedReward(key))} GNO
+                          {formatValue(getMissedReward(key))} {tokenSymbol}
                           <span className="ml-1">
                             ({formatUsd(getMissedReward(key), gnoPrice)})
                           </span>
@@ -361,7 +318,8 @@ export default function ClusterOverviewContent({
                       <div className="flex justify-between items-center">
                         <span className="text-muted-foreground">Execution</span>
                         <span>
-                          {formatValue(getExecutionReward(key)?.token ?? null)} xDAI
+                          {formatValue(getExecutionReward(key)?.token ?? null)}{' '}
+                          {executionTokenSymbol}
                           <span className="ml-1">
                             ({formatUsd(getExecutionReward(key)?.token ?? null, 1)})
                           </span>
@@ -401,7 +359,7 @@ export default function ClusterOverviewContent({
                     <div className="text-sm font-normal">{formatApy(getApy(key))}</div>
                     <div>
                       <div className="text-sm font-mono">
-                        {formatValue(getConsensusReward(key))} GNO
+                        {formatValue(getConsensusReward(key))} {tokenSymbol}
                       </div>
                       <div className="text-[10px] text-muted-foreground">
                         {formatUsd(getConsensusReward(key), gnoPrice)}
@@ -409,7 +367,7 @@ export default function ClusterOverviewContent({
                     </div>
                     <div>
                       <div className="text-sm font-mono text-destructive">
-                        {formatValue(getMissedReward(key))} GNO
+                        {formatValue(getMissedReward(key))} {tokenSymbol}
                       </div>
                       <div className="text-[10px] text-muted-foreground">
                         {formatUsd(getMissedReward(key), gnoPrice)}
@@ -417,7 +375,7 @@ export default function ClusterOverviewContent({
                     </div>
                     <div>
                       <div className="text-sm font-mono">
-                        {formatValue(getExecutionReward(key)?.token ?? null)} xDAI
+                        {formatValue(getExecutionReward(key)?.token ?? null)} {executionTokenSymbol}
                       </div>
                       <div className="text-[10px] text-muted-foreground">
                         {formatUsd(getExecutionReward(key)?.token ?? null, 1)}

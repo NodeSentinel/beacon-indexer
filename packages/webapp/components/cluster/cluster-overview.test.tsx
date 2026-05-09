@@ -5,6 +5,7 @@ import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 
 import ClusterOverview from './cluster-overview';
+import { getTokenConfig } from '@/lib/utils';
 import type { Cluster } from '@/types/cluster';
 import type { Stats } from '@/types/validator';
 
@@ -56,6 +57,22 @@ const stats: Stats = {
 };
 
 describe('ClusterOverview', () => {
+  it('builds display token config from the selected chain', () => {
+    // Confirm Ethereum displays ETH for both consensus and execution values.
+    assert.deepEqual(getTokenConfig('ethereum'), {
+      balanceDecimals: 4,
+      executionTokenSymbol: 'ETH',
+      tokenSymbol: 'ETH',
+    });
+
+    // Confirm Gnosis displays GNO for consensus values and xDAI for execution values.
+    assert.deepEqual(getTokenConfig('gnosis'), {
+      balanceDecimals: 2,
+      executionTokenSymbol: 'xDAI',
+      tokenSymbol: 'GNO',
+    });
+  });
+
   it('uses Ethereum token labels and four decimals for balance and claimable only', () => {
     // Render the overview with the default Ethereum chain environment.
     const markup = renderToStaticMarkup(
