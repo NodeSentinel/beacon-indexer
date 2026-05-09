@@ -319,7 +319,12 @@ export class SlotStorage {
   ): Promise<void> {
     await this.prisma.$transaction(
       async (tx) => {
-        const queries: Prisma.Sql[] = [];
+        const queries: Array<{
+          query: Prisma.Sql;
+          rows: number;
+          chunk: number;
+          chunks: number;
+        }> = [];
 
         // Process updates
         if (attestations.length > 0) {
@@ -327,7 +332,7 @@ export class SlotStorage {
           // Each attestation generates 4 bind variables (slot, index, aggregationBitsIndex, delay)
           // 7000 * 4 = 28000 < 32767
           const updateChunks = chunk(attestations, 7000);
-          for (const batchUpdates of updateChunks) {
+          for (const [chunkIndex, batchUpdates] of updateChunks.entries()) {
             const updateQuery = Prisma.sql`
             UPDATE "committee" c
             SET "attestation_delay" = v.delay
@@ -344,7 +349,12 @@ export class SlotStorage {
               AND c."aggregation_bits_index" = v."aggregation_bits_index"
               AND (c."attestation_delay" IS NULL OR c."attestation_delay" > v.delay);
           `;
-            queries.push(updateQuery);
+            queries.push({
+              query: updateQuery,
+              rows: batchUpdates.length,
+              chunk: chunkIndex + 1,
+              chunks: updateChunks.length,
+            });
           }
         }
 
@@ -352,7 +362,13 @@ export class SlotStorage {
           await measurePerformanceTask(
             performanceScope,
             'processAttestations:saveSlotAttestations:updateCommitteeChunk',
-            () => tx.$executeRaw(query),
+            () => tx.$executeRaw(query.query),
+            (updatedRows) => ({
+              rows: query.rows,
+              chunk: query.chunk,
+              chunks: query.chunks,
+              updatedRows,
+            }),
           );
         }
 

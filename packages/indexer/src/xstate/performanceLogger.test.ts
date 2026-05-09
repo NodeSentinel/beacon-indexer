@@ -151,4 +151,36 @@ describe('performanceLogger', () => {
       'epoch:42 > slot:1344 | processAttestations:parseBits | 17ms',
     );
   });
+
+  it('appends direct task metadata after the duration', async () => {
+    // Configure the Loki endpoint before importing the logger module.
+    process.env.LOKI_URL = 'http://loki.test/loki/api/v1/push';
+
+    // Mock fetch so direct measurements can be inspected without network I/O.
+    const fetchMock = vi.fn().mockResolvedValue(new Response(null, { status: 204 }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    // Load the helper after the environment and fetch mock are ready.
+    const { measurePerformanceTask } = await importPerformanceLogger();
+
+    // Measure a database chunk and attach stable metadata for diagnostics.
+    await measurePerformanceTask(
+      'epoch:42 > slot:1344',
+      'processAttestations:saveSlotAttestations:updateCommitteeChunk',
+      async () => {
+        vi.advanceTimersByTime(19);
+        return 123;
+      },
+      { rows: 7000, chunk: 2, chunks: 7, updatedRows: 123 },
+    );
+
+    // Allow the fire-and-forget Loki push to run.
+    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+
+    // Verify metadata is appended without changing the task name.
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body);
+    expect(body.streams[0].values[0][1]).toBe(
+      'epoch:42 > slot:1344 | processAttestations:saveSlotAttestations:updateCommitteeChunk | 19ms | rows=7000 chunk=2 chunks=7 updatedRows=123',
+    );
+  });
 });

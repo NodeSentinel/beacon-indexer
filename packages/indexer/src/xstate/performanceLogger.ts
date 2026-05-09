@@ -5,6 +5,9 @@ import type { ActionArgs, EventObject, MachineContext } from 'xstate';
 const lokiUrl = process.env.LOKI_URL;
 const startedAtByTask = new Map<string, number>();
 
+type PerformanceMetadata = Record<string, string | number | boolean | null | undefined>;
+type PerformanceMetadataInput<T> = PerformanceMetadata | ((result: T) => PerformanceMetadata);
+
 /**
  * Builds the Loki timestamp format from the current wall-clock time.
  */
@@ -48,11 +51,43 @@ function pushPerformanceLine(line: string) {
 }
 
 /**
+ * Formats optional metadata as stable key-value pairs.
+ */
+function formatMetadata(metadata?: PerformanceMetadata) {
+  if (!metadata) {
+    return '';
+  }
+
+  // Keep the field order provided by the caller so logs stay predictable.
+  const fields = Object.entries(metadata)
+    .filter(([, value]) => value !== undefined && value !== null)
+    .map(([key, value]) => `${key}=${value}`);
+
+  return fields.length > 0 ? ` | ${fields.join(' ')}` : '';
+}
+
+/**
+ * Resolves static or result-based metadata for a completed measurement.
+ */
+function resolveMetadata<T>(metadata: PerformanceMetadataInput<T> | undefined, result: T) {
+  if (typeof metadata === 'function') {
+    return metadata(result);
+  }
+
+  return metadata;
+}
+
+/**
  * Writes one elapsed duration for code that is not running as an XState action.
  */
-export function recordPerformanceTask(scope: string, task: string, duration: number) {
+export function recordPerformanceTask(
+  scope: string,
+  task: string,
+  duration: number,
+  metadata?: PerformanceMetadata,
+) {
   // Direct measurements use the same line format as XState entry/exit timers.
-  pushPerformanceLine(`${scope} | ${task} | ${duration}ms`);
+  pushPerformanceLine(`${scope} | ${task} | ${duration}ms${formatMetadata(metadata)}`);
 }
 
 /**
@@ -62,15 +97,21 @@ export async function measurePerformanceTask<T>(
   scope: string,
   task: string,
   operation: () => Promise<T>,
+  metadata?: PerformanceMetadataInput<T>,
 ): Promise<T> {
   // Date.now keeps direct measurements consistent with the existing XState timers.
   const startedAt = Date.now();
+  let result: T;
 
   try {
-    return await operation();
-  } finally {
+    result = await operation();
+  } catch (error) {
     recordPerformanceTask(scope, task, Date.now() - startedAt);
+    throw error;
   }
+
+  recordPerformanceTask(scope, task, Date.now() - startedAt, resolveMetadata(metadata, result));
+  return result;
 }
 
 /**
