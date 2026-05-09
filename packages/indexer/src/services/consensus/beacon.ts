@@ -52,8 +52,13 @@ export class BeaconClient extends ReliableRequestClient {
   public readonly slotStartIndexing: number;
   public readonly slotsPerEpoch: number;
   private readonly archiveNodeToken?: { key: string; value: string };
+
+  /**
+   * Caches block rewards fetched in advance for delayed slots, with a fallback to handle missed slots.
+   * 'SLOT MISSED' is used to indicate that the slot was missed, allowing the caller to handle it accordingly.
+   */
   private readonly blockRewardsCache = new LRUCache<number, BlockRewards | 'SLOT MISSED'>({
-    max: 5,
+    max: 6,
     ttl: ms('1m'),
     fetchMethod: (slot) => this.fetchBlockRewardsUncached(slot),
   });
@@ -66,7 +71,7 @@ export class BeaconClient extends ReliableRequestClient {
     SyncCommitteeRewards,
     { ignoreErrors?: boolean } | undefined
   >({
-    max: 5,
+    max: 6,
     ttl: ms('3m'),
     fetchMethod: async (key, _staleValue, { context }) => {
       const [slot, validatorIndexes] = this.parseSyncCommitteeRewardsCacheKey(key);
