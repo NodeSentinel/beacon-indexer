@@ -313,7 +313,7 @@ export class BeaconClient extends ReliableRequestClient {
           statuses,
         },
         {
-          timeout: ms('45s'),
+          timeout: ms('1m'),
         },
       );
       return res.data.data;
