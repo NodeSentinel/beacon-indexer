@@ -11,7 +11,6 @@ import type React from 'react';
 import ValidatorHeader from '@/components/cluster/validator-header';
 import { TelegramProvider } from '@/components/telegram/TelegramProvider';
 import { QueryProvider } from '@/lib/query-provider';
-import { V0Provider } from '@/lib/v0-context';
 
 const robotoMono = Roboto_Mono({
   variable: '--font-roboto-mono',
@@ -23,8 +22,6 @@ const rebelGrotesk = localFont({
   variable: '--font-rebels',
   display: 'swap',
 });
-
-const isV0 = process.env['VERCEL_URL']?.includes('vusercontent.net') ?? false;
 
 export const metadata: Metadata = {
   title: {
@@ -72,14 +69,12 @@ export default function RootLayout({
       <body className={`${rebelGrotesk.variable} ${robotoMono.variable} antialiased`}>
         <QueryProvider>
           <TelegramProvider>
-            <V0Provider isV0={isV0}>
-              <ValidatorHeader />
-              <div className="w-full max-w-7xl mx-auto px-4 lg:px-8">{children}</div>
-              {/* Mounts Vercel traffic analytics for the full app. */}
-              <Analytics />
-              {/* Mounts Vercel performance insights for the full app. */}
-              <SpeedInsights />
-            </V0Provider>
+            <ValidatorHeader />
+            <div className="w-full max-w-7xl mx-auto px-4 lg:px-8">{children}</div>
+            {/* Mounts Vercel traffic analytics for the full app. */}
+            <Analytics />
+            {/* Mounts Vercel performance insights for the full app. */}
+            <SpeedInsights />
           </TelegramProvider>
         </QueryProvider>
       </body>

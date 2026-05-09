@@ -8,7 +8,6 @@ import NotificationItem from './notification-item';
 import { Badge } from '@/components/ui/badge';
 import { Bullet } from '@/components/ui/bullet';
 import { SheetClose, SheetHeader, SheetTitle } from '@/components/ui/sheet';
-import { useIsV0 } from '@/lib/v0-context';
 import type { Notification } from '@/types/dashboard';
 
 interface MobileNotificationsProps {
@@ -53,8 +52,6 @@ function SwipeableWrapper({ children, onDelete }: SwipeableWrapperProps) {
 export default function MobileNotifications({ initialNotifications }: MobileNotificationsProps) {
   const [notifications, setNotifications] = useState<Notification[]>(initialNotifications);
 
-  const isV0 = useIsV0();
-
   const unreadCount = notifications.filter((n) => !n.read).length;
 
   const markAsRead = (id: string) => {
@@ -94,7 +91,7 @@ export default function MobileNotifications({ initialNotifications }: MobileNoti
             <p className="text-sm text-muted-foreground">No notifications</p>
           </div>
         ) : (
-          <AnimatePresence mode={isV0 ? 'wait' : 'popLayout'}>
+          <AnimatePresence mode="popLayout">
             {notifications.map((notification) => (
               <motion.div
                 key={notification.id}

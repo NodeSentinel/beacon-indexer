@@ -76,7 +76,6 @@ import MonkeyIcon from '@/components/icons/monkey';
 import ProcessorIcon from '@/components/icons/proccesor';
 import { Bullet } from '@/components/ui/bullet';
 import { cn } from '@/lib/utils';
-import { useIsV0 } from '@/lib/v0-context';
 
 // This is sample data for the sidebar
 const data = {
@@ -136,8 +135,6 @@ const data = {
 };
 
 export function DashboardSidebar({ className, ...props }: React.ComponentProps<typeof Sidebar>) {
-  const isV0 = useIsV0();
-
   return (
     <Sidebar {...props} className={cn('py-sides', className)}>
       <SidebarHeader className="rounded-t-lg flex gap-3 flex-row rounded-b-none">
@@ -162,10 +159,7 @@ export function DashboardSidebar({ className, ...props }: React.ComponentProps<t
                 {group.items.map((item) => (
                   <SidebarMenuItem
                     key={item.title}
-                    className={cn(
-                      item.locked && 'pointer-events-none opacity-50',
-                      isV0 && 'pointer-events-none',
-                    )}
+                    className={cn(item.locked && 'pointer-events-none opacity-50')}
                     data-disabled={item.locked}
                   >
                     <SidebarMenuButton
