@@ -2,8 +2,6 @@
 
 This package holds the Prisma schema and migrations. Root project context: see repository root `AGENTS.md`.
 
-- Beta mode: keep only the initial migration. Apply schema changes by updating the initial migration, not by adding new migrations.
-
 ## Naming conventions
 
 - **camelCase** for Prisma model names (e.g., `ValidatorHourlyArchive`).

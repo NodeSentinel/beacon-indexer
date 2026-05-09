@@ -25,6 +25,7 @@ const serverEnv = {
   // Chain config
   CHAIN: z.enum(['ethereum', 'gnosis']),
   CONSENSUS_LOOKBACK_SLOT: z.coerce.number().int().min(0).default(0),
+  EXECUTION_RPC_URL: z.string().url(),
   NATIVE_TOKEN_DECIMALS: z.coerce.number().int().min(0).default(18),
 
   // Coingecko

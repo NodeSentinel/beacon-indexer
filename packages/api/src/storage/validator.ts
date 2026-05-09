@@ -222,11 +222,11 @@ export class ValidatorStorage {
   }
 
   /**
-   * Check if validator exists by index
+   * Find validator by index.
    * @param validatorIndex - Validator index
    * @returns Validator basic info or null if not found
    */
-  async existsByIndex(
+  async findByIndex(
     validatorIndex: number,
   ): Promise<{ index: number; pubkey: string | null; withdrawalAddress: string | null } | null> {
     const validator = await this.prisma.validator.findUnique({
@@ -243,11 +243,11 @@ export class ValidatorStorage {
   }
 
   /**
-   * Check if validators exist by multiple indexes (bulk)
+   * Find validators by multiple indexes.
    * @param validatorIndexes - Array of validator indexes
    * @returns Array of validators with basic info (only found ones)
    */
-  async existsByIndexes(
+  async findByIndexes(
     validatorIndexes: number[],
   ): Promise<Array<{ index: number; pubkey: string | null; withdrawalAddress: string | null }>> {
     if (validatorIndexes.length === 0) return [];

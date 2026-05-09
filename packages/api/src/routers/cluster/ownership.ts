@@ -1,7 +1,5 @@
 import type { DbUser } from '@/lib/orpc.js';
 
-import { ClusterStorage } from '@/storage/cluster.js';
-
 type ClusterOwnershipErrorResponse = {
   success: false;
   error: { code: string; message: string };
@@ -23,7 +21,7 @@ function buildOwnershipErrorResponse(code: string, message: string): ClusterOwne
  * Returns a standard API error response when access should be rejected.
  */
 export async function requireOwnedCluster(
-  storage: ClusterStorage,
+  storage: { existsForOwner: (id: string, ownerId: string) => Promise<boolean> },
   clusterId: string,
   user: DbUser | undefined,
 ): Promise<ClusterOwnershipErrorResponse | null> {

@@ -1,8 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-
-import { orpcClient } from './orpc';
+import { useCurrentUser } from '@/hooks/use-current-user';
 
 /**
  * Hook to get the current user ID.
@@ -14,26 +12,6 @@ import { orpcClient } from './orpc';
  * Returns the DB user ID as a string, or empty string while loading.
  */
 export function useUserId(): string {
-  const [userId, setUserId] = useState('');
-
-  useEffect(() => {
-    async function fetchUserId() {
-      try {
-        const response = await orpcClient.user.me();
-        if (response.success && response.data) {
-          setUserId(response.data.id);
-          return;
-        }
-
-        setUserId('');
-      } catch (error) {
-        console.error('Failed to fetch user ID:', error);
-        setUserId('');
-      }
-    }
-
-    fetchUserId();
-  }, []);
-
-  return userId;
+  const { data: user } = useCurrentUser();
+  return user?.id ?? '';
 }

@@ -7,6 +7,7 @@ import {
   useGetValidatorsFromWithdrawalAddresses,
   useSearchByIndex,
   useSearchByIndexes,
+  useSearchByLidoCsmOperatorId,
   useSearchByPubkey,
   useSearchByPubkeys,
   useSearchByWithdrawalAddress,
@@ -33,6 +34,7 @@ export type BulkAction = {
   withdrawalAddress: string;
   validatorCount: number;
   validators: ValidatorItem[];
+  lidoCsmOperatorId?: number;
 } | null;
 
 const BULK_ADD_THRESHOLD = 10;
@@ -69,6 +71,8 @@ export function useValidatorInput({
   const [validationState, setValidationState] = useState<ValidationState>('idle');
   const [errorMessage, setErrorMessage] = useState('');
   const [bulkAction, setBulkAction] = useState<BulkAction>(null);
+  const [lidoCsmOperatorId, setLidoCsmOperatorId] = useState<number | undefined>(undefined);
+  const [lidoCsmValidatorIndexes, setLidoCsmValidatorIndexes] = useState<number[]>([]);
   const [selectedSearchCategory, setSelectedSearchCategory] =
     useState<ValidatorSearchCategory>('index');
 
@@ -80,6 +84,7 @@ export function useValidatorInput({
   const searchByIndex = useSearchByIndex();
   const searchByPubkey = useSearchByPubkey();
   const searchByWithdrawal = useSearchByWithdrawalAddress();
+  const searchByLidoCsmOperatorId = useSearchByLidoCsmOperatorId();
 
   // Search hooks (bulk)
   const searchByIndexes = useSearchByIndexes();
@@ -163,7 +168,8 @@ export function useValidatorInput({
     searchByPubkey.isPending ||
     searchByPubkeys.isPending ||
     searchByWithdrawal.isPending ||
-    searchByWithdrawalAddresses.isPending;
+    searchByWithdrawalAddresses.isPending ||
+    searchByLidoCsmOperatorId.isPending;
 
   const handleAddValidator = async () => {
     if (!inputValue.trim()) return;
@@ -183,6 +189,13 @@ export function useValidatorInput({
         return;
       }
 
+      // Reject invalid values before making any API request.
+      if (parsed.invalidValues.length > 0) {
+        setValidationState('invalid');
+        setErrorMessage(`Invalid values: ${parsed.invalidValues.join(', ')}`);
+        return;
+      }
+
       const existingIndexes = new Set(validators.map((v) => v.index));
       let foundValidators: Array<{
         index: number;
@@ -190,6 +203,7 @@ export function useValidatorInput({
         withdrawalAddress: string | null;
       }> = [];
       let notFoundCount = 0;
+      let foundLidoCsmOperatorId: number | undefined;
 
       // Handle indexes
       if (parsed.type === 'index') {
@@ -242,11 +256,17 @@ export function useValidatorInput({
         }
       }
 
-      // Handle invalid values in input
-      if (parsed.invalidValues.length > 0) {
-        setValidationState('invalid');
-        setErrorMessage(`Invalid values: ${parsed.invalidValues.join(', ')}`);
-        return;
+      // Handle Lido CSM operator ids
+      if (parsed.type === 'lidoCsm') {
+        const operatorId = parseInt(parsed.values[0], 10);
+        foundValidators = await searchByLidoCsmOperatorId.mutateAsync(operatorId);
+        foundLidoCsmOperatorId = operatorId;
+
+        if (foundValidators.length === 0) {
+          setValidationState('invalid');
+          setErrorMessage('No validators found for the provided Lido CSM operator');
+          return;
+        }
       }
 
       // Filter out already existing validators (silently, no error)
@@ -271,6 +291,10 @@ export function useValidatorInput({
           return;
         }
         // All validators already exist - show friendly message, not error
+        if (foundLidoCsmOperatorId !== undefined) {
+          setLidoCsmOperatorId(foundLidoCsmOperatorId);
+          setLidoCsmValidatorIndexes(foundValidators.map((validator) => validator.index));
+        }
         setValidationState('valid');
         setInputValue('');
         toast({
@@ -291,6 +315,7 @@ export function useValidatorInput({
           withdrawalAddress: parsed.type === 'withdrawalAddress' ? parsed.values[0] : '',
           validatorCount: newValidators.length,
           validators: sortValidatorsDescending(newValidators),
+          lidoCsmOperatorId: foundLidoCsmOperatorId,
         });
         setValidationState('valid');
         return;
@@ -298,6 +323,10 @@ export function useValidatorInput({
 
       // Add validators
       onValidatorsChange(sortValidatorsDescending([...validators, ...newValidators]));
+      if (foundLidoCsmOperatorId !== undefined) {
+        setLidoCsmOperatorId(foundLidoCsmOperatorId);
+        setLidoCsmValidatorIndexes(foundValidators.map((validator) => validator.index));
+      }
       setValidationState('valid');
       setInputValue('');
 
@@ -339,9 +368,9 @@ export function useValidatorInput({
         description,
       });
       setTimeout(() => setValidationState('idle'), 1000);
-    } catch {
+    } catch (error) {
       setValidationState('invalid');
-      setErrorMessage('Failed to search validators');
+      setErrorMessage(error instanceof Error ? error.message : 'Failed to search validators');
     }
   };
 
@@ -349,6 +378,10 @@ export function useValidatorInput({
     if (!bulkAction || bulkAction.action !== 'add') return;
 
     onValidatorsChange(sortValidatorsDescending([...validators, ...bulkAction.validators]));
+    if (bulkAction.lidoCsmOperatorId !== undefined) {
+      setLidoCsmOperatorId(bulkAction.lidoCsmOperatorId);
+      setLidoCsmValidatorIndexes(bulkAction.validators.map((validator) => validator.index));
+    }
 
     // Track discovered withdrawal addresses if not already known
     const newAddresses = bulkAction.validators
@@ -469,6 +502,14 @@ export function useValidatorInput({
 
   const closeBulkAction = () => setBulkAction(null);
 
+  const clearLidoCsmSelection = () => {
+    setLidoCsmOperatorId(undefined);
+    setLidoCsmValidatorIndexes([]);
+    setInputValue('');
+    setValidationState('idle');
+    setErrorMessage('');
+  };
+
   return {
     // State
     validators,
@@ -481,6 +522,8 @@ export function useValidatorInput({
     allWithdrawalAddresses,
     validatorsByAddress,
     missingValidatorsByAddress,
+    lidoCsmOperatorId,
+    lidoCsmValidatorIndexes,
 
     // Actions
     handleAddValidator,
@@ -493,5 +536,6 @@ export function useValidatorInput({
     handleCategoryChange,
     handleKeyDown,
     closeBulkAction,
+    clearLidoCsmSelection,
   };
 }

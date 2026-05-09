@@ -1,6 +1,6 @@
 import { isAddress, isHex, size } from 'viem';
 
-export type ValidatorSearchCategory = 'index' | 'pubkey' | 'withdrawalAddress';
+export type ValidatorSearchCategory = 'index' | 'pubkey' | 'withdrawalAddress' | 'lidoCsm';
 
 export interface ParsedValidatorSearchInput {
   type: ValidatorSearchCategory;
@@ -10,7 +10,7 @@ export interface ParsedValidatorSearchInput {
 
 /** Checks whether a value is valid for the selected validator search category. */
 function isValidForCategory(value: string, category: ValidatorSearchCategory): boolean {
-  if (category === 'index') {
+  if (category === 'index' || category === 'lidoCsm') {
     return /^\d+$/.test(value);
   }
 
@@ -33,6 +33,15 @@ export function parseValidatorSearchInput(
 
   if (parts.length === 0) {
     return null;
+  }
+
+  // Only one CMS Lido ID is allowed
+  if (category === 'lidoCsm' && parts.length !== 1) {
+    return {
+      type: category,
+      values: [],
+      invalidValues: parts,
+    };
   }
 
   return {

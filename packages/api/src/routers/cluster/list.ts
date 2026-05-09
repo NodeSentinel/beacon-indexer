@@ -29,6 +29,7 @@ export function createListClustersRoute(params: {
             name: cluster.name,
             visibility: cluster.visibility,
             feeRecipientAddress: cluster.feeRecipientAddress,
+            lidoOperatorId: cluster.lidoOperatorId,
             ownerId: cluster.ownerId,
             createdAt: cluster.createdAt.toISOString(),
             validatorCount: cluster._count.validators,

@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { z } from 'zod';
 
+import { validateClusterLidoCsmOperator } from './lido-csm-operator.js';
 import { requireOwnedCluster } from './ownership.js';
 import { ClusterIdParamSchema, ClusterSchema, UpdateClusterInputSchema } from './schemas.js';
 
@@ -31,7 +32,23 @@ export function createUpdateClusterRoute(params: {
           return ownershipError;
         }
 
-        const updateData: z.infer<typeof UpdateClusterInputSchema> = {};
+        if (input.lidoCsmOperatorId !== undefined) {
+          const storedCluster = await params.clusterStorage.findById(input.id);
+          const lidoConflict = validateClusterLidoCsmOperator({
+            currentLidoOperatorId: storedCluster?.lidoOperatorId ?? null,
+            nextLidoCsmOperatorId: input.lidoCsmOperatorId,
+          });
+
+          if (lidoConflict) {
+            return {
+              success: false,
+              error: lidoConflict,
+              meta: { timestamp: new Date().toISOString() },
+            };
+          }
+        }
+
+        const updateData: Omit<z.infer<typeof UpdateClusterInputSchema>, 'lidoCsmOperatorId'> = {};
         if (input.name !== undefined) updateData.name = input.name;
         if (input.visibility !== undefined) updateData.visibility = input.visibility;
         if (input.feeRecipientAddress !== undefined) {
@@ -55,10 +72,18 @@ export function createUpdateClusterRoute(params: {
           }
         }
 
-        const cluster = await params.clusterStorage.updateWithValidators(input.id, {
+        const data = {
           ...updateData,
           validatorIndexes: input.validatorIndexes,
-        });
+        };
+        const cluster =
+          input.lidoCsmOperatorId !== undefined
+            ? await params.clusterStorage.updateWithValidatorsAndLidoOperator(
+                input.id,
+                data,
+                input.lidoCsmOperatorId,
+              )
+            : await params.clusterStorage.updateWithValidators(input.id, data);
 
         return {
           success: true,
@@ -67,6 +92,7 @@ export function createUpdateClusterRoute(params: {
             name: cluster.name,
             visibility: cluster.visibility,
             feeRecipientAddress: cluster.feeRecipientAddress,
+            lidoOperatorId: cluster.lidoOperatorId,
             ownerId: cluster.ownerId,
             createdAt: cluster.createdAt.toISOString(),
           },

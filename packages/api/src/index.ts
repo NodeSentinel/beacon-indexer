@@ -75,6 +75,7 @@ async function main() {
     botUsersStorage: new BotUsersStorage(prisma),
     chain: env.CHAIN,
     clusterStorage: new ClusterStorage(prisma),
+    executionRpcUrl: env.EXECUTION_RPC_URL,
     incidentStorage: new IncidentStorage(prisma),
     logger,
     nativeTokenDecimals: env.NATIVE_TOKEN_DECIMALS,

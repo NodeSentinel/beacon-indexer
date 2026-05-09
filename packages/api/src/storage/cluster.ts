@@ -1,10 +1,11 @@
-import { ClusterVisibility, PrismaClient } from '@beacon-indexer/db';
+import { ClusterVisibility, Prisma, PrismaClient } from '@beacon-indexer/db';
 
 interface CreateClusterData {
   name: string;
   ownerId: string;
   visibility: ClusterVisibility;
   feeRecipientAddress?: string | null;
+  lidoCsmOperatorId?: number;
   validatorIndexes?: number[];
 }
 
@@ -17,6 +18,8 @@ interface UpdateClusterData {
 interface UpdateClusterWithValidatorsData extends UpdateClusterData {
   validatorIndexes?: number[];
 }
+
+type UpdateClusterWithLidoOperatorData = UpdateClusterWithValidatorsData;
 
 /**
  * ClusterStorage - Database persistence layer for cluster operations
@@ -46,17 +49,19 @@ export class ClusterStorage {
    * Create a new cluster
    */
   async create(data: CreateClusterData) {
-    const validatorIndexes = this.uniqueValidatorIndexes(data.validatorIndexes ?? []);
-
     // Persists the cluster and its initial membership in one transaction so callers never
     // observe a cluster without the validators that were part of the create request.
     return this.prisma.$transaction(async (tx) => {
+      const validatorIndexes = this.uniqueValidatorIndexes(data.validatorIndexes ?? []);
+
       const cluster = await tx.cluster.create({
         data: {
           name: data.name,
           ownerId: data.ownerId,
           visibility: data.visibility,
           feeRecipientAddress: data.feeRecipientAddress,
+          lidoOperatorId:
+            data.lidoCsmOperatorId !== undefined ? data.lidoCsmOperatorId.toString() : undefined,
         },
       });
 
@@ -120,6 +125,7 @@ export class ClusterStorage {
         cluster_name: string;
         cluster_visibility: string;
         cluster_fee_recipient_address: string | null;
+        cluster_lido_operator_id: string | null;
         cluster_owner_id: string;
         cluster_created_at: Date;
         validator_index: number | null;
@@ -137,6 +143,7 @@ export class ClusterStorage {
         c.name          AS cluster_name,
         c.visibility    AS cluster_visibility,
         c.fee_recipient_address AS cluster_fee_recipient_address,
+        c.lido_operator_id AS cluster_lido_operator_id,
         c.owner_id      AS cluster_owner_id,
         c.created_at    AS cluster_created_at,
         cv.validator_index,
@@ -163,6 +170,7 @@ export class ClusterStorage {
       name: first.cluster_name,
       visibility: first.cluster_visibility,
       feeRecipientAddress: first.cluster_fee_recipient_address,
+      lidoOperatorId: first.cluster_lido_operator_id,
       ownerId: first.cluster_owner_id,
       createdAt: first.cluster_created_at,
       validators: rows
@@ -252,7 +260,12 @@ export class ClusterStorage {
   /**
    * Update cluster metadata and synchronize validator membership in one transaction.
    */
-  async updateWithValidators(id: string, data: UpdateClusterWithValidatorsData) {
+  private async updateWithValidatorsInTransaction(
+    tx: Prisma.TransactionClient,
+    id: string,
+    data: UpdateClusterWithValidatorsData,
+    extraData: { lidoOperatorId?: string } = {},
+  ) {
     const validatorIndexes =
       data.validatorIndexes !== undefined
         ? this.uniqueValidatorIndexes(data.validatorIndexes)
@@ -261,61 +274,83 @@ export class ClusterStorage {
       name: data.name,
       visibility: data.visibility,
       feeRecipientAddress: data.feeRecipientAddress,
+      lidoOperatorId: extraData.lidoOperatorId,
     };
     const hasMetadataUpdates = Object.values(metadata).some((value) => value !== undefined);
 
-    // Runs the metadata update and membership sync together so saves are atomic.
-    return this.prisma.$transaction(async (tx) => {
-      // Reuses the stored cluster row when the save only changes validator membership.
-      const cluster = hasMetadataUpdates
-        ? await tx.cluster.update({
-            where: { id },
-            data: metadata,
-          })
-        : await tx.cluster.findUniqueOrThrow({
-            where: { id },
-          });
-
-      if (validatorIndexes !== undefined) {
-        // Reads the current membership first so the sync only writes the real delta.
-        const currentValidators = await tx.clusterValidator.findMany({
-          where: { clusterId: id },
-          select: { validatorIndex: true },
+    // Reuses the stored cluster row when the save only changes validator membership.
+    const cluster = hasMetadataUpdates
+      ? await tx.cluster.update({
+          where: { id },
+          data: metadata,
+        })
+      : await tx.cluster.findUniqueOrThrow({
+          where: { id },
         });
 
-        const currentValidatorSet = new Set(currentValidators.map((row) => row.validatorIndex));
-        const nextValidatorSet = new Set(validatorIndexes);
+    if (validatorIndexes !== undefined) {
+      // Reads the current membership first so the sync only writes the real delta.
+      const currentValidators = await tx.clusterValidator.findMany({
+        where: { clusterId: id },
+        select: { validatorIndex: true },
+      });
 
-        // Adds validators that appear in the new draft but not in the stored cluster.
-        const validatorIndexesToAdd = validatorIndexes.filter(
-          (validatorIndex) => !currentValidatorSet.has(validatorIndex),
-        );
-        // Removes validators that are still stored but no longer appear in the saved draft.
-        const validatorIndexesToRemove = currentValidators
-          .map((row) => row.validatorIndex)
-          .filter((validatorIndex) => !nextValidatorSet.has(validatorIndex));
+      const currentValidatorSet = new Set(currentValidators.map((row) => row.validatorIndex));
+      const nextValidatorSet = new Set(validatorIndexes);
 
-        if (validatorIndexesToRemove.length > 0) {
-          await tx.clusterValidator.deleteMany({
-            where: {
-              clusterId: id,
-              validatorIndex: { in: validatorIndexesToRemove },
-            },
-          });
-        }
+      // Adds validators that appear in the new draft but not in the stored cluster.
+      const validatorIndexesToAdd = validatorIndexes.filter(
+        (validatorIndex) => !currentValidatorSet.has(validatorIndex),
+      );
+      // Removes validators that are still stored but no longer appear in the saved draft.
+      const validatorIndexesToRemove = currentValidators
+        .map((row) => row.validatorIndex)
+        .filter((validatorIndex) => !nextValidatorSet.has(validatorIndex));
 
-        if (validatorIndexesToAdd.length > 0) {
-          await tx.clusterValidator.createMany({
-            data: validatorIndexesToAdd.map((validatorIndex) => ({
-              clusterId: id,
-              validatorIndex,
-            })),
-            skipDuplicates: true,
-          });
-        }
+      if (validatorIndexesToRemove.length > 0) {
+        await tx.clusterValidator.deleteMany({
+          where: {
+            clusterId: id,
+            validatorIndex: { in: validatorIndexesToRemove },
+          },
+        });
       }
 
-      return cluster;
+      if (validatorIndexesToAdd.length > 0) {
+        await tx.clusterValidator.createMany({
+          data: validatorIndexesToAdd.map((validatorIndex) => ({
+            clusterId: id,
+            validatorIndex,
+          })),
+          skipDuplicates: true,
+        });
+      }
+    }
+
+    return cluster;
+  }
+
+  /**
+   * Update cluster metadata and synchronize validator membership in one transaction.
+   */
+  async updateWithValidators(id: string, data: UpdateClusterWithValidatorsData) {
+    // Runs the metadata update and membership sync together so saves are atomic.
+    return this.prisma.$transaction((tx) => this.updateWithValidatorsInTransaction(tx, id, data));
+  }
+
+  /**
+   * Update cluster data and persist the cluster's selected Lido CSM operator id.
+   */
+  async updateWithValidatorsAndLidoOperator(
+    id: string,
+    data: UpdateClusterWithLidoOperatorData,
+    lidoCsmOperatorId: number,
+  ) {
+    return this.prisma.$transaction(async (tx) => {
+      // Stores the Lido operator id in the same cluster update used for metadata changes.
+      return this.updateWithValidatorsInTransaction(tx, id, data, {
+        lidoOperatorId: lidoCsmOperatorId.toString(),
+      });
     });
   }
 
@@ -602,6 +637,37 @@ export class ClusterStorage {
       distinct: ['validatorIndex'],
     });
     return results.map((r) => r.validatorIndex);
+  }
+
+  /**
+   * Remove Lido validators and clear the cluster operator id in one transaction.
+   */
+  async clearLidoOperatorFromOwnedCluster(
+    clusterId: string,
+    ownerId: string,
+    validatorIndexes: number[],
+  ) {
+    return this.prisma.$transaction(async (tx) => {
+      const removedValidatorCount =
+        validatorIndexes.length === 0
+          ? 0
+          : (
+              await tx.clusterValidator.deleteMany({
+                where: {
+                  cluster: { id: clusterId, ownerId },
+                  validatorIndex: { in: validatorIndexes },
+                },
+              })
+            ).count;
+
+      const cluster = await tx.cluster.update({
+        where: { id: clusterId, ownerId },
+        data: { lidoOperatorId: null },
+        select: { id: true, lidoOperatorId: true },
+      });
+
+      return { cluster, removedValidatorCount };
+    });
   }
 
   /**

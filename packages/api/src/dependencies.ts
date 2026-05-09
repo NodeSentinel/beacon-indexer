@@ -29,6 +29,7 @@ export interface ApiDependencies {
   botNotificationsStorage: BotNotificationsStorage;
   botUsersStorage: BotUsersStorage;
   clusterStorage: ClusterStorage;
+  executionRpcUrl: string;
   incidentStorage: IncidentStorage;
   logger: Logger;
   nativeTokenDecimals: number;

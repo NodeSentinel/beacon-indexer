@@ -1,4 +1,7 @@
 import assert from 'node:assert/strict';
+import { mkdirSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
 import test from 'node:test';
 
 import { buildPrismaCommand, parsePrismaArgs } from './prisma-env.js';
@@ -17,28 +20,34 @@ test('rejects prisma args without a supported chain', () => {
   assert.throws(() => parsePrismaArgs('db:migrate', ['--env=dev']), /Invalid chain/);
 });
 
-// Verifies that the Prisma runner uses dotenvx composition with a local DB host override.
-test('builds prisma command with dotenvx overload and localhost override', () => {
-  const parsed = parsePrismaArgs('db:deploy', ['--chain=ethereum', '--env=prod']);
-  const command = buildPrismaCommand(parsed, '/repo');
+// Verifies that the Prisma runner builds a host-side DATABASE_URL for SSH tunnels.
+test('builds prisma command with localhost database url override', () => {
+  const rootDir = path.join(tmpdir(), `prisma-env-test-${Date.now()}`);
+  const envDir = path.join(rootDir, 'env', 'ethereum', 'prod');
+  mkdirSync(envDir, { recursive: true });
+  writeFileSync(
+    path.join(envDir, 'db.env'),
+    [
+      'POSTGRES_USER=app',
+      'POSTGRES_PASSWORD=secret',
+      'POSTGRES_HOST=postgres',
+      'POSTGRES_PORT=7770',
+      'POSTGRES_DB=beacon',
+      'DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:${POSTGRES_PORT}/${POSTGRES_DB}?schema=public',
+      '',
+    ].join('\n'),
+  );
 
-  assert.deepEqual(command.args, [
-    'exec',
-    'dotenvx',
-    'run',
-    '--overload',
-    '-f',
-    '/repo/env/ethereum/prod/db.env',
-    '--env',
-    'POSTGRES_HOST=localhost',
-    '--',
-    'pnpm',
-    '--filter',
-    '@beacon-indexer/db',
-    'run',
-    'db:deploy',
-  ]);
-  assert.deepEqual(command.requiredEnvFiles, ['/repo/env/ethereum/prod/db.env']);
+  const parsed = parsePrismaArgs('db:deploy', ['--chain=ethereum', '--env=prod']);
+  const command = buildPrismaCommand(parsed, rootDir);
+
+  assert.deepEqual(command.args, ['pnpm', '--filter', '@beacon-indexer/db', 'run', 'db:deploy']);
+  assert.equal(command.env.POSTGRES_HOST, 'localhost');
+  assert.equal(
+    command.env.DATABASE_URL,
+    'postgresql://app:secret@localhost:7770/beacon?schema=public',
+  );
+  assert.deepEqual(command.requiredEnvFiles, [path.join(envDir, 'db.env')]);
 });
 
 // Verifies that destructive reset is not exposed by the root Prisma runner.
