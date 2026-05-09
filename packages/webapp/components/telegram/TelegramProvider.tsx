@@ -6,7 +6,6 @@ import { type PropsWithChildren, useEffect, useState } from 'react';
 
 import { BackButtonBinder } from './BackButtonBinder';
 
-import { env } from '@/env';
 import { initializeAnonymousAuth, initializeTelegramAuth } from '@/lib/auth-session';
 
 /**
@@ -75,14 +74,12 @@ function TelegramAppInitializer({ children }: PropsWithChildren) {
   }, []);
 
   useEffect(() => {
-    // Log launch params in development
-    if (env.NODE_ENV === 'development') {
-      console.log('Telegram Mini App initialized', {
-        platform: lp.platform,
-        version: lp.version,
-        initData: lp.initData,
-      });
-    }
+    // Log launch params after Telegram SDK initialization.
+    console.log('Telegram Mini App initialized', {
+      platform: lp.platform,
+      version: lp.version,
+      initData: lp.initData,
+    });
   }, [lp]);
 
   // Telegram sessions must not fall back to anonymous auth.
