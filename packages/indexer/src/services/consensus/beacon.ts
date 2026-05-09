@@ -79,7 +79,7 @@ export class BeaconClient extends ReliableRequestClient {
             `${url}/eth/v1/beacon/rewards/sync_committee/${slot}`,
             validatorIndexes,
             {
-              timeout: ms('30s'),
+              timeout: ms('45s'),
             },
           );
           return res.data;
@@ -359,7 +359,7 @@ export class BeaconClient extends ReliableRequestClient {
         const res = await this.axiosInstance.get<BlockRewards>(
           `${url}/eth/v1/beacon/rewards/blocks/${slot}`,
           {
-            timeout: ms('30s'),
+            timeout: ms('45s'),
           },
         );
         return res.data;
