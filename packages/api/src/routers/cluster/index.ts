@@ -1,4 +1,5 @@
 import { createAddValidatorsRoute } from './addValidators.js';
+import { createClearLidoCsmOperatorRoute } from './clear-lido-csm-operator.js';
 import { createCreateClusterRoute } from './create.js';
 import { createDeleteClusterRoute } from './delete.js';
 import { createGetClusterRoute } from './get.js';
@@ -24,8 +25,11 @@ export function createClusterRouter(
     | 'analyticsStorage'
     | 'beaconHelpers'
     | 'clusterStorage'
+    | 'executionRpcUrl'
     | 'incidentStorage'
     | 'procedures'
+    | 'userStorage'
+    | 'validatorStorage'
     | 'chain'
     | 'logger'
     | 'nativeTokenDecimals'
@@ -44,6 +48,7 @@ export function createClusterRouter(
     delete: createDeleteClusterRoute(deps),
     addValidators: createAddValidatorsRoute(deps),
     removeValidators: createRemoveValidatorsRoute(deps),
+    clearLidoCsmOperator: createClearLidoCsmOperatorRoute(deps),
     incidents: incidents.listClusterIncidents,
     incidentAffectedValidators: incidents.listIncidentAffectedValidators,
     setIncidentClosedNotified: incidents.markClusterIncidentClosedNotified,

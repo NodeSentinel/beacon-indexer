@@ -21,4 +21,31 @@ describe('parseValidatorSearchInput', () => {
     assert.deepEqual(result.values, ['123', '456']);
     assert.deepEqual(result.invalidValues, []);
   });
+
+  it('parses a Lido CSM operator id', () => {
+    const result = parseValidatorSearchInput('123', 'lidoCsm');
+
+    assert.ok(result);
+    assert.equal(result.type, 'lidoCsm');
+    assert.deepEqual(result.values, ['123']);
+    assert.deepEqual(result.invalidValues, []);
+  });
+
+  it('rejects non-numeric Lido CSM operator ids', () => {
+    const result = parseValidatorSearchInput('abc', 'lidoCsm');
+
+    assert.ok(result);
+    assert.equal(result.type, 'lidoCsm');
+    assert.deepEqual(result.values, []);
+    assert.deepEqual(result.invalidValues, ['abc']);
+  });
+
+  it('rejects multiple Lido CSM operator ids', () => {
+    const result = parseValidatorSearchInput('123, 456', 'lidoCsm');
+
+    assert.ok(result);
+    assert.equal(result.type, 'lidoCsm');
+    assert.deepEqual(result.values, []);
+    assert.deepEqual(result.invalidValues, ['123', '456']);
+  });
 });

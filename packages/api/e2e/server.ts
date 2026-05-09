@@ -31,6 +31,7 @@ interface E2EServerOverrides {
   chain?: 'ethereum' | 'gnosis';
   consensusLookbackSlot?: number;
   databaseUrl?: string;
+  executionRpcUrl?: string;
   nativeTokenDecimals?: number;
   telegramBotToken?: string;
   telegramInitDataMaxAgeSeconds?: number;
@@ -133,6 +134,7 @@ export async function startE2EServer(overrides: E2EServerOverrides = {}): Promis
       process.env.COINGECKO_TOKEN_PRICE_API_URL!,
     COINGECKO_TOKEN_NAME: tokenName,
     DATABASE_URL: overrides.databaseUrl ?? process.env.DATABASE_URL!,
+    EXECUTION_RPC_URL: overrides.executionRpcUrl ?? process.env.EXECUTION_RPC_URL!,
     NATIVE_TOKEN_DECIMALS: String(
       overrides.nativeTokenDecimals ?? process.env.NATIVE_TOKEN_DECIMALS ?? 18,
     ),
@@ -187,6 +189,7 @@ export async function startE2EServer(overrides: E2EServerOverrides = {}): Promis
     botUsersStorage: new BotUsersStorage(prisma),
     chain: env.CHAIN,
     clusterStorage: new ClusterStorage(prisma),
+    executionRpcUrl: env.EXECUTION_RPC_URL,
     incidentStorage: new IncidentStorage(prisma),
     logger,
     nativeTokenDecimals: env.NATIVE_TOKEN_DECIMALS,

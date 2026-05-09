@@ -23,6 +23,7 @@ export const CreateClusterInputSchema = z.object({
   visibility: ClusterVisibilitySchema.default('private'),
   feeRecipientAddress: ethereumAddressSchema.nullable().optional(),
   validatorIndexes: z.array(z.number().int().nonnegative()).min(1),
+  lidoCsmOperatorId: z.number().int().nonnegative().optional(),
 });
 
 export type CreateClusterInput = z.infer<typeof CreateClusterInputSchema>;
@@ -35,6 +36,13 @@ export const ClusterIdParamSchema = z.object({
 });
 
 export type ClusterIdParam = z.infer<typeof ClusterIdParamSchema>;
+
+/**
+ * Input for clearing the current cluster's Lido CSM operator.
+ */
+export const ClearLidoCsmOperatorInputSchema = ClusterIdParamSchema;
+
+export type ClearLidoCsmOperatorInput = z.infer<typeof ClearLidoCsmOperatorInputSchema>;
 
 /**
  * Shared pagination schema for cluster incident listings.
@@ -159,6 +167,7 @@ export const UpdateClusterInputSchema = z.object({
   visibility: ClusterVisibilitySchema.optional(),
   feeRecipientAddress: ethereumAddressSchema.nullable().optional(),
   validatorIndexes: z.array(z.number().int().nonnegative()).optional(),
+  lidoCsmOperatorId: z.number().int().nonnegative().optional(),
 });
 
 export type UpdateClusterInput = z.infer<typeof UpdateClusterInputSchema>;
@@ -208,6 +217,7 @@ export const ClusterSchema = z.object({
   name: z.string(),
   visibility: ClusterVisibilitySchema,
   feeRecipientAddress: z.string().nullable(),
+  lidoOperatorId: z.string().nullable(),
   ownerId: z.string(),
   createdAt: z.string(),
 });
@@ -245,6 +255,17 @@ export const ClusterSummarySchema = z.object({
 });
 
 export type ClusterSummary = z.infer<typeof ClusterSummarySchema>;
+
+/**
+ * Response for clearing the current cluster's Lido CSM operator from one cluster.
+ */
+export const ClearLidoCsmOperatorResponseSchema = z.object({
+  id: z.string(),
+  lidoOperatorId: z.string().nullable(),
+  removedValidatorIndexes: z.array(z.number().int().nonnegative()),
+});
+
+export type ClearLidoCsmOperatorResponse = z.infer<typeof ClearLidoCsmOperatorResponseSchema>;
 
 /**
  * Cluster validator detail schema

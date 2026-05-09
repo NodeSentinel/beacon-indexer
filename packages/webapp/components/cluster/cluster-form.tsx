@@ -25,6 +25,7 @@ import {
   useDeleteCluster,
   useUpdateCluster,
 } from '@/hooks/use-clusters';
+import { useClearLidoCsmOperator } from '@/hooks/use-current-user';
 import { useToast } from '@/hooks/use-toast';
 import type { ValidatorItem } from '@/hooks/use-validator-input';
 
@@ -50,6 +51,8 @@ export default function ClusterForm({ clusterId, onClose, onDeleted, onSaved }: 
   const [feeRecipientError, setFeeRecipientError] = useState('');
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [lidoCsmOperatorId, setLidoCsmOperatorId] = useState<number | undefined>(undefined);
+  const [lidoCsmValidatorIndexes, setLidoCsmValidatorIndexes] = useState<number[]>([]);
 
   // Validators state lives in the form so the save payload always matches the visible chips.
   const [validators, setValidators] = useState<ValidatorItem[]>([]);
@@ -61,6 +64,7 @@ export default function ClusterForm({ clusterId, onClose, onDeleted, onSaved }: 
   const createCluster = useCreateCluster();
   const updateCluster = useUpdateCluster();
   const deleteCluster = useDeleteCluster();
+  const clearLidoCsmOperator = useClearLidoCsmOperator(clusterId);
 
   // Initialize form state from API data when editing an existing cluster.
   // The formInitialized flag ensures this only runs once - subsequent API refetches
@@ -80,6 +84,9 @@ export default function ClusterForm({ clusterId, onClose, onDeleted, onSaved }: 
           displayName: `Validator #${v.validatorIndex}`,
           withdrawalAddress: v.withdrawalAddress,
         })),
+      );
+      setLidoCsmOperatorId(
+        clusterDetails.lidoOperatorId !== null ? Number(clusterDetails.lidoOperatorId) : undefined,
       );
 
       setFormInitialized(true);
@@ -101,6 +108,7 @@ export default function ClusterForm({ clusterId, onClose, onDeleted, onSaved }: 
           visibility,
           feeRecipientAddress: feeRecipient || null,
           validatorIndexes,
+          ...(lidoCsmOperatorId !== undefined ? { lidoCsmOperatorId } : {}),
         });
 
         toast({ title: 'Cluster updated', description: `${name} has been updated` });
@@ -111,6 +119,7 @@ export default function ClusterForm({ clusterId, onClose, onDeleted, onSaved }: 
           validatorIndexes,
           visibility,
           feeRecipientAddress: feeRecipient || null,
+          ...(lidoCsmOperatorId !== undefined ? { lidoCsmOperatorId } : {}),
         });
 
         toast({ title: 'Cluster created', description: `${name} has been created` });
@@ -160,6 +169,37 @@ export default function ClusterForm({ clusterId, onClose, onDeleted, onSaved }: 
       setFeeRecipientError('');
     }
   };
+
+  const handleDeleteLidoCsmOperator = async () => {
+    try {
+      const removedValidatorIndexes = new Set(lidoCsmValidatorIndexes);
+
+      if (clusterId && clusterDetails?.lidoOperatorId) {
+        const result = await clearLidoCsmOperator.mutateAsync();
+        for (const validatorIndex of result.removedValidatorIndexes) {
+          removedValidatorIndexes.add(validatorIndex);
+        }
+      }
+
+      if (removedValidatorIndexes.size > 0) {
+        setValidators((currentValidators) =>
+          currentValidators.filter((validator) => !removedValidatorIndexes.has(validator.index)),
+        );
+      }
+
+      setLidoCsmOperatorId(undefined);
+      setLidoCsmValidatorIndexes([]);
+      toast({ title: 'Lido CSM operator removed' });
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: error instanceof Error ? error.message : 'Failed to remove Lido CSM operator',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const currentLidoCsmOperatorId = lidoCsmOperatorId?.toString() ?? null;
 
   // Show loading state while fetching cluster details in edit mode
   if (clusterId && isLoadingCluster) {
@@ -219,6 +259,11 @@ export default function ClusterForm({ clusterId, onClose, onDeleted, onSaved }: 
           withdrawalAddresses={withdrawalAddresses}
           isEditMode={!!clusterId}
           onValidatorsChange={setValidators}
+          onLidoCsmOperatorIdChange={setLidoCsmOperatorId}
+          onLidoCsmValidatorIndexesChange={setLidoCsmValidatorIndexes}
+          currentLidoCsmOperatorId={currentLidoCsmOperatorId}
+          isDeletingLidoCsmOperator={clearLidoCsmOperator.isPending}
+          onDeleteLidoCsmOperator={handleDeleteLidoCsmOperator}
         />
 
         {/* Actions */}

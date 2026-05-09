@@ -19,13 +19,15 @@ export function createCreateClusterRoute(params: {
     .output(ApiResponseSchema(ClusterWithCountSchema))
     .handler(async ({ context, input }: any) => {
       try {
-        const cluster = await params.clusterStorage.create({
+        const data = {
           name: input.name,
           ownerId: context.user!.id,
           visibility: input.visibility,
           feeRecipientAddress: input.feeRecipientAddress ?? null,
           validatorIndexes: input.validatorIndexes,
-        });
+          lidoCsmOperatorId: input.lidoCsmOperatorId,
+        };
+        const cluster = await params.clusterStorage.create(data);
 
         return {
           success: true,
@@ -34,6 +36,7 @@ export function createCreateClusterRoute(params: {
             name: cluster.name,
             visibility: cluster.visibility,
             feeRecipientAddress: cluster.feeRecipientAddress,
+            lidoOperatorId: cluster.lidoOperatorId,
             ownerId: cluster.ownerId,
             createdAt: cluster.createdAt.toISOString(),
             validatorCount: cluster.validatorCount,

@@ -19,6 +19,7 @@ describe('ValidatorInputField', () => {
         inputValue=""
         selectedCategory="index"
         validationState="idle"
+        chain="gnosis"
         errorMessage=""
         isSearching={false}
         isMobile={false}
@@ -37,12 +38,58 @@ describe('ValidatorInputField', () => {
     assert.doesNotMatch(markup, /Lido/);
   });
 
+  it('renders the Lido CSM category for Ethereum', () => {
+    const markup = renderToStaticMarkup(
+      <ValidatorInputField
+        inputValue=""
+        selectedCategory="index"
+        validationState="idle"
+        chain="ethereum"
+        errorMessage=""
+        isSearching={false}
+        isMobile={false}
+        helpDialogOpen={false}
+        onCategoryChange={noop}
+        onHelpDialogChange={noop}
+        onInputChange={noop}
+        onKeyDown={noop}
+        onAdd={noop}
+      />,
+    );
+
+    assert.match(markup, /Lido CSM/);
+    assert.match(markup, /\/assets\/lido-csm\.svg/);
+  });
+
+  it('hides the Lido CSM category for Gnosis', () => {
+    const markup = renderToStaticMarkup(
+      <ValidatorInputField
+        inputValue=""
+        selectedCategory="index"
+        validationState="idle"
+        chain="gnosis"
+        errorMessage=""
+        isSearching={false}
+        isMobile={false}
+        helpDialogOpen={false}
+        onCategoryChange={noop}
+        onHelpDialogChange={noop}
+        onInputChange={noop}
+        onKeyDown={noop}
+        onAdd={noop}
+      />,
+    );
+
+    assert.doesNotMatch(markup, /Lido CSM/);
+  });
+
   it('keeps the add button label stable when the empty input has background loading', () => {
     const markup = renderToStaticMarkup(
       <ValidatorInputField
         inputValue=""
         selectedCategory="index"
         validationState="idle"
+        chain="gnosis"
         errorMessage=""
         isSearching
         isMobile={false}
@@ -57,6 +104,32 @@ describe('ValidatorInputField', () => {
 
     assert.match(markup, />Add</);
     assert.doesNotMatch(markup, /Adding\.\.\./);
+  });
+
+  it('shows the current Lido CSM operator as disabled with a delete action', () => {
+    const markup = renderToStaticMarkup(
+      <ValidatorInputField
+        inputValue=""
+        selectedCategory="lidoCsm"
+        validationState="idle"
+        chain="ethereum"
+        errorMessage=""
+        isSearching={false}
+        isMobile={false}
+        helpDialogOpen={false}
+        currentLidoCsmOperatorId="12"
+        onCategoryChange={noop}
+        onHelpDialogChange={noop}
+        onInputChange={noop}
+        onKeyDown={noop}
+        onAdd={noop}
+        onDeleteLidoCsmOperator={noop}
+      />,
+    );
+
+    assert.match(markup, /value="12"/);
+    assert.match(markup, /disabled=""/);
+    assert.match(markup, />Delete</);
   });
 });
 

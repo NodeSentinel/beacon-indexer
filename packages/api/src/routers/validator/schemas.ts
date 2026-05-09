@@ -141,6 +141,7 @@ export const ValidatorSearchInputSchema = z
           .filter(Boolean),
       )
       .optional(),
+    lidoCsmOperatorId: z.coerce.number().int().nonnegative().optional(),
   })
   .refine(
     (data) => {
@@ -151,13 +152,15 @@ export const ValidatorSearchInputSchema = z
         data.pubkeys,
         data.withdrawalAddress,
         data.withdrawalAddresses,
+        data.lidoCsmOperatorId,
       ].filter(
         (field) => field !== undefined && (Array.isArray(field) ? field.length > 0 : true),
       ).length;
       return providedFields === 1;
     },
     {
-      message: 'Exactly one of indexe/s, pubkey/s or withdrawalAddress/es must be provided.',
+      message:
+        'Exactly one of index/es, pubkey/s, withdrawalAddress/es or lidoCsmOperatorId must be provided.',
     },
   );
 

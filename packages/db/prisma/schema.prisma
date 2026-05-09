@@ -614,6 +614,7 @@ model Cluster {
   ownerId             String            @map("owner_id")
   visibility          ClusterVisibility @default(private)
   feeRecipientAddress String?           @map("fee_recipient_address") @db.VarChar(42)
+  lidoOperatorId      String?           @map("lido_operator_id")
   createdAt           DateTime          @default(now()) @map("created_at")
 
   owner      User               @relation(fields: [ownerId], references: [id], onDelete: Restrict)

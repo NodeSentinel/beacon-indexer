@@ -4,7 +4,6 @@
 
 `packages/db/prisma/schema.prisma` — Single Prisma schema file.
 Single initial migration: `packages/db/prisma/migrations/20251210144216_initial/migration.sql`.
-Beta mode: schema changes update the initial migration, no new migrations.
 
 ## Naming Conventions
 

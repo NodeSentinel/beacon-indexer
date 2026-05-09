@@ -7,12 +7,17 @@ export class UserStorage {
   constructor(private readonly prisma: PrismaClient) {}
 
   /**
+   * Selects the fields exposed to authenticated user context and user routes.
+   */
+  private readonly userContextSelect = { id: true, username: true } as const;
+
+  /**
    * Find user by session ID (stored in username for anonymous users)
    */
   async findBySessionId(sessionId: string) {
     return this.prisma.user.findFirst({
       where: { username: `anon:${sessionId}` },
-      select: { id: true, username: true },
+      select: this.userContextSelect,
     });
   }
 
@@ -31,7 +36,7 @@ export class UserStorage {
         telegramId: tgId,
         username: username ?? `tg:${telegramId}`,
       },
-      select: { id: true, username: true },
+      select: this.userContextSelect,
     });
   }
 
@@ -42,7 +47,7 @@ export class UserStorage {
   async findByTelegramId(telegramId: string) {
     return this.prisma.user.findUnique({
       where: { telegramId: BigInt(telegramId) },
-      select: { id: true, username: true },
+      select: this.userContextSelect,
     });
   }
 
@@ -53,7 +58,7 @@ export class UserStorage {
       where: { username },
       update: {},
       create: { username },
-      select: { id: true, username: true },
+      select: this.userContextSelect,
     });
   }
 }

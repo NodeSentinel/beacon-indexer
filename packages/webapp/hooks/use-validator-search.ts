@@ -106,6 +106,21 @@ export function useSearchByWithdrawalAddresses() {
 }
 
 /**
+ * Hook to search validators by Lido CSM operator id
+ */
+export function useSearchByLidoCsmOperatorId() {
+  return useMutation({
+    mutationFn: async (lidoCsmOperatorId: number): Promise<ValidatorSearchResult[]> => {
+      const response = await orpcClient.validator.search({ lidoCsmOperatorId });
+      if (!response.success || !response.data) {
+        throw new Error(response.error?.message || 'Failed to search Lido CSM validators');
+      }
+      return response.data.validators;
+    },
+  });
+}
+
+/**
  * Hook to fetch validators for multiple withdrawal addresses (for background data fetching)
  * Uses useQueries for automatic caching and deduplication
  */

@@ -1,6 +1,8 @@
 'use client';
 
-import { Check, Hash, HelpCircle, KeyRound, Loader2, WalletCards, X } from 'lucide-react';
+import { Check, Hash, HelpCircle, KeyRound, Loader2, SquareArrowRight, X } from 'lucide-react';
+import Image from 'next/image';
+import { useEffect } from 'react';
 
 import { Button } from '@/components/ui/button';
 import {
@@ -23,6 +25,7 @@ interface ValidatorInputFieldProps {
   inputValue: string;
   selectedCategory: ValidatorSearchCategory;
   validationState: ValidationState;
+  chain: 'ethereum' | 'gnosis';
   errorMessage: string;
   isSearching: boolean;
   isMobile: boolean;
@@ -32,13 +35,18 @@ interface ValidatorInputFieldProps {
   onInputChange: (value: string) => void;
   onKeyDown: (e: React.KeyboardEvent<HTMLInputElement>) => void;
   onAdd: () => void;
+  currentLidoCsmOperatorId?: string | null;
+  isDeletingLidoCsmOperator?: boolean;
+  onDeleteLidoCsmOperator?: () => void;
 }
 
-const CATEGORY_OPTIONS: Array<{
+type CategoryIcon = React.ComponentType<{ className?: string }>;
+
+const BASE_CATEGORY_OPTIONS: Array<{
   value: ValidatorSearchCategory;
   label: string;
   placeholder: string;
-  icon: typeof Hash;
+  icon: CategoryIcon;
 }> = [
   {
     value: 'index',
@@ -56,9 +64,35 @@ const CATEGORY_OPTIONS: Array<{
     value: 'withdrawalAddress',
     label: 'Withdrawal',
     placeholder: 'Enter withdrawal address',
-    icon: WalletCards,
+    icon: SquareArrowRight,
   },
 ];
+
+/** Renders the Lido CSM logo used in the validator category tab. */
+function LidoCsmIcon({ className }: { className?: string }) {
+  return (
+    <Image
+      src="/assets/lido-csm.svg"
+      alt=""
+      width={20}
+      height={20}
+      className={className}
+      aria-hidden="true"
+    />
+  );
+}
+
+const LIDO_CSM_CATEGORY = {
+  value: 'lidoCsm',
+  label: 'Lido CSM',
+  placeholder: 'Enter Lido CSM operator id',
+  icon: LidoCsmIcon,
+} satisfies {
+  value: ValidatorSearchCategory;
+  label: string;
+  placeholder: string;
+  icon: CategoryIcon;
+};
 
 function HelpContent() {
   return (
@@ -138,23 +172,47 @@ function HelpButton({
 }
 
 export function ValidatorInputField({
+  chain,
+  currentLidoCsmOperatorId,
   errorMessage,
   helpDialogOpen,
   inputValue,
+  isDeletingLidoCsmOperator = false,
   isMobile,
   isSearching,
   onAdd,
   onCategoryChange,
+  onDeleteLidoCsmOperator,
   onHelpDialogChange,
   onInputChange,
   onKeyDown,
   selectedCategory,
   validationState,
 }: ValidatorInputFieldProps) {
-  const hasInput = inputValue.trim().length > 0;
+  const categoryOptions =
+    chain === 'ethereum' ? [...BASE_CATEGORY_OPTIONS, LIDO_CSM_CATEGORY] : BASE_CATEGORY_OPTIONS;
+  const hasCurrentLidoCsmOperator =
+    selectedCategory === 'lidoCsm' &&
+    currentLidoCsmOperatorId !== null &&
+    currentLidoCsmOperatorId !== undefined;
+  const displayedInputValue = hasCurrentLidoCsmOperator ? currentLidoCsmOperatorId : inputValue;
+  const hasInput = displayedInputValue.trim().length > 0;
   const isLoading = hasInput && (validationState === 'validating' || isSearching);
-  const activeCategory = CATEGORY_OPTIONS.find((category) => category.value === selectedCategory);
+  const activeCategory = categoryOptions.find((category) => category.value === selectedCategory);
   const ActiveIcon = activeCategory?.icon ?? Hash;
+  const buttonLabel = hasCurrentLidoCsmOperator
+    ? isDeletingLidoCsmOperator
+      ? 'Deleting...'
+      : 'Delete'
+    : isLoading
+      ? 'Adding...'
+      : 'Add';
+
+  useEffect(() => {
+    if (chain !== 'ethereum' && selectedCategory === 'lidoCsm') {
+      onCategoryChange('index');
+    }
+  }, [chain, onCategoryChange, selectedCategory]);
 
   return (
     <div className="space-y-4">
@@ -165,8 +223,11 @@ export function ValidatorInputField({
         <HelpButton isMobile={isMobile} open={helpDialogOpen} onOpenChange={onHelpDialogChange} />
       </div>
 
-      <div className="grid grid-cols-3 gap-1 rounded-xl bg-muted p-1">
-        {CATEGORY_OPTIONS.map((category) => {
+      <div
+        className="grid gap-1 rounded-xl bg-muted p-1"
+        style={{ gridTemplateColumns: `repeat(${categoryOptions.length}, minmax(0, 1fr))` }}
+      >
+        {categoryOptions.map((category) => {
           const Icon = category.icon;
           const isSelected = selectedCategory === category.value;
 
@@ -195,10 +256,15 @@ export function ValidatorInputField({
           <ActiveIcon className="pointer-events-none absolute left-4 top-1/2 size-5 -translate-y-1/2 text-muted-foreground" />
           <Input
             id="validator-input"
-            value={inputValue}
+            value={displayedInputValue}
             onChange={(e) => onInputChange(e.target.value)}
             onKeyDown={onKeyDown}
-            placeholder={activeCategory?.placeholder}
+            disabled={hasCurrentLidoCsmOperator}
+            placeholder={
+              hasCurrentLidoCsmOperator
+                ? 'Current Lido CSM operator id'
+                : activeCategory?.placeholder
+            }
             className={`h-14 rounded-xl pl-12 pr-10 text-base shadow-sm ${
               validationState === 'valid'
                 ? 'border-green-500'
@@ -217,12 +283,14 @@ export function ValidatorInputField({
         </div>
         <Button
           type="button"
-          onClick={onAdd}
-          disabled={!inputValue.trim() || isLoading}
-          variant="secondary"
+          onClick={hasCurrentLidoCsmOperator ? onDeleteLidoCsmOperator : onAdd}
+          disabled={
+            hasCurrentLidoCsmOperator ? isDeletingLidoCsmOperator : !inputValue.trim() || isLoading
+          }
+          variant={hasCurrentLidoCsmOperator ? 'destructive' : 'secondary'}
           className="h-14 rounded-xl px-6 text-base normal-case"
         >
-          {isLoading ? 'Adding...' : 'Add'}
+          {buttonLabel}
         </Button>
       </div>
       {errorMessage && <p className="text-sm text-destructive">{errorMessage}</p>}

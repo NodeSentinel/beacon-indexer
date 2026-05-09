@@ -19,6 +19,7 @@ export function createValidatorRouter(
     | 'beaconHelpers'
     | 'chain'
     | 'clusterStorage'
+    | 'executionRpcUrl'
     | 'logger'
     | 'nativeTokenDecimals'
     | 'procedures'

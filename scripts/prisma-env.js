@@ -4,6 +4,7 @@ import {
   assertChain,
   assertEnv,
   getFlagValue,
+  readEnvFile,
   runCommand,
   serviceEnvPath,
 } from './runtime-helpers.js';
@@ -25,28 +26,21 @@ export function parsePrismaArgs(script, args) {
   return { chain, env, script };
 }
 
-// Builds the dotenvx-backed Prisma command for the selected chain/env.
+// Builds the host-side Prisma command for the selected chain/env.
 export function buildPrismaCommand(parsed, rootDir = process.cwd()) {
   const envFile = serviceEnvPath(rootDir, parsed.chain, parsed.env, 'db');
+  const dbEnv = readEnvFile(envFile);
+  const hostDbEnv = {
+    ...dbEnv,
+    POSTGRES_HOST: 'localhost',
+  };
+
+  hostDbEnv.DATABASE_URL = `postgresql://${hostDbEnv.POSTGRES_USER}:${hostDbEnv.POSTGRES_PASSWORD}@${hostDbEnv.POSTGRES_HOST}:${hostDbEnv.POSTGRES_PORT}/${hostDbEnv.POSTGRES_DB}?schema=public`;
 
   return {
     command: 'pnpm',
-    args: [
-      'exec',
-      'dotenvx',
-      'run',
-      '--overload',
-      '-f',
-      envFile,
-      '--env',
-      'POSTGRES_HOST=localhost',
-      '--',
-      'pnpm',
-      '--filter',
-      '@beacon-indexer/db',
-      'run',
-      parsed.script,
-    ],
+    args: ['pnpm', '--filter', '@beacon-indexer/db', 'run', parsed.script],
+    env: hostDbEnv,
     requiredEnvFiles: [envFile],
   };
 }

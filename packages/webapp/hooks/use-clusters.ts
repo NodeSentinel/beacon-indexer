@@ -10,6 +10,7 @@ interface ClusterListItem {
   name: string;
   visibility: 'private' | 'shared';
   feeRecipientAddress: string | null;
+  lidoOperatorId: string | null;
   ownerId: string;
   createdAt: string;
   validatorCount: number;
@@ -44,6 +45,7 @@ function toClusterListItem(
     name: cluster.name ?? fallback.name,
     visibility: cluster.visibility ?? fallback.visibility,
     feeRecipientAddress: cluster.feeRecipientAddress ?? fallback.feeRecipientAddress,
+    lidoOperatorId: cluster.lidoOperatorId ?? null,
     ownerId: cluster.ownerId,
     createdAt: cluster.createdAt,
     validatorCount: cluster.validatorCount ?? fallback.validatorCount,
@@ -101,6 +103,7 @@ export function useCreateCluster() {
       validatorIndexes: number[];
       visibility?: 'private' | 'shared';
       feeRecipientAddress?: string | null;
+      lidoCsmOperatorId?: number;
     }): Promise<ClusterListItem> => {
       const response = await orpcClient.cluster.create({
         ...data,
@@ -141,6 +144,7 @@ export function useUpdateCluster() {
       visibility?: 'private' | 'shared';
       feeRecipientAddress?: string | null;
       validatorIndexes?: number[];
+      lidoCsmOperatorId?: number;
     }) => {
       const { id, ...updateData } = data;
       const response = await orpcClient.cluster.update({ id, ...updateData });

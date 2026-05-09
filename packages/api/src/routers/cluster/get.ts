@@ -1,4 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
+import type { Chain } from '@beacon-indexer/beacon-utils';
 import { requireOwnedCluster } from './ownership.js';
 import { ClusterDetailSchema, ClusterIdParamSchema } from './schemas.js';
 
@@ -10,7 +11,7 @@ import { formatBalance } from '@/utils/tokenFormat.js';
  * Creates the cluster detail route.
  */
 export function createGetClusterRoute(params: {
-  chain: 'ethereum' | 'gnosis';
+  chain: Chain;
   clusterStorage: any;
   procedures: ApiProcedures;
 }) {
@@ -66,6 +67,7 @@ export function createGetClusterRoute(params: {
             name: cluster.name,
             visibility: cluster.visibility as 'private' | 'shared',
             feeRecipientAddress: cluster.feeRecipientAddress,
+            lidoOperatorId: cluster.lidoOperatorId,
             ownerId: cluster.ownerId,
             createdAt: cluster.createdAt.toISOString(),
             validators: cluster.validators.map((validator: any) => ({
