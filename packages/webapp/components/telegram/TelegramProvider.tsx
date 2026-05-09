@@ -6,8 +6,8 @@ import { type PropsWithChildren, useEffect, useState } from 'react';
 
 import { BackButtonBinder } from './BackButtonBinder';
 
+import { env } from '@/env';
 import { initializeAnonymousAuth, initializeTelegramAuth } from '@/lib/auth-session';
-import { setupTelegramMock, shouldMockTelegram } from '@/lib/mockTelegramEnv';
 
 /**
  * Mount viewport, expand to full height, and bind CSS variables
@@ -76,7 +76,7 @@ function TelegramAppInitializer({ children }: PropsWithChildren) {
 
   useEffect(() => {
     // Log launch params in development
-    if (process.env.NODE_ENV === 'development') {
+    if (env.NODE_ENV === 'development') {
       console.log('Telegram Mini App initialized', {
         platform: lp.platform,
         version: lp.version,
@@ -104,7 +104,6 @@ function TelegramAppInitializer({ children }: PropsWithChildren) {
  *
  * Features:
  * - Auto-detects Telegram environment
- * - Mocks environment in development (if NEXT_PUBLIC_TG_MOCK=true)
  * - Provides launch params access
  * - Expands viewport to full height and binds CSS variables
  * - Disables vertical swipe-to-close gesture
@@ -120,12 +119,6 @@ export function TelegramProvider({ children }: PropsWithChildren) {
 
   useEffect(() => {
     if (!isMounted) return;
-
-    // Setup mock if needed (client-side only)
-    if (shouldMockTelegram()) {
-      console.log('🎭 Mocking Telegram environment for development');
-      setupTelegramMock();
-    }
 
     // Initialize Telegram Mini Apps SDK
     let cleanup: VoidFunction | undefined;
@@ -159,7 +152,7 @@ export function TelegramProvider({ children }: PropsWithChildren) {
   }
 
   if (!isTelegramEnvironment) {
-    return <>{children}</>;
+    return <div>{children}</div>;
   }
 
   return <TelegramAppInitializer>{children}</TelegramAppInitializer>;

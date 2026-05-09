@@ -21,12 +21,6 @@ export const env = createEnv({
    * These are exposed to the browser and must be prefixed with NEXT_PUBLIC_
    */
   client: {
-    // Enable Telegram environment mocking in development
-    NEXT_PUBLIC_TG_MOCK: z
-      .enum(['true', 'false'])
-      .default('false')
-      .transform((val) => val === 'true'),
-
     // Base URL for the application
     NEXT_PUBLIC_APP_URL: z.string().url().optional(),
 
@@ -51,7 +45,6 @@ export const env = createEnv({
     NODE_ENV: process.env.NODE_ENV,
 
     // Client (must be prefixed with NEXT_PUBLIC_)
-    NEXT_PUBLIC_TG_MOCK: process.env.NEXT_PUBLIC_TG_MOCK,
     NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL,
     NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL,
     NEXT_PUBLIC_CHAIN: process.env.NEXT_PUBLIC_CHAIN,
