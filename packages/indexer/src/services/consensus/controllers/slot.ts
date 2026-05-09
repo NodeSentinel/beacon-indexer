@@ -8,6 +8,7 @@ import { SlotControllerHelpers } from './helpers/slotControllerHelpers.js';
 
 import { EpochStorage } from '@/src/services/consensus/storage/epoch.js';
 import { ExecutionClient } from '@/src/services/execution/execution.js';
+import { measurePerformanceTask } from '@/src/xstate/performanceLogger.js';
 
 type ExecutionRequestWithdrawals = NonNullable<
   Block['data']['message']['body']['execution_requests']
@@ -118,10 +119,17 @@ export class SlotController extends SlotControllerHelpers {
    * Checks if already processed before processing.
    * Throws an error if committee sizes are not available for all slots.
    */
-  async processAttestations(slotNumber: number, attestations: Attestation[]) {
+  async processAttestations(
+    slotNumber: number,
+    attestations: Attestation[],
+    performanceScope: string,
+  ) {
     // check if attestations are already processed
-    const areAttestationsProcessed =
-      await this.slotStorage.areAttestationsProcessedForSlot(slotNumber);
+    const areAttestationsProcessed = await measurePerformanceTask(
+      performanceScope,
+      'processAttestations:alreadyProcessed',
+      () => this.slotStorage.areAttestationsProcessedForSlot(slotNumber),
+    );
     if (areAttestationsProcessed) {
       return;
     }
@@ -134,28 +142,45 @@ export class SlotController extends SlotControllerHelpers {
     // A block can legitimately have 0 attestations (e.g. network partition,
     // proposer issue, or post-fork startup). Mark as processed and return.
     if (filteredAttestations.length === 0) {
-      await this.slotStorage.saveSlotAttestations([], slotNumber);
+      await measurePerformanceTask(
+        performanceScope,
+        'processAttestations:saveSlotAttestations',
+        () => this.slotStorage.saveSlotAttestations([], slotNumber),
+      );
       return;
     }
 
     // get committee sizes for attestations
-    const committeesCountInSlot = await this.getCommitteeSizesForAttestations(
-      slotNumber,
-      filteredAttestations,
+    const committeesCountInSlot = await measurePerformanceTask(
+      performanceScope,
+      'processAttestations:getCommitteeSizes',
+      () => this.getCommitteeSizesForAttestations(slotNumber, filteredAttestations),
     );
 
     // Process each attestation and calculate delays
-    const processedAttestations = [];
-    for (const attestation of filteredAttestations) {
-      const updates = this.processAttestation(slotNumber, attestation, committeesCountInSlot);
-      processedAttestations.push(...updates);
-    }
+    const processedAttestations = await measurePerformanceTask(
+      performanceScope,
+      'processAttestations:parseBits',
+      async () => {
+        const updates = [];
+        for (const attestation of filteredAttestations) {
+          updates.push(...this.processAttestation(slotNumber, attestation, committeesCountInSlot));
+        }
+        return updates;
+      },
+    );
 
     // Remove duplicates and keep the one with minimum delay
-    const deduplicatedAttestations = this.deduplicateAttestations(processedAttestations);
+    const deduplicatedAttestations = await measurePerformanceTask(
+      performanceScope,
+      'processAttestations:dedupe',
+      async () => this.deduplicateAttestations(processedAttestations),
+    );
 
     // Update hourly validator data/stats with attestation delays
-    await this.slotStorage.saveSlotAttestations(deduplicatedAttestations, slotNumber);
+    await measurePerformanceTask(performanceScope, 'processAttestations:saveSlotAttestations', () =>
+      this.slotStorage.saveSlotAttestations(deduplicatedAttestations, slotNumber),
+    );
   }
 
   /**

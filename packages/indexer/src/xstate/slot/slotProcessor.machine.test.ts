@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 
 import { createAndStartActor, createControllablePromise } from '@/src/__tests__/utils.js';
@@ -66,5 +67,30 @@ describe('slotProcessorMachine', () => {
     // Stop the actor so the pending beacon block request does not keep the test alive.
     actor.stop();
     subscription.unsubscribe();
+  });
+
+  // This test verifies slot performance logs stay focused on actionable leaf tasks.
+  test('does not register container performance timers for slot processing', () => {
+    // Read the machine source so this test guards the configured XState performance actions.
+    const machineSource = readFileSync(
+      new URL('./slotProcessor.machine.ts', import.meta.url),
+      'utf8',
+    );
+
+    // These container states mirror child leaf timings and make slow slots harder to diagnose.
+    const containerTasks = [
+      'processingSlot',
+      'beaconBlock',
+      'beaconBlockProcessing',
+      'executionRewards',
+      'blockRewards',
+      'syncCommitteeRewards',
+    ];
+
+    // Verify none of the container states are registered as performance timer tasks.
+    for (const task of containerTasks) {
+      expect(machineSource).not.toContain(`startPerformanceTask('${task}')`);
+      expect(machineSource).not.toContain(`endPerformanceTask('${task}')`);
+    }
   });
 });

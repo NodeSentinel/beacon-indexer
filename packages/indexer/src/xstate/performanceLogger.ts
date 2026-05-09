@@ -48,6 +48,32 @@ function pushPerformanceLine(line: string) {
 }
 
 /**
+ * Writes one elapsed duration for code that is not running as an XState action.
+ */
+export function recordPerformanceTask(scope: string, task: string, duration: number) {
+  // Direct measurements use the same line format as XState entry/exit timers.
+  pushPerformanceLine(`${scope} | ${task} | ${duration}ms`);
+}
+
+/**
+ * Measures one async operation using an explicit performance scope.
+ */
+export async function measurePerformanceTask<T>(
+  scope: string,
+  task: string,
+  operation: () => Promise<T>,
+): Promise<T> {
+  // Date.now keeps direct measurements consistent with the existing XState timers.
+  const startedAt = Date.now();
+
+  try {
+    return await operation();
+  } finally {
+    recordPerformanceTask(scope, task, Date.now() - startedAt);
+  }
+}
+
+/**
  * Builds the scope prefix for epoch, slot, or generic machine task logs.
  */
 function formatScope(context: Record<string, unknown>, fallbackScope: string) {

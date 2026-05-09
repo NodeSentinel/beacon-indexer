@@ -58,8 +58,9 @@ export class BeaconClient extends ReliableRequestClient {
    * 'SLOT MISSED' is used to indicate that the slot was missed, allowing the caller to handle it accordingly.
    */
   private readonly blockRewardsCache = new LRUCache<number, BlockRewards | 'SLOT MISSED'>({
-    max: 6,
-    ttl: ms('1m'),
+    max: 4,
+    ttl: ms('5m'),
+    ttlAutopurge: true,
     fetchMethod: (slot) => this.fetchBlockRewardsUncached(slot),
   });
 
@@ -71,8 +72,9 @@ export class BeaconClient extends ReliableRequestClient {
     SyncCommitteeRewards,
     { ignoreErrors?: boolean } | undefined
   >({
-    max: 6,
-    ttl: ms('3m'),
+    max: 4,
+    ttl: ms('5m'),
+    ttlAutopurge: true,
     fetchMethod: async (key, _staleValue, { context }) => {
       const [slot, validatorIndexes] = this.parseSyncCommitteeRewardsCacheKey(key);
       // null marks ignored prefetch errors as handled so makeReliableRequest does not retry.

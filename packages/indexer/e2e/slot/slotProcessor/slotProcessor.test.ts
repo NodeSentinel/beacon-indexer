@@ -629,6 +629,7 @@ describe('Slot Processor E2E Tests', () => {
       await slotControllerWithMock.processAttestations(
         slot24672001,
         blockData.data.message.body.attestations,
+        `epoch:${epoch1542000} > slot:${slot24672001}`,
       );
       await slotControllerWithMock.processEpWithdrawals(
         slot24672001,

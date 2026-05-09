@@ -121,4 +121,34 @@ describe('performanceLogger', () => {
       );
     });
   });
+
+  it('measures direct async tasks with an explicit scope', async () => {
+    // Configure the Loki endpoint before importing the logger module.
+    process.env.LOKI_URL = 'http://loki.test/loki/api/v1/push';
+
+    // Mock fetch so direct measurements can be inspected without network I/O.
+    const fetchMock = vi.fn().mockResolvedValue(new Response(null, { status: 204 }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    // Load the helper after the environment and fetch mock are ready.
+    const { measurePerformanceTask } = await importPerformanceLogger();
+
+    // Measure a task that advances fake time while it runs.
+    await measurePerformanceTask(
+      'epoch:42 > slot:1344',
+      'processAttestations:parseBits',
+      async () => {
+        vi.advanceTimersByTime(17);
+      },
+    );
+
+    // Allow the fire-and-forget Loki push to run.
+    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+
+    // Verify the direct measurement uses the provided scope and task name.
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body);
+    expect(body.streams[0].values[0][1]).toBe(
+      'epoch:42 > slot:1344 | processAttestations:parseBits | 17ms',
+    );
+  });
 });

@@ -21,7 +21,11 @@ import { assign, fromPromise, sendParent, setup } from 'xstate';
 
 import { SlotController } from '@/src/services/consensus/controllers/slot.js';
 import { Block } from '@/src/services/consensus/types.js';
-import { endPerformanceTask, startPerformanceTask } from '@/src/xstate/performanceLogger.js';
+import {
+  endPerformanceTask,
+  measurePerformanceTask,
+  startPerformanceTask,
+} from '@/src/xstate/performanceLogger.js';
 import { pinoLog } from '@/src/xstate/pinoLog.js';
 
 export interface SlotProcessorContext {
@@ -109,8 +113,14 @@ export const slotProcessorMachine = setup({
           slotController: SlotController;
           slotNumber: number;
           attestations: Block['data']['message']['body']['attestations'];
+          performanceScope: string;
         };
-      }) => input.slotController.processAttestations(input.slotNumber, input.attestations),
+      }) =>
+        input.slotController.processAttestations(
+          input.slotNumber,
+          input.attestations,
+          input.performanceScope,
+        ),
     ),
 
     // Update attestations processed status
@@ -129,19 +139,45 @@ export const slotProcessorMachine = setup({
           slotController: SlotController;
           slot: number;
           block: Block;
+          performanceScope: string;
         };
       }) => {
         const { block, slot, slotController } = input;
         const body = block.data.message.body;
 
-        await slotController.processEpWithdrawals(slot, body.execution_payload?.withdrawals || []);
-        await slotController.processDeposits(slot, body.deposits || []);
-        await slotController.processVoluntaryExits(slot, body.voluntary_exits || []);
-        await slotController.processErDeposits(slot, body.execution_requests?.deposits || []);
-        await slotController.processErWithdrawals(slot, body.execution_requests?.withdrawals || []);
-        await slotController.processErConsolidations(
-          slot,
-          body.execution_requests?.consolidations || [],
+        await measurePerformanceTask(
+          input.performanceScope,
+          'processBlockBodyData:epWithdrawals',
+          () =>
+            slotController.processEpWithdrawals(slot, body.execution_payload?.withdrawals || []),
+        );
+        await measurePerformanceTask(input.performanceScope, 'processBlockBodyData:deposits', () =>
+          slotController.processDeposits(slot, body.deposits || []),
+        );
+        await measurePerformanceTask(
+          input.performanceScope,
+          'processBlockBodyData:voluntaryExits',
+          () => slotController.processVoluntaryExits(slot, body.voluntary_exits || []),
+        );
+        await measurePerformanceTask(
+          input.performanceScope,
+          'processBlockBodyData:erDeposits',
+          () => slotController.processErDeposits(slot, body.execution_requests?.deposits || []),
+        );
+        await measurePerformanceTask(
+          input.performanceScope,
+          'processBlockBodyData:erWithdrawals',
+          () =>
+            slotController.processErWithdrawals(slot, body.execution_requests?.withdrawals || []),
+        );
+        await measurePerformanceTask(
+          input.performanceScope,
+          'processBlockBodyData:erConsolidations',
+          () =>
+            slotController.processErConsolidations(
+              slot,
+              body.execution_requests?.consolidations || [],
+            ),
         );
       },
     ),
@@ -302,29 +338,21 @@ export const slotProcessorMachine = setup({
 
     processingSlot: {
       description: 'In this state we fetch/process all the information from the block.',
-      entry: startPerformanceTask('processingSlot'),
-      exit: endPerformanceTask('processingSlot'),
       type: 'parallel',
       onDone: 'markingSlotCompleted',
       states: {
         beaconBlock: {
           description:
             'In this state the information fetched in fetchingBeaconBlock state is processed.',
-          entry: startPerformanceTask('beaconBlock'),
-          exit: endPerformanceTask('beaconBlock'),
           initial: 'processing',
           states: {
             processing: {
-              entry: startPerformanceTask('beaconBlockProcessing'),
-              exit: endPerformanceTask('beaconBlockProcessing'),
               type: 'parallel',
               onDone: 'complete',
               states: {
                 attestations: {
                   description:
                     'Processing the attestations for the slot, attestations for slot n include attestations for slot n-1 up to n-slotsInEpoch',
-                  entry: startPerformanceTask('attestations'),
-                  exit: endPerformanceTask('attestations'),
                   initial: 'verifyingDone',
                   states: {
                     verifyingDone: {
@@ -358,6 +386,7 @@ export const slotProcessorMachine = setup({
                             slotController: context.slotController,
                             slotNumber: context.slot,
                             attestations: _beaconBlockData.data.message.body.attestations ?? [],
+                            performanceScope: `epoch:${context.epoch} > slot:${context.slot}`,
                           };
                         },
                         onDone: {
@@ -416,8 +445,6 @@ export const slotProcessorMachine = setup({
                 },
                 executionRewards: {
                   description: 'Fetching execution layer rewards for the slot proposer.',
-                  entry: startPerformanceTask('executionRewards'),
-                  exit: endPerformanceTask('executionRewards'),
                   initial: 'processing',
                   states: {
                     processing: {
@@ -473,8 +500,6 @@ export const slotProcessorMachine = setup({
                 },
                 blockRewards: {
                   description: 'Fetching block rewards (consensus rewards) for the slot proposer.',
-                  entry: startPerformanceTask('blockRewards'),
-                  exit: endPerformanceTask('blockRewards'),
                   initial: 'processing',
                   states: {
                     processing: {
@@ -526,8 +551,6 @@ export const slotProcessorMachine = setup({
                 },
                 syncCommitteeRewards: {
                   description: 'Fetching sync committee rewards for the slot.',
-                  entry: startPerformanceTask('syncCommitteeRewards'),
-                  exit: endPerformanceTask('syncCommitteeRewards'),
                   initial: 'processing',
                   states: {
                     processing: {
@@ -575,8 +598,6 @@ export const slotProcessorMachine = setup({
                 blockBodyData: {
                   description:
                     'Processing block body data sequentially to avoid deadlocks on the slot row',
-                  entry: startPerformanceTask('blockBodyData'),
-                  exit: endPerformanceTask('blockBodyData'),
                   initial: 'processing',
                   states: {
                     processing: {
@@ -594,6 +615,7 @@ export const slotProcessorMachine = setup({
                           slotController: context.slotController,
                           slot: context.slot,
                           block: context.beaconBlockData?.rawData as Block,
+                          performanceScope: `epoch:${context.epoch} > slot:${context.slot}`,
                         }),
                         onDone: {
                           target: 'complete',
