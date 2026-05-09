@@ -145,7 +145,7 @@ export class SlotController extends SlotControllerHelpers {
       await measurePerformanceTask(
         performanceScope,
         'processAttestations:saveSlotAttestations',
-        () => this.slotStorage.saveSlotAttestations([], slotNumber),
+        () => this.slotStorage.saveSlotAttestations([], slotNumber, performanceScope),
       );
       return;
     }
@@ -157,29 +157,20 @@ export class SlotController extends SlotControllerHelpers {
       () => this.getCommitteeSizesForAttestations(slotNumber, filteredAttestations),
     );
 
-    // Process each attestation and calculate delays
-    const processedAttestations = await measurePerformanceTask(
-      performanceScope,
-      'processAttestations:parseBits',
-      async () => {
-        const updates = [];
-        for (const attestation of filteredAttestations) {
-          updates.push(...this.processAttestation(slotNumber, attestation, committeesCountInSlot));
-        }
-        return updates;
-      },
-    );
+    // Process each attestation and calculate delays in memory.
+    const processedAttestations = [];
+    for (const attestation of filteredAttestations) {
+      processedAttestations.push(
+        ...this.processAttestation(slotNumber, attestation, committeesCountInSlot),
+      );
+    }
 
     // Remove duplicates and keep the one with minimum delay
-    const deduplicatedAttestations = await measurePerformanceTask(
-      performanceScope,
-      'processAttestations:dedupe',
-      async () => this.deduplicateAttestations(processedAttestations),
-    );
+    const deduplicatedAttestations = this.deduplicateAttestations(processedAttestations);
 
     // Update hourly validator data/stats with attestation delays
     await measurePerformanceTask(performanceScope, 'processAttestations:saveSlotAttestations', () =>
-      this.slotStorage.saveSlotAttestations(deduplicatedAttestations, slotNumber),
+      this.slotStorage.saveSlotAttestations(deduplicatedAttestations, slotNumber, performanceScope),
     );
   }
 

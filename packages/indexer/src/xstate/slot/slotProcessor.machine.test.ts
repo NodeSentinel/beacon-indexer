@@ -93,4 +93,27 @@ describe('slotProcessorMachine', () => {
       expect(machineSource).not.toContain(`endPerformanceTask('${task}')`);
     }
   });
+
+  // This test verifies attestation timing focuses on database calls, not CPU-only work.
+  test('keeps attestation performance timers focused on database operations', () => {
+    // Read the controller and storage sources so this test guards the timer names.
+    const controllerSource = readFileSync(
+      new URL('../../services/consensus/controllers/slot.ts', import.meta.url),
+      'utf8',
+    );
+    const storageSource = readFileSync(
+      new URL('../../services/consensus/storage/slot.ts', import.meta.url),
+      'utf8',
+    );
+
+    // CPU-only operations are inferable from the total and should not create extra logs.
+    expect(controllerSource).not.toContain('processAttestations:parseBits');
+    expect(controllerSource).not.toContain('processAttestations:dedupe');
+
+    // Database operations inside the slow attestation save path should be timed directly.
+    expect(storageSource).toContain(
+      'processAttestations:saveSlotAttestations:updateCommitteeChunk',
+    );
+    expect(storageSource).toContain('processAttestations:saveSlotAttestations:upsertSlot');
+  });
 });

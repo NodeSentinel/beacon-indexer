@@ -3,6 +3,8 @@ import chunk from 'lodash/chunk.js';
 import { LRUCache } from 'lru-cache';
 import ms from 'ms';
 
+import { measurePerformanceTask } from '@/src/xstate/performanceLogger.js';
+
 /**
  * SlotStorage - Database persistence layer for slot-related operations
  *
@@ -307,9 +309,13 @@ export class SlotStorage {
     });
   }
 
+  /**
+   * Updates committee attestation delays and marks the slot attestations as fetched.
+   */
   async saveSlotAttestations(
     attestations: Prisma.CommitteeUpdateInput[],
     slotNumber: number,
+    performanceScope: string,
   ): Promise<void> {
     await this.prisma.$transaction(
       async (tx) => {
@@ -343,18 +349,27 @@ export class SlotStorage {
         }
 
         for (const query of queries) {
-          await tx.$executeRaw(query);
+          await measurePerformanceTask(
+            performanceScope,
+            'processAttestations:saveSlotAttestations:updateCommitteeChunk',
+            () => tx.$executeRaw(query),
+          );
         }
 
         // Update slot processing data
-        await tx.slot.upsert({
-          where: { slot: slotNumber },
-          update: { attestationsFetched: true },
-          create: {
-            slot: slotNumber,
-            attestationsFetched: true,
-          },
-        });
+        await measurePerformanceTask(
+          performanceScope,
+          'processAttestations:saveSlotAttestations:upsertSlot',
+          () =>
+            tx.slot.upsert({
+              where: { slot: slotNumber },
+              update: { attestationsFetched: true },
+              create: {
+                slot: slotNumber,
+                attestationsFetched: true,
+              },
+            }),
+        );
       },
       { timeout: ms('3m') },
     );
