@@ -126,8 +126,18 @@ export class HourlyArchiveStorage {
             `FOR VALUES FROM ('${timestamp.toISOString()}') TO ('${nextHourTimestamp.toISOString()}')`,
         );
 
-        // Execute aggregation
-        await tx.$executeRaw`
+        // Get max validator index for batching.
+        const [{ max_idx }] = await tx.$queryRaw<[{ max_idx: number }]>`
+          SELECT COALESCE(MAX(id), 0)::int AS max_idx FROM "validator"
+        `;
+
+        // Process validators in chunks to reduce peak memory and temp file usage.
+        const BATCH_SIZE = 50000;
+        for (let batchStart = 0; batchStart <= max_idx; batchStart += BATCH_SIZE) {
+          const batchEnd = batchStart + BATCH_SIZE;
+
+          // Execute aggregation for one validator range.
+          await tx.$executeRaw`
           WITH
             attestations AS (
               SELECT
@@ -136,6 +146,8 @@ export class HourlyArchiveStorage {
                 c.attestation_delay
               FROM committee c
               WHERE c.slot >= ${startSlot}::int AND c.slot <= ${endSlot}::int
+                AND c.validator_index >= ${batchStart}::int
+                AND c.validator_index < ${batchEnd}::int
             ),
 
             sync_rewards AS (
@@ -145,6 +157,8 @@ export class HourlyArchiveStorage {
                 vsr.sync_committee AS sync_committee_reward
               FROM validator_sync_rewards vsr
               WHERE vsr.slot >= ${startSlot}::int AND vsr.slot <= ${endSlot}::int
+                AND vsr.validator_index >= ${batchStart}::int
+                AND vsr.validator_index < ${batchEnd}::int
             ),
 
             block_rewards AS (
@@ -155,6 +169,8 @@ export class HourlyArchiveStorage {
               FROM slot
               WHERE slot >= ${startSlot}::int AND slot <= ${endSlot}::int
                 AND proposer_index IS NOT NULL
+                AND proposer_index >= ${batchStart}::int
+                AND proposer_index < ${batchEnd}::int
                 AND consensus_reward IS NOT NULL
                 AND consensus_reward > 0
             ),
@@ -167,6 +183,8 @@ export class HourlyArchiveStorage {
               FROM slot
               WHERE slot >= ${startSlot}::int AND slot <= ${endSlot}::int
                 AND proposer_index IS NOT NULL
+                AND proposer_index >= ${batchStart}::int
+                AND proposer_index < ${batchEnd}::int
                 AND execution_reward IS NOT NULL
                 AND execution_reward > 0
             ),
@@ -262,6 +280,8 @@ export class HourlyArchiveStorage {
                 missed_inactivity
               FROM epoch_rewards
               WHERE epoch >= ${startEpoch}::int AND epoch <= ${endEpoch}::int
+                AND validator_index >= ${batchStart}::int
+                AND validator_index < ${batchEnd}::int
             ),
 
             epoch_json AS (
@@ -321,6 +341,7 @@ export class HourlyArchiveStorage {
           FULL OUTER JOIN epoch_json ej ON sa.validator_index = ej.validator_index
           LEFT JOIN attestation_agg aa ON COALESCE(sa.validator_index, ej.validator_index) = aa.validator_index
         `;
+        }
 
         await tx.$executeRaw`
           DELETE FROM validator_sync_rewards
