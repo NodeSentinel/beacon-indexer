@@ -28,8 +28,8 @@ describe('slotProcessorMachine', () => {
     vi.clearAllTimers();
   });
 
-  // This test verifies reward prefetching warms the next four sequential slots.
-  test('prefetches rewards for the next four slots when fetching the current block', async () => {
+  // This test verifies reward prefetching warms separate block and sync committee lookahead windows.
+  test('prefetches block rewards six slots ahead and sync committee rewards four slots ahead', async () => {
     // Keep beacon block fetching pending so the test can inspect entry actions.
     const beaconBlockFetch = createControllablePromise<never>();
 
@@ -61,6 +61,8 @@ describe('slotProcessorMachine', () => {
     expect(slotController.prefetchBlockRewards).toHaveBeenCalledWith(12);
     expect(slotController.prefetchBlockRewards).toHaveBeenCalledWith(13);
     expect(slotController.prefetchBlockRewards).toHaveBeenCalledWith(14);
+    expect(slotController.prefetchBlockRewards).toHaveBeenCalledWith(15);
+    expect(slotController.prefetchBlockRewards).toHaveBeenCalledWith(16);
 
     // Verify sync committee reward prefetch covers all configured lookahead slots.
     expect(slotController.prefetchSyncCommitteeRewards).toHaveBeenCalledWith(11);

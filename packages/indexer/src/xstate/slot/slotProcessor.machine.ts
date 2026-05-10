@@ -191,7 +191,7 @@ export const slotProcessorMachine = setup({
   actions: {
     prefetchNextSlotRewards: ({ context }) => {
       // prefetch block rewards
-      for (let slotOffset = 1; slotOffset <= 4; slotOffset++) {
+      for (let slotOffset = 1; slotOffset <= 6; slotOffset++) {
         context.slotController.prefetchBlockRewards(context.slot + slotOffset);
       }
 

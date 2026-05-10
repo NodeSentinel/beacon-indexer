@@ -86,7 +86,7 @@ export class BeaconClient extends ReliableRequestClient {
             `${url}/eth/v1/beacon/rewards/sync_committee/${slot}`,
             validatorIndexes,
             {
-              timeout: ms('1m'),
+              timeout: ms('1.5m'),
             },
           );
           return res.data;
@@ -213,7 +213,7 @@ export class BeaconClient extends ReliableRequestClient {
         const res = await this.axiosInstance.get<GetCommittees>(
           `${url}/eth/v1/beacon/states/${stateId}/committees?epoch=${epoch}`,
           {
-            timeout: ms('45s'),
+            timeout: ms('1.5m'),
           },
         );
         return res.data.data;
@@ -243,7 +243,7 @@ export class BeaconClient extends ReliableRequestClient {
     return this.makeReliableRequest<Block | 'SLOT MISSED'>(
       async (url) => {
         const res = await this.axiosInstance.get<Block>(`${url}/eth/v2/beacon/blocks/${slot}`, {
-          timeout: ms('10s'),
+          timeout: ms('1.5m'),
         });
         return res.data;
       },
@@ -296,8 +296,7 @@ export class BeaconClient extends ReliableRequestClient {
         `${url}/eth/v1/beacon/states/${stateId}/validator_balances`,
         validatorIndexes,
         {
-          // Timeout is 20% above the largest observed slow validator state response.
-          timeout: ms('15s'),
+          timeout: ms('1.5m'),
         },
       );
       return res.data.data;
@@ -320,7 +319,7 @@ export class BeaconClient extends ReliableRequestClient {
           statuses,
         },
         {
-          timeout: ms('1m'),
+          timeout: ms('1.5m'),
         },
       );
       return res.data.data;
@@ -339,7 +338,7 @@ export class BeaconClient extends ReliableRequestClient {
         `${url}/eth/v1/beacon/rewards/attestations/${epoch}`,
         validatorIndexes.map((id) => id.toString()),
         {
-          timeout: ms('1m'),
+          timeout: ms('1.5m'),
         },
       );
       return res.data;
@@ -366,7 +365,7 @@ export class BeaconClient extends ReliableRequestClient {
         const res = await this.axiosInstance.get<BlockRewards>(
           `${url}/eth/v1/beacon/rewards/blocks/${slot}`,
           {
-            timeout: ms('1m'),
+            timeout: ms('1.5m'),
           },
         );
         return res.data;
