@@ -56,7 +56,40 @@ describe('createTaskMonitor', () => {
         epoch: 10,
         slot: 320,
         task: 'save attestations',
+        taskFilter: 'slot: save attestations',
         taskPath: 'epoch 10 / slot 320 / process attestations / save attestations',
+      }),
+    );
+  });
+
+  test('builds task filter labels from the task owner', () => {
+    const sink = vi.fn();
+    const monitor = createTaskMonitor({ now: () => 10_000, sink });
+
+    monitor.start({
+      actorId: 'epochProcessor:10',
+      context: { epoch: 10 },
+      taskPath: ['process slots'],
+    });
+
+    monitor.start({
+      actorId: 'slotProcessor:10:320',
+      context: { epoch: 10, slot: 320 },
+      taskPath: ['fetch beacon block'],
+    });
+
+    expect(sink).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        task: 'process slots',
+        taskFilter: 'epoch: process slots',
+      }),
+    );
+    expect(sink).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        task: 'fetch beacon block',
+        taskFilter: 'slot: fetch beacon block',
       }),
     );
   });

@@ -20,6 +20,7 @@ export type TaskMonitorEvent = {
   status: TaskStatus;
   statusIcon: '✕' | '●' | '✓';
   task: string;
+  taskFilter: string;
   taskPath: string;
   taskPathDisplay: string;
   totalDisplay?: string;
@@ -72,6 +73,7 @@ const defaultMonitor = createTaskMonitor({
             slot: event.slot?.toString() ?? 'none',
             status: event.status,
             task: event.task,
+            task_filter: event.taskFilter,
           },
           values: [[`${BigInt(Date.now()) * 1_000_000n}`, JSON.stringify(event)]],
         },
@@ -126,6 +128,15 @@ function isContainerTask(task: string) {
 }
 
 /**
+ * Builds the task label used by Grafana filters.
+ */
+function buildTaskFilter(instance: TaskInstance) {
+  const owner = typeof instance.context.slot === 'number' ? 'slot' : 'epoch';
+
+  return `${owner}: ${instance.task}`;
+}
+
+/**
  * Creates a compact table event for Grafana.
  */
 function buildEvent(
@@ -159,6 +170,7 @@ function buildEvent(
     status,
     statusIcon: status === 'running' ? '●' : status === 'done' ? '✓' : '✕',
     task: instance.task,
+    taskFilter: buildTaskFilter(instance),
     taskPath: instance.taskPath,
     taskPathDisplay: isTotal ? `${instance.taskPath} / TOTAL` : instance.taskPath,
     isTotal,
