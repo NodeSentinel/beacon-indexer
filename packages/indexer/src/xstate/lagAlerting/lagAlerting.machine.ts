@@ -1,10 +1,6 @@
-import fs from 'fs/promises';
-import path from 'path';
-
 import type { BeaconTime } from '@beacon-indexer/beacon-utils/beaconTime';
 import { assign, fromPromise, setup } from 'xstate';
 
-import createLogger from '@/src/lib/pino.js';
 import { sendTelegramAlert } from '@/src/lib/telegram.js';
 import type { SlotController } from '@/src/services/consensus/controllers/slot.js';
 import { pinoLog } from '@/src/xstate/pinoLog.js';
@@ -19,23 +15,31 @@ const LAG_RECOVERY_THRESHOLD = 5;
 const CHECK_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
 const ALERT_COOLDOWN_MS = 60 * 60 * 1000; // 1 hour
 
-// Error log
-const ERROR_LOG_TAIL_LINES = 20;
-
 function escapeHtml(text: string): string {
   return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
-// Telegram messages have a 4096 character limit.
-// We reserve space for the message template and truncate the error log if needed.
-const TELEGRAM_MAX_LENGTH = 4096;
-const MESSAGE_TEMPLATE_OVERHEAD = 300; // space for headers, slots, tags
-const MAX_ERROR_LOG_LENGTH = TELEGRAM_MAX_LENGTH - MESSAGE_TEMPLATE_OVERHEAD;
+// Formats a millisecond duration as fixed-width hours, minutes, and seconds.
+function formatDurationAsHhMmSs(durationMs: number): string {
+  const totalSeconds = Math.floor(durationMs / 1000);
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
 
-function truncateForTelegram(text: string, maxLength: number): string {
-  if (text.length <= maxLength) return text;
-  const truncationNotice = '\n... (truncated)';
-  return text.slice(0, maxLength - truncationNotice.length) + truncationNotice;
+  return [hours, minutes, seconds].map((part) => part.toString().padStart(2, '0')).join(':');
+}
+
+// Calculates lag distance by comparing BeaconTime timestamps for the lag slot range.
+function getLagDistance(input: {
+  beaconTime: BeaconTime;
+  headSlot: number;
+  lagSlots: number;
+}): string {
+  const lagStartSlot = input.headSlot - input.lagSlots;
+  const lagStartTimestamp = input.beaconTime.getTimestampFromSlotNumber(lagStartSlot);
+  const headTimestamp = input.beaconTime.getTimestampFromSlotNumber(input.headSlot);
+
+  return formatDurationAsHhMmSs(headTimestamp - lagStartTimestamp);
 }
 
 type LagCheckResult = {
@@ -58,30 +62,18 @@ async function checkLag(input: {
   return { lastProcessedSlot, headSlot, lagSlots };
 }
 
-async function readErrorLogTail(): Promise<string> {
-  const logsDir = process.env.LOG_DIR || path.join(process.cwd(), 'logs');
-  const errorLogPath = path.join(logsDir, 'errors-latest.log');
-
-  try {
-    const content = await fs.readFile(errorLogPath, 'utf-8');
-    const lines = content.trim().split('\n');
-    const tail = lines.slice(-ERROR_LOG_TAIL_LINES);
-    return tail.join('\n');
-  } catch (error) {
-    createLogger(LOGGER_CONTEXT).error('Failed to read error log', error);
-    return '(could not read error log)';
-  }
-}
-
 async function sendLagAlert(input: {
   lagSlots: number;
   headSlot: number;
   lastProcessedSlot: number | null;
   chain: string;
+  beaconTime: BeaconTime;
 }): Promise<void> {
-  const errorLogTail = await readErrorLogTail();
-
-  const escapedLog = truncateForTelegram(escapeHtml(errorLogTail), MAX_ERROR_LOG_LENGTH);
+  const lagDistance = getLagDistance({
+    beaconTime: input.beaconTime,
+    headSlot: input.headSlot,
+    lagSlots: input.lagSlots,
+  });
 
   const message = [
     `<b>Indexer Lag Alert [${escapeHtml(input.chain)}]</b>`,
@@ -89,9 +81,7 @@ async function sendLagAlert(input: {
     `Head slot: <code>${input.headSlot}</code>`,
     `Last processed: <code>${input.lastProcessedSlot ?? 'none'}</code>`,
     `Lag: <b>${input.lagSlots} slots</b>`,
-    '',
-    `<b>Last ${ERROR_LOG_TAIL_LINES} error log lines:</b>`,
-    `<pre>${escapedLog}</pre>`,
+    `Distance: <b>${lagDistance}</b>`,
   ].join('\n');
 
   await sendTelegramAlert(message);
@@ -145,6 +135,7 @@ export const lagAlertingMachine = setup({
           headSlot: number;
           lastProcessedSlot: number | null;
           chain: string;
+          beaconTime: BeaconTime;
         };
       }) => {
         await sendLagAlert(input);
@@ -251,6 +242,7 @@ export const lagAlertingMachine = setup({
           headSlot: context.lastCheck!.headSlot,
           lastProcessedSlot: context.lastCheck!.lastProcessedSlot,
           chain: context.chain,
+          beaconTime: context.beaconTime,
         }),
         onDone: {
           target: 'sleeping',
