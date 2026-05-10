@@ -1,7 +1,6 @@
 import { fromPromise, setup } from 'xstate';
 
 import { MonthlyArchiveController } from '@/src/services/consensus/controllers/monthlyArchive.js';
-import { endPerformanceTask, startPerformanceTask } from '@/src/xstate/performanceLogger.js';
 import { pinoLog } from '@/src/xstate/pinoLog.js';
 
 /**
@@ -62,8 +61,6 @@ export const monthlyArchiveMachine = setup({
     },
     archiving: {
       description: 'Archiving the oldest eligible month',
-      entry: startPerformanceTask('archiving'),
-      exit: endPerformanceTask('archiving'),
       invoke: {
         src: 'runArchive',
         input: ({ context }) => ({
