@@ -59,7 +59,7 @@ export class BeaconClient extends ReliableRequestClient {
    */
   private readonly blockRewardsCache = new LRUCache<number, BlockRewards | 'SLOT MISSED'>({
     max: 8,
-    ttl: ms('5m'),
+    ttl: ms('10m'),
     ttlAutopurge: true,
     fetchMethod: (slot) => this.fetchBlockRewardsUncached(slot),
   });
@@ -73,7 +73,7 @@ export class BeaconClient extends ReliableRequestClient {
     { ignoreErrors?: boolean } | undefined
   >({
     max: 8,
-    ttl: ms('5m'),
+    ttl: ms('10m'),
     ttlAutopurge: true,
     fetchMethod: async (key, _staleValue, { context }) => {
       const [slot, validatorIndexes] = this.parseSyncCommitteeRewardsCacheKey(key);
