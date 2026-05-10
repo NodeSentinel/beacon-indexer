@@ -33,10 +33,63 @@ describe('createTaskMonitor', () => {
     expect(sink).toHaveBeenNthCalledWith(
       2,
       expect.objectContaining({
-        deltaDisplay: '+0s',
+        deltaDisplay: undefined,
         status: 'done',
         taskPath: 'epoch 10 / fetch validators',
         totalDisplay: '1.25s',
+      }),
+    );
+  });
+
+  test('only shows positive delta values', () => {
+    const sink = vi.fn();
+    const now = vi
+      .fn()
+      .mockReturnValueOnce(1_000)
+      .mockReturnValueOnce(3_000)
+      .mockReturnValueOnce(4_000)
+      .mockReturnValueOnce(7_000)
+      .mockReturnValueOnce(8_000)
+      .mockReturnValueOnce(9_000);
+    const monitor = createTaskMonitor({ now, sink });
+
+    const baselineTaskId = monitor.start({
+      actorId: 'epochProcessor:10',
+      context: { epoch: 10 },
+      taskPath: ['delta test'],
+    });
+    monitor.end(baselineTaskId);
+
+    const slowTaskId = monitor.start({
+      actorId: 'epochProcessor:11',
+      context: { epoch: 11 },
+      taskPath: ['delta test'],
+    });
+    monitor.end(slowTaskId);
+
+    const fastTaskId = monitor.start({
+      actorId: 'epochProcessor:12',
+      context: { epoch: 12 },
+      taskPath: ['delta test'],
+    });
+    monitor.end(fastTaskId);
+
+    expect(sink).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        deltaDisplay: undefined,
+      }),
+    );
+    expect(sink).toHaveBeenNthCalledWith(
+      4,
+      expect.objectContaining({
+        deltaDisplay: '+1s',
+      }),
+    );
+    expect(sink).toHaveBeenNthCalledWith(
+      6,
+      expect.objectContaining({
+        deltaDisplay: undefined,
       }),
     );
   });

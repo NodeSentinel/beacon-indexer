@@ -223,16 +223,6 @@
                         "index": 0
                       }
                     }
-                  },
-                  {
-                    "type": "regex",
-                    "options": {
-                      "pattern": "^-",
-                      "result": {
-                        "color": "green",
-                        "index": 1
-                      }
-                    }
                   }
                 ]
               }

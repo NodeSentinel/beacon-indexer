@@ -159,9 +159,7 @@ function buildEvent(
     actorId: instance.actorId,
     avgDisplay: formatSeconds(previousAverage),
     deltaDisplay:
-      status === 'running'
-        ? undefined
-        : `${deltaSeconds >= 0 ? '+' : ''}${formatSeconds(deltaSeconds)}`,
+      status !== 'running' && deltaSeconds > 0 ? `+${formatSeconds(deltaSeconds)}` : undefined,
     epoch: instance.context.epoch,
     errorMessage: error instanceof Error ? error.message : undefined,
     reportedAt: now,
