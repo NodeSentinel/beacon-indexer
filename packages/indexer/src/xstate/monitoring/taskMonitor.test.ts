@@ -33,7 +33,7 @@ describe('createTaskMonitor', () => {
     expect(sink).toHaveBeenNthCalledWith(
       2,
       expect.objectContaining({
-        deltaDisplay: '0s',
+        deltaDisplay: '+0s',
         status: 'done',
         taskPath: 'epoch 10 / fetch validators',
         totalDisplay: '1.25s',

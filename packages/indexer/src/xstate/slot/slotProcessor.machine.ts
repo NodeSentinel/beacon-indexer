@@ -21,6 +21,7 @@ import { assign, fromPromise, sendParent, setup } from 'xstate';
 
 import { SlotController } from '@/src/services/consensus/controllers/slot.js';
 import { Block } from '@/src/services/consensus/types.js';
+import { monitoredState } from '@/src/xstate/monitoring/taskMonitor.js';
 import { pinoLog } from '@/src/xstate/pinoLog.js';
 
 export interface SlotProcessorContext {
@@ -189,7 +190,7 @@ export const slotProcessorMachine = setup({
   }),
 
   states: {
-    gettingSlot: {
+    gettingSlot: monitoredState('get slot', {
       description: 'Getting the slot from the database and checking if already processed.',
       entry: [
         pinoLog(({ context }) => `Getting slot ${context.slot}`, 'SlotProcessor:gettingSlot'),
@@ -217,7 +218,7 @@ export const slotProcessorMachine = setup({
           ),
         },
       },
-    },
+    }),
 
     waitingForSlotToStart: {
       description:
@@ -246,7 +247,7 @@ export const slotProcessorMachine = setup({
       },
     },
 
-    fetchingBeaconBlock: {
+    fetchingBeaconBlock: monitoredState('fetch beacon block', {
       description:
         'Fetches the beacon block from the consensus layer API and save the response in the context to be processed by internal states',
       entry: [
@@ -280,7 +281,7 @@ export const slotProcessorMachine = setup({
           ),
         },
       },
-    },
+    }),
 
     checkingForMissedSlot: {
       description: 'Check if the slot was missed or has valid data',
@@ -295,7 +296,7 @@ export const slotProcessorMachine = setup({
       ],
     },
 
-    processingSlot: {
+    processingSlot: monitoredState('slot', {
       description: 'In this state we fetch/process all the information from the block.',
       type: 'parallel',
       onDone: 'markingSlotCompleted',
@@ -328,7 +329,7 @@ export const slotProcessorMachine = setup({
                         },
                       ],
                     },
-                    processingAttestations: {
+                    processingAttestations: monitoredState('process attestations', {
                       entry: [
                         pinoLog(
                           ({ context }) => `processing attestations for slot ${context.slot}`,
@@ -357,8 +358,8 @@ export const slotProcessorMachine = setup({
                           ),
                         },
                       },
-                    },
-                    updateAttestationsProcessed: {
+                    }),
+                    updateAttestationsProcessed: monitoredState('update attestations', {
                       entry: [
                         pinoLog(
                           ({ context }) =>
@@ -384,7 +385,7 @@ export const slotProcessorMachine = setup({
                           ),
                         },
                       },
-                    },
+                    }),
                     complete: {
                       entry: pinoLog(
                         ({ context }) => `attestations complete for slot ${context.slot}`,
@@ -401,7 +402,7 @@ export const slotProcessorMachine = setup({
                   description: 'Fetching execution layer rewards for the slot proposer.',
                   initial: 'processing',
                   states: {
-                    processing: {
+                    processing: monitoredState('fetch execution rewards', {
                       entry: [
                         pinoLog(
                           ({ context }) =>
@@ -434,7 +435,7 @@ export const slotProcessorMachine = setup({
                           ),
                         },
                       },
-                    },
+                    }),
                     waitingRetry: {
                       after: {
                         retryWait: 'processing',
@@ -454,7 +455,7 @@ export const slotProcessorMachine = setup({
                   description: 'Fetching block rewards (consensus rewards) for the slot proposer.',
                   initial: 'processing',
                   states: {
-                    processing: {
+                    processing: monitoredState('fetch block rewards', {
                       entry: [
                         pinoLog(
                           ({ context }) =>
@@ -483,7 +484,7 @@ export const slotProcessorMachine = setup({
                           ),
                         },
                       },
-                    },
+                    }),
                     waitingRetry: {
                       after: {
                         retryWait: 'processing',
@@ -503,7 +504,7 @@ export const slotProcessorMachine = setup({
                   description: 'Fetching sync committee rewards for the slot.',
                   initial: 'processing',
                   states: {
-                    processing: {
+                    processing: monitoredState('fetch sync rewards', {
                       entry: [
                         pinoLog(
                           ({ context }) =>
@@ -531,7 +532,7 @@ export const slotProcessorMachine = setup({
                           ),
                         },
                       },
-                    },
+                    }),
                     complete: {
                       type: 'final',
                       entry: pinoLog(
@@ -548,7 +549,7 @@ export const slotProcessorMachine = setup({
                     'Processing block body data sequentially to avoid deadlocks on the slot row',
                   initial: 'processing',
                   states: {
-                    processing: {
+                    processing: monitoredState('process block body', {
                       entry: [
                         pinoLog(
                           ({ context }) => `processing block body data for slot ${context.slot}`,
@@ -574,7 +575,7 @@ export const slotProcessorMachine = setup({
                           ),
                         },
                       },
-                    },
+                    }),
                     complete: {
                       type: 'final',
                       entry: pinoLog(
@@ -595,9 +596,9 @@ export const slotProcessorMachine = setup({
           },
         },
       },
-    },
+    }),
 
-    markingSlotCompleted: {
+    markingSlotCompleted: monitoredState('mark slot processed', {
       description: 'Marking the slot as completed.',
       entry: [
         pinoLog(
@@ -623,7 +624,7 @@ export const slotProcessorMachine = setup({
           ),
         },
       },
-    },
+    }),
 
     completed: {
       entry: [
