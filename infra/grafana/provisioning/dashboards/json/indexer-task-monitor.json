@@ -228,32 +228,130 @@
           }
         },
         {
+          "id": "sortBy",
+          "options": {
+            "sort": [
+              {
+                "field": "reportedAt",
+                "desc": true
+              }
+            ]
+          }
+        },
+        {
+          "id": "groupBy",
+          "options": {
+            "fields": {
+              "actorId": {
+                "aggregations": ["firstNotNull"],
+                "operation": "aggregate"
+              },
+              "avgDisplay": {
+                "aggregations": ["firstNotNull"],
+                "operation": "aggregate"
+              },
+              "deltaDisplay": {
+                "aggregations": ["firstNotNull"],
+                "operation": "aggregate"
+              },
+              "epoch": {
+                "aggregations": ["firstNotNull"],
+                "operation": "aggregate"
+              },
+              "errorMessage": {
+                "aggregations": ["firstNotNull"],
+                "operation": "aggregate"
+              },
+              "reportedAt": {
+                "aggregations": ["firstNotNull"],
+                "operation": "aggregate"
+              },
+              "slot": {
+                "aggregations": ["firstNotNull"],
+                "operation": "aggregate"
+              },
+              "started": {
+                "aggregations": ["firstNotNull"],
+                "operation": "aggregate"
+              },
+              "status": {
+                "aggregations": ["firstNotNull"],
+                "operation": "aggregate"
+              },
+              "statusIcon": {
+                "aggregations": ["firstNotNull"],
+                "operation": "aggregate"
+              },
+              "task": {
+                "aggregations": ["firstNotNull"],
+                "operation": "aggregate"
+              },
+              "taskPath": {
+                "aggregations": [],
+                "operation": "groupby"
+              },
+              "totalDisplay": {
+                "aggregations": ["firstNotNull"],
+                "operation": "aggregate"
+              }
+            }
+          }
+        },
+        {
+          "id": "sortBy",
+          "options": {
+            "sort": [
+              {
+                "field": "reportedAt (firstNotNull)",
+                "desc": true
+              }
+            ]
+          }
+        },
+        {
           "id": "organize",
           "options": {
             "excludeByName": {
               "actorId": true,
+              "actorId (firstNotNull)": true,
               "epoch": true,
+              "epoch (firstNotNull)": true,
               "errorMessage": true,
+              "errorMessage (firstNotNull)": true,
               "reportedAt": true,
+              "reportedAt (firstNotNull)": true,
               "slot": true,
+              "slot (firstNotNull)": true,
               "status": true,
-              "task": true
+              "status (firstNotNull)": true,
+              "task": true,
+              "task (firstNotNull)": true
             },
             "indexByName": {
               "started": 0,
+              "started (firstNotNull)": 0,
               "statusIcon": 1,
+              "statusIcon (firstNotNull)": 1,
               "taskPath": 2,
               "totalDisplay": 3,
+              "totalDisplay (firstNotNull)": 3,
               "avgDisplay": 4,
-              "deltaDisplay": 5
+              "avgDisplay (firstNotNull)": 4,
+              "deltaDisplay": 5,
+              "deltaDisplay (firstNotNull)": 5
             },
             "renameByName": {
               "avgDisplay": "avg",
+              "avgDisplay (firstNotNull)": "avg",
               "deltaDisplay": "delta",
+              "deltaDisplay (firstNotNull)": "delta",
               "started": "started",
+              "started (firstNotNull)": "started",
               "statusIcon": "status",
+              "statusIcon (firstNotNull)": "status",
               "taskPath": "task",
-              "totalDisplay": "total"
+              "totalDisplay": "total",
+              "totalDisplay (firstNotNull)": "total"
             }
           }
         }
