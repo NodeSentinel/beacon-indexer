@@ -12,35 +12,21 @@
     "list": [
       {
         "name": "epoch",
-        "type": "query",
-        "datasource": {
-          "type": "loki",
-          "uid": "loki"
-        },
-        "query": "label_values({app=\"beacon-chain-validators-monitor\", job=\"indexer-task-monitor\"}, epoch)",
-        "refresh": 1,
-        "includeAll": true,
-        "allValue": ".*",
+        "query": ".*",
         "current": {
-          "text": "All",
-          "value": "$__all"
-        }
+          "text": ".*",
+          "value": ".*"
+        },
+        "type": "textbox"
       },
       {
         "name": "slot",
-        "type": "query",
-        "datasource": {
-          "type": "loki",
-          "uid": "loki"
-        },
-        "query": "label_values({app=\"beacon-chain-validators-monitor\", job=\"indexer-task-monitor\", epoch=~\"$epoch\"}, slot)",
-        "refresh": 1,
-        "includeAll": true,
-        "allValue": ".*",
+        "query": ".*",
         "current": {
-          "text": "All",
-          "value": "$__all"
-        }
+          "text": ".*",
+          "value": ".*"
+        },
+        "type": "textbox"
       },
       {
         "name": "task",
