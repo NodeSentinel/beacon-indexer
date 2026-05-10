@@ -5,8 +5,6 @@ import { lagAlertingMachine } from './lagAlerting.machine.js';
 
 import type { SlotController } from '@/src/services/consensus/controllers/slot.js';
 
-import { logMachine } from '@/src/xstate/multiMachineLogger.js';
-
 export { lagAlertingMachine } from './lagAlerting.machine.js';
 
 export const getLagAlertingActor = (
@@ -20,10 +18,6 @@ export const getLagAlertingActor = (
       beaconTime,
       chain,
     },
-  });
-
-  actor.subscribe((snapshot) => {
-    logMachine('lagAlerting', `State: ${JSON.stringify(snapshot.value)}`);
   });
 
   return actor;

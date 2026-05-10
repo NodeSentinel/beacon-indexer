@@ -17,7 +17,6 @@
     "test:coverage": "vitest --coverage",
     "test:watch": "vitest --watch",
     "test:e2e": "vitest run --config vitest.e2e.config.ts --no-coverage",
-    "xstate-logs": "watch -n 1 -c cat logs/machines-status.log",
     "clean-db": "tsx src/utils/cleanDatabase.ts",
     "lint": "eslint . --max-warnings=0",
     "lint:fix": "eslint . --fix",

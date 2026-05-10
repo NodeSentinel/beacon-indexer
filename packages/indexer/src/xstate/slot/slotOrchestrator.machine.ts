@@ -15,7 +15,6 @@ import { ActorRefFrom, assign, fromPromise, sendParent, setup, stopChild } from 
 
 import { SlotController } from '@/src/services/consensus/controllers/slot.js';
 import { getEpochSlots } from '@/src/services/consensus/utils/misc.js';
-import { logRemoveMachine } from '@/src/xstate/multiMachineLogger.js';
 import { pinoLog } from '@/src/xstate/pinoLog.js';
 import { slotProcessorMachine } from '@/src/xstate/slot/slotProcessor.machine.js';
 
@@ -196,9 +195,6 @@ export const slotOrchestratorMachine = setup({
               ({ context }) => `Slot ${context.currentSlot} completed for epoch ${context.epoch}`,
               'SlotOrchestrator',
             ),
-            ({ context }) => {
-              logRemoveMachine(context.slotActor?.id || '', 'SLOT_COMPLETED');
-            },
             stopChild(({ context }) => context.slotActor?.id || ''),
             assign({
               slotActor: null,

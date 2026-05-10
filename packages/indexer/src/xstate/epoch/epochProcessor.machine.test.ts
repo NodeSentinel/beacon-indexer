@@ -111,10 +111,6 @@ vi.mock('@/src/xstate/pinoLog.js', () => ({
 
 vi.mock('@/src/xstate/performanceLogger.js', () => performanceLoggerMocks);
 
-vi.mock('@/src/xstate/multiMachineLogger.js', () => ({
-  logActor: vi.fn(),
-}));
-
 // ============================================================================
 // Helper Functions
 // ============================================================================

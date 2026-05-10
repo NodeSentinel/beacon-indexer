@@ -95,10 +95,6 @@ vi.mock('@/src/xstate/pinoLog.js', () => ({
   pinoLog: vi.fn(() => () => {}),
 }));
 
-vi.mock('@/src/xstate/multiMachineLogger.js', () => ({
-  logActor: vi.fn(),
-}));
-
 // Mock the epoch worker machine
 vi.mock('@/src/xstate/epoch/epochWorker.machine.js', () => {
   const mockWorkerMachine = createMachine({
