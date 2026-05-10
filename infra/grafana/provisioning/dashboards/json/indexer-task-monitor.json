@@ -212,19 +212,11 @@
                 }
               },
               {
-                "id": "mappings",
-                "value": [
-                  {
-                    "type": "regex",
-                    "options": {
-                      "pattern": "^\\+",
-                      "result": {
-                        "color": "red",
-                        "index": 0
-                      }
-                    }
-                  }
-                ]
+                "id": "color",
+                "value": {
+                  "fixedColor": "red",
+                  "mode": "fixed"
+                }
               }
             ]
           }
