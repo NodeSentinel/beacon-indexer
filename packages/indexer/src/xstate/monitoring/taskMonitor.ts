@@ -13,6 +13,7 @@ export type TaskMonitorEvent = {
   deltaDisplay?: string;
   epoch?: number;
   errorMessage?: string;
+  isTotal: boolean;
   reportedAt: number;
   slot?: number;
   started: string;
@@ -20,6 +21,7 @@ export type TaskMonitorEvent = {
   statusIcon: '✕' | '●' | '✓';
   task: string;
   taskPath: string;
+  taskPathDisplay: string;
   totalDisplay?: string;
 };
 
@@ -51,6 +53,7 @@ type MonitoredStateConfig = {
 type XStateConfig = Record<string, any>;
 
 const averageByTask = new Map<string, number>();
+const containerTasks = new Set(['epoch', 'process slots', 'slot']);
 const lokiUrl = process.env.LOKI_URL;
 
 const defaultMonitor = createTaskMonitor({
@@ -116,6 +119,13 @@ function buildEntityPath(context: MonitorContext) {
 }
 
 /**
+ * Detects tasks that summarize nested work.
+ */
+function isContainerTask(task: string) {
+  return containerTasks.has(task);
+}
+
+/**
  * Creates a compact table event for Grafana.
  */
 function buildEvent(
@@ -131,6 +141,8 @@ function buildEvent(
   if (status === 'done') {
     averageByTask.set(instance.task, (previousAverage + durationSeconds) / 2);
   }
+
+  const isTotal = status !== 'running' && isContainerTask(instance.task);
 
   return {
     actorId: instance.actorId,
@@ -148,6 +160,8 @@ function buildEvent(
     statusIcon: status === 'running' ? '●' : status === 'done' ? '✓' : '✕',
     task: instance.task,
     taskPath: instance.taskPath,
+    taskPathDisplay: isTotal ? `${instance.taskPath} / TOTAL` : instance.taskPath,
+    isTotal,
     totalDisplay: status === 'running' ? undefined : formatSeconds(durationSeconds),
   };
 }

@@ -61,6 +61,37 @@ describe('createTaskMonitor', () => {
     );
   });
 
+  test('adds total label to completed container task display paths', () => {
+    const sink = vi.fn();
+    const now = vi.fn().mockReturnValueOnce(1_000).mockReturnValueOnce(2_000);
+    const monitor = createTaskMonitor({ now, sink });
+
+    const taskId = monitor.start({
+      actorId: 'slotProcessor:10:320',
+      context: { epoch: 10, slot: 320 },
+      taskPath: ['slot'],
+    });
+
+    monitor.end(taskId);
+
+    expect(sink).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        isTotal: false,
+        taskPath: 'epoch 10 / slot 320',
+        taskPathDisplay: 'epoch 10 / slot 320',
+      }),
+    );
+    expect(sink).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        isTotal: true,
+        taskPath: 'epoch 10 / slot 320',
+        taskPathDisplay: 'epoch 10 / slot 320 / TOTAL',
+      }),
+    );
+  });
+
   test('records errors once using the same task instance', () => {
     const sink = vi.fn();
     const now = vi.fn().mockReturnValueOnce(5_000).mockReturnValueOnce(5_250);
