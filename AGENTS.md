@@ -52,6 +52,10 @@ A developer should be able to fully understand the intent and flow of the test b
 ## Agent
 
 - NEVER do changes without confirmation.
+- Full filesystem/tool permissions do not imply permission to make product, architecture, workflow, security, infrastructure, environment, or repository-policy decisions without confirmation.
+- If a decision could be controversial, surprising, hard to revert, or outside the exact requested scope, stop and ask before changing code.
+- Always make sure the request is fully understood before implementing. If the intent, scope, or tradeoff is unclear, stop and ask instead of guessing.
+- For complex tasks, organize work into small semantic commits. Each commit should represent one coherent change and be easy to review or revert.
 
 ## Communication
 
