@@ -148,6 +148,13 @@
                 }
               },
               {
+                "id": "color",
+                "value": {
+                  "fixedColor": "white",
+                  "mode": "fixed"
+                }
+              },
+              {
                 "id": "mappings",
                 "value": [
                   {
