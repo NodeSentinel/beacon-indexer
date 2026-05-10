@@ -1,7 +1,7 @@
 apiVersion: 1
 
 providers:
-  - name: Loki
+  - name: NodeSentinel
     type: file
     updateIntervalSeconds: 30
     options:

@@ -1,11 +1,11 @@
 {
-  "uid": "indexer-monitoring-spike",
-  "title": "Indexer Monitoring Spike",
+  "uid": "indexer-task-monitor",
+  "title": "Indexer Task Monitor",
   "schemaVersion": 39,
   "version": 1,
   "refresh": "5s",
   "time": {
-    "from": "now-15m",
+    "from": "now-30m",
     "to": "now"
   },
   "templating": {
@@ -17,7 +17,7 @@
           "type": "loki",
           "uid": "loki"
         },
-        "query": "label_values({app=\"indexer-mock\"}, epoch)",
+        "query": "label_values({app=\"beacon-chain-validators-monitor\", job=\"indexer-task-monitor\"}, epoch)",
         "refresh": 1,
         "includeAll": true,
         "allValue": ".*",
@@ -33,7 +33,7 @@
           "type": "loki",
           "uid": "loki"
         },
-        "query": "label_values({app=\"indexer-mock\", epoch=~\"$epoch\"}, slot)",
+        "query": "label_values({app=\"beacon-chain-validators-monitor\", job=\"indexer-task-monitor\", epoch=~\"$epoch\"}, slot)",
         "refresh": 1,
         "includeAll": true,
         "allValue": ".*",
@@ -49,7 +49,7 @@
           "type": "loki",
           "uid": "loki"
         },
-        "query": "label_values({app=\"indexer-mock\", epoch=~\"$epoch\", slot=~\"$slot\"}, task)",
+        "query": "label_values({app=\"beacon-chain-validators-monitor\", job=\"indexer-task-monitor\", epoch=~\"$epoch\", slot=~\"$slot\"}, task)",
         "refresh": 1,
         "includeAll": true,
         "allValue": ".*",
@@ -70,7 +70,7 @@
         "uid": "loki"
       },
       "gridPos": {
-        "h": 20,
+        "h": 24,
         "w": 24,
         "x": 0,
         "y": 0
@@ -231,12 +231,10 @@
           "id": "organize",
           "options": {
             "excludeByName": {
-              "avg": true,
-              "duration": true,
+              "actorId": true,
               "epoch": true,
-              "parentTask": true,
+              "errorMessage": true,
               "reportedAt": true,
-              "sequence": true,
               "slot": true,
               "status": true,
               "task": true
@@ -263,30 +261,8 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "{app=\"indexer-mock\", epoch=~\"$epoch\", slot=~\"$slot\", task=~\"$task\"}",
+          "expr": "{app=\"beacon-chain-validators-monitor\", job=\"indexer-task-monitor\", epoch=~\"$epoch\", slot=~\"$slot\", task=~\"$task\"}",
           "queryType": "range"
-        }
-      ]
-    },
-    {
-      "id": 2,
-      "title": "Mock task averages",
-      "type": "timeseries",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 24,
-        "x": 0,
-        "y": 20
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "expr": "indexer_mock_task_average_seconds",
-          "legendFormat": "{{task}}"
         }
       ]
     }
