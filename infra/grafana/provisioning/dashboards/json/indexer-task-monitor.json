@@ -41,7 +41,7 @@
         "allValue": ".*",
         "current": {
           "text": "All",
-          "value": "$__all"
+          "value": ".*"
         }
       }
     ]
