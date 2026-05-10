@@ -191,18 +191,16 @@ export const slotProcessorMachine = setup({
   actions: {
     prefetchNextSlotRewards: ({ context }) => {
       // prefetch block rewards
-      context.slotController.prefetchBlockRewards(context.slot + 1);
-      context.slotController.prefetchBlockRewards(context.slot + 2);
-      context.slotController.prefetchBlockRewards(context.slot + 3);
-      context.slotController.prefetchBlockRewards(context.slot + 4);
+      for (let slotOffset = 1; slotOffset <= 4; slotOffset++) {
+        context.slotController.prefetchBlockRewards(context.slot + slotOffset);
+      }
 
       // sync committee rewards
-      void context.slotController
-        .prefetchSyncCommitteeRewards(context.slot + 1)
-        .catch(() => undefined);
-      void context.slotController
-        .prefetchSyncCommitteeRewards(context.slot + 2)
-        .catch(() => undefined);
+      for (let slotOffset = 1; slotOffset <= 4; slotOffset++) {
+        void context.slotController
+          .prefetchSyncCommitteeRewards(context.slot + slotOffset)
+          .catch(() => undefined);
+      }
     },
   },
   guards: {

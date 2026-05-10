@@ -72,7 +72,7 @@ export class BeaconClient extends ReliableRequestClient {
     SyncCommitteeRewards,
     { ignoreErrors?: boolean } | undefined
   >({
-    max: 4,
+    max: 8,
     ttl: ms('5m'),
     ttlAutopurge: true,
     fetchMethod: async (key, _staleValue, { context }) => {

@@ -62,9 +62,11 @@ describe('slotProcessorMachine', () => {
     expect(slotController.prefetchBlockRewards).toHaveBeenCalledWith(13);
     expect(slotController.prefetchBlockRewards).toHaveBeenCalledWith(14);
 
-    // Verify sync committee reward prefetch keeps the existing immediate lookahead slots.
+    // Verify sync committee reward prefetch covers all configured lookahead slots.
     expect(slotController.prefetchSyncCommitteeRewards).toHaveBeenCalledWith(11);
     expect(slotController.prefetchSyncCommitteeRewards).toHaveBeenCalledWith(12);
+    expect(slotController.prefetchSyncCommitteeRewards).toHaveBeenCalledWith(13);
+    expect(slotController.prefetchSyncCommitteeRewards).toHaveBeenCalledWith(14);
 
     // Stop the actor so the pending beacon block request does not keep the test alive.
     actor.stop();
