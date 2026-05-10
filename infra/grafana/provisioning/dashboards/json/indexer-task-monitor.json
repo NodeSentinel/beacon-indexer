@@ -12,19 +12,19 @@
     "list": [
       {
         "name": "epoch",
-        "query": ".*",
+        "query": "",
         "current": {
-          "text": ".*",
-          "value": ".*"
+          "text": "",
+          "value": ""
         },
         "type": "textbox"
       },
       {
         "name": "slot",
-        "query": ".*",
+        "query": "",
         "current": {
-          "text": ".*",
-          "value": ".*"
+          "text": "",
+          "value": ""
         },
         "type": "textbox"
       },
@@ -35,7 +35,7 @@
           "type": "loki",
           "uid": "loki"
         },
-        "query": "label_values({app=\"beacon-chain-validators-monitor\", job=\"indexer-task-monitor\", epoch=~\"$epoch\", slot=~\"$slot\"}, task)",
+        "query": "label_values({app=\"beacon-chain-validators-monitor\", job=\"indexer-task-monitor\", epoch=~\"^${epoch}$|^[0-9]+$(?:${epoch})|^none$(?:${epoch})\", slot=~\"^${slot}$|^[0-9]+$(?:${slot})|^none$(?:${slot})\"}, task)",
         "refresh": 1,
         "includeAll": true,
         "allValue": ".*",
@@ -345,7 +345,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "{app=\"beacon-chain-validators-monitor\", job=\"indexer-task-monitor\", epoch=~\"$epoch\", slot=~\"$slot\", task=~\"$task\"}",
+          "expr": "{app=\"beacon-chain-validators-monitor\", job=\"indexer-task-monitor\", epoch=~\"^${epoch}$|^[0-9]+$(?:${epoch})|^none$(?:${epoch})\", slot=~\"^${slot}$|^[0-9]+$(?:${slot})|^none$(?:${slot})\", task=~\"$task\"}",
           "queryType": "range"
         }
       ]
