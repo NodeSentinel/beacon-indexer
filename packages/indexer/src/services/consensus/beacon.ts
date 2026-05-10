@@ -68,8 +68,23 @@ export class BeaconClient extends ReliableRequestClient {
     max: 8,
     ttl: ms('10m'),
     ttlAutopurge: true,
-    fetchMethod: (slot, _staleValue, { context }) =>
-      this.fetchBlockRewardsUncached(slot, context?.prefetch),
+    fetchMethod: async (slot, _staleValue, { context }) => {
+      if (context?.prefetch) {
+        try {
+          const res = await axios.get<BlockRewards>(
+            `${PREFETCH_REWARDS_API_URL}/eth/v1/beacon/rewards/blocks/${slot}`,
+            {
+              timeout: ms('1.5m'),
+            },
+          );
+          return res.data;
+        } catch {
+          return undefined;
+        }
+      }
+
+      return this.fetchBlockRewardsUncached(slot);
+    },
   });
 
   /**
@@ -88,10 +103,25 @@ export class BeaconClient extends ReliableRequestClient {
       // null marks ignored prefetch errors as handled so makeReliableRequest does not retry.
       const handleError = context?.ignoreErrors ? () => null : undefined;
 
+      if (context?.prefetch) {
+        try {
+          const res = await axios.post<SyncCommitteeRewards>(
+            `${PREFETCH_REWARDS_API_URL}/eth/v1/beacon/rewards/sync_committee/${slot}`,
+            validatorIndexes,
+            {
+              timeout: ms('1.5m'),
+            },
+          );
+          return res.data;
+        } catch {
+          return undefined;
+        }
+      }
+
       const rewards = await this.makeReliableRequest<SyncCommitteeRewards | null>(
         async (url) => {
-          const res = await axios.post<SyncCommitteeRewards>(
-            `${context?.prefetch ? PREFETCH_REWARDS_API_URL : url}/eth/v1/beacon/rewards/sync_committee/${slot}`,
+          const res = await this.axiosInstance.post<SyncCommitteeRewards>(
+            `${url}/eth/v1/beacon/rewards/sync_committee/${slot}`,
             validatorIndexes,
             {
               timeout: ms('1.5m'),
@@ -367,12 +397,11 @@ export class BeaconClient extends ReliableRequestClient {
    */
   private fetchBlockRewardsUncached = async (
     slot: number,
-    isPrefetch?: boolean,
   ): Promise<BlockRewards | 'SLOT MISSED'> => {
     return this.makeReliableRequest<BlockRewards | 'SLOT MISSED'>(
       async (url) => {
-        const res = await axios.get<BlockRewards>(
-          `${isPrefetch ? PREFETCH_REWARDS_API_URL : url}/eth/v1/beacon/rewards/blocks/${slot}`,
+        const res = await this.axiosInstance.get<BlockRewards>(
+          `${url}/eth/v1/beacon/rewards/blocks/${slot}`,
           {
             timeout: ms('1.5m'),
           },
@@ -399,7 +428,11 @@ export class BeaconClient extends ReliableRequestClient {
    * Get block rewards for a specific slot using the prefetch cache.
    */
   getBlockRewards = async (slot: number): Promise<BlockRewards | 'SLOT MISSED'> => {
-    const rewards = await this.blockRewardsCache.fetch(slot);
+    let rewards = await this.blockRewardsCache.fetch(slot);
+    if (rewards === undefined) {
+      rewards = await this.blockRewardsCache.fetch(slot);
+    }
+
     if (rewards === undefined) {
       throw new Error(`Failed to fetch block rewards for slot ${slot} from cache.`);
     }
