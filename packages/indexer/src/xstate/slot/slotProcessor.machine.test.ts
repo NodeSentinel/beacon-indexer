@@ -28,8 +28,8 @@ describe('slotProcessorMachine', () => {
     vi.clearAllTimers();
   });
 
-  // This test verifies reward prefetching warms the next two sequential slots.
-  test('prefetches rewards for the next two slots when fetching the current block', async () => {
+  // This test verifies reward prefetching warms the next four sequential slots.
+  test('prefetches rewards for the next four slots when fetching the current block', async () => {
     // Keep beacon block fetching pending so the test can inspect entry actions.
     const beaconBlockFetch = createControllablePromise<never>();
 
@@ -56,11 +56,13 @@ describe('slotProcessorMachine', () => {
       expect(slotController.prefetchBlockRewards).toHaveBeenCalledWith(11);
     });
 
-    // Verify consensus reward prefetch covers both immediate lookahead slots.
+    // Verify consensus reward prefetch covers all configured lookahead slots.
     expect(slotController.prefetchBlockRewards).toHaveBeenCalledWith(11);
     expect(slotController.prefetchBlockRewards).toHaveBeenCalledWith(12);
+    expect(slotController.prefetchBlockRewards).toHaveBeenCalledWith(13);
+    expect(slotController.prefetchBlockRewards).toHaveBeenCalledWith(14);
 
-    // Verify sync committee reward prefetch covers both immediate lookahead slots.
+    // Verify sync committee reward prefetch keeps the existing immediate lookahead slots.
     expect(slotController.prefetchSyncCommitteeRewards).toHaveBeenCalledWith(11);
     expect(slotController.prefetchSyncCommitteeRewards).toHaveBeenCalledWith(12);
 
@@ -111,6 +113,7 @@ describe('slotProcessorMachine', () => {
     expect(controllerSource).not.toContain('processAttestations:dedupe');
 
     // Database operations inside the slow attestation save path should be timed directly.
+    expect(storageSource).toContain('processAttestations:saveSlotAttestations:buildUpdateQueries');
     expect(storageSource).toContain(
       'processAttestations:saveSlotAttestations:updateCommitteeChunk',
     );

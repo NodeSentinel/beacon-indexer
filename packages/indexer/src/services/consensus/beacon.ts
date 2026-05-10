@@ -58,7 +58,7 @@ export class BeaconClient extends ReliableRequestClient {
    * 'SLOT MISSED' is used to indicate that the slot was missed, allowing the caller to handle it accordingly.
    */
   private readonly blockRewardsCache = new LRUCache<number, BlockRewards | 'SLOT MISSED'>({
-    max: 4,
+    max: 8,
     ttl: ms('5m'),
     ttlAutopurge: true,
     fetchMethod: (slot) => this.fetchBlockRewardsUncached(slot),

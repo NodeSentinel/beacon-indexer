@@ -190,8 +190,13 @@ export const slotProcessorMachine = setup({
   },
   actions: {
     prefetchNextSlotRewards: ({ context }) => {
+      // prefetch block rewards
       context.slotController.prefetchBlockRewards(context.slot + 1);
       context.slotController.prefetchBlockRewards(context.slot + 2);
+      context.slotController.prefetchBlockRewards(context.slot + 3);
+      context.slotController.prefetchBlockRewards(context.slot + 4);
+
+      // sync committee rewards
       void context.slotController
         .prefetchSyncCommitteeRewards(context.slot + 1)
         .catch(() => undefined);

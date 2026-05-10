@@ -317,6 +317,10 @@ export class SlotStorage {
     slotNumber: number,
     performanceScope: string,
   ): Promise<void> {
+    // Keep the chunk size under PostgreSQL's 32767 bind variables limit.
+    const attestationUpdateChunkSize = 7000;
+    const attestationUpdateChunkCount = Math.ceil(attestations.length / attestationUpdateChunkSize);
+
     await this.prisma.$transaction(
       async (tx) => {
         const queries: Array<{
@@ -326,37 +330,44 @@ export class SlotStorage {
           chunks: number;
         }> = [];
 
-        // Process updates
-        if (attestations.length > 0) {
-          // Use 7000 chunks to avoid exceeding PostgreSQL's 32767 bind variables limit
-          // Each attestation generates 4 bind variables (slot, index, aggregationBitsIndex, delay)
-          // 7000 * 4 = 28000 < 32767
-          const updateChunks = chunk(attestations, 7000);
-          for (const [chunkIndex, batchUpdates] of updateChunks.entries()) {
-            const updateQuery = Prisma.sql`
-            UPDATE "committee" c
-            SET "attestation_delay" = v.delay
-            FROM (VALUES
-              ${Prisma.join(
-                batchUpdates.map(
-                  (u) =>
-                    Prisma.sql`(${u.slot}, ${u.index}, ${u.aggregationBitsIndex}, ${u.attestationDelay})`,
-                ),
-              )}
-            ) AS v(slot, index, "aggregation_bits_index", delay)
-            WHERE c.slot = v.slot 
-              AND c.index = v.index 
-              AND c."aggregation_bits_index" = v."aggregation_bits_index"
-              AND (c."attestation_delay" IS NULL OR c."attestation_delay" > v.delay);
-          `;
-            queries.push({
-              query: updateQuery,
-              rows: batchUpdates.length,
-              chunk: chunkIndex + 1,
-              chunks: updateChunks.length,
-            });
-          }
-        }
+        await measurePerformanceTask(
+          performanceScope,
+          'processAttestations:saveSlotAttestations:buildUpdateQueries',
+          async () => {
+            // Process updates only when attestations exist for this slot.
+            if (attestations.length > 0) {
+              const updateChunks = chunk(attestations, attestationUpdateChunkSize);
+              for (const [chunkIndex, batchUpdates] of updateChunks.entries()) {
+                const updateQuery = Prisma.sql`
+                UPDATE "committee" c
+                SET "attestation_delay" = v.delay
+                FROM (VALUES
+                  ${Prisma.join(
+                    batchUpdates.map(
+                      (u) =>
+                        Prisma.sql`(${u.slot}, ${u.index}, ${u.aggregationBitsIndex}, ${u.attestationDelay})`,
+                    ),
+                  )}
+                ) AS v(slot, index, "aggregation_bits_index", delay)
+                WHERE c.slot = v.slot 
+                  AND c.index = v.index 
+                  AND c."aggregation_bits_index" = v."aggregation_bits_index"
+                  AND (c."attestation_delay" IS NULL OR c."attestation_delay" > v.delay);
+              `;
+                queries.push({
+                  query: updateQuery,
+                  rows: batchUpdates.length,
+                  chunk: chunkIndex + 1,
+                  chunks: updateChunks.length,
+                });
+              }
+            }
+          },
+          {
+            rows: attestations.length,
+            chunks: attestationUpdateChunkCount,
+          },
+        );
 
         for (const query of queries) {
           await measurePerformanceTask(
@@ -372,7 +383,7 @@ export class SlotStorage {
           );
         }
 
-        // Update slot processing data
+        // Update slot processing data after all committee rows are updated.
         await measurePerformanceTask(
           performanceScope,
           'processAttestations:saveSlotAttestations:upsertSlot',
