@@ -31,7 +31,6 @@ import { ValidatorActivityStatusStorage } from '@/src/services/consensus/storage
 import { ValidatorsStorage } from '@/src/services/consensus/storage/validators.js';
 import { ExecutionClient } from '@/src/services/execution/execution.js';
 import initXstateMachines from '@/src/xstate/index.js';
-import { getMultiMachineLogger } from '@/src/xstate/multiMachineLogger.js';
 
 const logger = createLogger('index file');
 
@@ -47,7 +46,6 @@ async function cleanup() {
   } catch (error) {
     logger.error('Error disconnecting from database:', error);
   }
-  getMultiMachineLogger().done();
 }
 
 // Handle graceful shutdown signals

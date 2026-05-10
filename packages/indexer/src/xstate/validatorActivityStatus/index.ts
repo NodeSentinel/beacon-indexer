@@ -3,7 +3,6 @@ import { createActor } from 'xstate';
 import { validatorActivityStatusMachine } from './validatorActivityStatus.machine.js';
 
 import { ValidatorActivityStatusController } from '@/src/services/consensus/controllers/validatorActivityStatus.js';
-import { logMachine } from '@/src/xstate/multiMachineLogger.js';
 
 export { validatorActivityStatusMachine } from './validatorActivityStatus.machine.js';
 
@@ -20,12 +19,6 @@ export const getValidatorActivityStatusActor = (
       maxAttestationDelay,
       inactiveMissedCount,
     },
-  });
-
-  // Mirror the machine state into the shared multi-machine logger for debugging
-  // and operational visibility.
-  actor.subscribe((snapshot) => {
-    logMachine('validatorActivityStatus', `State: ${JSON.stringify(snapshot.value)}`);
   });
 
   return actor;

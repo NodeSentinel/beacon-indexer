@@ -7,7 +7,6 @@ import { monthlyArchiveMachine } from './monthlyArchive.machine.js';
 import { DailyArchiveController } from '@/src/services/consensus/controllers/dailyArchive.js';
 import { HourlyArchiveController } from '@/src/services/consensus/controllers/hourlyArchive.js';
 import { MonthlyArchiveController } from '@/src/services/consensus/controllers/monthlyArchive.js';
-import { logMachine } from '@/src/xstate/multiMachineLogger.js';
 
 export { hourlyArchiveMachine } from './hourlyArchive.machine.js';
 export { dailyArchiveMachine } from './dailyArchive.machine.js';
@@ -24,10 +23,6 @@ export const getHourlyArchiveActor = (hourlyArchiveController: HourlyArchiveCont
     },
   });
 
-  actor.subscribe((snapshot) => {
-    logMachine('hourlyArchive', `State: ${JSON.stringify(snapshot.value)}`);
-  });
-
   return actor;
 };
 
@@ -41,10 +36,6 @@ export const getDailyArchiveActor = (dailyArchiveController: DailyArchiveControl
     },
   });
 
-  actor.subscribe((snapshot) => {
-    logMachine('dailyArchive', `State: ${JSON.stringify(snapshot.value)}`);
-  });
-
   return actor;
 };
 
@@ -56,10 +47,6 @@ export const getMonthlyArchiveActor = (monthlyArchiveController: MonthlyArchiveC
     input: {
       monthlyArchiveController,
     },
-  });
-
-  actor.subscribe((snapshot) => {
-    logMachine('monthlyArchive', `State: ${JSON.stringify(snapshot.value)}`);
   });
 
   return actor;

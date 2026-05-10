@@ -2,7 +2,6 @@ import type { Chain } from '@beacon-indexer/beacon-utils';
 import { assign, fromPromise, setup } from 'xstate';
 
 import { SnapshotController } from '@/src/services/consensus/controllers/snapshot.js';
-import { endPerformanceTask, startPerformanceTask } from '@/src/xstate/performanceLogger.js';
 import { pinoLog } from '@/src/xstate/pinoLog.js';
 
 type SnapshotContext = {
@@ -151,8 +150,6 @@ export const snapshotMachine = setup({
       },
     },
     ticking: {
-      entry: startPerformanceTask('ticking'),
-      exit: endPerformanceTask('ticking'),
       invoke: {
         src: 'runTick',
         input: ({ context }) => ({ context }),

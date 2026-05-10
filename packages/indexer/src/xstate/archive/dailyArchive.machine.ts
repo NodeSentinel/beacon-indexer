@@ -1,7 +1,6 @@
 import { fromPromise, setup } from 'xstate';
 
 import { DailyArchiveController } from '@/src/services/consensus/controllers/dailyArchive.js';
-import { endPerformanceTask, startPerformanceTask } from '@/src/xstate/performanceLogger.js';
 import { pinoLog } from '@/src/xstate/pinoLog.js';
 
 /**
@@ -62,8 +61,6 @@ export const dailyArchiveMachine = setup({
     },
     archiving: {
       description: 'Archiving the oldest eligible day',
-      entry: startPerformanceTask('archiving'),
-      exit: endPerformanceTask('archiving'),
       invoke: {
         src: 'runArchive',
         input: ({ context }) => ({

@@ -21,11 +21,7 @@ import { assign, fromPromise, sendParent, setup } from 'xstate';
 
 import { SlotController } from '@/src/services/consensus/controllers/slot.js';
 import { Block } from '@/src/services/consensus/types.js';
-import {
-  endPerformanceTask,
-  measurePerformanceTask,
-  startPerformanceTask,
-} from '@/src/xstate/performanceLogger.js';
+import { monitoredState } from '@/src/xstate/monitoring/taskMonitor.js';
 import { pinoLog } from '@/src/xstate/pinoLog.js';
 
 export interface SlotProcessorContext {
@@ -113,14 +109,8 @@ export const slotProcessorMachine = setup({
           slotController: SlotController;
           slotNumber: number;
           attestations: Block['data']['message']['body']['attestations'];
-          performanceScope: string;
         };
-      }) =>
-        input.slotController.processAttestations(
-          input.slotNumber,
-          input.attestations,
-          input.performanceScope,
-        ),
+      }) => input.slotController.processAttestations(input.slotNumber, input.attestations),
     ),
 
     // Update attestations processed status
@@ -139,45 +129,19 @@ export const slotProcessorMachine = setup({
           slotController: SlotController;
           slot: number;
           block: Block;
-          performanceScope: string;
         };
       }) => {
         const { block, slot, slotController } = input;
         const body = block.data.message.body;
 
-        await measurePerformanceTask(
-          input.performanceScope,
-          'processBlockBodyData:epWithdrawals',
-          () =>
-            slotController.processEpWithdrawals(slot, body.execution_payload?.withdrawals || []),
-        );
-        await measurePerformanceTask(input.performanceScope, 'processBlockBodyData:deposits', () =>
-          slotController.processDeposits(slot, body.deposits || []),
-        );
-        await measurePerformanceTask(
-          input.performanceScope,
-          'processBlockBodyData:voluntaryExits',
-          () => slotController.processVoluntaryExits(slot, body.voluntary_exits || []),
-        );
-        await measurePerformanceTask(
-          input.performanceScope,
-          'processBlockBodyData:erDeposits',
-          () => slotController.processErDeposits(slot, body.execution_requests?.deposits || []),
-        );
-        await measurePerformanceTask(
-          input.performanceScope,
-          'processBlockBodyData:erWithdrawals',
-          () =>
-            slotController.processErWithdrawals(slot, body.execution_requests?.withdrawals || []),
-        );
-        await measurePerformanceTask(
-          input.performanceScope,
-          'processBlockBodyData:erConsolidations',
-          () =>
-            slotController.processErConsolidations(
-              slot,
-              body.execution_requests?.consolidations || [],
-            ),
+        await slotController.processEpWithdrawals(slot, body.execution_payload?.withdrawals || []);
+        await slotController.processDeposits(slot, body.deposits || []);
+        await slotController.processVoluntaryExits(slot, body.voluntary_exits || []);
+        await slotController.processErDeposits(slot, body.execution_requests?.deposits || []);
+        await slotController.processErWithdrawals(slot, body.execution_requests?.withdrawals || []);
+        await slotController.processErConsolidations(
+          slot,
+          body.execution_requests?.consolidations || [],
         );
       },
     ),
@@ -226,14 +190,11 @@ export const slotProcessorMachine = setup({
   }),
 
   states: {
-    gettingSlot: {
+    gettingSlot: monitoredState('get slot', {
       description: 'Getting the slot from the database and checking if already processed.',
       entry: [
-        startPerformanceTask('TOTAL'),
-        startPerformanceTask('getSlot'),
         pinoLog(({ context }) => `Getting slot ${context.slot}`, 'SlotProcessor:gettingSlot'),
       ],
-      exit: endPerformanceTask('getSlot'),
       invoke: {
         src: 'getSlot',
         input: ({ context }) => ({
@@ -257,7 +218,7 @@ export const slotProcessorMachine = setup({
           ),
         },
       },
-    },
+    }),
 
     waitingForSlotToStart: {
       description:
@@ -286,18 +247,16 @@ export const slotProcessorMachine = setup({
       },
     },
 
-    fetchingBeaconBlock: {
+    fetchingBeaconBlock: monitoredState('fetch beacon block', {
       description:
         'Fetches the beacon block from the consensus layer API and save the response in the context to be processed by internal states',
       entry: [
-        startPerformanceTask('fetchBeaconBlock'),
         'prefetchNextSlotRewards',
         pinoLog(
           ({ context }) => `Fetching beacon block data for slot ${context.slot}`,
           'SlotProcessor:fetchingBeaconData',
         ),
       ],
-      exit: endPerformanceTask('fetchBeaconBlock'),
       invoke: {
         src: 'fetchBeaconBlock',
         input: ({ context }) => ({
@@ -322,12 +281,10 @@ export const slotProcessorMachine = setup({
           ),
         },
       },
-    },
+    }),
 
     checkingForMissedSlot: {
       description: 'Check if the slot was missed or has valid data',
-      entry: startPerformanceTask('checkingForMissedSlot'),
-      exit: endPerformanceTask('checkingForMissedSlot'),
       always: [
         {
           guard: 'isSlotMissed',
@@ -339,7 +296,7 @@ export const slotProcessorMachine = setup({
       ],
     },
 
-    processingSlot: {
+    processingSlot: monitoredState('slot', {
       description: 'In this state we fetch/process all the information from the block.',
       type: 'parallel',
       onDone: 'markingSlotCompleted',
@@ -372,15 +329,13 @@ export const slotProcessorMachine = setup({
                         },
                       ],
                     },
-                    processingAttestations: {
+                    processingAttestations: monitoredState('process attestations', {
                       entry: [
-                        startPerformanceTask('processAttestations'),
                         pinoLog(
                           ({ context }) => `processing attestations for slot ${context.slot}`,
                           'SlotProcessor:attestations',
                         ),
                       ],
-                      exit: endPerformanceTask('processAttestations'),
                       invoke: {
                         src: 'processAttestations',
                         input: ({ context }) => {
@@ -389,7 +344,6 @@ export const slotProcessorMachine = setup({
                             slotController: context.slotController,
                             slotNumber: context.slot,
                             attestations: _beaconBlockData.data.message.body.attestations ?? [],
-                            performanceScope: `epoch:${context.epoch} > slot:${context.slot}`,
                           };
                         },
                         onDone: {
@@ -404,17 +358,15 @@ export const slotProcessorMachine = setup({
                           ),
                         },
                       },
-                    },
-                    updateAttestationsProcessed: {
+                    }),
+                    updateAttestationsProcessed: monitoredState('update attestations', {
                       entry: [
-                        startPerformanceTask('updateAttestationsProcessed'),
                         pinoLog(
                           ({ context }) =>
                             `updating attestations processed flag for slot ${context.slot}`,
                           'SlotProcessor:attestations',
                         ),
                       ],
-                      exit: endPerformanceTask('updateAttestationsProcessed'),
                       invoke: {
                         src: 'updateAttestationsProcessed',
                         input: ({ context }) => ({
@@ -433,7 +385,7 @@ export const slotProcessorMachine = setup({
                           ),
                         },
                       },
-                    },
+                    }),
                     complete: {
                       entry: pinoLog(
                         ({ context }) => `attestations complete for slot ${context.slot}`,
@@ -450,16 +402,14 @@ export const slotProcessorMachine = setup({
                   description: 'Fetching execution layer rewards for the slot proposer.',
                   initial: 'processing',
                   states: {
-                    processing: {
+                    processing: monitoredState('fetch execution rewards', {
                       entry: [
-                        startPerformanceTask('fetchELRewards'),
                         pinoLog(
                           ({ context }) =>
                             `fetching blockRewards(execution) for slot ${context.slot}`,
                           'SlotProcessor:blockRewards(execution)',
                         ),
                       ],
-                      exit: endPerformanceTask('fetchELRewards'),
                       invoke: {
                         src: 'fetchELRewards',
                         input: ({ context }) => {
@@ -485,7 +435,7 @@ export const slotProcessorMachine = setup({
                           ),
                         },
                       },
-                    },
+                    }),
                     waitingRetry: {
                       after: {
                         retryWait: 'processing',
@@ -505,16 +455,14 @@ export const slotProcessorMachine = setup({
                   description: 'Fetching block rewards (consensus rewards) for the slot proposer.',
                   initial: 'processing',
                   states: {
-                    processing: {
+                    processing: monitoredState('fetch block rewards', {
                       entry: [
-                        startPerformanceTask('fetchBlockRewards'),
                         pinoLog(
                           ({ context }) =>
                             `fetching blockRewards(consensus) for slot ${context.slot}`,
                           'SlotProcessor:blockRewards(consensus)',
                         ),
                       ],
-                      exit: endPerformanceTask('fetchBlockRewards'),
                       invoke: {
                         src: 'fetchBlockRewards',
                         input: ({ context }) => {
@@ -536,7 +484,7 @@ export const slotProcessorMachine = setup({
                           ),
                         },
                       },
-                    },
+                    }),
                     waitingRetry: {
                       after: {
                         retryWait: 'processing',
@@ -556,16 +504,14 @@ export const slotProcessorMachine = setup({
                   description: 'Fetching sync committee rewards for the slot.',
                   initial: 'processing',
                   states: {
-                    processing: {
+                    processing: monitoredState('fetch sync rewards', {
                       entry: [
-                        startPerformanceTask('fetchSyncCommitteeRewards'),
                         pinoLog(
                           ({ context }) =>
                             `fetching sync committee rewards for slot ${context.slot}`,
                           'SlotProcessor:syncCommitteeRewards',
                         ),
                       ],
-                      exit: endPerformanceTask('fetchSyncCommitteeRewards'),
                       invoke: {
                         src: 'fetchSyncCommitteeRewards',
                         input: ({ context }) => {
@@ -586,7 +532,7 @@ export const slotProcessorMachine = setup({
                           ),
                         },
                       },
-                    },
+                    }),
                     complete: {
                       type: 'final',
                       entry: pinoLog(
@@ -603,22 +549,19 @@ export const slotProcessorMachine = setup({
                     'Processing block body data sequentially to avoid deadlocks on the slot row',
                   initial: 'processing',
                   states: {
-                    processing: {
+                    processing: monitoredState('process block body', {
                       entry: [
-                        startPerformanceTask('processBlockBodyData'),
                         pinoLog(
                           ({ context }) => `processing block body data for slot ${context.slot}`,
                           'SlotProcessor:blockBodyData',
                         ),
                       ],
-                      exit: endPerformanceTask('processBlockBodyData'),
                       invoke: {
                         src: 'processBlockBodyData',
                         input: ({ context }) => ({
                           slotController: context.slotController,
                           slot: context.slot,
                           block: context.beaconBlockData?.rawData as Block,
-                          performanceScope: `epoch:${context.epoch} > slot:${context.slot}`,
                         }),
                         onDone: {
                           target: 'complete',
@@ -632,7 +575,7 @@ export const slotProcessorMachine = setup({
                           ),
                         },
                       },
-                    },
+                    }),
                     complete: {
                       type: 'final',
                       entry: pinoLog(
@@ -653,18 +596,16 @@ export const slotProcessorMachine = setup({
           },
         },
       },
-    },
+    }),
 
-    markingSlotCompleted: {
+    markingSlotCompleted: monitoredState('mark slot processed', {
       description: 'Marking the slot as completed.',
       entry: [
-        startPerformanceTask('updateSlotProcessed'),
         pinoLog(
           ({ context }) => `Marking slot completed ${context.slot}`,
           'SlotProcessor:markingSlotCompleted',
         ),
       ],
-      exit: endPerformanceTask('updateSlotProcessed'),
       invoke: {
         src: 'updateSlotProcessed',
         input: ({ context }) => ({
@@ -683,11 +624,10 @@ export const slotProcessorMachine = setup({
           ),
         },
       },
-    },
+    }),
 
     completed: {
       entry: [
-        endPerformanceTask('TOTAL'),
         sendParent({ type: 'SLOT_COMPLETED' }),
         pinoLog(({ context }) => `Completed slot ${context.slot}`, 'SlotProcessor:slotCompleted'),
       ],

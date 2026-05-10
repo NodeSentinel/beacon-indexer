@@ -6,7 +6,7 @@ import { slotOrchestratorMachine, SlotsCompletedEvent } from '../slot/slotOrches
 import { EpochController } from '@/src/services/consensus/controllers/epoch.js';
 import { SlotController } from '@/src/services/consensus/controllers/slot.js';
 import { ValidatorsController } from '@/src/services/consensus/controllers/validators.js';
-import { endPerformanceTask, startPerformanceTask } from '@/src/xstate/performanceLogger.js';
+import { monitoredState } from '@/src/xstate/monitoring/taskMonitor.js';
 import { pinoLog } from '@/src/xstate/pinoLog.js';
 
 export const epochProcessorMachine = setup({
@@ -320,18 +320,15 @@ export const epochProcessorMachine = setup({
         },
       },
     },
-    epochProcessing: {
+    epochProcessing: monitoredState('epoch', {
       description:
         'processing beacon epoch data. Note that data can be processed at different times, some 1 epoch ahead and some after the epoch started.',
       entry: [
-        startPerformanceTask('TOTAL'),
-        startPerformanceTask('epochProcessing'),
         pinoLog(
           ({ context }) => `Starting epoch processing for epoch ${context.epoch}`,
           'EpochProcessor',
         ),
       ],
-      exit: endPerformanceTask('epochProcessing'),
       type: 'parallel',
       states: {
         monitoringEpochStart: {
@@ -339,8 +336,6 @@ export const epochProcessorMachine = setup({
           initial: 'checkingIfEpochAlreadyStarted',
           states: {
             checkingIfEpochAlreadyStarted: {
-              entry: startPerformanceTask('checkingIfEpochAlreadyStarted'),
-              exit: endPerformanceTask('checkingIfEpochAlreadyStarted'),
               after: {
                 0: [
                   {
@@ -391,26 +386,20 @@ export const epochProcessorMachine = setup({
         },
         fetching: {
           description: 'Fetching data from the epoch',
-          entry: startPerformanceTask('fetching'),
-          exit: endPerformanceTask('fetching'),
           type: 'parallel',
           states: {
             committees: {
               description:
                 'Get epoch committees, create the slots if they do not exist. Raise COMMITTEES_FETCHED event when done.',
-              entry: startPerformanceTask('committees'),
-              exit: endPerformanceTask('committees'),
               initial: 'fetchingCommittees',
               states: {
-                fetchingCommittees: {
+                fetchingCommittees: monitoredState('fetch committees', {
                   entry: [
-                    startPerformanceTask('fetchCommittees'),
                     pinoLog(
                       ({ context }) => `Processing committees for epoch ${context.epoch}`,
                       'EpochProcessor:committees',
                     ),
                   ],
-                  exit: endPerformanceTask('fetchCommittees'),
                   invoke: {
                     src: 'fetchCommittees',
                     input: ({ context }) => ({
@@ -429,7 +418,7 @@ export const epochProcessorMachine = setup({
                       ),
                     },
                   },
-                },
+                }),
                 committeesFetched: {
                   type: 'final',
                   entry: [
@@ -451,19 +440,15 @@ export const epochProcessorMachine = setup({
             syncingCommittees: {
               description:
                 'Get the sync committees for the epoch, it might be the case that they are already fetched, as the same committee last 256 epochs.',
-              entry: startPerformanceTask('syncingCommittees'),
-              exit: endPerformanceTask('syncingCommittees'),
               initial: 'fetchingSyncCommittees',
               states: {
-                fetchingSyncCommittees: {
+                fetchingSyncCommittees: monitoredState('fetch sync committees', {
                   entry: [
-                    startPerformanceTask('fetchSyncCommittees'),
                     pinoLog(
                       ({ context }) => `Processing sync committees for epoch ${context.epoch}`,
                       'EpochProcessor:syncingCommittees',
                     ),
                   ],
-                  exit: endPerformanceTask('fetchSyncCommittees'),
                   invoke: {
                     src: 'fetchSyncCommittees',
                     input: ({ context }) => ({
@@ -482,7 +467,7 @@ export const epochProcessorMachine = setup({
                       ),
                     },
                   },
-                },
+                }),
                 syncCommitteesFetched: {
                   type: 'final',
                   entry: [
@@ -496,8 +481,6 @@ export const epochProcessorMachine = setup({
             },
             slotsProcessing: {
               description: 'Process slots for the epoch. Waits for committees to be ready.',
-              entry: startPerformanceTask('slotsProcessing'),
-              exit: endPerformanceTask('slotsProcessing'),
               initial: 'waitingForPriorEpochDependencies',
               states: {
                 waitingForPriorEpochDependencies: {
@@ -599,9 +582,8 @@ export const epochProcessorMachine = setup({
                     slotDurationHalf: 'waitingForPriorEpochSlots',
                   },
                 },
-                runningSlotsOrchestrator: {
+                runningSlotsOrchestrator: monitoredState('process slots', {
                   entry: [
-                    startPerformanceTask('processSlots'),
                     pinoLog(
                       ({ context }) => `Processing slots for epoch ${context.epoch}`,
                       'EpochProcessor:slotsProcessing',
@@ -627,7 +609,6 @@ export const epochProcessorMachine = setup({
                       },
                     }),
                   ],
-                  exit: endPerformanceTask('processSlots'),
                   on: {
                     SLOTS_COMPLETED: {
                       target: 'updatingSlotsFetched',
@@ -642,16 +623,14 @@ export const epochProcessorMachine = setup({
                       ],
                     },
                   },
-                },
-                updatingSlotsFetched: {
+                }),
+                updatingSlotsFetched: monitoredState('update slots fetched', {
                   entry: [
-                    startPerformanceTask('updateSlotsFetched'),
                     pinoLog(
                       ({ context }) => `Updating slots fetched for epoch ${context.epoch}`,
                       'EpochProcessor:slotsProcessing',
                     ),
                   ],
-                  exit: endPerformanceTask('updateSlotsFetched'),
                   invoke: {
                     src: 'updateSlotsFetched',
                     input: ({ context }) => ({
@@ -670,7 +649,7 @@ export const epochProcessorMachine = setup({
                       ),
                     },
                   },
-                },
+                }),
                 slotsProcessed: {
                   type: 'final',
                   entry: [
@@ -684,8 +663,6 @@ export const epochProcessorMachine = setup({
             },
             trackingValidatorsActivation: {
               description: 'Discover new validators and track those transitioning between states',
-              entry: startPerformanceTask('trackingValidatorsActivation'),
-              exit: endPerformanceTask('trackingValidatorsActivation'),
               initial: 'waitingForEpochStart',
               states: {
                 waitingForEpochStart: {
@@ -700,15 +677,13 @@ export const epochProcessorMachine = setup({
                     },
                   },
                 },
-                discoveringNewValidators: {
+                discoveringNewValidators: monitoredState('discover validators', {
                   entry: [
-                    startPerformanceTask('discoverNewValidators'),
                     pinoLog(
                       ({ context }) => `Discovering new validators for epoch ${context.epoch}`,
                       'EpochProcessor:trackingValidatorsActivation',
                     ),
                   ],
-                  exit: endPerformanceTask('discoverNewValidators'),
                   invoke: {
                     src: 'discoverNewValidators',
                     input: ({ context }) => ({
@@ -729,17 +704,15 @@ export const epochProcessorMachine = setup({
                       ),
                     },
                   },
-                },
-                trackingActivation: {
+                }),
+                trackingActivation: monitoredState('track validators activation', {
                   entry: [
-                    startPerformanceTask('trackTransitioningValidators'),
                     pinoLog(
                       ({ context }) =>
                         `Processing validators activation for epoch ${context.epoch}`,
                       'EpochProcessor:trackingValidatorsActivation',
                     ),
                   ],
-                  exit: endPerformanceTask('trackTransitioningValidators'),
                   invoke: {
                     src: 'trackingTransitioningValidators',
                     input: ({ context }) => ({
@@ -762,7 +735,7 @@ export const epochProcessorMachine = setup({
                       ),
                     },
                   },
-                },
+                }),
                 activationTracked: {
                   type: 'final',
                   entry: [
@@ -777,8 +750,6 @@ export const epochProcessorMachine = setup({
             },
             validatorsBalances: {
               description: 'Fetch validators balances for the epoch',
-              entry: startPerformanceTask('validatorsBalances'),
-              exit: endPerformanceTask('validatorsBalances'),
               initial: 'waitingForEpochStart',
               states: {
                 waitingForEpochStart: {
@@ -793,15 +764,13 @@ export const epochProcessorMachine = setup({
                     },
                   },
                 },
-                fetchingValidatorsBalances: {
+                fetchingValidatorsBalances: monitoredState('fetch validators', {
                   entry: [
-                    startPerformanceTask('fetchValidatorsState'),
                     pinoLog(
                       ({ context }) => `Processing validators balances for epoch ${context.epoch}`,
                       'EpochProcessor:validatorsBalances',
                     ),
                   ],
-                  exit: endPerformanceTask('fetchValidatorsState'),
                   invoke: {
                     src: 'fetchValidatorsState',
                     input: ({ context }) => ({
@@ -822,7 +791,7 @@ export const epochProcessorMachine = setup({
                       ),
                     },
                   },
-                },
+                }),
                 validatorsBalancesFetched: {
                   type: 'final',
                   entry: [
@@ -843,8 +812,6 @@ export const epochProcessorMachine = setup({
             },
             rewards: {
               description: 'Fetch rewards after balances and the epoch has ended',
-              entry: startPerformanceTask('rewards'),
-              exit: endPerformanceTask('rewards'),
               initial: 'waitingForBalances',
               states: {
                 waitingForBalances: {
@@ -891,15 +858,13 @@ export const epochProcessorMachine = setup({
                     },
                   },
                 },
-                fetchingRewards: {
+                fetchingRewards: monitoredState('fetch rewards', {
                   entry: [
-                    startPerformanceTask('fetchAttestationsRewards'),
                     pinoLog(
                       ({ context }) => `Processing rewards for epoch ${context.epoch}`,
                       'EpochProcessor:rewards',
                     ),
                   ],
-                  exit: endPerformanceTask('fetchAttestationsRewards'),
                   invoke: {
                     src: 'fetchAttestationsRewards',
                     input: ({ context }) => ({
@@ -918,7 +883,7 @@ export const epochProcessorMachine = setup({
                       ),
                     },
                   },
-                },
+                }),
                 rewardsFetched: {
                   type: 'final',
                   entry: [
@@ -934,11 +899,9 @@ export const epochProcessorMachine = setup({
         },
       },
       onDone: 'markingEpochProcessed',
-    },
-    markingEpochProcessed: {
+    }),
+    markingEpochProcessed: monitoredState('mark epoch processed', {
       // TODO: we should check all the flags are set to true before marking the epoch as processed
-      entry: startPerformanceTask('markingEpochProcessed'),
-      exit: endPerformanceTask('markingEpochProcessed'),
       invoke: {
         src: 'markEpochAsProcessed',
         input: ({ context }) => ({
@@ -968,9 +931,8 @@ export const epochProcessorMachine = setup({
           ),
         },
       },
-    },
+    }),
     epochCompleted: {
-      entry: endPerformanceTask('TOTAL'),
       type: 'final',
     },
   },
