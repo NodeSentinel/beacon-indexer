@@ -12,7 +12,12 @@ import { env } from '@/env';
 import { useChainStats } from '@/hooks/use-chain-stats';
 import { useSyncStatus } from '@/hooks/use-sync-status';
 import { useTokenPrice } from '@/hooks/use-token-price';
-import { formatNumber, getTokenSymbol } from '@/lib/utils';
+import {
+  formatNumber,
+  formatSlotSyncStatus,
+  getSlotDurationSeconds,
+  getTokenSymbol,
+} from '@/lib/utils';
 
 interface StatCardProps {
   icon: LucideIcon;
@@ -66,6 +71,7 @@ export default function ChainStatistics() {
   const { data: syncStatus } = useSyncStatus();
   const { data: tokenPriceData, isLoading: isTokenPriceLoading } = useTokenPrice();
   const tokenSymbol = getTokenSymbol(env.NEXT_PUBLIC_CHAIN);
+  const slotDurationSeconds = getSlotDurationSeconds(env.NEXT_PUBLIC_CHAIN);
 
   const tokenPrice = tokenPriceData?.tokenPrice ?? 0;
   const tokenPriceLabel =
@@ -92,37 +98,37 @@ export default function ChainStatistics() {
 
   return (
     <Collapsible open={isExpanded} onOpenChange={setIsExpanded} className="space-y-2">
-      <CollapsibleTrigger asChild>
-        <button
-          type="button"
-          className="flex w-full items-center gap-2 rounded-lg text-left md:gap-3"
-        >
-          {tokenPriceLabel ? (
-            <Badge
-              variant="outline"
-              className="h-5 shrink-0 border-border/60 bg-transparent px-1.5 text-[10px] font-mono text-muted-foreground"
-            >
-              {tokenPriceLabel}
-            </Badge>
-          ) : (
-            <span className="h-5 w-16 shrink-0 rounded border border-border/60 bg-transparent animate-pulse" />
-          )}
-          {syncStatus && (
-            <Badge
-              variant="outline"
-              className="h-5 min-w-0 border-border/60 bg-transparent px-1.5 text-[10px] font-mono text-muted-foreground"
-            >
-              <div
-                className={`h-1.5 w-1.5 shrink-0 rounded-full ${syncStatus.isSynced ? 'bg-chart-2' : 'bg-warning animate-pulse'}`}
-              />
-              <span className="truncate">
-                {formatNumber(syncStatus.currentSlot ?? 0)}
-                {'/'}
-                {formatNumber(lastIndexedSlot)}
-              </span>
-            </Badge>
-          )}
-          <div className="ml-auto flex shrink-0 items-center gap-1">
+      <div className="flex w-full items-center gap-2 rounded-lg text-left md:gap-3">
+        {tokenPriceLabel ? (
+          <Badge
+            variant="outline"
+            className="h-5 shrink-0 select-text border-border/60 bg-transparent px-1.5 text-[10px] font-mono text-muted-foreground"
+          >
+            {tokenPriceLabel}
+          </Badge>
+        ) : (
+          <span className="h-5 w-16 shrink-0 rounded border border-border/60 bg-transparent animate-pulse" />
+        )}
+        {syncStatus && (
+          <Badge
+            variant="outline"
+            className="h-5 min-w-0 select-text border-transparent bg-transparent px-1.5 text-[10px] font-mono text-muted-foreground"
+          >
+            <div
+              className={`h-1.5 w-1.5 shrink-0 rounded-full ${syncStatus.isSynced ? 'bg-chart-2' : 'bg-warning animate-pulse'}`}
+            />
+            <span className="truncate">
+              {formatSlotSyncStatus({
+                currentSlot: syncStatus.currentSlot ?? 0,
+                isSynced: syncStatus.isSynced,
+                lastIndexedSlot,
+                slotDurationSeconds,
+              })}
+            </span>
+          </Badge>
+        )}
+        <CollapsibleTrigger asChild>
+          <button type="button" className="ml-auto flex shrink-0 items-center gap-1 rounded-lg">
             <h2 className="text-[10px] font-normal text-muted-foreground md:text-xs">
               Chain stats
             </h2>
@@ -131,9 +137,9 @@ export default function ChainStatistics() {
             ) : (
               <ChevronDown className="size-4 shrink-0 text-muted-foreground" />
             )}
-          </div>
-        </button>
-      </CollapsibleTrigger>
+          </button>
+        </CollapsibleTrigger>
+      </div>
 
       <CollapsibleContent>
         {isChainStatsLoading || isTokenPriceLoading ? (

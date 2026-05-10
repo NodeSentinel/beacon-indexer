@@ -153,6 +153,58 @@ export function formatNumber(value: number | string, maxDecimals = 2): string {
   });
 }
 
+/** Returns the configured slot duration for the selected chain. */
+export function getSlotDurationSeconds(chain: 'gnosis' | 'ethereum'): number {
+  return chain === 'gnosis' ? 5 : 12;
+}
+
+/** Formats a slot delay as compact dd hh:mm:ss text. */
+function formatSlotDelayDuration(delaySlots: number, slotDurationSeconds: number): string {
+  const duration = intervalToDuration({
+    start: 0,
+    end: Math.max(delaySlots * slotDurationSeconds, 0) * 1000,
+  });
+  const days = duration.days ?? 0;
+  const hours = duration.hours ?? 0;
+  const minutes = duration.minutes ?? 0;
+  const parts = [];
+
+  if (days > 0) {
+    parts.push(`${days}d`);
+  }
+
+  if (hours > 0) {
+    parts.push(`${hours}h`);
+  }
+
+  if (minutes > 0 || parts.length === 0) {
+    parts.push(`${minutes}m`);
+  }
+
+  return parts.join(':');
+}
+
+/** Formats the indexer slot sync status label. */
+export function formatSlotSyncStatus({
+  currentSlot,
+  isSynced,
+  lastIndexedSlot,
+  slotDurationSeconds = 12,
+}: {
+  currentSlot: number;
+  isSynced: boolean;
+  lastIndexedSlot: number;
+  slotDurationSeconds?: number;
+}): string {
+  if (!isSynced) {
+    const delaySlots = Math.max(currentSlot - lastIndexedSlot, 0);
+
+    return `${formatNumber(lastIndexedSlot, 0)} (-${formatNumber(delaySlots, 0)}) ${formatSlotDelayDuration(delaySlots, slotDurationSeconds)}`;
+  }
+
+  return `${formatNumber(currentSlot, 0)}/${formatNumber(lastIndexedSlot, 0)}`;
+}
+
 /** Display unit for reward values in gwei */
 export const REWARD_UNIT = 'GWei';
 
