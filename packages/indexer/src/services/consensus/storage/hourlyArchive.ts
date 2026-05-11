@@ -1,6 +1,8 @@
 import { PrismaClient } from '@beacon-indexer/db';
 import ms from 'ms';
 
+export const HOURLY_ARCHIVE_VALIDATOR_BATCH_SIZE = 25000;
+
 /**
  * HourlyArchiveStorage - Database persistence layer for hourly archive operations.
  *
@@ -132,9 +134,12 @@ export class HourlyArchiveStorage {
         `;
 
         // Process validators in chunks to reduce peak memory and temp file usage.
-        const BATCH_SIZE = 25000;
-        for (let batchStart = 0; batchStart <= max_idx; batchStart += BATCH_SIZE) {
-          const batchEnd = batchStart + BATCH_SIZE;
+        for (
+          let batchStart = 0;
+          batchStart <= max_idx;
+          batchStart += HOURLY_ARCHIVE_VALIDATOR_BATCH_SIZE
+        ) {
+          const batchEnd = batchStart + HOURLY_ARCHIVE_VALIDATOR_BATCH_SIZE;
 
           // Execute aggregation for one validator range.
           await tx.$executeRaw`
