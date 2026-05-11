@@ -1,12 +1,11 @@
-import { PrismaClient } from '@beacon-indexer/db';
-import { addDays, addHours, subHours } from 'date-fns';
+import { Prisma, PrismaClient } from '@beacon-indexer/db';
+import { addDays, subHours } from 'date-fns';
 import { formatInTimeZone } from 'date-fns-tz';
 import ms from 'ms';
 
 import { floorToUTCDay } from '@/src/utils/date/index.js';
 
 const DAILY_MERGE_BATCH_SIZE = 5000;
-const DAILY_DETAIL_CLEANUP_BATCH_SIZE = 5000;
 
 /**
  * DailyArchiveStorage - Database persistence layer for daily archive operations.
@@ -15,13 +14,10 @@ const DAILY_DETAIL_CLEANUP_BATCH_SIZE = 5000;
  * Follows the same pattern as HourlyArchiveStorage.
  */
 export class DailyArchiveStorage {
-  constructor(
-    private readonly prisma: PrismaClient,
-    private readonly archiveDetailRetentionDays: number,
-  ) {}
+  constructor(private readonly prisma: PrismaClient) {}
 
   /**
-   * Get the last archived hour timestamp from the archive control table.
+   * Read the newest raw-to-hourly archive boundary from the archive control row.
    */
   async getLastArchivedHour(): Promise<Date | null> {
     const archive = await this.prisma.archive.findUnique({
@@ -33,7 +29,7 @@ export class DailyArchiveStorage {
   }
 
   /**
-   * Get the last archived day timestamp from the archive control table.
+   * Read the newest fully completed daily archive boundary.
    */
   async getLastArchivedDay(): Promise<Date | null> {
     const archive = await this.prisma.archive.findUnique({
@@ -45,9 +41,50 @@ export class DailyArchiveStorage {
   }
 
   /**
-   * Find the oldest hourly partition that is outside the 24-hour hourly query window.
+   * Return the oldest hourly partition that has already started merging.
+   *
+   * This keeps retries focused on unfinished work before the controller starts a
+   * new source hour. The source partition must still exist because the merge
+   * reads remaining validator batches from that partition.
    */
-  async findOldestHourlyPartitionToMerge(): Promise<{
+  async findPendingHourMergeProgress(): Promise<{
+    hourStart: Date;
+    dayStart: Date;
+    partitionName: string;
+  } | null> {
+    const [progress] = await this.prisma.$queryRaw<
+      Array<{ hour_start: Date; day_start: Date; source_partition: string }>
+    >`
+      SELECT progress.hour_start, progress.day_start, progress.source_partition
+      FROM archive_hour_merge_progress progress
+      JOIN pg_class c ON c.relname = progress.source_partition
+      JOIN pg_inherits i ON c.oid = i.inhrelid
+      JOIN pg_class p ON i.inhparent = p.oid
+      WHERE progress.completed = false
+        AND p.relname = 'validator_hourly_archive'
+      ORDER BY progress.hour_start ASC
+      LIMIT 1
+    `;
+
+    if (!progress) {
+      return null;
+    }
+
+    return {
+      hourStart: progress.hour_start,
+      dayStart: progress.day_start,
+      partitionName: progress.source_partition,
+    };
+  }
+
+  /**
+   * Return the exact hourly partition requested by the controller.
+   *
+   * The controller computes the next expected hour for the day. This method only
+   * returns that exact partition when it is old enough to leave the 24-hour
+   * hourly query window and has not already started merging.
+   */
+  async findExpectedHourlyPartitionToMerge(hourStart: Date): Promise<{
     hourStart: Date;
     dayStart: Date;
     partitionName: string;
@@ -58,24 +95,25 @@ export class DailyArchiveStorage {
     }
 
     const cutoffHour = subHours(lastHour, 24);
-    const cutoffPartitionExclusive = getHourlyArchivePartitionNameForDailyMerge(
+    if (hourStart > cutoffHour) {
+      return null;
+    }
+
+    const partitionName = getHourlyArchivePartitionNameForDailyMerge(
       'validator_hourly_archive',
-      addHours(cutoffHour, 1),
+      hourStart,
     );
 
-    const [partition] = await this.prisma.$queryRaw<Array<{ relname: string; hour_start: Date }>>`
-      SELECT
-        c.relname,
-        to_timestamp(substring(c.relname FROM '([0-9]{10})$'), 'YYYYMMDDHH24')::timestamp AS hour_start
+    const [partition] = await this.prisma.$queryRaw<Array<{ relname: string }>>`
+      SELECT c.relname
       FROM pg_class c
       JOIN pg_inherits i ON c.oid = i.inhrelid
       JOIN pg_class p ON i.inhparent = p.oid
       LEFT JOIN archive_hour_merge_progress progress
         ON progress.source_partition = c.relname
       WHERE p.relname = 'validator_hourly_archive'
-        AND c.relname < ${cutoffPartitionExclusive}
-        AND COALESCE(progress.completed, false) = false
-      ORDER BY c.relname ASC
+        AND c.relname = ${partitionName}
+        AND progress.hour_start IS NULL
       LIMIT 1
     `;
 
@@ -84,14 +122,31 @@ export class DailyArchiveStorage {
     }
 
     return {
-      hourStart: partition.hour_start,
-      dayStart: floorToUTCDay(partition.hour_start),
+      hourStart,
+      dayStart: floorToUTCDay(hourStart),
       partitionName: partition.relname,
     };
   }
 
   /**
-   * Create the progress row for an hourly-to-daily merge if it does not exist.
+   * Count how many source hours have finished merging for one UTC day.
+   */
+  async countCompletedHoursForDay(dayStart: Date): Promise<number> {
+    const [{ completed_hours }] = await this.prisma.$queryRaw<[{ completed_hours: number }]>`
+      SELECT COUNT(*)::int AS completed_hours
+      FROM archive_hour_merge_progress
+      WHERE day_start = ${dayStart}::timestamp
+        AND completed = true
+    `;
+
+    return completed_hours;
+  }
+
+  /**
+   * Create the persistent batch cursor for one source hour.
+   *
+   * The cursor records the next validator index range to merge. If the process
+   * restarts, the merge resumes from this row instead of starting over.
    */
   async ensureHourMergeProgress(input: {
     hourStart: Date;
@@ -126,15 +181,25 @@ export class DailyArchiveStorage {
   }
 
   /**
-   * Merge the next validator batch for one source hour into the daily archive.
+   * Merge one validator-index range from an hourly partition into the daily row.
+   *
+   * The progress row is locked for the transaction so two workers cannot merge
+   * the same range. Rows are staged in a detached WIP table so parent-table
+   * reads cannot see a partial day. If this range completes the hour, the same
+   * transaction drops the source hourly partition and publishes the WIP table
+   * only when every expected hour for that day is complete.
    */
-  async mergeNextHourBatch(hourStart: Date): Promise<{ hourStart: Date; completed: boolean }> {
+  async mergeNextHourBatch(
+    hourStart: Date,
+    expectedHourlyPartitions: number,
+  ): Promise<{ hourStart: Date; completed: boolean }> {
     return await this.prisma.$transaction(
       async (tx) => {
         const [progress] = await tx.$queryRaw<
           Array<{
             hour_start: Date;
             day_start: Date;
+            source_partition: string;
             next_batch_start: number;
             max_validator: number;
             completed: boolean;
@@ -143,6 +208,7 @@ export class DailyArchiveStorage {
           SELECT
             hour_start,
             day_start,
+            source_partition,
             next_batch_start,
             max_validator,
             completed
@@ -155,26 +221,18 @@ export class DailyArchiveStorage {
           throw new Error(`Missing daily merge progress for hour ${hourStart.toISOString()}`);
         }
 
-        if (progress.completed) {
-          return { hourStart: progress.hour_start, completed: true };
-        }
-
         const batchStart = progress.next_batch_start;
         const batchEnd = batchStart + DAILY_MERGE_BATCH_SIZE;
         const completed = batchEnd > progress.max_validator;
         const nextDayStart = addDays(progress.day_start, 1);
-        const dailyPartitionName = getDailyArchivePartitionNameForDailyMerge(
-          'validator_daily_archive',
+        const dailyWipPartitionName = getDailyArchiveWipPartitionNameForDailyMerge(
           progress.day_start,
         );
 
-        await tx.$executeRawUnsafe(
-          `CREATE TABLE IF NOT EXISTS "${dailyPartitionName}" PARTITION OF "validator_daily_archive" ` +
-            `FOR VALUES FROM ('${progress.day_start.toISOString()}') TO ('${nextDayStart.toISOString()}')`,
-        );
+        await ensureDailyArchiveWipPartition(tx, progress.day_start);
 
-        await tx.$executeRaw`
-          INSERT INTO validator_daily_archive (
+        await tx.$executeRawUnsafe(`
+          INSERT INTO "${dailyWipPartitionName}" (
             timestamp,
             validator_index,
             data_by_slot,
@@ -191,7 +249,7 @@ export class DailyArchiveStorage {
             attestation_efficiency
           )
           SELECT
-            ${progress.day_start}::timestamp AS timestamp,
+            '${progress.day_start.toISOString()}'::timestamp AS timestamp,
             validator_index,
             data_by_slot,
             data_by_epoch,
@@ -206,50 +264,50 @@ export class DailyArchiveStorage {
             avg_attestation_delay,
             attestation_efficiency
           FROM validator_hourly_archive
-          WHERE "timestamp" = ${progress.hour_start}::timestamp
+          WHERE "timestamp" = '${progress.hour_start.toISOString()}'::timestamp
             AND validator_index >= ${batchStart}::int
             AND validator_index < ${batchEnd}::int
           ON CONFLICT (timestamp, validator_index) DO UPDATE SET
-            data_by_slot = COALESCE(validator_daily_archive.data_by_slot, '[]'::jsonb) || EXCLUDED.data_by_slot,
-            data_by_epoch = COALESCE(validator_daily_archive.data_by_epoch, '[]'::jsonb) || EXCLUDED.data_by_epoch,
-            attestation_count = validator_daily_archive.attestation_count + EXCLUDED.attestation_count,
+            data_by_slot = COALESCE("${dailyWipPartitionName}".data_by_slot, '[]'::jsonb) || EXCLUDED.data_by_slot,
+            data_by_epoch = COALESCE("${dailyWipPartitionName}".data_by_epoch, '[]'::jsonb) || EXCLUDED.data_by_epoch,
+            attestation_count = "${dailyWipPartitionName}".attestation_count + EXCLUDED.attestation_count,
             missed_attestation_count = NULLIF(
-              COALESCE(validator_daily_archive.missed_attestation_count, 0) + COALESCE(EXCLUDED.missed_attestation_count, 0),
+              COALESCE("${dailyWipPartitionName}".missed_attestation_count, 0) + COALESCE(EXCLUDED.missed_attestation_count, 0),
               0
             )::smallint,
-            sync_reward_total = validator_daily_archive.sync_reward_total + EXCLUDED.sync_reward_total,
-            sync_missed_reward_total = validator_daily_archive.sync_missed_reward_total + EXCLUDED.sync_missed_reward_total,
+            sync_reward_total = "${dailyWipPartitionName}".sync_reward_total + EXCLUDED.sync_reward_total,
+            sync_missed_reward_total = "${dailyWipPartitionName}".sync_missed_reward_total + EXCLUDED.sync_missed_reward_total,
             exec_reward_total = NULLIF(
-              COALESCE(validator_daily_archive.exec_reward_total, 0::numeric) + COALESCE(EXCLUDED.exec_reward_total, 0::numeric),
+              COALESCE("${dailyWipPartitionName}".exec_reward_total, 0::numeric) + COALESCE(EXCLUDED.exec_reward_total, 0::numeric),
               0::numeric
             ),
             block_reward_total = NULLIF(
-              COALESCE(validator_daily_archive.block_reward_total, 0::bigint) + COALESCE(EXCLUDED.block_reward_total, 0::bigint),
+              COALESCE("${dailyWipPartitionName}".block_reward_total, 0::bigint) + COALESCE(EXCLUDED.block_reward_total, 0::bigint),
               0::bigint
             ),
-            cl_reward_total = validator_daily_archive.cl_reward_total + EXCLUDED.cl_reward_total,
-            cl_missed_reward_total = validator_daily_archive.cl_missed_reward_total + EXCLUDED.cl_missed_reward_total,
+            cl_reward_total = "${dailyWipPartitionName}".cl_reward_total + EXCLUDED.cl_reward_total,
+            cl_missed_reward_total = "${dailyWipPartitionName}".cl_missed_reward_total + EXCLUDED.cl_missed_reward_total,
             avg_attestation_delay = (
               (
-                COALESCE(validator_daily_archive.avg_attestation_delay * validator_daily_archive.attestation_count, 0) +
+                COALESCE("${dailyWipPartitionName}".avg_attestation_delay * "${dailyWipPartitionName}".attestation_count, 0) +
                 COALESCE(EXCLUDED.avg_attestation_delay * EXCLUDED.attestation_count, 0)
               ) / NULLIF(
-                (CASE WHEN validator_daily_archive.avg_attestation_delay IS NOT NULL THEN validator_daily_archive.attestation_count ELSE 0 END) +
+                (CASE WHEN "${dailyWipPartitionName}".avg_attestation_delay IS NOT NULL THEN "${dailyWipPartitionName}".attestation_count ELSE 0 END) +
                 (CASE WHEN EXCLUDED.avg_attestation_delay IS NOT NULL THEN EXCLUDED.attestation_count ELSE 0 END),
                 0
               )
             )::real,
             attestation_efficiency = (
               (
-                COALESCE(validator_daily_archive.attestation_efficiency * validator_daily_archive.attestation_count, 0) +
+                COALESCE("${dailyWipPartitionName}".attestation_efficiency * "${dailyWipPartitionName}".attestation_count, 0) +
                 COALESCE(EXCLUDED.attestation_efficiency * EXCLUDED.attestation_count, 0)
               ) / NULLIF(
-                (CASE WHEN validator_daily_archive.attestation_efficiency IS NOT NULL THEN validator_daily_archive.attestation_count ELSE 0 END) +
+                (CASE WHEN "${dailyWipPartitionName}".attestation_efficiency IS NOT NULL THEN "${dailyWipPartitionName}".attestation_count ELSE 0 END) +
                 (CASE WHEN EXCLUDED.attestation_efficiency IS NOT NULL THEN EXCLUDED.attestation_count ELSE 0 END),
                 0
               )
             )::real
-        `;
+        `);
 
         await tx.$executeRaw`
           UPDATE archive_hour_merge_progress
@@ -261,89 +319,39 @@ export class DailyArchiveStorage {
           WHERE hour_start = ${progress.hour_start}::timestamp
         `;
 
+        if (completed) {
+          await tx.$executeRawUnsafe(`DROP TABLE IF EXISTS "${progress.source_partition}"`);
+
+          const [{ completed_hours }] = await tx.$queryRaw<[{ completed_hours: number }]>`
+            SELECT COUNT(*)::int AS completed_hours
+            FROM archive_hour_merge_progress
+            WHERE day_start = ${progress.day_start}::timestamp
+              AND completed = true
+          `;
+
+          if (completed_hours === expectedHourlyPartitions) {
+            await publishDailyArchiveWipPartition(tx, progress.day_start, nextDayStart);
+
+            await tx.archive.update({
+              where: { id: 1 },
+              data: { lastDay: progress.day_start },
+            });
+          }
+
+          const progressCleanupCutoff = subHours(progress.hour_start, 48);
+          await tx.$executeRaw`
+            DELETE FROM archive_hour_merge_progress
+            WHERE completed = true
+              AND hour_start < ${progressCleanupCutoff}::timestamp
+          `;
+        }
+
         return { hourStart: progress.hour_start, completed };
       },
       {
         timeout: ms('5m'),
       },
     );
-  }
-
-  /**
-   * Drop a source hourly partition after its progress row has completed.
-   */
-  async finalizeCompletedHour(hourStart: Date): Promise<void> {
-    const progressCleanupCutoff = subHours(hourStart, 48);
-
-    await this.prisma.$transaction(async (tx) => {
-      const [progress] = await tx.$queryRaw<Array<{ source_partition: string }>>`
-        SELECT source_partition
-        FROM archive_hour_merge_progress
-        WHERE hour_start = ${hourStart}::timestamp
-          AND completed = true
-        FOR UPDATE
-      `;
-
-      if (!progress) {
-        return;
-      }
-
-      await tx.$executeRawUnsafe(`DROP TABLE IF EXISTS "${progress.source_partition}"`);
-
-      await tx.$executeRaw`
-        DELETE FROM archive_hour_merge_progress
-        WHERE completed = true
-          AND hour_start < ${progressCleanupCutoff}::timestamp
-      `;
-    });
-  }
-
-  /**
-   * Advance archive.lastDay after every expected hour for a day has completed.
-   */
-  async updateLastDayIfComplete(dayStart: Date, expectedHourlyPartitions: number): Promise<void> {
-    const [{ completed_hours }] = await this.prisma.$queryRaw<[{ completed_hours: number }]>`
-      SELECT COUNT(*)::int AS completed_hours
-      FROM archive_hour_merge_progress
-      WHERE day_start = ${dayStart}::timestamp
-        AND completed = true
-    `;
-
-    if (completed_hours !== expectedHourlyPartitions) {
-      return;
-    }
-
-    await this.prisma.archive.update({
-      where: { id: 1 },
-      data: { lastDay: dayStart },
-    });
-
-    await this.cleanOldDailyArchiveDetail(dayStart);
-  }
-
-  /**
-   * Remove detailed JSON from daily archives older than the configured retention window.
-   */
-  private async cleanOldDailyArchiveDetail(dayStart: Date): Promise<void> {
-    const cleanupCutoff = new Date(
-      dayStart.getTime() - this.archiveDetailRetentionDays * 24 * 60 * 60 * 1000,
-    );
-
-    await this.prisma.$executeRaw`
-      WITH rows_to_clean AS (
-        SELECT tableoid, ctid
-        FROM validator_daily_archive
-        WHERE "timestamp" < ${cleanupCutoff}::timestamp
-          AND (data_by_slot IS NOT NULL OR data_by_epoch IS NOT NULL)
-        ORDER BY "timestamp" ASC, validator_index ASC
-        LIMIT ${DAILY_DETAIL_CLEANUP_BATCH_SIZE}
-      )
-      UPDATE validator_daily_archive archive
-      SET data_by_slot = NULL, data_by_epoch = NULL
-      FROM rows_to_clean
-      WHERE archive.tableoid = rows_to_clean.tableoid
-        AND archive.ctid = rows_to_clean.ctid
-    `;
   }
 
   /**
@@ -399,6 +407,14 @@ function getDailyArchivePartitionNameForDailyMerge(
 }
 
 /**
+ * Generate the detached daily WIP table name used while a day is incomplete.
+ */
+function getDailyArchiveWipPartitionNameForDailyMerge(timestamp: Date): string {
+  const datetimeSuffix = formatInTimeZone(timestamp, 'UTC', 'yyyyMMdd');
+  return `validator_daily_archive_wip_${datetimeSuffix}`;
+}
+
+/**
  * Generate an hourly archive partition name inside the daily archive storage layer.
  */
 function getHourlyArchivePartitionNameForDailyMerge(
@@ -407,4 +423,61 @@ function getHourlyArchivePartitionNameForDailyMerge(
 ): string {
   const datetimeSuffix = formatInTimeZone(timestamp, 'UTC', 'yyyyMMddHH');
   return `${tableNamePrefix}_${datetimeSuffix}`;
+}
+
+/**
+ * Create the detached WIP table for one daily merge.
+ *
+ * The WIP table copies the parent defaults, constraints, and indexes, but it is
+ * not attached to the partition parent until every source hour is complete.
+ */
+async function ensureDailyArchiveWipPartition(
+  tx: Prisma.TransactionClient,
+  dayStart: Date,
+): Promise<void> {
+  const nextDayStart = addDays(dayStart, 1);
+  const wipPartitionName = getDailyArchiveWipPartitionNameForDailyMerge(dayStart);
+  const rangeConstraintName = `${wipPartitionName}_timestamp_check`;
+
+  // Create a standalone table so parent scans do not see partial daily rows.
+  await tx.$executeRawUnsafe(
+    `CREATE TABLE IF NOT EXISTS "${wipPartitionName}" ` +
+      `(LIKE "validator_daily_archive" INCLUDING DEFAULTS INCLUDING CONSTRAINTS INCLUDING INDEXES)`,
+  );
+
+  // Recreate the range check idempotently before attaching the completed table.
+  await tx.$executeRawUnsafe(
+    `ALTER TABLE "${wipPartitionName}" DROP CONSTRAINT IF EXISTS "${rangeConstraintName}"`,
+  );
+
+  // Constrain timestamps to the day so PostgreSQL can attach it as a partition.
+  await tx.$executeRawUnsafe(
+    `ALTER TABLE "${wipPartitionName}" ADD CONSTRAINT "${rangeConstraintName}" ` +
+      `CHECK ("timestamp" >= '${dayStart.toISOString()}'::timestamp ` +
+      `AND "timestamp" < '${nextDayStart.toISOString()}'::timestamp)`,
+  );
+}
+
+/**
+ * Rename the completed WIP table and attach it to the daily archive parent.
+ */
+async function publishDailyArchiveWipPartition(
+  tx: Prisma.TransactionClient,
+  dayStart: Date,
+  nextDayStart: Date,
+): Promise<void> {
+  const wipPartitionName = getDailyArchiveWipPartitionNameForDailyMerge(dayStart);
+  const dailyPartitionName = getDailyArchivePartitionNameForDailyMerge(
+    'validator_daily_archive',
+    dayStart,
+  );
+
+  // Rename first so the published table follows the normal partition name.
+  await tx.$executeRawUnsafe(`ALTER TABLE "${wipPartitionName}" RENAME TO "${dailyPartitionName}"`);
+
+  // Attach only after rename, making the completed day visible atomically.
+  await tx.$executeRawUnsafe(
+    `ALTER TABLE "validator_daily_archive" ATTACH PARTITION "${dailyPartitionName}" ` +
+      `FOR VALUES FROM ('${dayStart.toISOString()}') TO ('${nextDayStart.toISOString()}')`,
+  );
 }

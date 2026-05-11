@@ -17,6 +17,7 @@ describe('Incremental Daily Archive Process', () => {
   const TEST_DAY_START = new Date('2025-12-16T00:00:00.000Z');
   const FIRST_HOUR = new Date('2025-12-16T00:00:00.000Z');
   const RETENTION_BOUNDARY_HOUR = new Date('2025-12-17T00:00:00.000Z');
+  const PUBLISH_BOUNDARY_HOUR = new Date('2025-12-18T00:00:00.000Z');
 
   beforeAll(async () => {
     if (!process.env.DATABASE_URL) {
@@ -29,7 +30,7 @@ describe('Incremental Daily Archive Process', () => {
     });
 
     // Create the daily archive controller with the normal storage implementation.
-    dailyArchiveStorage = new DailyArchiveStorage(prisma, 14);
+    dailyArchiveStorage = new DailyArchiveStorage(prisma);
     dailyArchiveController = new DailyArchiveController(
       dailyArchiveStorage,
       TEST_DAY_START.getTime(),
@@ -140,6 +141,59 @@ describe('Incremental Daily Archive Process', () => {
   }
 
   /**
+   * Creates one hourly partition with a single validator that completes in one batch.
+   */
+  async function createSingleBatchHourlyPartition(hourStart: Date, slot: number): Promise<string> {
+    const partitionName = getHourlyArchivePartitionName('validator_hourly_archive', hourStart);
+    const nextHour = new Date(hourStart.getTime() + 3600 * 1000);
+
+    // Create the source hourly partition for this exact hour.
+    await prisma.$executeRawUnsafe(
+      `CREATE TABLE IF NOT EXISTS "${partitionName}" PARTITION OF "validator_hourly_archive" ` +
+        `FOR VALUES FROM ('${hourStart.toISOString()}') TO ('${nextHour.toISOString()}')`,
+    );
+
+    // Insert one low validator index so one archive call completes this hour.
+    await prisma.validatorHourlyArchive.create({
+      data: {
+        timestamp: hourStart,
+        validatorIndex: FIRST_BATCH_VALIDATOR,
+        dataBySlot: [[slot, 0, '10']],
+        dataByEpoch: [[slot, '1', '2', '3', '4', '0', '0', '0', '0']],
+        attestationCount: 1,
+        missedAttestationCount: null,
+        syncRewardTotal: BigInt(10),
+        syncMissedRewardTotal: BigInt(0),
+        execRewardTotal: null,
+        blockRewardTotal: null,
+        clRewardTotal: BigInt(10),
+        clMissedRewardTotal: BigInt(0),
+        avgAttestationDelay: 0,
+        attestationEfficiency: 1,
+      },
+    });
+
+    return partitionName;
+  }
+
+  /**
+   * Returns the daily WIP table name used while a day is still incomplete.
+   */
+  function getDailyWipPartitionName(dayStart: Date): string {
+    return `validator_daily_archive_wip_${dayStart.toISOString().slice(0, 10).replaceAll('-', '')}`;
+  }
+
+  /**
+   * Counts rows in a physical archive table without reading through the partition parent.
+   */
+  async function countRowsInTable(tableName: string): Promise<number> {
+    const [result] = await prisma.$queryRawUnsafe<Array<{ count: number }>>(
+      `SELECT COUNT(*)::int AS count FROM "${tableName}"`,
+    );
+    return result.count;
+  }
+
+  /**
    * Verifies that the controller processes one atomic batch and keeps the source partition.
    */
   it('merges one eligible hourly batch into daily and keeps the source partition until the hour completes', async () => {
@@ -150,12 +204,18 @@ describe('Incremental Daily Archive Process', () => {
     const archived = await dailyArchiveController.archive();
     expect(archived).toStrictEqual(FIRST_HOUR);
 
-    // Verify the first batch is visible in the daily archive.
+    // Verify the first batch is staged in the detached WIP table.
+    const wipRows = await prisma.$queryRawUnsafe<Array<{ validator_index: number }>>(
+      `SELECT validator_index FROM "${getDailyWipPartitionName(TEST_DAY_START)}" ORDER BY validator_index ASC`,
+    );
+    expect(wipRows.map((row) => row.validator_index)).toEqual([FIRST_BATCH_VALIDATOR]);
+
+    // Verify incomplete daily rows are not visible through the published parent.
     const dailyRows = await prisma.validatorDailyArchive.findMany({
       where: { timestamp: TEST_DAY_START },
       orderBy: { validatorIndex: 'asc' },
     });
-    expect(dailyRows.map((row) => row.validatorIndex)).toEqual([FIRST_BATCH_VALIDATOR]);
+    expect(dailyRows).toHaveLength(0);
 
     // Verify progress advanced to the next batch without marking the hour completed.
     const [progress] = await prisma.$queryRaw<
@@ -223,17 +283,24 @@ describe('Incremental Daily Archive Process', () => {
     const archived = await dailyArchiveController.archive();
     expect(archived).toStrictEqual(FIRST_HOUR);
 
-    // Verify both validators are present exactly once in the daily archive.
-    const dailyRows = await prisma.validatorDailyArchive.findMany({
-      where: { timestamp: TEST_DAY_START },
-      orderBy: { validatorIndex: 'asc' },
-    });
-    expect(dailyRows.map((row) => row.validatorIndex)).toEqual([
+    // Verify both validators are present exactly once in the detached WIP table.
+    const wipRows = await prisma.$queryRawUnsafe<
+      Array<{ validator_index: number; data_by_slot: unknown }>
+    >(
+      `SELECT validator_index, data_by_slot FROM "${getDailyWipPartitionName(TEST_DAY_START)}" ORDER BY validator_index ASC`,
+    );
+    expect(wipRows.map((row) => row.validator_index)).toEqual([
       FIRST_BATCH_VALIDATOR,
       SECOND_BATCH_VALIDATOR,
     ]);
-    expect(dailyRows[0].dataBySlot).toEqual([[1, 0, '10']]);
-    expect(dailyRows[1].dataBySlot).toEqual([[2, 1, '20']]);
+    expect(wipRows[0].data_by_slot).toEqual([[1, 0, '10']]);
+    expect(wipRows[1].data_by_slot).toEqual([[2, 1, '20']]);
+
+    // Verify the incomplete day is still hidden from parent-table queries.
+    const dailyRows = await prisma.validatorDailyArchive.findMany({
+      where: { timestamp: TEST_DAY_START },
+    });
+    expect(dailyRows).toHaveLength(0);
 
     // Verify progress is completed after the second batch.
     const [progress] = await prisma.$queryRaw<Array<{ completed: boolean; completed_at: Date }>>`
@@ -253,6 +320,67 @@ describe('Incremental Daily Archive Process', () => {
     // Verify the day boundary does not advance because only one hour of the day is complete.
     const archive = await prisma.archive.findUnique({ where: { id: 1 } });
     expect(archive?.lastDay).toBeNull();
+  });
+
+  /**
+   * Verifies that a complete day is atomically published from WIP to the daily parent.
+   */
+  it('publishes the WIP daily archive only after every expected hour completes', async () => {
+    // Create all 24 hourly source partitions for the test day.
+    for (let hour = 0; hour < 24; hour++) {
+      const hourStart = new Date(TEST_DAY_START.getTime() + hour * 3600 * 1000);
+      await createSingleBatchHourlyPartition(hourStart, hour + 1);
+    }
+
+    // Make every test-day source hour eligible for daily archiving.
+    await prisma.archive.update({
+      where: { id: 1 },
+      data: { lastHour: PUBLISH_BOUNDARY_HOUR },
+    });
+
+    // Process the first 23 hours and keep the day unpublished.
+    for (let hour = 0; hour < 23; hour++) {
+      await expect(dailyArchiveController.archive()).resolves.toStrictEqual(
+        new Date(TEST_DAY_START.getTime() + hour * 3600 * 1000),
+      );
+    }
+
+    // Verify the WIP table exists while the final hour is still pending.
+    const wipName = getDailyWipPartitionName(TEST_DAY_START);
+    await expect(countRowsInTable(wipName)).resolves.toBe(1);
+
+    // Verify the parent does not expose the incomplete daily archive.
+    await expect(
+      prisma.validatorDailyArchive.findMany({ where: { timestamp: TEST_DAY_START } }),
+    ).resolves.toHaveLength(0);
+
+    // Process the final hour so the day becomes complete.
+    await expect(dailyArchiveController.archive()).resolves.toStrictEqual(
+      new Date('2025-12-16T23:00:00.000Z'),
+    );
+
+    // Verify the detached WIP table was renamed away after publishing.
+    const wipTables = await prisma.$queryRaw<Array<{ tablename: string }>>`
+      SELECT tablename FROM pg_tables WHERE tablename = ${wipName}
+    `;
+    expect(wipTables).toHaveLength(0);
+
+    // Verify the published daily partition now exists.
+    const publishedTables = await prisma.$queryRaw<Array<{ tablename: string }>>`
+      SELECT tablename FROM pg_tables WHERE tablename = 'validator_daily_archive_20251216'
+    `;
+    expect(publishedTables).toHaveLength(1);
+
+    // Verify parent-table reads only work after publish.
+    const publishedRows = await prisma.validatorDailyArchive.findMany({
+      where: { timestamp: TEST_DAY_START },
+    });
+    expect(publishedRows).toHaveLength(1);
+    expect(publishedRows[0].attestationCount).toBe(24);
+
+    // Verify the completed day advances the archive control row.
+    const archive = await prisma.archive.findUnique({ where: { id: 1 } });
+    expect(archive?.lastDay).toStrictEqual(TEST_DAY_START);
   });
 
   /**

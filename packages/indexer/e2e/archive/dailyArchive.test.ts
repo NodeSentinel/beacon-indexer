@@ -35,7 +35,7 @@ describe('Daily Archive Process', () => {
       datasources: { db: { url: process.env.DATABASE_URL } },
     });
 
-    dailyArchiveStorage = new DailyArchiveStorage(prisma, 14);
+    dailyArchiveStorage = new DailyArchiveStorage(prisma);
   });
 
   afterAll(async () => {
@@ -312,15 +312,15 @@ describe('Daily Archive Process', () => {
   });
 
   /**
-   * DETAIL RETENTION: Removes old JSON detail after a day finishes archiving.
+   * DETAIL CLEANUP DECOUPLING: Daily archiving does not clean old JSON detail inline.
    *
-   * The daily archive keeps aggregate columns forever, but detailed slot/epoch JSON
-   * should be nulled once it is older than the configured retention window.
+   * Daily archive completion should update archive.lastDay and leave old daily
+   * JSON detail for the dedicated cleanup worker.
    */
-  it('should clean old daily JSON detail after the candidate day completes', async () => {
+  it('should leave old daily JSON detail for the dedicated cleanup worker', async () => {
     const oldDailyTimestamp = new Date('2025-12-01T00:00:00.000Z');
 
-    // Create a daily archive row old enough to fall outside the 14-day detail window.
+    // Create a daily archive row old enough for the cleanup worker to remove later.
     await createOldDailyArchiveWithDetail(oldDailyTimestamp);
 
     // Create enough hourly source partitions to complete Dec 16 and retain the latest 24h.
@@ -334,7 +334,7 @@ describe('Daily Archive Process', () => {
     const archivedHours = await runArchiveSteps(24);
     expect(archivedHours).toHaveLength(24);
 
-    // Verify old JSON detail is removed while aggregate columns remain.
+    // Verify old JSON detail is still present while aggregate columns remain.
     const oldDaily = await prisma.validatorDailyArchive.findUnique({
       where: {
         timestamp_validatorIndex: {
@@ -343,40 +343,9 @@ describe('Daily Archive Process', () => {
         },
       },
     });
-    expect(oldDaily?.dataBySlot).toBeNull();
-    expect(oldDaily?.dataByEpoch).toBeNull();
+    expect(oldDaily?.dataBySlot).not.toBeNull();
+    expect(oldDaily?.dataByEpoch).not.toBeNull();
     expect(oldDaily?.clRewardTotal).toBe(BigInt(4));
-  });
-
-  /**
-   * DETAIL RETENTION BATCHING: Cleans old JSON detail in bounded batches.
-   *
-   * This prevents one cleanup pass from locking every old daily archive row at once.
-   */
-  it('should clean old daily JSON detail in a bounded batch', async () => {
-    const oldDailyTimestamp = new Date('2025-12-01T00:00:00.000Z');
-
-    // Create one more row than the cleanup batch size.
-    await createOldDailyArchiveWithDetail(oldDailyTimestamp, 5001);
-
-    // Complete one candidate day so detail cleanup runs once.
-    const allHours = await createHourlyPartitionsForRange(TEST_DAY_START, 49);
-    await prisma.archive.update({
-      where: { id: 1 },
-      data: { lastHour: allHours[48] },
-    });
-    const archivedHours = await runArchiveSteps(24);
-    expect(archivedHours).toHaveLength(24);
-
-    // Verify exactly one cleanup batch was updated.
-    const [counts] = await prisma.$queryRaw<Array<{ cleaned: number; remaining: number }>>`
-      SELECT
-        COUNT(*) FILTER (WHERE data_by_slot IS NULL AND data_by_epoch IS NULL)::int AS cleaned,
-        COUNT(*) FILTER (WHERE data_by_slot IS NOT NULL OR data_by_epoch IS NOT NULL)::int AS remaining
-      FROM validator_daily_archive
-      WHERE "timestamp" = ${oldDailyTimestamp}::timestamp
-    `;
-    expect(counts).toEqual({ cleaned: 5000, remaining: 1 });
   });
 
   /**
@@ -410,6 +379,87 @@ describe('Daily Archive Process', () => {
       SELECT tablename FROM pg_tables WHERE tablename LIKE 'validator_daily_archive_%'
     `;
     expect(dailyPartitions).toHaveLength(1);
+  });
+
+  /**
+   * GAP GUARD: Stops daily archiving when the next expected hourly partition is missing.
+   *
+   * The daily archive can process old hours incrementally once they leave the 24h
+   * retention window, but it must not skip over a missing source hour. If 02:00 is
+   * missing, 03:00 must remain untouched until the gap is filled or investigated.
+   */
+  it('should stop at a missing hourly partition without archiving later hours', async () => {
+    const hour00 = new Date('2025-12-16T00:00:00.000Z');
+    const hour01 = new Date('2025-12-16T01:00:00.000Z');
+    const hour03 = new Date('2025-12-16T03:00:00.000Z');
+
+    // Create the first two expected hours.
+    await createHourlyPartition(hour00, [
+      {
+        validatorIndex: VALIDATOR_1,
+        dataBySlot: [[1, 0, '1']],
+        dataByEpoch: [[1, '1', '1', '1', '1', '0', '0', '0', '0']],
+        attestationCount: 1,
+        syncRewardTotal: BigInt(1),
+        clRewardTotal: BigInt(4),
+        clMissedRewardTotal: BigInt(0),
+      },
+    ]);
+    await createHourlyPartition(hour01, [
+      {
+        validatorIndex: VALIDATOR_1,
+        dataBySlot: [[2, 0, '1']],
+        dataByEpoch: [[2, '1', '1', '1', '1', '0', '0', '0', '0']],
+        attestationCount: 1,
+        syncRewardTotal: BigInt(1),
+        clRewardTotal: BigInt(4),
+        clMissedRewardTotal: BigInt(0),
+      },
+    ]);
+
+    // Create a later hour while intentionally leaving 02:00 missing.
+    await createHourlyPartition(hour03, [
+      {
+        validatorIndex: VALIDATOR_1,
+        dataBySlot: [[4, 0, '1']],
+        dataByEpoch: [[4, '1', '1', '1', '1', '0', '0', '0', '0']],
+        attestationCount: 1,
+        syncRewardTotal: BigInt(1),
+        clRewardTotal: BigInt(4),
+        clMissedRewardTotal: BigInt(0),
+      },
+    ]);
+
+    // Set lastHour far enough ahead so every source hour would be retention-eligible.
+    await prisma.archive.update({
+      where: { id: 1 },
+      data: { lastHour: new Date('2025-12-18T00:00:00.000Z') },
+    });
+
+    // Process the contiguous hours and stop at the missing 02:00 partition.
+    const archivedHours = await runArchiveSteps(4);
+    expect(archivedHours).toEqual([hour00, hour01]);
+
+    // Verify the later 03:00 source partition was not archived or dropped.
+    const laterPartition = getHourlyArchivePartitionName('validator_hourly_archive', hour03);
+    const remainingLaterPartitions = await prisma.$queryRaw<Array<{ tablename: string }>>`
+      SELECT tablename FROM pg_tables WHERE tablename = ${laterPartition}
+    `;
+    expect(remainingLaterPartitions).toHaveLength(1);
+
+    // Verify the detached WIP archive contains only the two contiguous source hours.
+    const [wipRow] = await prisma.$queryRawUnsafe<Array<{ attestation_count: number }>>(
+      `SELECT attestation_count FROM "validator_daily_archive_wip_20251216" ` +
+        `WHERE "timestamp" = '2025-12-16T00:00:00.000Z'::timestamp ` +
+        `AND validator_index = ${VALIDATOR_1}`,
+    );
+    expect(wipRow.attestation_count).toBe(2);
+
+    // Verify the incomplete day remains hidden from parent-table queries.
+    const dailyRows = await prisma.validatorDailyArchive.findMany({
+      where: { timestamp: TEST_DAY_START, validatorIndex: VALIDATOR_1 },
+    });
+    expect(dailyRows).toHaveLength(0);
   });
 
   /**

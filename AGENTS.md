@@ -45,7 +45,9 @@ A developer should be able to fully understand the intent and flow of the test b
 
 - Every code block must include clear comments explaining its purpose. Comments should be sufficient for a developer to understand the logic without reading the code itself.
 - Every function must have a short comment summarizing what it does.
-- Comments must be simple, easy to understand, direct and describe the local code only
+- Comments must be simple, easy to understand, direct and describe the local code only.
+- Write comments for developers reading the code for the first time. Comments must explain the local intent and context in plain language, including the reason for non-obvious control flow, state transitions, retries, batching, locking, or cleanup behavior.
+- Do not write terse comments that merely restate a function name, describe syntax, or only make sense to the agent. If a new developer cannot understand why the code exists from the comment, rewrite it.
 - Do not move chat context, refactor history, or temporary reasoning into durable code comments.
 - Do not mix reusable helpers with feature logic. Move reusable formatting, parsing, calculation, or conversion helpers to a shared `utils` module with generic names and interfaces.
 

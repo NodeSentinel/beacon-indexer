@@ -61,6 +61,7 @@ export class HourlyArchiveController {
     }
 
     // Execute atomic archive: create partition + aggregate + drop partitions
+
     // Generate hourly archive partition name
     const hourlyArchivePartitionName = getHourlyArchivePartitionName(
       'validator_hourly_archive',
