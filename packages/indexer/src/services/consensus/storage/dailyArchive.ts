@@ -287,6 +287,21 @@ export class DailyArchiveStorage {
 
       await tx.$executeRawUnsafe(`DROP TABLE IF EXISTS "${progress.source_partition}"`);
     });
+
+    await this.deleteOldCompletedHourMergeProgress(hourStart);
+  }
+
+  /**
+   * Delete completed hourly merge progress older than the 48-hour audit window.
+   */
+  private async deleteOldCompletedHourMergeProgress(completedHourStart: Date): Promise<void> {
+    const cleanupCutoff = subHours(completedHourStart, 48);
+
+    await this.prisma.$executeRaw`
+      DELETE FROM archive_hour_merge_progress
+      WHERE completed = true
+        AND hour_start < ${cleanupCutoff}::timestamp
+    `;
   }
 
   /**

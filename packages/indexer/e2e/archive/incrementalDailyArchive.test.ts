@@ -256,6 +256,69 @@ describe('Incremental Daily Archive Process', () => {
   });
 
   /**
+   * Verifies that old completed progress rows are cleaned after an hour completes.
+   */
+  it('cleans completed hourly merge progress older than 48 hours without deleting pending rows', async () => {
+    // Create progress rows around the 48-hour retention cutoff.
+    await prisma.$executeRaw`
+      INSERT INTO archive_hour_merge_progress (
+        hour_start,
+        day_start,
+        source_partition,
+        next_batch_start,
+        max_validator,
+        completed,
+        completed_at
+      )
+      VALUES
+        (
+          ${new Date('2025-12-13T23:00:00.000Z')}::timestamp,
+          ${new Date('2025-12-13T00:00:00.000Z')}::timestamp,
+          'old_completed_partition',
+          5000,
+          1,
+          true,
+          NOW()
+        ),
+        (
+          ${new Date('2025-12-14T00:00:00.000Z')}::timestamp,
+          ${new Date('2025-12-14T00:00:00.000Z')}::timestamp,
+          'kept_completed_partition',
+          5000,
+          1,
+          true,
+          NOW()
+        ),
+        (
+          ${new Date('2025-12-13T22:00:00.000Z')}::timestamp,
+          ${new Date('2025-12-13T00:00:00.000Z')}::timestamp,
+          'old_pending_partition',
+          0,
+          1,
+          false,
+          NULL
+        )
+    `;
+
+    // Create the source hourly partition and finish both batches.
+    await createSourceHourlyPartition();
+    await dailyArchiveController.archive();
+    await dailyArchiveController.archive();
+
+    // Verify only completed progress older than 48 hours was removed.
+    const remaining = await prisma.$queryRaw<Array<{ hour_start: Date }>>`
+      SELECT hour_start
+      FROM archive_hour_merge_progress
+      ORDER BY hour_start ASC
+    `;
+    expect(remaining.map((row) => row.hour_start.toISOString())).toEqual([
+      '2025-12-13T22:00:00.000Z',
+      '2025-12-14T00:00:00.000Z',
+      FIRST_HOUR.toISOString(),
+    ]);
+  });
+
+  /**
    * Verifies that the daily archive state machine ignores overlapping epoch events.
    */
   it('ignores EPOCH_PROCESSED events while an incremental daily merge is already running', async () => {
