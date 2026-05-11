@@ -132,7 +132,7 @@ export class HourlyArchiveStorage {
         `;
 
         // Process validators in chunks to reduce peak memory and temp file usage.
-        const BATCH_SIZE = 50000;
+        const BATCH_SIZE = 25000;
         for (let batchStart = 0; batchStart <= max_idx; batchStart += BATCH_SIZE) {
           const batchEnd = batchStart + BATCH_SIZE;
 
