@@ -221,6 +221,11 @@ export class DailyArchiveStorage {
           throw new Error(`Missing daily merge progress for hour ${hourStart.toISOString()}`);
         }
 
+        // A worker can wait here while another worker completes this hour.
+        if (progress.completed) {
+          return { hourStart: progress.hour_start, completed: true };
+        }
+
         const batchStart = progress.next_batch_start;
         const batchEnd = batchStart + DAILY_MERGE_BATCH_SIZE;
         const completed = batchEnd > progress.max_validator;

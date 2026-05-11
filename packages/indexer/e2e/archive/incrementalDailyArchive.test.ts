@@ -323,6 +323,51 @@ describe('Incremental Daily Archive Process', () => {
   });
 
   /**
+   * Verifies that a completed progress row is a no-op when another worker reaches it after waiting for the row lock.
+   */
+  it('skips an already completed hourly merge progress row without recreating WIP work', async () => {
+    // Insert a completed cursor like the row a waiting worker sees after another worker finishes the hour.
+    await prisma.$executeRaw`
+      INSERT INTO archive_hour_merge_progress (
+        hour_start,
+        day_start,
+        source_partition,
+        next_batch_start,
+        max_validator,
+        completed,
+        completed_at
+      )
+      VALUES (
+        ${FIRST_HOUR}::timestamp,
+        ${TEST_DAY_START}::timestamp,
+        'validator_hourly_archive_2025121600',
+        5000,
+        1,
+        true,
+        NOW()
+      )
+    `;
+
+    // Re-run the merge step for the same hour to simulate a second worker acquiring the lock late.
+    await expect(dailyArchiveStorage.mergeNextHourBatch(FIRST_HOUR, 24)).resolves.toEqual({
+      hourStart: FIRST_HOUR,
+      completed: true,
+    });
+
+    // Verify the late worker did not recreate an empty daily WIP table.
+    const wipTables = await prisma.$queryRaw<Array<{ tablename: string }>>`
+      SELECT tablename
+      FROM pg_tables
+      WHERE tablename = ${getDailyWipPartitionName(TEST_DAY_START)}
+    `;
+    expect(wipTables).toHaveLength(0);
+
+    // Verify the late worker did not publish or advance archive state from already-completed progress.
+    const archive = await prisma.archive.findUnique({ where: { id: 1 } });
+    expect(archive?.lastDay).toBeNull();
+  });
+
+  /**
    * Verifies that a complete day is atomically published from WIP to the daily parent.
    */
   it('publishes the WIP daily archive only after every expected hour completes', async () => {
