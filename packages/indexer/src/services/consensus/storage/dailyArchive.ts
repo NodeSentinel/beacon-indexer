@@ -6,6 +6,7 @@ import ms from 'ms';
 import { floorToUTCDay } from '@/src/utils/date/index.js';
 
 const DAILY_MERGE_BATCH_SIZE = 5000;
+const DAILY_DETAIL_CLEANUP_BATCH_SIZE = 5000;
 
 /**
  * DailyArchiveStorage - Database persistence layer for daily archive operations.
@@ -272,6 +273,8 @@ export class DailyArchiveStorage {
    * Drop a source hourly partition after its progress row has completed.
    */
   async finalizeCompletedHour(hourStart: Date): Promise<void> {
+    const progressCleanupCutoff = subHours(hourStart, 48);
+
     await this.prisma.$transaction(async (tx) => {
       const [progress] = await tx.$queryRaw<Array<{ source_partition: string }>>`
         SELECT source_partition
@@ -286,22 +289,13 @@ export class DailyArchiveStorage {
       }
 
       await tx.$executeRawUnsafe(`DROP TABLE IF EXISTS "${progress.source_partition}"`);
+
+      await tx.$executeRaw`
+        DELETE FROM archive_hour_merge_progress
+        WHERE completed = true
+          AND hour_start < ${progressCleanupCutoff}::timestamp
+      `;
     });
-
-    await this.deleteOldCompletedHourMergeProgress(hourStart);
-  }
-
-  /**
-   * Delete completed hourly merge progress older than the 48-hour audit window.
-   */
-  private async deleteOldCompletedHourMergeProgress(completedHourStart: Date): Promise<void> {
-    const cleanupCutoff = subHours(completedHourStart, 48);
-
-    await this.prisma.$executeRaw`
-      DELETE FROM archive_hour_merge_progress
-      WHERE completed = true
-        AND hour_start < ${cleanupCutoff}::timestamp
-    `;
   }
 
   /**
@@ -336,10 +330,19 @@ export class DailyArchiveStorage {
     );
 
     await this.prisma.$executeRaw`
-      UPDATE validator_daily_archive
+      WITH rows_to_clean AS (
+        SELECT tableoid, ctid
+        FROM validator_daily_archive
+        WHERE "timestamp" < ${cleanupCutoff}::timestamp
+          AND (data_by_slot IS NOT NULL OR data_by_epoch IS NOT NULL)
+        ORDER BY "timestamp" ASC, validator_index ASC
+        LIMIT ${DAILY_DETAIL_CLEANUP_BATCH_SIZE}
+      )
+      UPDATE validator_daily_archive archive
       SET data_by_slot = NULL, data_by_epoch = NULL
-      WHERE "timestamp" < ${cleanupCutoff}::timestamp
-        AND (data_by_slot IS NOT NULL OR data_by_epoch IS NOT NULL)
+      FROM rows_to_clean
+      WHERE archive.tableoid = rows_to_clean.tableoid
+        AND archive.ctid = rows_to_clean.ctid
     `;
   }
 

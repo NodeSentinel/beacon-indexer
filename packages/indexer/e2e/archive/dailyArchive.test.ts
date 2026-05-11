@@ -159,7 +159,10 @@ describe('Daily Archive Process', () => {
   /**
    * Helper: create a daily partition with one row that still has JSON detail.
    */
-  async function createOldDailyArchiveWithDetail(timestamp: Date): Promise<void> {
+  async function createOldDailyArchiveWithDetail(
+    timestamp: Date,
+    validatorCount = 1,
+  ): Promise<void> {
     const partitionName = `validator_daily_archive_${timestamp.toISOString().slice(0, 10).replaceAll('-', '')}`;
     const nextDay = new Date(timestamp.getTime() + 24 * 3600 * 1000);
 
@@ -169,11 +172,11 @@ describe('Daily Archive Process', () => {
         `FOR VALUES FROM ('${timestamp.toISOString()}') TO ('${nextDay.toISOString()}')`,
     );
 
-    // Insert a daily row with detail that should be removed after retention expires.
-    await prisma.validatorDailyArchive.create({
-      data: {
+    // Insert daily rows with detail that should be removed after retention expires.
+    await prisma.validatorDailyArchive.createMany({
+      data: Array.from({ length: validatorCount }, (_, index) => ({
         timestamp,
-        validatorIndex: VALIDATOR_1,
+        validatorIndex: VALIDATOR_1 + index,
         dataBySlot: [[1, 0]],
         dataByEpoch: [[1, '1', '1', '1', '1', '0', '0', '0', '0']],
         attestationCount: 1,
@@ -181,7 +184,7 @@ describe('Daily Archive Process', () => {
         syncMissedRewardTotal: BigInt(0),
         clRewardTotal: BigInt(4),
         clMissedRewardTotal: BigInt(0),
-      },
+      })),
     });
   }
 
@@ -343,6 +346,37 @@ describe('Daily Archive Process', () => {
     expect(oldDaily?.dataBySlot).toBeNull();
     expect(oldDaily?.dataByEpoch).toBeNull();
     expect(oldDaily?.clRewardTotal).toBe(BigInt(4));
+  });
+
+  /**
+   * DETAIL RETENTION BATCHING: Cleans old JSON detail in bounded batches.
+   *
+   * This prevents one cleanup pass from locking every old daily archive row at once.
+   */
+  it('should clean old daily JSON detail in a bounded batch', async () => {
+    const oldDailyTimestamp = new Date('2025-12-01T00:00:00.000Z');
+
+    // Create one more row than the cleanup batch size.
+    await createOldDailyArchiveWithDetail(oldDailyTimestamp, 5001);
+
+    // Complete one candidate day so detail cleanup runs once.
+    const allHours = await createHourlyPartitionsForRange(TEST_DAY_START, 49);
+    await prisma.archive.update({
+      where: { id: 1 },
+      data: { lastHour: allHours[48] },
+    });
+    const archivedHours = await runArchiveSteps(24);
+    expect(archivedHours).toHaveLength(24);
+
+    // Verify exactly one cleanup batch was updated.
+    const [counts] = await prisma.$queryRaw<Array<{ cleaned: number; remaining: number }>>`
+      SELECT
+        COUNT(*) FILTER (WHERE data_by_slot IS NULL AND data_by_epoch IS NULL)::int AS cleaned,
+        COUNT(*) FILTER (WHERE data_by_slot IS NOT NULL OR data_by_epoch IS NOT NULL)::int AS remaining
+      FROM validator_daily_archive
+      WHERE "timestamp" = ${oldDailyTimestamp}::timestamp
+    `;
+    expect(counts).toEqual({ cleaned: 5000, remaining: 1 });
   });
 
   /**
