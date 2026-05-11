@@ -133,7 +133,7 @@ model epochRewards {
   missedSource     BigInt @map("missed_source")
   missedInactivity BigInt @map("missed_inactivity")
 
-  @@id([epoch, validatorIndex])
+  @@id([validatorIndex, epoch])
   @@map("epoch_rewards")
 }
 
