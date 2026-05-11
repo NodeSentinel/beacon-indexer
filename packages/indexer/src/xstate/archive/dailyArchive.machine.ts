@@ -69,7 +69,8 @@ export const dailyArchiveMachine = setup({
         onDone: [
           {
             guard: 'archiveSucceeded',
-            target: 'idle',
+            target: 'archiving',
+            reenter: true,
             actions: [
               pinoLog(({ event }) => {
                 const hour = event.output as Date;

@@ -323,6 +323,24 @@ export class DailyArchiveStorage {
       where: { id: 1 },
       data: { lastDay: dayStart },
     });
+
+    await this.cleanOldDailyArchiveDetail(dayStart);
+  }
+
+  /**
+   * Remove detailed JSON from daily archives older than the configured retention window.
+   */
+  private async cleanOldDailyArchiveDetail(dayStart: Date): Promise<void> {
+    const cleanupCutoff = new Date(
+      dayStart.getTime() - this.archiveDetailRetentionDays * 24 * 60 * 60 * 1000,
+    );
+
+    await this.prisma.$executeRaw`
+      UPDATE validator_daily_archive
+      SET data_by_slot = NULL, data_by_epoch = NULL
+      WHERE "timestamp" < ${cleanupCutoff}::timestamp
+        AND (data_by_slot IS NOT NULL OR data_by_epoch IS NOT NULL)
+    `;
   }
 
   /**

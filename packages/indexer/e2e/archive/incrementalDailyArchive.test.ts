@@ -348,9 +348,37 @@ describe('Incremental Daily Archive Process', () => {
     await Promise.resolve();
     expect(controller.archive).toHaveBeenCalledTimes(1);
 
-    // Complete the in-flight archive step and stop the actor.
-    resolveArchive(FIRST_HOUR);
+    // Complete the in-flight archive step with no remaining work and stop the actor.
+    resolveArchive(null);
     await vi.waitFor(() => expect(actor.getSnapshot().value).toBe('idle'));
+    actor.stop();
+  });
+
+  /**
+   * Verifies that one epoch event drains available daily archive work until no batch remains.
+   */
+  it('keeps archiving after a successful daily merge step until the controller returns null', async () => {
+    // Create a controller stub that reports two completed steps and then no remaining work.
+    const controller = {
+      archive: vi
+        .fn()
+        .mockResolvedValueOnce(FIRST_HOUR)
+        .mockResolvedValueOnce(new Date('2025-12-16T01:00:00.000Z'))
+        .mockResolvedValueOnce(null),
+    } as unknown as DailyArchiveController;
+
+    // Start the daily archive actor with the draining controller.
+    const actor = createActor(dailyArchiveMachine, {
+      input: { dailyArchiveController: controller },
+    });
+    actor.start();
+
+    // Send one event and expect the state machine to continue invoking archive.
+    actor.send({ type: 'EPOCH_PROCESSED', epoch: 1 });
+
+    // Wait until the machine drains all available archive work and returns to idle.
+    await vi.waitFor(() => expect(controller.archive).toHaveBeenCalledTimes(3));
+    expect(actor.getSnapshot().value).toBe('idle');
     actor.stop();
   });
 });

@@ -157,6 +157,35 @@ describe('Daily Archive Process', () => {
   }
 
   /**
+   * Helper: create a daily partition with one row that still has JSON detail.
+   */
+  async function createOldDailyArchiveWithDetail(timestamp: Date): Promise<void> {
+    const partitionName = `validator_daily_archive_${timestamp.toISOString().slice(0, 10).replaceAll('-', '')}`;
+    const nextDay = new Date(timestamp.getTime() + 24 * 3600 * 1000);
+
+    // Create the physical daily partition that cleanup should update.
+    await prisma.$executeRawUnsafe(
+      `CREATE TABLE IF NOT EXISTS "${partitionName}" PARTITION OF "validator_daily_archive" ` +
+        `FOR VALUES FROM ('${timestamp.toISOString()}') TO ('${nextDay.toISOString()}')`,
+    );
+
+    // Insert a daily row with detail that should be removed after retention expires.
+    await prisma.validatorDailyArchive.create({
+      data: {
+        timestamp,
+        validatorIndex: VALIDATOR_1,
+        dataBySlot: [[1, 0]],
+        dataByEpoch: [[1, '1', '1', '1', '1', '0', '0', '0', '0']],
+        attestationCount: 1,
+        syncRewardTotal: BigInt(0),
+        syncMissedRewardTotal: BigInt(0),
+        clRewardTotal: BigInt(4),
+        clMissedRewardTotal: BigInt(0),
+      },
+    });
+  }
+
+  /**
    * Helper: run incremental daily archive steps until no more work is available or the cap is hit.
    */
   async function runArchiveSteps(maxSteps: number): Promise<Date[]> {
@@ -277,6 +306,43 @@ describe('Daily Archive Process', () => {
     // --- Verify archive control table was updated ---
     const archive = await prisma.archive.findUnique({ where: { id: 1 } });
     expect(archive!.lastDay!.getTime()).toBe(TEST_DAY_START.getTime());
+  });
+
+  /**
+   * DETAIL RETENTION: Removes old JSON detail after a day finishes archiving.
+   *
+   * The daily archive keeps aggregate columns forever, but detailed slot/epoch JSON
+   * should be nulled once it is older than the configured retention window.
+   */
+  it('should clean old daily JSON detail after the candidate day completes', async () => {
+    const oldDailyTimestamp = new Date('2025-12-01T00:00:00.000Z');
+
+    // Create a daily archive row old enough to fall outside the 14-day detail window.
+    await createOldDailyArchiveWithDetail(oldDailyTimestamp);
+
+    // Create enough hourly source partitions to complete Dec 16 and retain the latest 24h.
+    const allHours = await createHourlyPartitionsForRange(TEST_DAY_START, 49);
+    await prisma.archive.update({
+      where: { id: 1 },
+      data: { lastHour: allHours[48] },
+    });
+
+    // Finish every hourly merge for the candidate day.
+    const archivedHours = await runArchiveSteps(24);
+    expect(archivedHours).toHaveLength(24);
+
+    // Verify old JSON detail is removed while aggregate columns remain.
+    const oldDaily = await prisma.validatorDailyArchive.findUnique({
+      where: {
+        timestamp_validatorIndex: {
+          timestamp: oldDailyTimestamp,
+          validatorIndex: VALIDATOR_1,
+        },
+      },
+    });
+    expect(oldDaily?.dataBySlot).toBeNull();
+    expect(oldDaily?.dataByEpoch).toBeNull();
+    expect(oldDaily?.clRewardTotal).toBe(BigInt(4));
   });
 
   /**
