@@ -3,7 +3,6 @@ CREATE TABLE "archive_hour_merge_progress" (
   "day_start" timestamp NOT NULL,
   "source_partition" varchar(255) NOT NULL,
   "next_batch_start" integer NOT NULL DEFAULT 0,
-  "batch_size" integer NOT NULL DEFAULT 5000,
   "max_validator" integer NOT NULL,
   "completed" boolean NOT NULL DEFAULT false,
   "started_at" timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,

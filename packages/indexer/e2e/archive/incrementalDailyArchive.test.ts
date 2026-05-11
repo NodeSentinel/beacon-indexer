@@ -175,6 +175,43 @@ describe('Incremental Daily Archive Process', () => {
   });
 
   /**
+   * Verifies that batch sizing stays in code and is not persisted as workflow state.
+   */
+  it('keeps batch size out of the persisted hourly merge progress row', async () => {
+    // Create one source partition so the merge progress table receives a row.
+    await createSourceHourlyPartition();
+
+    // Run one archive step so the progress row is created.
+    await dailyArchiveController.archive();
+
+    // Verify the progress table does not expose a batch_size column.
+    const columns = await prisma.$queryRaw<Array<{ column_name: string }>>`
+      SELECT column_name
+      FROM information_schema.columns
+      WHERE table_name = 'archive_hour_merge_progress'
+      ORDER BY column_name ASC
+    `;
+    expect(columns.map((column) => column.column_name)).not.toContain('batch_size');
+  });
+
+  /**
+   * Verifies that the e2e test catches the old persisted batch size contract.
+   */
+  it('uses the code-level batch size to advance progress', async () => {
+    // Create the source partition and process only the first validator batch.
+    await createSourceHourlyPartition();
+    await dailyArchiveController.archive();
+
+    // Verify progress advanced by the code-level batch size.
+    const [progress] = await prisma.$queryRaw<Array<{ next_batch_start: number }>>`
+      SELECT next_batch_start
+      FROM archive_hour_merge_progress
+      WHERE hour_start = ${FIRST_HOUR}::timestamp
+    `;
+    expect(progress.next_batch_start).toBe(5000);
+  });
+
+  /**
    * Verifies that resume completes the pending batch, drops the source, and does not duplicate data.
    */
   it('resumes from progress, completes the hour, and does not advance lastDay for an incomplete day', async () => {

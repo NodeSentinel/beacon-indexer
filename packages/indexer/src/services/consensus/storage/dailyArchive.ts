@@ -109,7 +109,6 @@ export class DailyArchiveStorage {
         day_start,
         source_partition,
         next_batch_start,
-        batch_size,
         max_validator,
         completed
       )
@@ -118,7 +117,6 @@ export class DailyArchiveStorage {
         ${input.dayStart}::timestamp,
         ${input.partitionName},
         0,
-        ${DAILY_MERGE_BATCH_SIZE},
         ${max_idx},
         false
       )
@@ -137,7 +135,6 @@ export class DailyArchiveStorage {
             hour_start: Date;
             day_start: Date;
             next_batch_start: number;
-            batch_size: number;
             max_validator: number;
             completed: boolean;
           }>
@@ -146,7 +143,6 @@ export class DailyArchiveStorage {
             hour_start,
             day_start,
             next_batch_start,
-            batch_size,
             max_validator,
             completed
           FROM archive_hour_merge_progress
@@ -163,7 +159,7 @@ export class DailyArchiveStorage {
         }
 
         const batchStart = progress.next_batch_start;
-        const batchEnd = batchStart + progress.batch_size;
+        const batchEnd = batchStart + DAILY_MERGE_BATCH_SIZE;
         const completed = batchEnd > progress.max_validator;
         const nextDayStart = addDays(progress.day_start, 1);
         const dailyPartitionName = getDailyArchivePartitionNameForDailyMerge(

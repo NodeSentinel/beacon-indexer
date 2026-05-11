@@ -388,7 +388,6 @@ model ArchiveHourMergeProgress {
   dayStart        DateTime  @map("day_start") @db.Timestamp
   sourcePartition String    @map("source_partition") @db.VarChar(255)
   nextBatchStart  Int       @default(0) @map("next_batch_start")
-  batchSize       Int       @default(5000) @map("batch_size")
   maxValidator    Int       @map("max_validator")
   completed       Boolean   @default(false) @map("completed")
   startedAt       DateTime  @default(now()) @map("started_at") @db.Timestamp
