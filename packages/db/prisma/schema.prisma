@@ -379,6 +379,26 @@ model Archive {
   @@map("archive")
 }
 
+/**
+ * ArchiveHourMergeProgress - Tracks hourly-to-daily merge progress.
+ * Each row owns one source hourly partition while it is merged into daily archive batches.
+ */
+model ArchiveHourMergeProgress {
+  hourStart       DateTime  @id @map("hour_start") @db.Timestamp
+  dayStart        DateTime  @map("day_start") @db.Timestamp
+  sourcePartition String    @map("source_partition") @db.VarChar(255)
+  nextBatchStart  Int       @default(0) @map("next_batch_start")
+  batchSize       Int       @default(5000) @map("batch_size")
+  maxValidator    Int       @map("max_validator")
+  completed       Boolean   @default(false) @map("completed")
+  startedAt       DateTime  @default(now()) @map("started_at") @db.Timestamp
+  updatedAt       DateTime  @updatedAt @map("updated_at") @db.Timestamp
+  completedAt     DateTime? @map("completed_at") @db.Timestamp
+
+  @@index([dayStart, completed])
+  @@map("archive_hour_merge_progress")
+}
+
 model ValidatorsSnapshotActivity {
   validatorIndex Int @id(map: "validators_snapshot_activity_pkey") @map("validator_index")
 
