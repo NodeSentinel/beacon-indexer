@@ -202,6 +202,15 @@ export class EpochController extends EpochControllerHelpers {
     );
   }
 
+  /**
+   * Start fetching committees before the epoch reaches the normal processing path.
+   */
+  prefetchCommittees(epoch: number): void {
+    const { startSlot } = this.beaconTime.getEpochSlots(epoch);
+
+    this.beaconClient.prefetchCommittees(epoch, startSlot);
+  }
+
   async processValidatorProposerDuties(epoch: number) {
     // if already fetched, return
     const isValidatorProposerDutiesFetched =

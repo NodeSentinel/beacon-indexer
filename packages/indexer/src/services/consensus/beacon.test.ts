@@ -165,6 +165,260 @@ describe('BeaconClient reward cache', () => {
     expect(normalGetSpy).toHaveBeenCalledTimes(1);
   });
 
+  // This test verifies prefetching committees warms the cache for normal processing.
+  it('serves committees from a prefetched request', async () => {
+    // This client exercises the committee prefetch cache path.
+    const beaconClient = new BeaconClient({
+      fullNodeUrl: 'http://full-node',
+      fullNodeConcurrency: 1,
+      fullNodeRetries: 0,
+      archiveNodeUrl: 'http://archive-node',
+      archiveNodeConcurrency: 1,
+      archiveNodeRetries: 0,
+      baseDelay: 1,
+      slotStartIndexing: 1,
+      slotsPerEpoch: 32,
+    });
+
+    // This spy verifies normal processing shares the configured-node prefetch request.
+    const axiosInstance = (beaconClient as unknown as { axiosInstance: { get: unknown } })
+      .axiosInstance;
+    const getSpy = vi
+      .spyOn(axiosInstance, 'get' as never)
+      .mockResolvedValueOnce({
+        data: {
+          data: [
+            {
+              index: '0',
+              slot: '64',
+              validators: ['1'],
+            },
+          ],
+        },
+      } as never)
+      .mockResolvedValueOnce({
+        data: {
+          data: [
+            {
+              index: '1',
+              slot: '64',
+              validators: ['2'],
+            },
+          ],
+        },
+      } as never);
+
+    // This call starts the request before the epoch reaches normal processing.
+    beaconClient.prefetchCommittees(2, 64);
+
+    // This normal processing call should reuse the prefetched request result.
+    const result = await beaconClient.getCommittees(2, 64);
+
+    // This assertion verifies normal processing receives the prefetched endpoint result.
+    expect(result).toEqual([
+      {
+        index: '0',
+        slot: '64',
+        validators: ['1'],
+      },
+    ]);
+
+    // This assertion verifies normal processing joined the prefetch instead of fetching again.
+    expect(getSpy).toHaveBeenCalledTimes(1);
+
+    // This second normal call verifies consumed committee entries are removed from cache.
+    const secondResult = await beaconClient.getCommittees(2, 64);
+
+    // This assertion verifies a fresh request is made after the consumed entry is deleted.
+    expect(secondResult).toEqual([
+      {
+        index: '1',
+        slot: '64',
+        validators: ['2'],
+      },
+    ]);
+
+    // This assertion verifies the deleted entry was not reused after consumption.
+    expect(getSpy).toHaveBeenCalledTimes(2);
+  });
+
+  // This test verifies failed committee prefetches do not poison normal processing.
+  it('fetches committees normally after a failed prefetch request', async () => {
+    // This client exercises the normal committee path after a failed prefetch.
+    const beaconClient = new BeaconClient({
+      fullNodeUrl: 'http://full-node',
+      fullNodeConcurrency: 1,
+      fullNodeRetries: 0,
+      archiveNodeUrl: 'http://archive-node',
+      archiveNodeConcurrency: 1,
+      archiveNodeRetries: 0,
+      baseDelay: 1,
+      slotStartIndexing: 1,
+      slotsPerEpoch: 32,
+    });
+
+    // This error simulates an auth failure from the dedicated prefetch endpoint.
+    const prefetchError = new AxiosError('Request failed with status code 401');
+    prefetchError.response = {
+      status: 401,
+      statusText: 'Unauthorized',
+      headers: {},
+      config: {} as never,
+      data: { message: 'Unauthorized' },
+    };
+
+    // This spy makes prefetch fail and the next normal endpoint call succeed.
+    const axiosInstance = (beaconClient as unknown as { axiosInstance: { get: unknown } })
+      .axiosInstance;
+    const getSpy = vi
+      .spyOn(axiosInstance, 'get' as never)
+      .mockRejectedValueOnce(prefetchError)
+      .mockResolvedValueOnce({
+        data: {
+          data: [
+            {
+              index: '0',
+              slot: '64',
+              validators: ['1'],
+            },
+          ],
+        },
+      } as never);
+
+    // This call starts a fire-and-forget prefetch that should fail silently.
+    beaconClient.prefetchCommittees(2, 64);
+
+    // This wait confirms the prefetch request reached the temporary endpoint.
+    await vi.waitFor(() => expect(getSpy).toHaveBeenCalledTimes(1));
+
+    // This tick lets the rejected prefetch promise settle before normal processing starts.
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    // This normal call must use the configured node and not read a failed cache entry.
+    const result = await beaconClient.getCommittees(2, 64);
+
+    // This assertion verifies normal processing receives the configured endpoint response.
+    expect(result).toEqual([
+      {
+        index: '0',
+        slot: '64',
+        validators: ['1'],
+      },
+    ]);
+
+    // This assertion verifies normal processing made a fresh configured-node request.
+    expect(getSpy).toHaveBeenCalledTimes(2);
+  });
+
+  // This test verifies normal processing retries when it joins a failed committee prefetch.
+  it('fetches committees normally after joining an in-flight failed prefetch', async () => {
+    // This client exercises the coalescing path for committee prefetch failures.
+    const beaconClient = new BeaconClient({
+      fullNodeUrl: 'http://full-node',
+      fullNodeConcurrency: 1,
+      fullNodeRetries: 0,
+      archiveNodeUrl: 'http://archive-node',
+      archiveNodeConcurrency: 1,
+      archiveNodeRetries: 0,
+      baseDelay: 1,
+      slotStartIndexing: 1,
+      slotsPerEpoch: 32,
+    });
+
+    // This error simulates a failed prefetch request.
+    const prefetchError = new AxiosError('Request failed with status code 500');
+    prefetchError.response = {
+      status: 500,
+      statusText: 'Internal Server Error',
+      headers: {},
+      config: {} as never,
+      data: { message: 'Internal Server Error' },
+    };
+
+    // This deferred rejection keeps the prefetch request in flight.
+    let rejectPrefetchResponse: (error: unknown) => void;
+    const prefetchResponsePromise = new Promise((_resolve, reject) => {
+      rejectPrefetchResponse = reject;
+    });
+
+    // This spy makes the in-flight prefetch fail and the retry succeed.
+    const axiosInstance = (beaconClient as unknown as { axiosInstance: { get: unknown } })
+      .axiosInstance;
+    const getSpy = vi
+      .spyOn(axiosInstance, 'get' as never)
+      .mockReturnValueOnce(prefetchResponsePromise as never)
+      .mockResolvedValueOnce({
+        data: {
+          data: [
+            {
+              index: '0',
+              slot: '64',
+              validators: ['1'],
+            },
+          ],
+        },
+      } as never);
+
+    // This call starts a prefetch request that normal processing will join.
+    beaconClient.prefetchCommittees(2, 64);
+
+    // This wait confirms the prefetch request is in flight.
+    await vi.waitFor(() => expect(getSpy).toHaveBeenCalledTimes(1));
+
+    // This normal call joins the in-flight prefetch.
+    const committeesPromise = beaconClient.getCommittees(2, 64);
+
+    // This rejection makes the joined prefetch return no cache value.
+    rejectPrefetchResponse!(prefetchError);
+
+    // This assertion verifies normal processing retries and receives fresh committees.
+    await expect(committeesPromise).resolves.toEqual([
+      {
+        index: '0',
+        slot: '64',
+        validators: ['1'],
+      },
+    ]);
+
+    // This assertion verifies the retry made a second configured-node request.
+    expect(getSpy).toHaveBeenCalledTimes(2);
+  });
+
+  // This test verifies committee prefetch is skipped when the indexer is not delayed.
+  it('does not prefetch committees when the indexer is not delayed', () => {
+    // This client exercises the delayed guard in committee prefetching.
+    const beaconClient = new BeaconClient({
+      fullNodeUrl: 'http://full-node',
+      fullNodeConcurrency: 1,
+      fullNodeRetries: 0,
+      archiveNodeUrl: 'http://archive-node',
+      archiveNodeConcurrency: 1,
+      archiveNodeRetries: 0,
+      baseDelay: 1,
+      slotStartIndexing: 1,
+      slotsPerEpoch: 32,
+    });
+
+    // This spy forces the prefetch delayed check to behave like the indexer is near head.
+    vi.spyOn(
+      beaconClient as unknown as {
+        isIndexerDelayed: (input: { value: number; type: 'slot' | 'epoch' }) => boolean;
+      },
+      'isIndexerDelayed',
+    ).mockReturnValue(false);
+
+    // This spy verifies no configured-node request is started.
+    const axiosInstance = (beaconClient as unknown as { axiosInstance: { get: unknown } })
+      .axiosInstance;
+    const getSpy = vi.spyOn(axiosInstance, 'get' as never);
+
+    // This call should return before touching the cache or network.
+    beaconClient.prefetchCommittees(2, 64);
+
+    // This assertion verifies no prefetch request was made near head.
+    expect(getSpy).not.toHaveBeenCalled();
+  });
+
   // This test verifies simultaneous sync committee reward reads share one HTTP request.
   it('coalesces concurrent sync committee reward requests for the same slot and validators', async () => {
     // This client uses a single archive request lane so duplicate requests are easy to observe.

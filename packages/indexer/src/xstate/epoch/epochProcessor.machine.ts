@@ -240,6 +240,11 @@ export const epochProcessorMachine = setup({
     ),
     slotOrchestratorMachine,
   },
+  actions: {
+    prefetchNextEpochCommittees: ({ context }) => {
+      context.services.epochController.prefetchCommittees(context.epoch + 1);
+    },
+  },
   guards: {
     canProcessEpoch: ({ context }): boolean => {
       const currentEpoch = context.services.beaconTime.getEpochNumberFromTimestamp(Date.now());
@@ -395,6 +400,7 @@ export const epochProcessorMachine = setup({
               states: {
                 fetchingCommittees: monitoredState('fetch committees', {
                   entry: [
+                    'prefetchNextEpochCommittees',
                     pinoLog(
                       ({ context }) => `Processing committees for epoch ${context.epoch}`,
                       'EpochProcessor:committees',

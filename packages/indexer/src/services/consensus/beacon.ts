@@ -138,6 +138,23 @@ export class BeaconClient extends ReliableRequestClient {
     },
   });
 
+  /**
+   * Caches committees fetched in advance for the next epoch.
+   */
+  private readonly committeesCache = new LRUCache<string, GetCommittees['data']>({
+    max: 3,
+    ttl: ms('10m'),
+    ttlAutopurge: true,
+    fetchMethod: async (key) => {
+      const { epoch, stateId } = JSON.parse(key) as {
+        epoch: number;
+        stateId: string | number;
+      };
+
+      return this.fetchCommitteesUncached(epoch, stateId).catch(() => undefined);
+    },
+  });
+
   constructor(config: BeaconClientConfig) {
     super({
       fullNodeUrl: config.fullNodeUrl,
@@ -240,9 +257,34 @@ export class BeaconClient extends ReliableRequestClient {
   }
 
   /**
+   * Build a stable cache key for committee requests.
+   */
+  private getCommitteesCacheKey(epoch: number, stateId: string | number): string {
+    return JSON.stringify({ epoch, stateId });
+  }
+
+  /**
    * Get committees for a specific epoch
    */
   async getCommittees(
+    epoch: number,
+    stateId: string | number = 'head',
+  ): Promise<GetCommittees['data']> {
+    const key = this.getCommitteesCacheKey(epoch, stateId);
+    let committees = await this.committeesCache.fetch(key);
+    if (committees === undefined) {
+      committees = await this.fetchCommitteesUncached(epoch, stateId);
+    }
+
+    this.committeesCache.delete(key);
+
+    return committees;
+  }
+
+  /**
+   * Fetch committees for a specific epoch without using the prefetch cache.
+   */
+  private fetchCommitteesUncached(
     epoch: number,
     stateId: string | number = 'head',
   ): Promise<GetCommittees['data']> {
@@ -258,6 +300,18 @@ export class BeaconClient extends ReliableRequestClient {
       },
       this.isIndexerDelayed({ value: epoch, type: 'epoch' }) ? 'archive' : 'full',
     );
+  }
+
+  /**
+   * Prefetch committees for the next epoch without blocking epoch processing.
+   */
+  prefetchCommittees(epoch: number, stateId: string | number = 'head'): void {
+    if (!this.isIndexerDelayed({ value: epoch, type: 'epoch' })) {
+      return;
+    }
+
+    const key = this.getCommitteesCacheKey(epoch, stateId);
+    void this.committeesCache.fetch(key).catch(() => undefined);
   }
 
   /**

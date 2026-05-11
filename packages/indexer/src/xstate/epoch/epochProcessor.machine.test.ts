@@ -31,6 +31,7 @@ const EPOCH_101_START_TIME = GENESIS_TIMESTAMP + 101 * SLOTS_PER_EPOCH * 10;
 const mockEpochController = {
   upsertCommitteePartitions: vi.fn(),
   fetchCommittees: vi.fn(),
+  prefetchCommittees: vi.fn(),
   fetchSyncCommittees: vi.fn(),
   fetchEpochRewards: vi.fn(),
   updateSlotsFetched: vi.fn(),
@@ -109,6 +110,7 @@ vi.mock('@/src/xstate/pinoLog.js', () => ({
 function resetMocks() {
   vi.clearAllMocks();
   (mockEpochController.fetchCommittees as ReturnType<typeof vi.fn>).mockResolvedValue(undefined);
+  (mockEpochController.prefetchCommittees as ReturnType<typeof vi.fn>).mockReturnValue(undefined);
   (mockEpochController.getEpochByNumber as ReturnType<typeof vi.fn>).mockResolvedValue({
     committeesFetched: true,
   });
@@ -374,6 +376,8 @@ describe('epochProcessorMachine', () => {
           | null;
         expect(committeesState).toBe('committeesFetched');
         expect(mockEpochController.fetchCommittees).toHaveBeenCalledWith(100);
+        expect(mockEpochController.prefetchCommittees).toHaveBeenCalledWith(101);
+        expect(mockEpochController.prefetchCommittees).toHaveBeenCalledTimes(1);
 
         actor.stop();
         subscription.unsubscribe();
