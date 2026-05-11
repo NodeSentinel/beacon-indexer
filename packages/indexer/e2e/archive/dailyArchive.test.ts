@@ -62,6 +62,7 @@ describe('Daily Archive Process', () => {
     // Clean master partitioned tables
     await prisma.$executeRawUnsafe(`DELETE FROM validator_hourly_archive`);
     await prisma.$executeRawUnsafe(`DELETE FROM validator_daily_archive`);
+    await prisma.$executeRawUnsafe(`DELETE FROM archive_hour_merge_progress`);
 
     // Reset archive control table
     await prisma.archive.upsert({
@@ -156,6 +157,21 @@ describe('Daily Archive Process', () => {
   }
 
   /**
+   * Helper: run incremental daily archive steps until no more work is available or the cap is hit.
+   */
+  async function runArchiveSteps(maxSteps: number): Promise<Date[]> {
+    const archivedHours: Date[] = [];
+    for (let step = 0; step < maxSteps; step++) {
+      const archivedHour = await dailyArchiveController.archive();
+      if (!archivedHour) {
+        break;
+      }
+      archivedHours.push(archivedHour);
+    }
+    return archivedHours;
+  }
+
+  /**
    * HAPPY PATH: Full daily archive cycle.
    *
    * Timeline:
@@ -187,10 +203,10 @@ describe('Daily Archive Process', () => {
     );
     expect(discoveredPartitions).toHaveLength(24);
 
-    // Execute daily archive
-    const archivedDay = await dailyArchiveController.archive();
-    expect(archivedDay).not.toBeNull();
-    expect(archivedDay!.getTime()).toBe(TEST_DAY_START.getTime());
+    // Execute the 24 incremental hour merges that complete the test day.
+    const archivedHours = await runArchiveSteps(24);
+    expect(archivedHours).toHaveLength(24);
+    expect(archivedHours[0].getTime()).toBe(TEST_DAY_START.getTime());
 
     // --- Verify aggregated daily data ---
     const dailyData = await prisma.validatorDailyArchive.findMany({
@@ -279,7 +295,7 @@ describe('Daily Archive Process', () => {
    * the window would be Dec 16 23:00–Dec 17 23:00 — but Dec 16 data would be gone.
    * The retention guard prevents this.
    */
-  it('should not archive when 24h retention window is not satisfied', async () => {
+  it('should archive the oldest hours while preserving the latest 24 hourly partitions', async () => {
     await createHourlyPartitionsForRange(TEST_DAY_START, 48);
 
     await prisma.archive.update({
@@ -287,13 +303,13 @@ describe('Daily Archive Process', () => {
       data: { lastHour: new Date('2025-12-17T23:00:00.000Z') },
     });
 
-    const result = await dailyArchiveController.archive();
-    expect(result).toBeNull();
+    const archivedHours = await runArchiveSteps(24);
+    expect(archivedHours).toHaveLength(24);
 
     const dailyPartitions = await prisma.$queryRaw<Array<{ tablename: string }>>`
       SELECT tablename FROM pg_tables WHERE tablename LIKE 'validator_daily_archive_%'
     `;
-    expect(dailyPartitions).toHaveLength(0);
+    expect(dailyPartitions).toHaveLength(1);
   });
 
   /**
@@ -301,11 +317,10 @@ describe('Daily Archive Process', () => {
    *
    * After the first archive() sets archive.lastDay = Dec 16, the next call computes
    * candidateDayStart = Dec 17. But Dec 17's hourly partitions were retained (not dropped),
-   * and archiveExistsForDay(Dec 16) returns true because lastDay >= Dec 16.
-   * The second candidate (Dec 17) won't satisfy the retention window either,
-   * so the second call returns null without modifying anything.
+   * The next call should move to the next eligible hour instead of repeating
+   * any already completed hourly-to-daily merge.
    */
-  it('should not archive the same day twice', async () => {
+  it('should continue with the next eligible hour after a day completes', async () => {
     await createHourlyPartitionsForRange(TEST_DAY_START, 49);
 
     await prisma.archive.update({
@@ -313,11 +328,11 @@ describe('Daily Archive Process', () => {
       data: { lastHour: RETENTION_DAY_END }, // Dec 18 00:00
     });
 
-    const first = await dailyArchiveController.archive();
-    expect(first).not.toBeNull();
+    const firstDayHours = await runArchiveSteps(24);
+    expect(firstDayHours).toHaveLength(24);
 
-    const second = await dailyArchiveController.archive();
-    expect(second).toBeNull();
+    const nextHour = await dailyArchiveController.archive();
+    expect(nextHour).toStrictEqual(new Date('2025-12-17T00:00:00.000Z'));
   });
 
   /**
@@ -439,9 +454,9 @@ describe('Daily Archive Process', () => {
       data: { lastHour: new Date('2025-12-18T00:00:00.000Z') },
     });
 
-    // Execute daily archive
-    const archivedDay = await dailyArchiveController.archive();
-    expect(archivedDay).not.toBeNull();
+    // Execute the 24 incremental hour merges that complete the day.
+    const archivedHours = await runArchiveSteps(24);
+    expect(archivedHours).toHaveLength(24);
 
     const dailyData = await prisma.validatorDailyArchive.findMany({
       where: { timestamp: TEST_DAY_START },
@@ -581,8 +596,8 @@ describe('Daily Archive Process', () => {
       data: { lastHour: new Date('2025-12-18T00:00:00.000Z') },
     });
 
-    const archivedDay = await dailyArchiveController.archive();
-    expect(archivedDay).not.toBeNull();
+    const archivedHours = await runArchiveSteps(24);
+    expect(archivedHours).toHaveLength(24);
 
     const dailyData = await prisma.validatorDailyArchive.findMany({
       where: { timestamp: TEST_DAY_START },
@@ -705,8 +720,8 @@ describe('Daily Archive Process', () => {
       data: { lastHour: new Date('2025-12-18T00:00:00.000Z') },
     });
 
-    const archivedDay = await dailyArchiveController.archive();
-    expect(archivedDay).not.toBeNull();
+    const archivedHours = await runArchiveSteps(24);
+    expect(archivedHours).toHaveLength(24);
 
     const dailyData = await prisma.validatorDailyArchive.findMany({
       where: { timestamp: TEST_DAY_START },
@@ -792,8 +807,8 @@ describe('Daily Archive Process', () => {
       data: { lastHour: new Date('2025-12-18T00:00:00.000Z') },
     });
 
-    const archivedDay = await dailyArchiveController.archive();
-    expect(archivedDay).not.toBeNull();
+    const archivedHours = await runArchiveSteps(24);
+    expect(archivedHours).toHaveLength(24);
 
     const dailyData = await prisma.validatorDailyArchive.findMany({
       where: { timestamp: TEST_DAY_START },
@@ -843,9 +858,9 @@ describe('Daily Archive Process', () => {
       data: { lastHour: allHours[34] }, // Dec 18 00:00
     });
 
-    const archivedDay = await dailyArchiveController.archive();
-    expect(archivedDay).not.toBeNull();
-    expect(archivedDay!.getTime()).toBe(TEST_DAY_START.getTime());
+    const archivedHours = await runArchiveSteps(10);
+    expect(archivedHours).toHaveLength(10);
+    expect(archivedHours[0].getTime()).toBe(partialDayStart.getTime());
 
     // Daily data reflects only 10 hours
     const dailyData = await prisma.validatorDailyArchive.findMany({
