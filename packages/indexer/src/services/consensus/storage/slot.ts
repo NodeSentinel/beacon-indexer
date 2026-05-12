@@ -179,7 +179,7 @@ export class SlotStorage {
       },
     });
 
-    return (syncCommittee?.validators as string[] | undefined) ?? [];
+    return syncCommittee?.validators as string[] | undefined;
   }
 
   /**
