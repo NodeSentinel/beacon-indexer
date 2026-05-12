@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 
+import { formatBlockProposalDate } from './blocks-tab-utils';
 import { EmptyStateTab } from './empty-state-tab';
 import { EventsTabPagination } from './events-tab-pagination';
 
@@ -75,7 +76,7 @@ function BlockItem({ block }: BlockItemProps) {
         <div className="flex items-center gap-2 md:gap-3 p-2 md:p-3 rounded-lg bg-accent hover:bg-accent/80 transition-colors group cursor-pointer border border-border/50 hover:border-border">
           <div className="flex-1 flex items-center gap-2 text-left min-w-0">
             <span className="text-xs md:text-sm font-mono text-muted-foreground whitespace-nowrap">
-              Val #{block.validatorIndex}
+              {formatBlockProposalDate(block.timestamp)}
             </span>
             <span className="text-xs md:text-sm font-mono whitespace-nowrap">
               Slot #{block.slot.toLocaleString()}
