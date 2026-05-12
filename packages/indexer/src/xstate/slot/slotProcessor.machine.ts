@@ -524,6 +524,7 @@ export const slotProcessorMachine = setup({
                           target: 'complete',
                         },
                         onError: {
+                          target: 'waitingRetry',
                           actions: pinoLog(
                             ({ context, event }) =>
                               `error fetching sync committee rewards for slot ${context.slot}: ${event.error}`,
@@ -533,6 +534,11 @@ export const slotProcessorMachine = setup({
                         },
                       },
                     }),
+                    waitingRetry: {
+                      after: {
+                        retryWait: 'processing',
+                      },
+                    },
                     complete: {
                       type: 'final',
                       entry: pinoLog(

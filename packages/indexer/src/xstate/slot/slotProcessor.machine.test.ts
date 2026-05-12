@@ -1,0 +1,143 @@
+import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
+import { createActor, setup } from 'xstate';
+
+import { Block } from '@/src/services/consensus/types.js';
+import { slotProcessorMachine } from '@/src/xstate/slot/slotProcessor.machine.js';
+
+vi.mock('@/src/xstate/pinoLog.js', () => ({
+  pinoLog: vi.fn(() => () => {}),
+}));
+
+/**
+ * Create the smallest block shape used by the slot processor machine.
+ */
+function createBlock(): Block {
+  return {
+    data: {
+      message: {
+        body: {
+          attestations: [],
+          deposits: [],
+          execution_payload: {
+            block_number: '123',
+            withdrawals: [],
+          },
+          execution_requests: {
+            consolidations: [],
+            deposits: [],
+            withdrawals: [],
+          },
+          voluntary_exits: [],
+        },
+      },
+    },
+  } as unknown as Block;
+}
+
+/**
+ * Create a slot controller mock with successful defaults.
+ */
+function createSlotController() {
+  return {
+    fetchBeaconBlock: vi.fn().mockResolvedValue(createBlock()),
+    fetchBlockRewards: vi.fn().mockResolvedValue(undefined),
+    fetchExecutionRewards: vi.fn().mockResolvedValue(undefined),
+    fetchSyncCommitteeRewards: vi.fn().mockResolvedValue(undefined),
+    getSlot: vi.fn().mockResolvedValue({ processed: false }),
+    prefetchBlockRewards: vi.fn(),
+    prefetchSyncCommitteeRewards: vi.fn().mockResolvedValue(undefined),
+    processAttestations: vi.fn().mockResolvedValue(undefined),
+    processDeposits: vi.fn().mockResolvedValue(undefined),
+    processEpWithdrawals: vi.fn().mockResolvedValue(undefined),
+    processErConsolidations: vi.fn().mockResolvedValue(undefined),
+    processErDeposits: vi.fn().mockResolvedValue(undefined),
+    processErWithdrawals: vi.fn().mockResolvedValue(undefined),
+    processVoluntaryExits: vi.fn().mockResolvedValue(undefined),
+    updateAttestationsProcessed: vi.fn().mockResolvedValue(undefined),
+    updateSlotProcessed: vi.fn().mockResolvedValue(undefined),
+    waitUntilSlotReady: vi.fn().mockResolvedValue(undefined),
+  };
+}
+
+// This suite verifies retry behavior for the slot processor state machine.
+describe('slotProcessorMachine', () => {
+  beforeEach(() => {
+    // Fake timers make retry delays deterministic in the state machine.
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    // Restore real timers so tests outside this suite are not affected.
+    vi.useRealTimers();
+    vi.clearAllTimers();
+  });
+
+  // This test verifies sync committee rewards retry once after a transient empty-rewards error.
+  test('retries sync committee rewards when the first attempt has no rewards', async () => {
+    // This controller simulates a period-boundary miss followed by a successful retry.
+    const slotController = createSlotController();
+    slotController.fetchSyncCommitteeRewards
+      .mockRejectedValueOnce(new Error('Sync committee rewards are required'))
+      .mockResolvedValueOnce(undefined);
+
+    // This flag verifies the parent received the slot completion event.
+    let receivedSlotCompleted = false;
+
+    // This parent receives the slot completion event from the real slot processor.
+    const parentMachine = setup({
+      actors: {
+        slotProcessor: slotProcessorMachine,
+      },
+    }).createMachine({
+      id: 'testSlotParent',
+      initial: 'running',
+      states: {
+        running: {
+          invoke: {
+            id: 'slotProcessor',
+            src: 'slotProcessor',
+            input: {
+              epoch: 1,
+              lookbackSlot: 0,
+              slot: 32,
+              slotController: slotController as never,
+              slotDuration: 12_000,
+            },
+            onDone: {
+              target: 'completed',
+            },
+          },
+          on: {
+            SLOT_COMPLETED: {
+              actions: () => {
+                receivedSlotCompleted = true;
+              },
+            },
+          },
+        },
+        completed: {
+          type: 'final',
+        },
+      },
+    });
+
+    // This actor runs the parent harness and its invoked slot processor.
+    const actor = createActor(parentMachine);
+
+    // Start processing and run all timers, including the retry delay.
+    actor.start();
+    await vi.runAllTimersAsync();
+
+    // This assertion verifies the failed sync rewards request was retried.
+    expect(slotController.fetchSyncCommitteeRewards).toHaveBeenCalledTimes(2);
+
+    // This assertion verifies the child emitted its completion event.
+    expect(receivedSlotCompleted).toBe(true);
+
+    // This assertion verifies the retry allowed the slot processor to complete.
+    expect(actor.getSnapshot().value).toBe('completed');
+
+    // Stop the actor so no state machine work leaks into other tests.
+    actor.stop();
+  });
+});

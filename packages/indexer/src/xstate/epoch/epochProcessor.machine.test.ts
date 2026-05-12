@@ -497,6 +497,59 @@ describe('epochProcessorMachine', () => {
         subscription.unsubscribe();
       });
 
+      test('should wait for sync committees before processing slots', async () => {
+        // Scenario: normal committees finish before sync committees, so slots must keep waiting.
+        vi.setSystemTime(new Date(EPOCH_101_START_TIME + 50));
+
+        // Keep sync committees pending to simulate period-boundary storage lag.
+        const syncCommitteesPromise = createControllablePromise<void>();
+        (mockEpochController.fetchSyncCommittees as ReturnType<typeof vi.fn>).mockReturnValue(
+          syncCommitteesPromise.promise,
+        );
+
+        // Start the epoch processor with prior dependencies already satisfied.
+        const { actor, stateTransitions, subscription } = createAndStartActor(
+          epochProcessorMachine,
+          createProcessorMachineDefaultInput(100),
+        );
+
+        // Let normal committees finish while sync committees stay pending.
+        await vi.runAllTimersAsync();
+
+        // This assertion verifies normal committees completed first.
+        expect(mockEpochController.fetchCommittees).toHaveBeenCalledWith(100);
+
+        // This assertion verifies sync committees are still in progress.
+        expect(mockEpochController.fetchSyncCommittees).toHaveBeenCalledWith(100);
+
+        // This assertion verifies slots have not started without sync committees.
+        expect(actor.getSnapshot().context.actors.slotOrchestratorActor).toBeNull();
+
+        // This assertion verifies the slots branch is still waiting for committee prerequisites.
+        let lastState = getLastState(stateTransitions);
+        let slotsState = getNestedState(lastState, 'epochProcessing.fetching.slotsProcessing') as
+          | string
+          | null;
+        expect(slotsState).toBe('waitingForCommittees');
+
+        // Finish the sync committee branch so slots can begin.
+        syncCommitteesPromise.resolve();
+        await vi.runAllTimersAsync();
+
+        // This assertion verifies slots start only after sync committees are fetched.
+        expect(actor.getSnapshot().context.actors.slotOrchestratorActor).toBeTruthy();
+
+        // This assertion verifies the slots branch moved into the orchestrator state.
+        lastState = getLastState(stateTransitions);
+        slotsState = getNestedState(lastState, 'epochProcessing.fetching.slotsProcessing') as
+          | string
+          | null;
+        expect(slotsState).toBe('runningSlotsOrchestrator');
+
+        actor.stop();
+        subscription.unsubscribe();
+      });
+
       test('should spawn slot orchestrator and handle SLOTS_COMPLETED lifecycle', async () => {
         vi.setSystemTime(new Date(EPOCH_100_START_TIME + 50));
 

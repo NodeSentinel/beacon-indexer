@@ -18,6 +18,7 @@ export const epochProcessorMachine = setup({
       // Sync state
       sync: {
         committeesFetched: boolean;
+        syncCommitteesFetched: boolean;
         validatorsBalancesFetched: boolean;
       };
       // Config
@@ -42,6 +43,9 @@ export const epochProcessorMachine = setup({
     events:
       | {
           type: 'COMMITTEES_FETCHED';
+        }
+      | {
+          type: 'SYNC_COMMITTEES_FETCHED';
         }
       | {
           type: 'VALIDATORS_BALANCES_FETCHED';
@@ -254,7 +258,7 @@ export const epochProcessorMachine = setup({
       return context.services.beaconTime.hasSlotStarted(context.startSlot);
     },
     areCommitteesFetched: ({ context }): boolean => {
-      return context.sync.committeesFetched === true;
+      return context.sync.committeesFetched === true && context.sync.syncCommitteesFetched === true;
     },
     areValidatorsBalancesFetched: ({ context }): boolean => {
       return context.sync.validatorsBalancesFetched === true;
@@ -289,6 +293,7 @@ export const epochProcessorMachine = setup({
       endSlot: endSlot,
       sync: {
         committeesFetched: false,
+        syncCommitteesFetched: false,
         validatorsBalancesFetched: false,
       },
       config: input.config,
@@ -477,6 +482,13 @@ export const epochProcessorMachine = setup({
                 syncCommitteesFetched: {
                   type: 'final',
                   entry: [
+                    assign({
+                      sync: ({ context }) => ({
+                        ...context.sync,
+                        syncCommitteesFetched: true,
+                      }),
+                    }),
+                    raise({ type: 'SYNC_COMMITTEES_FETCHED' }),
                     pinoLog(
                       ({ context }) => `Sync committees done for epoch ${context.epoch}`,
                       'EpochProcessor:syncingCommittees',
@@ -543,6 +555,11 @@ export const epochProcessorMachine = setup({
                   },
                   on: {
                     COMMITTEES_FETCHED: {
+                      guard: 'areCommitteesFetched',
+                      target: 'waitingForPriorEpochSlots',
+                    },
+                    SYNC_COMMITTEES_FETCHED: {
+                      guard: 'areCommitteesFetched',
                       target: 'waitingForPriorEpochSlots',
                     },
                   },
