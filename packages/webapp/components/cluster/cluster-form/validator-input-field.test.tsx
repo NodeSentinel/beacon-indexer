@@ -4,6 +4,7 @@ import { describe, it } from 'node:test';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 
+import { getBulkActionDialogCopy } from './bulk-action-dialog';
 import { ValidatorInputField } from './validator-input-field';
 import { WithdrawalAddressCard } from './withdrawal-address-card';
 
@@ -59,6 +60,30 @@ describe('ValidatorInputField', () => {
 
     assert.match(markup, /Lido CSM/);
     assert.match(markup, /\/assets\/lido-csm\.svg/);
+    assert.ok(markup.indexOf('Lido CSM') < markup.indexOf('Index'));
+  });
+
+  it('renders the category tabs in a horizontal scroll area', () => {
+    const markup = renderToStaticMarkup(
+      <ValidatorInputField
+        inputValue=""
+        selectedCategory="index"
+        validationState="idle"
+        chain="ethereum"
+        errorMessage=""
+        isSearching={false}
+        isMobile
+        helpDialogOpen={false}
+        onCategoryChange={noop}
+        onHelpDialogChange={noop}
+        onInputChange={noop}
+        onKeyDown={noop}
+        onAdd={noop}
+      />,
+    );
+
+    assert.match(markup, /overflow-x-auto/);
+    assert.match(markup, /w-max/);
   });
 
   it('hides the Lido CSM category for Gnosis', () => {
@@ -130,6 +155,23 @@ describe('ValidatorInputField', () => {
     assert.match(markup, /value="12"/);
     assert.match(markup, /disabled=""/);
     assert.match(markup, />Delete</);
+  });
+});
+
+describe('BulkActionDialog', () => {
+  it('uses Lido CSM copy without rendering an empty source box', () => {
+    const bulkAction = {
+      action: 'add' as const,
+      withdrawalAddress: '',
+      validatorCount: 12,
+      validators: [],
+      lidoCsmOperatorId: 344,
+    };
+
+    const copy = getBulkActionDialogCopy(bulkAction);
+
+    assert.match(copy.description, /Lido CSM operator 344 has 12 validators/);
+    assert.equal(copy.sourceValue, undefined);
   });
 });
 
