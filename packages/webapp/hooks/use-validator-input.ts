@@ -20,6 +20,7 @@ import {
   useSearchByWithdrawalAddresses,
 } from '@/hooks/use-validator-search';
 import {
+  getDefaultValidatorSearchCategory,
   parseValidatorSearchInput,
   type ValidatorSearchCategory,
 } from '@/lib/validator-search-input';
@@ -39,6 +40,7 @@ export type BulkAction = {
 const BULK_ADD_THRESHOLD = 10;
 
 interface UseValidatorInputProps {
+  chain: 'gnosis' | 'ethereum';
   validators: ValidatorItem[];
   onValidatorsChange: (validators: ValidatorItem[]) => void;
   currentLidoCsmOperatorId?: string | null;
@@ -53,6 +55,7 @@ interface UseValidatorInputProps {
  * Groups validators by their actual withdrawal address.
  */
 export function useValidatorInput({
+  chain,
   currentLidoCsmOperatorId,
   onValidatorsChange,
   validators,
@@ -67,8 +70,9 @@ export function useValidatorInput({
   const [bulkAction, setBulkAction] = useState<BulkAction>(null);
   const [lidoCsmOperatorId, setLidoCsmOperatorId] = useState<number | undefined>(undefined);
   const [lidoCsmValidatorIndexes, setLidoCsmValidatorIndexes] = useState<number[]>([]);
-  const [selectedSearchCategory, setSelectedSearchCategory] =
-    useState<ValidatorSearchCategory>('index');
+  const [selectedSearchCategory, setSelectedSearchCategory] = useState<ValidatorSearchCategory>(
+    () => getDefaultValidatorSearchCategory(chain),
+  );
 
   // Track withdrawal addresses discovered when adding validators by index/pubkey
   // These are addresses not in knownWithdrawalAddresses but found from validators added

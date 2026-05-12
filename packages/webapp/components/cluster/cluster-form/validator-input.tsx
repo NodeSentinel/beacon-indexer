@@ -63,6 +63,7 @@ export function ValidatorInput({
     validationState,
     validatorsByAddress,
   } = useValidatorInput({
+    chain: env.NEXT_PUBLIC_CHAIN,
     validators,
     onValidatorsChange,
     currentLidoCsmOperatorId,
