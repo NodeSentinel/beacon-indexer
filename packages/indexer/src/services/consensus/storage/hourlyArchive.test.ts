@@ -51,7 +51,7 @@ describe('HourlyArchiveStorage', () => {
     );
 
     // This assertion verifies one INSERT is executed per validator batch.
-    expect(insertCalls).toHaveLength(3);
+    expect(insertCalls).toHaveLength(5);
 
     // This assertion verifies the batch loop is driven by validator cardinality.
     expect(tx.$queryRaw).toHaveBeenCalledTimes(1);
