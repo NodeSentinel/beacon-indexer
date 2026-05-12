@@ -6,6 +6,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 
 import { getBulkActionDialogCopy } from './bulk-action-dialog';
 import { ValidatorInputField } from './validator-input-field';
+import { ValidatorsList } from './validators-list';
 import { WithdrawalAddressCard } from './withdrawal-address-card';
 
 (globalThis as { React?: typeof React }).React = React;
@@ -199,5 +200,30 @@ describe('WithdrawalAddressCard', () => {
     );
 
     assert.match(markup, /Withdrawal address/);
+  });
+});
+
+describe('ValidatorsList', () => {
+  it('shows a Lido CSM add banner when operator validators are missing', () => {
+    const markup = renderToStaticMarkup(
+      <ValidatorsList
+        validators={[]}
+        allWithdrawalAddresses={[]}
+        validatorsByAddress={{}}
+        missingValidatorsByAddress={{}}
+        isEditMode
+        lidoCsmOperatorId="344"
+        lidoCsmValidatorCount={50}
+        missingLidoCsmValidatorCount={1}
+        onRemoveValidator={noop}
+        onRemoveByWithdrawal={noop}
+        onAddMissingValidators={noop}
+        onAddMissingLidoCsmValidators={noop}
+      />,
+    );
+
+    assert.match(markup, /Lido CSM operator 344/);
+    assert.match(markup, /1 more validator available/);
+    assert.match(markup, /Add all/);
   });
 });

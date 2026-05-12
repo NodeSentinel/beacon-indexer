@@ -37,11 +37,13 @@ export function ValidatorInput({
   const [helpDialogOpen, setHelpDialogOpen] = useState(false);
 
   const {
+    addMissingLidoCsmValidators,
     addMissingValidators,
     allWithdrawalAddresses,
     bulkAction,
     clearLidoCsmSelection,
     closeBulkAction,
+    currentLidoCsmValidatorCount,
     errorMessage,
     handleAddValidator,
     handleCategoryChange,
@@ -54,6 +56,7 @@ export function ValidatorInput({
     isSearching,
     lidoCsmOperatorId,
     lidoCsmValidatorIndexes,
+    missingLidoCsmValidators,
     missingValidatorsByAddress,
     removeValidator,
     selectedSearchCategory,
@@ -62,6 +65,7 @@ export function ValidatorInput({
   } = useValidatorInput({
     validators,
     onValidatorsChange,
+    currentLidoCsmOperatorId,
     withdrawalAddresses,
   });
 
@@ -109,10 +113,14 @@ export function ValidatorInput({
         allWithdrawalAddresses={allWithdrawalAddresses}
         validatorsByAddress={validatorsByAddress}
         missingValidatorsByAddress={missingValidatorsByAddress}
+        lidoCsmOperatorId={visibleLidoCsmOperatorId}
+        lidoCsmValidatorCount={currentLidoCsmValidatorCount}
+        missingLidoCsmValidatorCount={missingLidoCsmValidators.length}
         isEditMode={isEditMode}
         onRemoveValidator={removeValidator}
         onRemoveByWithdrawal={handleRemoveByWithdrawal}
         onAddMissingValidators={addMissingValidators}
+        onAddMissingLidoCsmValidators={addMissingLidoCsmValidators}
       />
 
       <BulkActionDialog
