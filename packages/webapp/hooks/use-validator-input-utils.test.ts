@@ -1,7 +1,11 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
-import { getMissingValidatorItems, type ValidatorItem } from './use-validator-input-utils';
+import {
+  getMissingValidatorItems,
+  parseSavedLidoCsmOperatorId,
+  type ValidatorItem,
+} from './use-validator-input-utils';
 
 describe('getMissingValidatorItems', () => {
   it('returns validators linked to a Lido CSM operator that are not in the cluster', () => {
@@ -38,5 +42,13 @@ describe('getMissingValidatorItems', () => {
       [51],
     );
     assert.equal(missingValidators[0].id, 'missing-lido-csm-344-0');
+  });
+});
+
+describe('parseSavedLidoCsmOperatorId', () => {
+  it('keeps operator zero valid while ignoring blank values', () => {
+    assert.equal(parseSavedLidoCsmOperatorId('0'), 0);
+    assert.equal(parseSavedLidoCsmOperatorId(''), undefined);
+    assert.equal(parseSavedLidoCsmOperatorId('   '), undefined);
   });
 });

@@ -15,6 +15,21 @@ interface MissingValidatorItemsParams {
   searchResults: ValidatorSearchResult[];
 }
 
+/** Parses a saved Lido CSM operator id without treating blank values as zero. */
+export function parseSavedLidoCsmOperatorId(
+  operatorId: string | null | undefined,
+): number | undefined {
+  const trimmedOperatorId = operatorId?.trim();
+
+  if (!trimmedOperatorId) {
+    return undefined;
+  }
+
+  const parsedOperatorId = Number(trimmedOperatorId);
+
+  return Number.isInteger(parsedOperatorId) && parsedOperatorId >= 0 ? parsedOperatorId : undefined;
+}
+
 /** Sorts validator items by index from highest to lowest. */
 export function sortValidatorsDescending(validators: ValidatorItem[]): ValidatorItem[] {
   return [...validators].sort((a, b) => b.index - a.index);

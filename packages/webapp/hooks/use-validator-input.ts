@@ -5,6 +5,7 @@ import { useMemo, useState } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import {
   getMissingValidatorItems,
+  parseSavedLidoCsmOperatorId,
   sortValidatorsDescending,
   type ValidatorItem,
 } from '@/hooks/use-validator-input-utils';
@@ -89,16 +90,7 @@ export function useValidatorInput({
   const searchByPubkeys = useSearchByPubkeys();
   const searchByWithdrawalAddresses = useSearchByWithdrawalAddresses();
 
-  const parsedSavedLidoCsmOperatorId =
-    currentLidoCsmOperatorId !== null && currentLidoCsmOperatorId !== undefined
-      ? Number(currentLidoCsmOperatorId)
-      : undefined;
-  const savedLidoCsmOperatorId =
-    parsedSavedLidoCsmOperatorId !== undefined &&
-    Number.isInteger(parsedSavedLidoCsmOperatorId) &&
-    parsedSavedLidoCsmOperatorId >= 0
-      ? parsedSavedLidoCsmOperatorId
-      : undefined;
+  const savedLidoCsmOperatorId = parseSavedLidoCsmOperatorId(currentLidoCsmOperatorId);
   const trackedLidoCsmOperatorId = lidoCsmOperatorId ?? savedLidoCsmOperatorId;
 
   const { validators: validatorsByLidoCsmOperator } =
