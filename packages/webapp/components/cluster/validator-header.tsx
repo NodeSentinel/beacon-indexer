@@ -1,6 +1,6 @@
 'use client';
 
-import { MessageSquare, Settings } from 'lucide-react';
+import { MessageSquare } from 'lucide-react';
 import Link from 'next/link';
 import * as React from 'react';
 
@@ -55,10 +55,6 @@ export default function ValidatorHeader() {
                 >
                   <MessageSquare className="size-5" />
                 </a>
-              </Button>
-
-              <Button variant="ghost" size="icon" onClick={() => setAlertsOpen(true)}>
-                <Settings className="size-5" />
               </Button>
             </div>
           </div>
