@@ -55,9 +55,8 @@ export function createBotCommunicationsRoutes(
   params: Pick<ApiDependencies, 'botCommunicationsStorage' | 'procedures'>,
 ) {
   const botProcedure = createBotProcedure(params.procedures);
-  const { apiKeyProcedure } = params.procedures;
 
-  const createBotCommunication = apiKeyProcedure
+  const createBotCommunication = botProcedure
     .route({ method: 'POST', path: '/bot/communications' })
     .input(CreateBotCommunicationSchema)
     .output(BotCommunicationResponseSchema)
