@@ -4,6 +4,7 @@ import { Composer } from 'grammy';
 import type { Context } from '@/src/bot/context.js';
 
 import { isAdmin } from '@/src/bot/filters/is-admin.js';
+import { adminHelpHandler } from '@/src/bot/handlers/commands/admin.js';
 import { setCommandsHandler } from '@/src/bot/handlers/commands/setcommands.js';
 import { createCommunicationHandler } from '@/src/bot/handlers/communications/create.js';
 import { listCommunicationsHandler } from '@/src/bot/handlers/communications/list.js';
@@ -13,6 +14,8 @@ import { logHandle } from '@/src/bot/helpers/logging.js';
 const composer = new Composer<Context>();
 
 const feature = composer.chatType('private').filter(isAdmin);
+
+feature.command('admin', logHandle('command-admin'), chatAction('typing'), adminHelpHandler);
 
 feature.command(
   'setcommands',
