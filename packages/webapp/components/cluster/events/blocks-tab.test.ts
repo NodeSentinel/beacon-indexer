@@ -14,3 +14,15 @@ describe('BlocksTab collapsed row', () => {
     assert.doesNotMatch(source, /Val #\{block\.validatorIndex\}/);
   });
 });
+
+describe('BlocksTab reward token labels', () => {
+  it('does not render hardcoded consensus or execution token labels', () => {
+    // Read the component source to catch token labels that bypass chain-derived helpers.
+    const source = readFileSync(new URL('./blocks-tab.tsx', import.meta.url), 'utf8');
+
+    // Confirm block reward labels come from chain token config instead of fixed Gnosis labels.
+    assert.doesNotMatch(source, /\}\s+GNO/);
+    assert.match(source, /tokenSymbol/);
+    assert.match(source, /executionTokenSymbol/);
+  });
+});
