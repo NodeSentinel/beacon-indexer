@@ -1,6 +1,6 @@
 'use client';
 
-import { Bell, MessageSquare, Settings } from 'lucide-react';
+import { MessageSquare, Settings } from 'lucide-react';
 import Link from 'next/link';
 import * as React from 'react';
 
@@ -40,10 +40,10 @@ export default function ValidatorHeader() {
                 </a>
               </Button>
 
-              <Button variant="ghost" size="sm" onClick={() => setAlertsOpen(true)}>
+              {/*  <Button variant="ghost" size="sm" onClick={() => setAlertsOpen(true)}>
                 <Bell className="size-4 mr-2" />
                 Configure Alerts
-              </Button>
+              </Button> */}
             </nav>
 
             <div className="flex md:hidden items-center gap-2">
