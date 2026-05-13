@@ -1,6 +1,6 @@
 'use client';
 
-import { useMutation, useQueries } from '@tanstack/react-query';
+import { useMutation, useQueries, useQuery } from '@tanstack/react-query';
 
 import { orpcClient } from '@/lib/orpc';
 
@@ -118,6 +118,30 @@ export function useSearchByLidoCsmOperatorId() {
       return response.data.validators;
     },
   });
+}
+
+/**
+ * Hook to fetch validators for one Lido CSM operator id in the background
+ */
+export function useGetValidatorsFromLidoCsmOperatorId(lidoCsmOperatorId: number | undefined) {
+  const query = useQuery({
+    queryKey: ['validators', 'byLidoCsmOperatorId', lidoCsmOperatorId],
+    queryFn: async (): Promise<ValidatorSearchResult[]> => {
+      if (lidoCsmOperatorId === undefined) {
+        return [];
+      }
+
+      const response = await orpcClient.validator.search({ lidoCsmOperatorId });
+      if (!response.success || !response.data) {
+        throw new Error(response.error?.message || 'Failed to fetch Lido CSM validators');
+      }
+      return response.data.validators;
+    },
+    enabled: lidoCsmOperatorId !== undefined,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  return { validators: query.data ?? [], isLoading: query.isLoading };
 }
 
 /**

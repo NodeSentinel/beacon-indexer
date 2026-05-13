@@ -190,7 +190,7 @@ export function ValidatorInputField({
   validationState,
 }: ValidatorInputFieldProps) {
   const categoryOptions =
-    chain === 'ethereum' ? [...BASE_CATEGORY_OPTIONS, LIDO_CSM_CATEGORY] : BASE_CATEGORY_OPTIONS;
+    chain === 'ethereum' ? [LIDO_CSM_CATEGORY, ...BASE_CATEGORY_OPTIONS] : BASE_CATEGORY_OPTIONS;
   const hasCurrentLidoCsmOperator =
     selectedCategory === 'lidoCsm' &&
     currentLidoCsmOperatorId !== null &&
@@ -223,32 +223,34 @@ export function ValidatorInputField({
         <HelpButton isMobile={isMobile} open={helpDialogOpen} onOpenChange={onHelpDialogChange} />
       </div>
 
-      <div
-        className="grid gap-1 rounded-xl bg-muted p-1"
-        style={{ gridTemplateColumns: `repeat(${categoryOptions.length}, minmax(0, 1fr))` }}
-      >
-        {categoryOptions.map((category) => {
-          const Icon = category.icon;
-          const isSelected = selectedCategory === category.value;
+      <div className="overflow-x-auto sm:overflow-visible">
+        <div
+          className="flex w-max gap-1 rounded-xl bg-muted p-1 sm:grid sm:w-full"
+          style={{ gridTemplateColumns: `repeat(${categoryOptions.length}, minmax(0, 1fr))` }}
+        >
+          {categoryOptions.map((category) => {
+            const Icon = category.icon;
+            const isSelected = selectedCategory === category.value;
 
-          return (
-            <button
-              key={category.value}
-              type="button"
-              onClick={() => onCategoryChange(category.value)}
-              className={cn(
-                'flex h-12 items-center justify-center gap-2 rounded-lg px-2 text-sm font-bold transition-colors sm:text-base',
-                isSelected
-                  ? 'bg-background text-foreground shadow-sm'
-                  : 'text-muted-foreground hover:text-foreground',
-              )}
-              aria-pressed={isSelected}
-            >
-              <Icon className="size-5" />
-              <span>{category.label}</span>
-            </button>
-          );
-        })}
+            return (
+              <button
+                key={category.value}
+                type="button"
+                onClick={() => onCategoryChange(category.value)}
+                className={cn(
+                  'flex h-12 w-32 shrink-0 items-center justify-center gap-2 rounded-lg px-2 text-sm font-bold transition-colors sm:w-auto sm:text-base',
+                  isSelected
+                    ? 'bg-background text-foreground shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground',
+                )}
+                aria-pressed={isSelected}
+              >
+                <Icon className="size-5" />
+                <span>{category.label}</span>
+              </button>
+            );
+          })}
+        </div>
       </div>
 
       <div className="flex gap-3">

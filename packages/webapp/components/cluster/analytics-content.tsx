@@ -19,11 +19,12 @@ import {
   UnderlineTabsList,
   UnderlineTabsTrigger,
 } from '@/components/underline-tabs';
+import { env } from '@/env';
 import { useMissedAttestations } from '@/hooks/use-missed-attestations';
 import { useRewards } from '@/hooks/use-rewards';
 import { useTokenPrice } from '@/hooks/use-token-price';
 import { type AnalyticsTimeRange, bucketByTime } from '@/lib/analytics-buckets';
-import { formatNumber } from '@/lib/utils';
+import { formatNumber, getTokenConfig } from '@/lib/utils';
 import type { ClusterFilter } from '@/types/cluster';
 import type { MissedAttestation, Reward } from '@/types/validator';
 
@@ -245,6 +246,8 @@ function RewardsTab({
   const { data: rewardsResponse, isLoading } = useRewards(clusterFilter, null, timeRange);
 
   const tokenPrice = rewardsResponse?.tokenPrice ?? tokenPriceData?.tokenPrice ?? 0;
+  const { executionTokenSymbol, tokenSymbol } = getTokenConfig(env.NEXT_PUBLIC_CHAIN);
+  const executionTokenPrice = executionTokenSymbol === tokenSymbol ? tokenPrice : 1;
 
   const rewardsChartData = useMemo(
     () =>
@@ -270,7 +273,7 @@ function RewardsTab({
           const blockConsensus = acc?.blockConsensus ?? 0;
           const blockExecution = acc?.blockExecution ?? 0;
           const clTotal = (head + target + source + sync + blockConsensus - missed) * tokenPrice;
-          const elTotal = blockExecution;
+          const elTotal = blockExecution * executionTokenPrice;
           return {
             time,
             head,
@@ -284,7 +287,7 @@ function RewardsTab({
           };
         },
       ),
-    [rewardsResponse, timeRange, tokenPrice],
+    [executionTokenPrice, rewardsResponse, timeRange, tokenPrice],
   );
 
   const rewardsStats = useMemo(() => {
@@ -319,11 +322,11 @@ function RewardsTab({
         source: d.source * tokenPrice,
         sync: d.sync * tokenPrice,
         blockConsensus: d.blockConsensus * tokenPrice,
-        blockExecution: d.blockExecution,
+        blockExecution: d.blockExecution * executionTokenPrice,
         missed: -d.missed * tokenPrice,
         _raw: d,
       })),
-    [rewardsChartData, tokenPrice],
+    [executionTokenPrice, rewardsChartData, tokenPrice],
   );
 
   if (isLoading) {
@@ -358,7 +361,7 @@ function RewardsTab({
           label="SOURCE"
           help="Reward for correctly identifying the justified checkpoint. This is the largest component of attestation rewards."
           value={rewardsStats.source}
-          token="GNO"
+          token={tokenSymbol}
           color="#3b82f6"
           tokenPrice={tokenPrice}
         />
@@ -366,7 +369,7 @@ function RewardsTab({
           label="TARGET"
           help="Reward for correctly voting on the epoch checkpoint (target). Validators earn this by agreeing on the correct target block."
           value={rewardsStats.target}
-          token="GNO"
+          token={tokenSymbol}
           color="#10b981"
           tokenPrice={tokenPrice}
         />
@@ -374,7 +377,7 @@ function RewardsTab({
           label="HEAD"
           help="Reward for correctly voting on the most recent block (head of the chain). A smaller component of attestation rewards."
           value={rewardsStats.head}
-          token="GNO"
+          token={tokenSymbol}
           color="#8b5cf6"
           tokenPrice={tokenPrice}
         />
@@ -382,7 +385,7 @@ function RewardsTab({
           label="MISSED"
           help="Penalties incurred when your validator fails to attest or attests incorrectly. Small amounts are normal; large values may indicate downtime."
           value={rewardsStats.missed}
-          token="GNO"
+          token={tokenSymbol}
           color="hsl(var(--destructive))"
           tokenPrice={tokenPrice}
           isDestructive
@@ -391,7 +394,7 @@ function RewardsTab({
           label="SYNC"
           help="Reward for participating in a sync committee. Only ~512 validators are randomly selected every ~27 hours, so this may be zero most of the time."
           value={rewardsStats.sync}
-          token="GNO"
+          token={tokenSymbol}
           color="#fbbf24"
           tokenPrice={tokenPrice}
         />
@@ -399,17 +402,17 @@ function RewardsTab({
           label="BLOCK (CL)"
           help="Consensus layer reward earned when your validator is randomly selected to propose a block. Includes attestation packing and sync aggregate rewards."
           value={rewardsStats.blockConsensus}
-          token="GNO"
+          token={tokenSymbol}
           color="#f97316"
           tokenPrice={tokenPrice}
         />
         <RewardHeader
           label="BLOCK (EL)"
-          help="Execution layer reward (tips) earned when your validator proposes a block. Paid in the native token (xDAI on Gnosis, ETH on Ethereum)."
+          help="Execution layer reward earned when your validator proposes a block."
           value={rewardsStats.blockExecution}
-          token="xDAI"
+          token={executionTokenSymbol}
           color="#06b6d4"
-          tokenPrice={1}
+          tokenPrice={executionTokenPrice}
         />
       </div>
 
@@ -454,7 +457,7 @@ function RewardsTab({
                       <div className="flex items-center justify-between gap-4">
                         <span className="text-muted-foreground">Source:</span>
                         <span className="font-normal" style={{ color: '#3b82f6' }}>
-                          {fmtToken(raw.source)} GNO{' '}
+                          {fmtToken(raw.source)} {tokenSymbol}{' '}
                           <span className="text-muted-foreground">
                             ({toUsd(raw.source, tokenPrice)})
                           </span>
@@ -463,7 +466,7 @@ function RewardsTab({
                       <div className="flex items-center justify-between gap-4">
                         <span className="text-muted-foreground">Target:</span>
                         <span className="font-normal" style={{ color: '#10b981' }}>
-                          {fmtToken(raw.target)} GNO{' '}
+                          {fmtToken(raw.target)} {tokenSymbol}{' '}
                           <span className="text-muted-foreground">
                             ({toUsd(raw.target, tokenPrice)})
                           </span>
@@ -472,7 +475,7 @@ function RewardsTab({
                       <div className="flex items-center justify-between gap-4">
                         <span className="text-muted-foreground">Head:</span>
                         <span className="font-normal" style={{ color: '#8b5cf6' }}>
-                          {fmtToken(raw.head)} GNO{' '}
+                          {fmtToken(raw.head)} {tokenSymbol}{' '}
                           <span className="text-muted-foreground">
                             ({toUsd(raw.head, tokenPrice)})
                           </span>
@@ -481,7 +484,7 @@ function RewardsTab({
                       <div className="flex items-center justify-between gap-4">
                         <span className="text-muted-foreground">Missed:</span>
                         <span className="font-normal text-destructive">
-                          {fmtToken(raw.missed)} GNO{' '}
+                          {fmtToken(raw.missed)} {tokenSymbol}{' '}
                           <span className="text-muted-foreground">
                             ({toUsd(raw.missed, tokenPrice)})
                           </span>
@@ -491,7 +494,7 @@ function RewardsTab({
                         <div className="flex items-center justify-between gap-4">
                           <span className="text-muted-foreground">Sync Committee:</span>
                           <span className="font-normal text-warning">
-                            {fmtToken(raw.sync)} GNO{' '}
+                            {fmtToken(raw.sync)} {tokenSymbol}{' '}
                             <span className="text-muted-foreground">
                               ({toUsd(raw.sync, tokenPrice)})
                             </span>
@@ -502,7 +505,7 @@ function RewardsTab({
                         <div className="flex items-center justify-between gap-4">
                           <span className="text-muted-foreground">Block (CL):</span>
                           <span className="font-normal" style={{ color: '#f97316' }}>
-                            {fmtToken(raw.blockConsensus)} GNO{' '}
+                            {fmtToken(raw.blockConsensus)} {tokenSymbol}{' '}
                             <span className="text-muted-foreground">
                               ({toUsd(raw.blockConsensus, tokenPrice)})
                             </span>
@@ -513,9 +516,9 @@ function RewardsTab({
                         <div className="flex items-center justify-between gap-4">
                           <span className="text-muted-foreground">Block (EL):</span>
                           <span className="font-normal" style={{ color: '#06b6d4' }}>
-                            {fmtToken(raw.blockExecution)} xDAI{' '}
+                            {fmtToken(raw.blockExecution)} {executionTokenSymbol}{' '}
                             <span className="text-muted-foreground">
-                              ({toUsd(raw.blockExecution, 1)})
+                              ({toUsd(raw.blockExecution, executionTokenPrice)})
                             </span>
                           </span>
                         </div>

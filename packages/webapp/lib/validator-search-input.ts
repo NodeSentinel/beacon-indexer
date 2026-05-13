@@ -1,11 +1,19 @@
 import { isAddress, isHex, size } from 'viem';
 
 export type ValidatorSearchCategory = 'index' | 'pubkey' | 'withdrawalAddress' | 'lidoCsm';
+type ValidatorSearchChain = 'gnosis' | 'ethereum';
 
 export interface ParsedValidatorSearchInput {
   type: ValidatorSearchCategory;
   values: string[];
   invalidValues: string[];
+}
+
+/** Returns the first validator search category for a chain. */
+export function getDefaultValidatorSearchCategory(
+  chain: ValidatorSearchChain,
+): ValidatorSearchCategory {
+  return chain === 'ethereum' ? 'lidoCsm' : 'index';
 }
 
 /** Checks whether a value is valid for the selected validator search category. */

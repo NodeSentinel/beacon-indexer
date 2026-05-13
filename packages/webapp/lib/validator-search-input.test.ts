@@ -1,9 +1,22 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
-import { parseValidatorSearchInput } from './validator-search-input';
+import {
+  getDefaultValidatorSearchCategory,
+  parseValidatorSearchInput,
+} from './validator-search-input';
 
 describe('parseValidatorSearchInput', () => {
+  it('uses Lido CSM as the default Ethereum validator search category', () => {
+    // Confirm Ethereum cluster configuration opens on the Lido CSM tab.
+    assert.equal(getDefaultValidatorSearchCategory('ethereum'), 'lidoCsm');
+  });
+
+  it('uses index as the default Gnosis validator search category', () => {
+    // Confirm Gnosis keeps index first because Lido CSM is not available there.
+    assert.equal(getDefaultValidatorSearchCategory('gnosis'), 'index');
+  });
+
   it('treats numeric input as invalid when the pubkey category is selected', () => {
     const result = parseValidatorSearchInput('123', 'pubkey');
 

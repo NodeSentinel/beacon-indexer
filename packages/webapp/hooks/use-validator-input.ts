@@ -4,6 +4,13 @@ import { useMemo, useState } from 'react';
 
 import { useToast } from '@/hooks/use-toast';
 import {
+  getMissingValidatorItems,
+  parseSavedLidoCsmOperatorId,
+  sortValidatorsDescending,
+  type ValidatorItem,
+} from '@/hooks/use-validator-input-utils';
+import {
+  useGetValidatorsFromLidoCsmOperatorId,
   useGetValidatorsFromWithdrawalAddresses,
   useSearchByIndex,
   useSearchByIndexes,
@@ -14,18 +21,12 @@ import {
   useSearchByWithdrawalAddresses,
 } from '@/hooks/use-validator-search';
 import {
+  getDefaultValidatorSearchCategory,
   parseValidatorSearchInput,
   type ValidatorSearchCategory,
 } from '@/lib/validator-search-input';
 
-export type ValidatorItem = {
-  id: string;
-  type: 'withdrawal' | 'pubkey' | 'index';
-  value: string;
-  index: number;
-  displayName: string;
-  withdrawalAddress: string | null;
-};
+export type { ValidatorItem };
 
 export type ValidationState = 'idle' | 'validating' | 'valid' | 'invalid';
 
@@ -40,16 +41,11 @@ export type BulkAction = {
 const BULK_ADD_THRESHOLD = 10;
 
 interface UseValidatorInputProps {
+  chain: 'gnosis' | 'ethereum';
   validators: ValidatorItem[];
   onValidatorsChange: (validators: ValidatorItem[]) => void;
+  currentLidoCsmOperatorId?: string | null;
   withdrawalAddresses?: string[];
-}
-
-/**
- * Sort validators by index descending (highest first)
- */
-function sortValidatorsDescending(validators: ValidatorItem[]): ValidatorItem[] {
-  return [...validators].sort((a, b) => b.index - a.index);
 }
 
 /**
@@ -60,6 +56,8 @@ function sortValidatorsDescending(validators: ValidatorItem[]): ValidatorItem[] 
  * Groups validators by their actual withdrawal address.
  */
 export function useValidatorInput({
+  chain,
+  currentLidoCsmOperatorId,
   onValidatorsChange,
   validators,
   withdrawalAddresses: knownWithdrawalAddresses = [],
@@ -73,8 +71,9 @@ export function useValidatorInput({
   const [bulkAction, setBulkAction] = useState<BulkAction>(null);
   const [lidoCsmOperatorId, setLidoCsmOperatorId] = useState<number | undefined>(undefined);
   const [lidoCsmValidatorIndexes, setLidoCsmValidatorIndexes] = useState<number[]>([]);
-  const [selectedSearchCategory, setSelectedSearchCategory] =
-    useState<ValidatorSearchCategory>('index');
+  const [selectedSearchCategory, setSelectedSearchCategory] = useState<ValidatorSearchCategory>(
+    () => getDefaultValidatorSearchCategory(chain),
+  );
 
   // Track withdrawal addresses discovered when adding validators by index/pubkey
   // These are addresses not in knownWithdrawalAddresses but found from validators added
@@ -90,6 +89,12 @@ export function useValidatorInput({
   const searchByIndexes = useSearchByIndexes();
   const searchByPubkeys = useSearchByPubkeys();
   const searchByWithdrawalAddresses = useSearchByWithdrawalAddresses();
+
+  const savedLidoCsmOperatorId = parseSavedLidoCsmOperatorId(currentLidoCsmOperatorId);
+  const trackedLidoCsmOperatorId = lidoCsmOperatorId ?? savedLidoCsmOperatorId;
+
+  const { validators: validatorsByLidoCsmOperator } =
+    useGetValidatorsFromLidoCsmOperatorId(trackedLidoCsmOperatorId);
 
   // Combine known and discovered withdrawal addresses for fetching all validators
   const allWithdrawalAddressesToFetch = useMemo(() => {
@@ -118,7 +123,6 @@ export function useValidatorInput({
 
   // Compute validatorsByAddress and missingValidatorsByAddress
   const { missingValidatorsByAddress, validatorsByAddress } = useMemo(() => {
-    const currentIndexes = new Set(validators.map((v) => v.index));
     const byAddress: Record<string, ValidatorItem[]> = {};
     const missing: Record<string, ValidatorItem[]> = {};
 
@@ -143,16 +147,11 @@ export function useValidatorInput({
       const lowerAddr = address.toLowerCase();
       const results = validatorsByWithdrawalAddress[address] || [];
 
-      const missingForAddress = results
-        .filter((r) => !currentIndexes.has(r.index))
-        .map((r, i) => ({
-          id: `missing-${lowerAddr}-${i}`,
-          type: 'index' as const,
-          value: r.index.toString(),
-          index: r.index,
-          displayName: `Validator #${r.index}`,
-          withdrawalAddress: r.withdrawalAddress,
-        }));
+      const missingForAddress = getMissingValidatorItems({
+        currentValidators: validators,
+        idPrefix: `missing-${lowerAddr}`,
+        searchResults: results,
+      });
 
       if (missingForAddress.length > 0) {
         missing[lowerAddr] = sortValidatorsDescending(missingForAddress);
@@ -161,6 +160,24 @@ export function useValidatorInput({
 
     return { validatorsByAddress: byAddress, missingValidatorsByAddress: missing };
   }, [validatorsByWithdrawalAddress, validators, allWithdrawalAddressesToFetch]);
+
+  const missingLidoCsmValidators = useMemo(() => {
+    if (trackedLidoCsmOperatorId === undefined) {
+      return [];
+    }
+
+    return getMissingValidatorItems({
+      currentValidators: validators,
+      idPrefix: `missing-lido-csm-${trackedLidoCsmOperatorId}`,
+      searchResults: validatorsByLidoCsmOperator,
+    });
+  }, [trackedLidoCsmOperatorId, validators, validatorsByLidoCsmOperator]);
+
+  const currentLidoCsmValidatorCount = useMemo(() => {
+    const currentIndexes = new Set(validators.map((validator) => validator.index));
+    return validatorsByLidoCsmOperator.filter((validator) => currentIndexes.has(validator.index))
+      .length;
+  }, [validators, validatorsByLidoCsmOperator]);
 
   const isSearching =
     searchByIndex.isPending ||
@@ -480,6 +497,22 @@ export function useValidatorInput({
     });
   };
 
+  const addMissingLidoCsmValidators = () => {
+    if (missingLidoCsmValidators.length === 0) return;
+
+    onValidatorsChange(sortValidatorsDescending([...validators, ...missingLidoCsmValidators]));
+    setLidoCsmValidatorIndexes((currentIndexes) => [
+      ...new Set([
+        ...currentIndexes,
+        ...missingLidoCsmValidators.map((validator) => validator.index),
+      ]),
+    ]);
+    toast({
+      title: 'Validators added',
+      description: `Added ${missingLidoCsmValidators.length} Lido CSM validators`,
+    });
+  };
+
   const handleInputChange = (value: string) => {
     setInputValue(value);
     setValidationState('idle');
@@ -522,6 +555,8 @@ export function useValidatorInput({
     allWithdrawalAddresses,
     validatorsByAddress,
     missingValidatorsByAddress,
+    missingLidoCsmValidators,
+    currentLidoCsmValidatorCount,
     lidoCsmOperatorId,
     lidoCsmValidatorIndexes,
 
@@ -532,6 +567,7 @@ export function useValidatorInput({
     handleConfirmBulkRemove,
     removeValidator,
     addMissingValidators,
+    addMissingLidoCsmValidators,
     handleInputChange,
     handleCategoryChange,
     handleKeyDown,

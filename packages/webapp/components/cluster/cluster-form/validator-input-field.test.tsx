@@ -4,7 +4,9 @@ import { describe, it } from 'node:test';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 
+import { getBulkActionDialogCopy } from './bulk-action-dialog';
 import { ValidatorInputField } from './validator-input-field';
+import { ValidatorsList } from './validators-list';
 import { WithdrawalAddressCard } from './withdrawal-address-card';
 
 (globalThis as { React?: typeof React }).React = React;
@@ -59,6 +61,30 @@ describe('ValidatorInputField', () => {
 
     assert.match(markup, /Lido CSM/);
     assert.match(markup, /\/assets\/lido-csm\.svg/);
+    assert.ok(markup.indexOf('Lido CSM') < markup.indexOf('Index'));
+  });
+
+  it('renders the category tabs in a horizontal scroll area', () => {
+    const markup = renderToStaticMarkup(
+      <ValidatorInputField
+        inputValue=""
+        selectedCategory="index"
+        validationState="idle"
+        chain="ethereum"
+        errorMessage=""
+        isSearching={false}
+        isMobile
+        helpDialogOpen={false}
+        onCategoryChange={noop}
+        onHelpDialogChange={noop}
+        onInputChange={noop}
+        onKeyDown={noop}
+        onAdd={noop}
+      />,
+    );
+
+    assert.match(markup, /overflow-x-auto/);
+    assert.match(markup, /w-max/);
   });
 
   it('hides the Lido CSM category for Gnosis', () => {
@@ -133,6 +159,23 @@ describe('ValidatorInputField', () => {
   });
 });
 
+describe('BulkActionDialog', () => {
+  it('uses Lido CSM copy without rendering an empty source box', () => {
+    const bulkAction = {
+      action: 'add' as const,
+      withdrawalAddress: '',
+      validatorCount: 12,
+      validators: [],
+      lidoCsmOperatorId: 344,
+    };
+
+    const copy = getBulkActionDialogCopy(bulkAction);
+
+    assert.match(copy.description, /Lido CSM operator 344 has 12 validators/);
+    assert.equal(copy.sourceValue, undefined);
+  });
+});
+
 describe('WithdrawalAddressCard', () => {
   it('labels the grouped validator hash as a withdrawal address', () => {
     const markup = renderToStaticMarkup(
@@ -157,5 +200,30 @@ describe('WithdrawalAddressCard', () => {
     );
 
     assert.match(markup, /Withdrawal address/);
+  });
+});
+
+describe('ValidatorsList', () => {
+  it('shows a Lido CSM add banner when operator validators are missing', () => {
+    const markup = renderToStaticMarkup(
+      <ValidatorsList
+        validators={[]}
+        allWithdrawalAddresses={[]}
+        validatorsByAddress={{}}
+        missingValidatorsByAddress={{}}
+        isEditMode
+        lidoCsmOperatorId="344"
+        lidoCsmValidatorCount={50}
+        missingLidoCsmValidatorCount={1}
+        onRemoveValidator={noop}
+        onRemoveByWithdrawal={noop}
+        onAddMissingValidators={noop}
+        onAddMissingLidoCsmValidators={noop}
+      />,
+    );
+
+    assert.match(markup, /Lido CSM operator 344/);
+    assert.match(markup, /1 more validator available/);
+    assert.match(markup, /Add all/);
   });
 });

@@ -10,6 +10,7 @@ import { Sheet, SheetContent, SheetTitle } from '@/components/ui/sheet';
 import { useClusters } from '@/hooks/use-clusters';
 import { toClusterList } from '@/lib/cluster-adapter';
 import { useUserId } from '@/lib/user-id';
+import { cn } from '@/lib/utils';
 import { CLUSTER_FILTER_ALL, type ClusterFilter } from '@/types/cluster';
 
 const demoNotifications: Notification[] = [];
@@ -23,6 +24,7 @@ export default function DashboardOverview() {
   const { data: apiClusters, isLoading: clustersLoading, refetch: refetchClusters } = useClusters();
 
   const clusters = useMemo(() => toClusterList(apiClusters || []), [apiClusters]);
+  const hasNoClusters = !!userId && !clustersLoading && clusters.length === 0;
 
   return (
     <div className="py-3 md:py-8 space-y-4 md:space-y-8">
@@ -30,15 +32,17 @@ export default function DashboardOverview() {
 
       <ChainStatistics />
 
-      <UserDashboard
-        clusters={clusters}
-        isLoading={!userId || clustersLoading}
-        onAddCluster={() => setClusterFormOpen(true)}
-        onManageCluster={setManagingClusterId}
-        hideAllTab={true}
-        selectedCluster={selectedCluster}
-        onClusterChange={setSelectedCluster}
-      />
+      <div className={cn(hasNoClusters && 'pt-4 md:pt-0')}>
+        <UserDashboard
+          clusters={clusters}
+          isLoading={!userId || clustersLoading}
+          onAddCluster={() => setClusterFormOpen(true)}
+          onManageCluster={setManagingClusterId}
+          hideAllTab={true}
+          selectedCluster={selectedCluster}
+          onClusterChange={setSelectedCluster}
+        />
+      </div>
 
       {/* Add cluster */}
       <Sheet open={clusterFormOpen} onOpenChange={setClusterFormOpen}>

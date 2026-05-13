@@ -17,6 +17,12 @@ interface BulkAction {
   action: 'add' | 'remove';
   withdrawalAddress: string;
   validatorCount: number;
+  lidoCsmOperatorId?: number;
+}
+
+interface BulkActionDialogCopy {
+  description: string;
+  sourceValue?: string;
 }
 
 interface BulkActionDialogProps {
@@ -26,6 +32,28 @@ interface BulkActionDialogProps {
   onConfirmRemove: () => void;
 }
 
+/** Builds the confirmation copy for bulk validator changes. */
+export function getBulkActionDialogCopy(bulkAction: BulkAction): BulkActionDialogCopy {
+  if (bulkAction.action === 'remove') {
+    return {
+      description: `This will remove ${bulkAction.validatorCount} validators from your cluster. This action cannot be undone.`,
+      sourceValue: bulkAction.withdrawalAddress,
+    };
+  }
+
+  if (bulkAction.lidoCsmOperatorId !== undefined) {
+    return {
+      description: `Lido CSM operator ${bulkAction.lidoCsmOperatorId} has ${bulkAction.validatorCount} validators. Do you want to add all of them to your cluster?`,
+    };
+  }
+
+  return {
+    description: `This withdrawal address has ${bulkAction.validatorCount} validators. Do you want to add all of them to your cluster?`,
+    sourceValue: bulkAction.withdrawalAddress,
+  };
+}
+
+/** Renders the confirmation dialog for bulk validator add and remove actions. */
 export function BulkActionDialog({
   bulkAction,
   onClose,
@@ -33,6 +61,7 @@ export function BulkActionDialog({
   onConfirmRemove,
 }: BulkActionDialogProps) {
   const isAdd = bulkAction?.action === 'add';
+  const copy = bulkAction ? getBulkActionDialogCopy(bulkAction) : null;
 
   return (
     <AlertDialog open={bulkAction !== null} onOpenChange={(open) => !open && onClose()}>
@@ -44,14 +73,12 @@ export function BulkActionDialog({
           </AlertDialogTitle>
           <AlertDialogDescription asChild>
             <div className="space-y-2 text-sm text-muted-foreground">
-              <div>
-                {isAdd
-                  ? `This withdrawal address has ${bulkAction?.validatorCount} validators. Do you want to add all of them to your cluster?`
-                  : `This will remove ${bulkAction?.validatorCount} validators from your cluster. This action cannot be undone.`}
-              </div>
-              <code className="block bg-muted px-3 py-2 rounded text-xs break-all font-mono">
-                {bulkAction?.withdrawalAddress}
-              </code>
+              <div>{copy?.description}</div>
+              {copy?.sourceValue && (
+                <code className="block bg-muted px-3 py-2 rounded text-xs break-all font-mono">
+                  {copy.sourceValue}
+                </code>
+              )}
             </div>
           </AlertDialogDescription>
         </AlertDialogHeader>

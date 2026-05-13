@@ -18,6 +18,8 @@ import {
   UnderlineTabsList,
   UnderlineTabsTrigger,
 } from '@/components/underline-tabs';
+import { env } from '@/env';
+import { getTokenConfig } from '@/lib/utils';
 import type { MissedAttestation } from '@/types/validator';
 
 interface AnalyticsProps {
@@ -28,6 +30,7 @@ type TimeRange = '1h' | '24h';
 
 export default function Analytics({ data }: AnalyticsProps) {
   const [timeRange, setTimeRange] = useState<TimeRange>('1h');
+  const { tokenSymbol } = getTokenConfig(env.NEXT_PUBLIC_CHAIN);
 
   const chartData = useMemo(() => {
     const now = new Date();
@@ -211,31 +214,31 @@ export default function Analytics({ data }: AnalyticsProps) {
                 <div>
                   <p className="text-[10px] md:text-[11px] text-muted-foreground mb-1">SOURCE</p>
                   <span className="text-base md:text-lg font-display text-[#3b82f6]">
-                    {rewardsStats.totalSource} GNO
+                    {rewardsStats.totalSource} {tokenSymbol}
                   </span>
                 </div>
                 <div>
                   <p className="text-[10px] md:text-[11px] text-muted-foreground mb-1">TARGET</p>
                   <span className="text-base md:text-lg font-display text-[#10b981]">
-                    {rewardsStats.totalTarget} GNO
+                    {rewardsStats.totalTarget} {tokenSymbol}
                   </span>
                 </div>
                 <div>
                   <p className="text-[10px] md:text-[11px] text-muted-foreground mb-1">HEAD</p>
                   <span className="text-base md:text-lg font-display text-[#8b5cf6]">
-                    {rewardsStats.totalHead} GNO
+                    {rewardsStats.totalHead} {tokenSymbol}
                   </span>
                 </div>
                 <div>
                   <p className="text-[10px] md:text-[11px] text-muted-foreground mb-1">SYNC</p>
                   <span className="text-base md:text-lg font-display text-[#fbbf24]">
-                    {rewardsStats.totalSyncCommittee} GNO
+                    {rewardsStats.totalSyncCommittee} {tokenSymbol}
                   </span>
                 </div>
                 <div>
                   <p className="text-[10px] md:text-[11px] text-muted-foreground mb-1">MISSED</p>
                   <span className="text-base md:text-lg font-display text-destructive">
-                    {rewardsStats.totalMissed} GNO
+                    {rewardsStats.totalMissed} {tokenSymbol}
                   </span>
                 </div>
               </div>
@@ -297,38 +300,40 @@ export default function Analytics({ data }: AnalyticsProps) {
                               <div className="flex items-center justify-between gap-4">
                                 <span className="text-muted-foreground">Source:</span>
                                 <span className="font-display" style={{ color: '#3b82f6' }}>
-                                  {data.source} GNO
+                                  {data.source} {tokenSymbol}
                                 </span>
                               </div>
                               <div className="flex items-center justify-between gap-4">
                                 <span className="text-muted-foreground">Target:</span>
                                 <span className="font-display" style={{ color: '#10b981' }}>
-                                  {data.target} GNO
+                                  {data.target} {tokenSymbol}
                                 </span>
                               </div>
                               <div className="flex items-center justify-between gap-4">
                                 <span className="text-muted-foreground">Head:</span>
                                 <span className="font-display" style={{ color: '#8b5cf6' }}>
-                                  {data.head} GNO
+                                  {data.head} {tokenSymbol}
                                 </span>
                               </div>
                               {data.syncCommittee > 0 && (
                                 <div className="flex items-center justify-between gap-4">
                                   <span className="text-muted-foreground">Sync Committee:</span>
                                   <span className="font-display text-warning">
-                                    {data.syncCommittee} GNO
+                                    {data.syncCommittee} {tokenSymbol}
                                   </span>
                                 </div>
                               )}
                               <div className="flex items-center justify-between gap-4">
                                 <span className="text-muted-foreground">Missed:</span>
                                 <span className="font-display text-destructive">
-                                  {data.missed} GNO
+                                  {data.missed} {tokenSymbol}
                                 </span>
                               </div>
                               <div className="flex items-center justify-between gap-4 pt-1 border-t">
                                 <span className="text-muted-foreground">Total:</span>
-                                <span className="font-display">{data.consensusTotal} GNO</span>
+                                <span className="font-display">
+                                  {data.consensusTotal} {tokenSymbol}
+                                </span>
                               </div>
                             </div>
                           </div>
