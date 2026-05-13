@@ -14,6 +14,8 @@ const createNextConfig = (phase) => {
     images: {
       unoptimized: true,
     },
+    // Hide the Next.js development indicator in the app viewport.
+    devIndicators: false,
     async headers() {
       // Allow localhost connections in development for API calls
       const connectSrc = isDevelopment
