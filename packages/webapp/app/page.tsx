@@ -27,17 +27,12 @@ export default function DashboardOverview() {
   const hasNoClusters = !!userId && !clustersLoading && clusters.length === 0;
 
   return (
-    <div className="flex min-h-[calc(100dvh-4rem)] flex-col space-y-4 py-3 md:block md:min-h-0 md:space-y-8 md:py-8">
+    <div className="py-3 md:py-8 space-y-4 md:space-y-8">
       <NotificationBanner notifications={demoNotifications} />
 
       <ChainStatistics />
 
-      <div
-        className={cn(
-          'w-full',
-          hasNoClusters && 'flex flex-1 flex-col justify-center md:block md:flex-none',
-        )}
-      >
+      <div className={cn(hasNoClusters && 'pt-4 md:pt-0')}>
         <UserDashboard
           clusters={clusters}
           isLoading={!userId || clustersLoading}
