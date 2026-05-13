@@ -10,6 +10,7 @@ import { Sheet, SheetContent, SheetTitle } from '@/components/ui/sheet';
 import { useClusters } from '@/hooks/use-clusters';
 import { toClusterList } from '@/lib/cluster-adapter';
 import { useUserId } from '@/lib/user-id';
+import { cn } from '@/lib/utils';
 import { CLUSTER_FILTER_ALL, type ClusterFilter } from '@/types/cluster';
 
 const demoNotifications: Notification[] = [];
@@ -23,22 +24,30 @@ export default function DashboardOverview() {
   const { data: apiClusters, isLoading: clustersLoading, refetch: refetchClusters } = useClusters();
 
   const clusters = useMemo(() => toClusterList(apiClusters || []), [apiClusters]);
+  const hasNoClusters = !!userId && !clustersLoading && clusters.length === 0;
 
   return (
-    <div className="py-3 md:py-8 space-y-4 md:space-y-8">
+    <div className="flex min-h-[calc(100dvh-4rem)] flex-col space-y-4 py-3 md:block md:min-h-0 md:space-y-8 md:py-8">
       <NotificationBanner notifications={demoNotifications} />
 
       <ChainStatistics />
 
-      <UserDashboard
-        clusters={clusters}
-        isLoading={!userId || clustersLoading}
-        onAddCluster={() => setClusterFormOpen(true)}
-        onManageCluster={setManagingClusterId}
-        hideAllTab={true}
-        selectedCluster={selectedCluster}
-        onClusterChange={setSelectedCluster}
-      />
+      <div
+        className={cn(
+          'w-full',
+          hasNoClusters && 'flex flex-1 flex-col justify-center md:block md:flex-none',
+        )}
+      >
+        <UserDashboard
+          clusters={clusters}
+          isLoading={!userId || clustersLoading}
+          onAddCluster={() => setClusterFormOpen(true)}
+          onManageCluster={setManagingClusterId}
+          hideAllTab={true}
+          selectedCluster={selectedCluster}
+          onClusterChange={setSelectedCluster}
+        />
+      </div>
 
       {/* Add cluster */}
       <Sheet open={clusterFormOpen} onOpenChange={setClusterFormOpen}>
