@@ -35,6 +35,20 @@ export class BotCommunicationsStorage {
   }
 
   /**
+   * Lists communications that have not been sent yet.
+   */
+  async listPending() {
+    return this.prisma.communication.findMany({
+      where: {
+        sent: false,
+      },
+      orderBy: {
+        createdAt: 'asc',
+      },
+    });
+  }
+
+  /**
    * Lists the telegram ids eligible for a full broadcast send.
    */
   async listBroadcastTelegramIds() {

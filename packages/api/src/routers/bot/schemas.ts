@@ -84,6 +84,8 @@ export const BotCommunicationSchema = z.object({
   createdAt: z.string(),
 });
 
+export const BotCommunicationListSchema = z.array(BotCommunicationSchema);
+
 export const BotCommunicationDetailsSchema = BotCommunicationSchema.extend({
   recipients: z.array(z.string()),
 });

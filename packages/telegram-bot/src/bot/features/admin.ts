@@ -6,6 +6,7 @@ import type { Context } from '@/src/bot/context.js';
 import { isAdmin } from '@/src/bot/filters/is-admin.js';
 import { setCommandsHandler } from '@/src/bot/handlers/commands/setcommands.js';
 import { createCommunicationHandler } from '@/src/bot/handlers/communications/create.js';
+import { listCommunicationsHandler } from '@/src/bot/handlers/communications/list.js';
 import { sendCommunicationHandler } from '@/src/bot/handlers/communications/send.js';
 import { logHandle } from '@/src/bot/helpers/logging.js';
 
@@ -25,6 +26,13 @@ feature.command(
   logHandle('command-create-communication'),
   chatAction('typing'),
   createCommunicationHandler,
+);
+
+feature.command(
+  'list_communications',
+  logHandle('command-list-communications'),
+  chatAction('typing'),
+  listCommunicationsHandler,
 );
 
 feature.command(

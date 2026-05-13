@@ -6,6 +6,7 @@ import type { ApiDependencies } from '@/dependencies.js';
 import { createBotProcedure } from '@/routers/bot/procedures.js';
 import {
   BotCommunicationDetailsSchema,
+  BotCommunicationListSchema,
   BotCommunicationSchema,
   BotCommunicationSentSchema,
   CommunicationIdParamSchema,
@@ -16,6 +17,9 @@ import { ApiResponseSchema, errorResponse, successResponse } from '@/utils/respo
 
 const BotCommunicationResponseSchema = ApiResponseSchema(BotCommunicationSchema);
 type BotCommunicationResponse = z.infer<typeof BotCommunicationResponseSchema>;
+
+const BotCommunicationListResponseSchema = ApiResponseSchema(BotCommunicationListSchema);
+type BotCommunicationListResponse = z.infer<typeof BotCommunicationListResponseSchema>;
 
 const BotCommunicationDetailsResponseSchema = ApiResponseSchema(BotCommunicationDetailsSchema);
 type BotCommunicationDetailsResponse = z.infer<typeof BotCommunicationDetailsResponseSchema>;
@@ -70,6 +74,22 @@ export function createBotCommunicationsRoutes(
           'CREATE_COMMUNICATION_ERROR',
           error instanceof Error ? error.message : 'Failed to create communication',
         ) as BotCommunicationResponse;
+      }
+    });
+
+  const listBotCommunications = botProcedure
+    .route({ method: 'GET', path: '/bot/communications' })
+    .output(BotCommunicationListResponseSchema)
+    .handler(async () => {
+      try {
+        return successResponse(
+          (await params.botCommunicationsStorage.listPending()).map(mapCommunication),
+        ) as BotCommunicationListResponse;
+      } catch (error) {
+        return errorResponse(
+          'LIST_COMMUNICATIONS_ERROR',
+          error instanceof Error ? error.message : 'Failed to list communications',
+        ) as BotCommunicationListResponse;
       }
     });
 
@@ -133,6 +153,7 @@ export function createBotCommunicationsRoutes(
   return {
     createBotCommunication,
     getBotCommunication,
+    listBotCommunications,
     markBotCommunicationSent,
   };
 }

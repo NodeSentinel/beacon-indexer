@@ -24,6 +24,7 @@ export function createBotRouter(
 
   return {
     createCommunication: communications.createBotCommunication,
+    communications: communications.listBotCommunications,
     deleteNotification: notifications.deleteBotNotification,
     getCommunication: communications.getBotCommunication,
     incidentNotifications: incidentNotifications.listBotIncidentNotifications,
