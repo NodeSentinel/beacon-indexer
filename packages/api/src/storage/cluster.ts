@@ -226,6 +226,15 @@ export class ClusterStorage {
       this.prisma.cluster.findMany({
         include: {
           owner: { select: { username: true, telegramId: true } },
+          validators: {
+            select: {
+              validator: {
+                select: {
+                  effectiveBalance: true,
+                },
+              },
+            },
+          },
           _count: { select: { validators: true } },
         },
         orderBy: { createdAt: 'desc' },
@@ -235,18 +244,32 @@ export class ClusterStorage {
       }),
       this.prisma.user.count(),
     ]);
+    let totalEffectiveBalance = BigInt(0);
+    const clusterSummaries = clusters.map((cluster) => {
+      let effectiveBalance = BigInt(0);
 
-    return {
-      totalClusters: clusters.length,
-      totalUsers,
-      totalUniqueValidators: uniqueValidators.length,
-      clusters: clusters.map((cluster) => ({
+      for (const clusterValidator of cluster.validators) {
+        effectiveBalance += clusterValidator.validator.effectiveBalance ?? BigInt(0);
+      }
+
+      totalEffectiveBalance += effectiveBalance;
+
+      return {
         id: cluster.id,
         name: cluster.name,
         ownerId: cluster.ownerId,
         ownerUsername: cluster.owner.telegramId === null ? 'annon' : cluster.owner.username,
         validatorCount: cluster._count.validators,
-      })),
+        effectiveBalance,
+      };
+    });
+
+    return {
+      totalClusters: clusters.length,
+      totalUsers,
+      totalUniqueValidators: uniqueValidators.length,
+      totalEffectiveBalance,
+      clusters: clusterSummaries,
     };
   }
 

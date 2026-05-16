@@ -242,6 +242,7 @@ export const ClusterSummaryItemSchema = z.object({
   ownerId: z.string(),
   ownerUsername: z.string(),
   validatorCount: z.number(),
+  tokenAmount: z.string(),
 });
 
 /**
@@ -251,6 +252,7 @@ export const ClusterSummarySchema = z.object({
   totalClusters: z.number(),
   totalUsers: z.number(),
   totalUniqueValidators: z.number(),
+  totalTokenAmount: z.string(),
   clusters: z.array(ClusterSummaryItemSchema),
 });
 

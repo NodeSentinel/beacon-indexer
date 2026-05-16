@@ -1,10 +1,12 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
+import type { Chain } from '@beacon-indexer/beacon-utils';
 import { z } from 'zod';
 
 import { ClusterSummarySchema } from './schemas.js';
 
 import type { ApiProcedures } from '@/auth/middleware.js';
 import { ApiResponseSchema, errorResponse, successResponse } from '@/utils/response.js';
+import { formatBalance } from '@/utils/tokenFormat.js';
 
 const ClusterSummaryResponseSchema = ApiResponseSchema(ClusterSummarySchema);
 type ClusterSummaryResponse = z.infer<typeof ClusterSummaryResponseSchema>;
@@ -13,6 +15,7 @@ type ClusterSummaryResponse = z.infer<typeof ClusterSummaryResponseSchema>;
  * Creates the cluster summary route.
  */
 export function createClusterSummaryRoute(params: {
+  chain: Chain;
   clusterStorage: any;
   procedures: ApiProcedures;
 }) {
@@ -23,7 +26,22 @@ export function createClusterSummaryRoute(params: {
     .output(ClusterSummaryResponseSchema)
     .handler(async () => {
       try {
-        return successResponse(await params.clusterStorage.getSummary()) as ClusterSummaryResponse;
+        const summary = await params.clusterStorage.getSummary();
+
+        return successResponse({
+          totalClusters: summary.totalClusters,
+          totalUsers: summary.totalUsers,
+          totalUniqueValidators: summary.totalUniqueValidators,
+          totalTokenAmount: formatBalance(summary.totalEffectiveBalance, params.chain),
+          clusters: summary.clusters.map((cluster: any) => ({
+            id: cluster.id,
+            name: cluster.name,
+            ownerId: cluster.ownerId,
+            ownerUsername: cluster.ownerUsername,
+            validatorCount: cluster.validatorCount,
+            tokenAmount: formatBalance(cluster.effectiveBalance, params.chain),
+          })),
+        }) as ClusterSummaryResponse;
       } catch (error) {
         return errorResponse(
           'CLUSTER_SUMMARY_ERROR',

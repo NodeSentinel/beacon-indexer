@@ -16,7 +16,7 @@ const migrationUrl = new URL(
 );
 
 describe('ClusterStorage.getSummary', () => {
-  it('returns total cluster count and validator count per cluster', async () => {
+  it('returns total cluster count, validator count, and effective balance per cluster', async () => {
     // This case verifies the compact cluster summary used by the API key endpoint.
     const findMany = vi.fn().mockResolvedValue([
       {
@@ -25,6 +25,11 @@ describe('ClusterStorage.getSummary', () => {
         ownerId: 'user-a',
         createdAt: new Date('2026-04-22T10:00:00.000Z'),
         owner: { username: 'alice', telegramId: 123n },
+        validators: [
+          { validator: { effectiveBalance: 32_000_000_000n } },
+          { validator: { effectiveBalance: 31_500_000_000n } },
+          { validator: { effectiveBalance: null } },
+        ],
         _count: { validators: 3 },
       },
       {
@@ -33,6 +38,10 @@ describe('ClusterStorage.getSummary', () => {
         ownerId: 'user-b',
         createdAt: new Date('2026-04-21T10:00:00.000Z'),
         owner: { username: 'anon:session-b', telegramId: null },
+        validators: [
+          { validator: { effectiveBalance: 32_000_000_000n } },
+          { validator: { effectiveBalance: 32_000_000_000n } },
+        ],
         _count: { validators: 2 },
       },
     ]);
@@ -62,6 +71,8 @@ describe('ClusterStorage.getSummary', () => {
     expect(summary.totalUsers).toBe(2);
     // Confirms the summary counts validators once across all clusters.
     expect(summary.totalUniqueValidators).toBe(4);
+    // Confirms the summary includes the raw total effective balance across clusters.
+    expect(summary.totalEffectiveBalance).toBe(127_500_000_000n);
     // Confirms each cluster includes the validator membership count.
     expect(summary.clusters).toEqual([
       {
@@ -70,6 +81,7 @@ describe('ClusterStorage.getSummary', () => {
         ownerId: 'user-a',
         ownerUsername: 'alice',
         validatorCount: 3,
+        effectiveBalance: 63_500_000_000n,
       },
       {
         id: 'cluster-b',
@@ -77,12 +89,22 @@ describe('ClusterStorage.getSummary', () => {
         ownerId: 'user-b',
         ownerUsername: 'annon',
         validatorCount: 2,
+        effectiveBalance: 64_000_000_000n,
       },
     ]);
     // Confirms Prisma counts validators without loading validator rows.
     expect(findMany).toHaveBeenCalledWith({
       include: {
         owner: { select: { username: true, telegramId: true } },
+        validators: {
+          select: {
+            validator: {
+              select: {
+                effectiveBalance: true,
+              },
+            },
+          },
+        },
         _count: { select: { validators: true } },
       },
       orderBy: { createdAt: 'desc' },
