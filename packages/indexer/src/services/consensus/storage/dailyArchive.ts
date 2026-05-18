@@ -470,18 +470,26 @@ async function ensureDailyArchiveWipPartition(
   const wipPartitionName = getDailyArchiveWipPartitionNameForDailyMerge(dayStart);
   const rangeConstraintName = `${wipPartitionName}_timestamp_check`;
 
+  const [wipPartition] = await tx.$queryRaw<Array<{ exists: boolean }>>`
+    SELECT EXISTS (
+      SELECT 1
+      FROM pg_class c
+      WHERE c.relname = ${wipPartitionName}
+    ) AS exists
+  `;
+
+  // Reuse an existing WIP table so resumed batches do not revalidate WIP rows.
+  if (wipPartition.exists) {
+    return;
+  }
+
   // Create a standalone table so parent scans do not see partial daily rows.
   await tx.$executeRawUnsafe(
-    `CREATE TABLE IF NOT EXISTS "${wipPartitionName}" ` +
+    `CREATE TABLE "${wipPartitionName}" ` +
       `(LIKE "validator_daily_archive" INCLUDING DEFAULTS INCLUDING CONSTRAINTS INCLUDING INDEXES)`,
   );
 
-  // Recreate the range check idempotently before attaching the completed table.
-  await tx.$executeRawUnsafe(
-    `ALTER TABLE "${wipPartitionName}" DROP CONSTRAINT IF EXISTS "${rangeConstraintName}"`,
-  );
-
-  // Constrain timestamps to the day so PostgreSQL can attach it as a partition.
+  // Add the range check only once, while the new WIP table is still empty.
   await tx.$executeRawUnsafe(
     `ALTER TABLE "${wipPartitionName}" ADD CONSTRAINT "${rangeConstraintName}" ` +
       `CHECK ("timestamp" >= '${dayStart.toISOString()}'::timestamp ` +

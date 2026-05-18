@@ -14,9 +14,17 @@ describe('Incremental Daily Archive Process', () => {
 
   const FIRST_BATCH_VALIDATOR = 100;
   const SECOND_BATCH_VALIDATOR = 6000;
+
+  // Dec 16 is the daily archive target used by these incremental scenarios.
   const TEST_DAY_START = new Date('2025-12-16T00:00:00.000Z');
+
+  // Dec 16 00:00 is the source hour used by the batch-resume tests.
   const FIRST_HOUR = new Date('2025-12-16T00:00:00.000Z');
+
+  // lastHour Dec 17 00:00 makes only Dec 16 00:00 eligible for daily merging.
   const RETENTION_BOUNDARY_HOUR = new Date('2025-12-17T00:00:00.000Z');
+
+  // lastHour Dec 18 00:00 makes every Dec 16 hour eligible for daily merging.
   const PUBLISH_BOUNDARY_HOUR = new Date('2025-12-18T00:00:00.000Z');
 
   beforeAll(async () => {
@@ -63,10 +71,10 @@ describe('Incremental Daily Archive Process', () => {
     await prisma.$executeRawUnsafe(`DELETE FROM validator_hourly_archive`);
     await prisma.$executeRawUnsafe(`DELETE FROM validator_daily_archive`);
 
-    // Clean progress rows when the migration is present.
+    // Clean the persistent daily merge cursor between tests.
     await prisma.$executeRawUnsafe(`DELETE FROM archive_daily_merge_progress`);
 
-    // Keep validator rows small but include one validator in each hardcoded 5000-sized batch.
+    // Use one validator in each hardcoded 5000-sized merge batch.
     await prisma.validator.deleteMany({
       where: { id: { in: [FIRST_BATCH_VALIDATOR, SECOND_BATCH_VALIDATOR] } },
     });
@@ -77,7 +85,7 @@ describe('Incremental Daily Archive Process', () => {
       ],
     });
 
-    // Reset archive control state so only this test's lastHour drives eligibility.
+    // Default to a boundary where only Dec 16 00:00 can leave hourly storage.
     await prisma.archive.upsert({
       where: { id: 1 },
       update: { lastHour: RETENTION_BOUNDARY_HOUR, lastDay: null },
@@ -86,20 +94,23 @@ describe('Incremental Daily Archive Process', () => {
   });
 
   /**
-   * Creates one hourly archive partition with two validators.
-   * The validator indexes intentionally land in different 5000-validator batches.
+   * Create the Dec 16 00:00 hourly partition used by batch-resume tests.
+   *
+   * The partition has two validators: index 100 in the first 5000-sized batch
+   * and index 6000 in the second batch. This lets one archive call leave
+   * unfinished progress that the next call must resume.
    */
   async function createSourceHourlyPartition(): Promise<string> {
     const partitionName = getHourlyArchivePartitionName('validator_hourly_archive', FIRST_HOUR);
     const nextHour = new Date(FIRST_HOUR.getTime() + 3600 * 1000);
 
-    // Create the physical hourly partition that should be merged incrementally.
+    // Create the physical Dec 16 00:00 hourly partition.
     await prisma.$executeRawUnsafe(
       `CREATE TABLE IF NOT EXISTS "${partitionName}" PARTITION OF "validator_hourly_archive" ` +
         `FOR VALUES FROM ('${FIRST_HOUR.toISOString()}') TO ('${nextHour.toISOString()}')`,
     );
 
-    // Insert one row per validator so the first archive call can only merge the first batch.
+    // Insert rows in two validator ranges so merge progress spans two calls.
     await prisma.validatorHourlyArchive.createMany({
       data: [
         {
@@ -141,7 +152,10 @@ describe('Incremental Daily Archive Process', () => {
   }
 
   /**
-   * Creates one hourly partition with a single validator that completes in one batch.
+   * Create one hourly partition that completes in a single merge call.
+   *
+   * The full-day publish test uses this for each Dec 16 hour so each call can
+   * advance from one hour to the next without batch-resume behavior.
    */
   async function createSingleBatchHourlyPartition(hourStart: Date, slot: number): Promise<string> {
     const partitionName = getHourlyArchivePartitionName('validator_hourly_archive', hourStart);
@@ -194,30 +208,53 @@ describe('Incremental Daily Archive Process', () => {
   }
 
   /**
-   * Verifies that the controller processes one atomic batch and keeps the source partition.
+   * Read the PostgreSQL catalog id for one constraint on one physical table.
+   */
+  async function getConstraintOid(tableName: string, constraintName: string): Promise<number> {
+    const [constraint] = await prisma.$queryRaw<Array<{ oid: number }>>`
+      SELECT c.oid::int AS oid
+      FROM pg_constraint c
+      JOIN pg_class table_class ON table_class.oid = c.conrelid
+      WHERE table_class.relname = ${tableName}
+        AND c.conname = ${constraintName}
+    `;
+    return constraint.oid;
+  }
+
+  /**
+   * Verify that one archive call merges only the first validator batch.
+   *
+   * Timeline:
+   *   Dec 16 00:00 -> source hourly partition with validators 100 and 6000
+   *   Dec 17 00:00 -> archive.lastHour, so only Dec 16 00:00 is eligible
+   *
+   * Expected result:
+   *   - validator 100 is staged in Dec 16 WIP
+   *   - validator 6000 is still pending for the next batch
+   *   - Dec 16 00:00 hourly partition remains because the hour is incomplete
    */
   it('merges one eligible hourly batch into daily and keeps the source partition until the hour completes', async () => {
-    // Create the source partition that has just left the 24-hour hourly query window.
+    // Create Dec 16 00:00 with one validator in each 5000-sized batch.
     const sourcePartition = await createSourceHourlyPartition();
 
-    // Run one daily archive step; only validator indexes below 5000 should merge.
+    // Run one daily archive step; only validator indexes below 5000 merge.
     const archived = await dailyArchiveController.archive();
     expect(archived).toStrictEqual(FIRST_HOUR);
 
-    // Verify the first batch is staged in the detached WIP table.
+    // Verify only validator 100 is staged in the detached Dec 16 WIP table.
     const wipRows = await prisma.$queryRawUnsafe<Array<{ validator_index: number }>>(
       `SELECT validator_index FROM "${getDailyWipPartitionName(TEST_DAY_START)}" ORDER BY validator_index ASC`,
     );
     expect(wipRows.map((row) => row.validator_index)).toEqual([FIRST_BATCH_VALIDATOR]);
 
-    // Verify incomplete daily rows are not visible through the published parent.
+    // Verify Dec 16 is hidden from parent-table reads while the hour is incomplete.
     const dailyRows = await prisma.validatorDailyArchive.findMany({
       where: { timestamp: TEST_DAY_START },
       orderBy: { validatorIndex: 'asc' },
     });
     expect(dailyRows).toHaveLength(0);
 
-    // Verify progress advanced to the next validator batch without marking the day completed.
+    // Verify the cursor points to the second validator batch for Dec 16 00:00.
     const [progress] = await prisma.$queryRaw<
       Array<{ next_batch_start: number; completed: boolean }>
     >`
@@ -227,7 +264,7 @@ describe('Incremental Daily Archive Process', () => {
     `;
     expect(progress).toEqual({ next_batch_start: 5000, completed: false });
 
-    // Verify the source hourly partition remains because one validator batch is still pending.
+    // Verify Dec 16 00:00 remains because validator 6000 has not merged yet.
     const remainingPartitions = await prisma.$queryRaw<Array<{ tablename: string }>>`
       SELECT tablename FROM pg_tables WHERE tablename = ${sourcePartition}
     `;
@@ -235,18 +272,27 @@ describe('Incremental Daily Archive Process', () => {
   });
 
   /**
-   * Verifies that resume completes the pending batch, drops the source, and does not duplicate data.
+   * Verify that a second archive call resumes and completes the same source hour.
+   *
+   * Timeline:
+   *   Call 1 -> merges validator 100 from Dec 16 00:00 and records progress
+   *   Call 2 -> resumes Dec 16 00:00 and merges validator 6000
+   *
+   * Expected result:
+   *   - both validators exist once in Dec 16 WIP
+   *   - Dec 16 00:00 hourly partition is dropped after the hour completes
+   *   - progress advances to Dec 16 01:00, but Dec 16 is not published yet
    */
   it('resumes from progress, completes the hour, and does not advance lastDay for an incomplete day', async () => {
-    // Create the source hourly partition and process the first validator batch.
+    // Create Dec 16 00:00 and process validator 100 in the first call.
     const sourcePartition = await createSourceHourlyPartition();
     await dailyArchiveController.archive();
 
-    // Run the next archive step so the second validator batch completes the hour.
+    // Run the second call so validator 6000 completes Dec 16 00:00.
     const archived = await dailyArchiveController.archive();
     expect(archived).toStrictEqual(FIRST_HOUR);
 
-    // Verify both validators are present exactly once in the detached WIP table.
+    // Verify both validator rows are present exactly once in Dec 16 WIP.
     const wipRows = await prisma.$queryRawUnsafe<
       Array<{ validator_index: number; data_by_slot: unknown }>
     >(
@@ -259,13 +305,13 @@ describe('Incremental Daily Archive Process', () => {
     expect(wipRows[0].data_by_slot).toEqual([[1, 0, '10']]);
     expect(wipRows[1].data_by_slot).toEqual([[2, 1, '20']]);
 
-    // Verify the incomplete day is still hidden from parent-table queries.
+    // Verify Dec 16 is still hidden because only one hour of the day is complete.
     const dailyRows = await prisma.validatorDailyArchive.findMany({
       where: { timestamp: TEST_DAY_START },
     });
     expect(dailyRows).toHaveLength(0);
 
-    // Verify the daily cursor moved to the next hour without completing the day.
+    // Verify the daily cursor now waits for Dec 16 01:00.
     const [progress] = await prisma.$queryRaw<
       Array<{ current_hour: Date; source_partition: string | null; completed: boolean }>
     >`
@@ -277,67 +323,104 @@ describe('Incremental Daily Archive Process', () => {
     expect(progress.source_partition).toBeNull();
     expect(progress.completed).toBe(false);
 
-    // Verify the completed source hourly partition was dropped.
+    // Verify Dec 16 00:00 was dropped after both validator batches completed.
     const remainingPartitions = await prisma.$queryRaw<Array<{ tablename: string }>>`
       SELECT tablename FROM pg_tables WHERE tablename = ${sourcePartition}
     `;
     expect(remainingPartitions).toHaveLength(0);
 
-    // Verify the day boundary does not advance because only one hour of the day is complete.
+    // Verify lastDay stays null because Dec 16 still needs 23 more hours.
     const archive = await prisma.archive.findUnique({ where: { id: 1 } });
     expect(archive?.lastDay).toBeNull();
   });
 
   /**
-   * Verifies that a complete day is atomically published from WIP to the daily parent.
+   * Verify that resumed validator batches reuse the same WIP day constraint.
+   *
+   * Timeline:
+   *   Call 1 -> creates Dec 16 WIP and its timestamp range CHECK constraint
+   *   Call 2 -> resumes Dec 16 00:00 for the next validator batch
+   *
+   * Expected result:
+   *   - the second batch keeps the existing CHECK constraint
+   *   - PostgreSQL does not need to revalidate the growing WIP table
+   */
+  it('keeps the WIP timestamp constraint when a later validator batch resumes', async () => {
+    // Create Dec 16 00:00 and process validator 100 in the first call.
+    await createSourceHourlyPartition();
+    await dailyArchiveController.archive();
+
+    // Capture the original catalog id for the WIP timestamp range constraint.
+    const wipName = getDailyWipPartitionName(TEST_DAY_START);
+    const constraintName = `${wipName}_timestamp_check`;
+    const initialConstraintOid = await getConstraintOid(wipName, constraintName);
+
+    // Resume Dec 16 00:00 and process validator 6000 in the second call.
+    await expect(dailyArchiveController.archive()).resolves.toStrictEqual(FIRST_HOUR);
+
+    // Verify the same constraint survived the resumed batch.
+    await expect(getConstraintOid(wipName, constraintName)).resolves.toBe(initialConstraintOid);
+  });
+
+  /**
+   * Verify that Dec 16 is published only after all 24 expected hours complete.
+   *
+   * Timeline:
+   *   Dec 16 00:00-Dec 16 23:00 -> source hours that should be merged
+   *   Dec 18 00:00              -> archive.lastHour, so all Dec 16 hours are eligible
+   *
+   * Expected result:
+   *   - after 23 hours, Dec 16 data exists only in detached WIP
+   *   - after Dec 16 23:00 completes, WIP is published as daily partition
+   *   - archive.lastDay advances to Dec 16 00:00
    */
   it('publishes the WIP daily archive only after every expected hour completes', async () => {
-    // Create all 24 hourly source partitions for the test day.
+    // Create Dec 16 00:00 through Dec 16 23:00 with one validator per hour.
     for (let hour = 0; hour < 24; hour++) {
       const hourStart = new Date(TEST_DAY_START.getTime() + hour * 3600 * 1000);
       await createSingleBatchHourlyPartition(hourStart, hour + 1);
     }
 
-    // Make every test-day source hour eligible for daily archiving.
+    // Make every Dec 16 source hour eligible for daily archiving.
     await prisma.archive.update({
       where: { id: 1 },
       data: { lastHour: PUBLISH_BOUNDARY_HOUR },
     });
 
-    // Process the first 23 hours and keep the day unpublished.
+    // Merge Dec 16 00:00 through 22:00; Dec 16 must remain unpublished.
     for (let hour = 0; hour < 23; hour++) {
       await expect(dailyArchiveController.archive()).resolves.toStrictEqual(
         new Date(TEST_DAY_START.getTime() + hour * 3600 * 1000),
       );
     }
 
-    // Verify the WIP table exists while the final hour is still pending.
+    // Verify the detached Dec 16 WIP table exists before the final hour.
     const wipName = getDailyWipPartitionName(TEST_DAY_START);
     await expect(countRowsInTable(wipName)).resolves.toBe(1);
 
-    // Verify the parent does not expose the incomplete daily archive.
+    // Verify parent-table reads cannot see Dec 16 before WIP is published.
     await expect(
       prisma.validatorDailyArchive.findMany({ where: { timestamp: TEST_DAY_START } }),
     ).resolves.toHaveLength(0);
 
-    // Process the final hour so the day becomes complete.
+    // Merge Dec 16 23:00; this completes the day and publishes WIP.
     await expect(dailyArchiveController.archive()).resolves.toStrictEqual(
       new Date('2025-12-16T23:00:00.000Z'),
     );
 
-    // Verify the detached WIP table was renamed away after publishing.
+    // Verify the detached WIP table was renamed into a published partition.
     const wipTables = await prisma.$queryRaw<Array<{ tablename: string }>>`
       SELECT tablename FROM pg_tables WHERE tablename = ${wipName}
     `;
     expect(wipTables).toHaveLength(0);
 
-    // Verify the published daily partition now exists.
+    // Verify the published Dec 16 daily partition now exists.
     const publishedTables = await prisma.$queryRaw<Array<{ tablename: string }>>`
       SELECT tablename FROM pg_tables WHERE tablename = 'validator_daily_archive_20251216'
     `;
     expect(publishedTables).toHaveLength(1);
 
-    // Verify parent-table reads only work after publish.
+    // Verify parent-table reads work only after Dec 16 is published.
     const publishedRows = await prisma.validatorDailyArchive.findMany({
       where: { timestamp: TEST_DAY_START },
     });
@@ -350,7 +433,11 @@ describe('Incremental Daily Archive Process', () => {
   });
 
   /**
-   * Verifies that the daily archive state machine ignores overlapping epoch events.
+   * Verify that overlapping epoch events do not start concurrent daily archives.
+   *
+   * The archive actor should ignore a second EPOCH_PROCESSED event while the
+   * first archive promise is still running. This protects the storage layer from
+   * duplicate merge loops started by the same process.
    */
   it('ignores EPOCH_PROCESSED events while an incremental daily merge is already running', async () => {
     let resolveArchive!: (value: Date | null) => void;
@@ -386,7 +473,10 @@ describe('Incremental Daily Archive Process', () => {
   });
 
   /**
-   * Verifies that one epoch event drains available daily archive work until no batch remains.
+   * Verify that one epoch event drains all available daily archive work.
+   *
+   * The state machine should call archive again after each successful step and
+   * stop only when the controller returns null.
    */
   it('keeps archiving after a successful daily merge step until the controller returns null', async () => {
     // Create a controller stub that reports two completed steps and then no remaining work.

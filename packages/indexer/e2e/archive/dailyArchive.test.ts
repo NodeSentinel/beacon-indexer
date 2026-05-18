@@ -13,9 +13,15 @@ describe('Daily Archive Process', () => {
   const VALIDATOR_1 = 100;
   const VALIDATOR_2 = 200;
 
-  // This day is the first UTC day that can be published by the daily archive.
+  // Test day used by most scenarios: Dec 16 is the daily archive target.
   const TEST_DAY_START = new Date('2025-12-16T00:00:00.000Z');
 
+  /**
+   * Recreate the controller with the requested lookback timestamp.
+   *
+   * Most tests start from Dec 16 00:00. The partial-day test overrides this so
+   * the controller knows that missing earlier hours are expected.
+   */
   function createController(lookbackSlotTimestamp: number = TEST_DAY_START.getTime()) {
     dailyArchiveController = new DailyArchiveController(dailyArchiveStorage, lookbackSlotTimestamp);
   }
@@ -37,7 +43,7 @@ describe('Daily Archive Process', () => {
   });
 
   beforeEach(async () => {
-    // Drop all hourly archive partitions
+    // Drop hourly archive partitions left by previous tests.
     const hourlyPartitions = await prisma.$queryRaw<Array<{ tablename: string }>>`
       SELECT tablename FROM pg_tables WHERE tablename LIKE 'validator_hourly_archive_%'
     `;
@@ -45,7 +51,7 @@ describe('Daily Archive Process', () => {
       await prisma.$executeRawUnsafe(`DROP TABLE IF EXISTS "${p.tablename}"`);
     }
 
-    // Drop all daily archive partitions
+    // Drop published daily partitions and detached WIP daily partitions.
     const dailyPartitions = await prisma.$queryRaw<Array<{ tablename: string }>>`
       SELECT tablename FROM pg_tables WHERE tablename LIKE 'validator_daily_archive_%'
     `;
@@ -53,24 +59,27 @@ describe('Daily Archive Process', () => {
       await prisma.$executeRawUnsafe(`DROP TABLE IF EXISTS "${p.tablename}"`);
     }
 
-    // Clean master partitioned tables
+    // Clean parent tables and the persistent daily merge cursor.
     await prisma.$executeRawUnsafe(`DELETE FROM validator_hourly_archive`);
     await prisma.$executeRawUnsafe(`DELETE FROM validator_daily_archive`);
     await prisma.$executeRawUnsafe(`DELETE FROM archive_daily_merge_progress`);
 
-    // Reset archive control table
+    // Reset the archive control row so each test sets its own lastHour and lastDay.
     await prisma.archive.upsert({
       where: { id: 1 },
       update: { lastHour: null, lastDay: null },
       create: { id: 1, lastHour: null, lastDay: null },
     });
 
-    // Default controller with lookback at day start
+    // Use Dec 16 00:00 as the default first archiveable daily boundary.
     createController();
   });
 
   /**
-   * Helper: create an hourly partition and insert rows into it.
+   * Create one physical hourly partition and insert the rows that belong to it.
+   *
+   * Daily archive code works against partitioned hourly tables, so tests must
+   * create the child partition before inserting rows through Prisma.
    */
   async function createHourlyPartition(
     hourTimestamp: Date,
@@ -115,7 +124,11 @@ describe('Daily Archive Process', () => {
   }
 
   /**
-   * Helper: create hourly partitions with simple test data for a range of hours.
+   * Create consecutive hourly partitions with two validators per hour.
+   *
+   * Each hour gets one row for VALIDATOR_1 and one row for VALIDATOR_2. The
+   * helper returns the exact timestamps so tests can assert which partitions are
+   * dropped or retained.
    */
   async function createHourlyPartitionsForRange(start: Date, hours: number): Promise<Date[]> {
     const timestamps: Date[] = [];
@@ -173,27 +186,35 @@ describe('Daily Archive Process', () => {
   }
 
   /**
-   * HAPPY PATH: publish a full daily archive from exactly one day of hourly sources.
+   * HAPPY PATH: publish Dec 16 from exactly 24 hourly source partitions.
    *
-   * The test uses the 24 source partitions needed to complete Dec 16 and verifies
-   * that the published daily partition has the expected sums and JSON ordering.
+   * Timeline:
+   *   Dec 16 00:00-Dec 16 23:00 -> source hours that should be merged
+   *   Dec 17 23:00              -> archive.lastHour, so Dec 16 23:00 is eligible
+   *
+   * Expected result:
+   *   - 24 archive calls merge every Dec 16 source hour
+   *   - `validator_daily_archive_20251216` is published through the daily parent
+   *   - each validator has one daily row with 24 hours of aggregated values
+   *   - all Dec 16 hourly partitions are dropped after they are merged
    */
   it('publishes a completed day from 24 eligible hourly partitions', async () => {
+    // Create only Dec 16 00:00 through Dec 16 23:00 for this publish scenario.
     const allHours = await createHourlyPartitionsForRange(TEST_DAY_START, 24);
 
-    // Make the final Dec 16 source hour old enough to leave the 24-hour window.
+    // Set lastHour so the retention cutoff is Dec 16 23:00.
     await prisma.archive.update({
       where: { id: 1 },
       data: { lastHour: new Date('2025-12-17T23:00:00.000Z') },
     });
 
-    // Merge every hourly source that belongs to Dec 16.
+    // Run one archive call per Dec 16 hour; the last call publishes the day.
     const archivedHours = await runArchiveSteps(24);
     expect(archivedHours).toHaveLength(24);
     expect(archivedHours[0].getTime()).toBe(TEST_DAY_START.getTime());
     expect(archivedHours[23]).toStrictEqual(new Date('2025-12-16T23:00:00.000Z'));
 
-    // Verify Dec 16 is visible only after all 24 source hours complete.
+    // Read through the daily parent; rows are visible only after WIP is published.
     const dailyData = await prisma.validatorDailyArchive.findMany({
       where: { timestamp: TEST_DAY_START },
       orderBy: { validatorIndex: 'asc' },
@@ -220,13 +241,14 @@ describe('Daily Archive Process', () => {
     expect(v2.clRewardTotal).toBe(BigInt(4560)); // 24 × 190
     expect(v2.clMissedRewardTotal).toBe(BigInt(264)); // 24 × 11
 
-    // Verify JSON arrays are concatenated and sorted by first element
+    // Verify data_by_slot is the 24 hourly arrays concatenated in slot order.
     const v1Slots = v1.dataBySlot as Array<(number | string)[]>;
     expect(v1Slots).toHaveLength(24);
     for (let i = 1; i < v1Slots.length; i++) {
       expect(v1Slots[i][0] as number).toBeGreaterThan(v1Slots[i - 1][0] as number);
     }
 
+    // Verify data_by_epoch is the 24 hourly arrays concatenated in epoch order.
     const v1Epochs = v1.dataByEpoch as Array<
       [number, string, string, string, string, string, string, string, string]
     >;
@@ -235,7 +257,7 @@ describe('Daily Archive Process', () => {
       expect(v1Epochs[i][0]).toBeGreaterThan(v1Epochs[i - 1][0]);
     }
 
-    // Verify every source hourly partition was dropped after it was merged.
+    // Verify every Dec 16 hourly partition was dropped after it was merged.
     const remainingHourlyPartitions = await prisma.$queryRaw<Array<{ tablename: string }>>`
       SELECT tablename FROM pg_tables WHERE tablename LIKE 'validator_hourly_archive_%'
     `;
@@ -252,7 +274,7 @@ describe('Daily Archive Process', () => {
     `;
     expect(dailyPartitions).toHaveLength(1);
 
-    // Verify only the fully completed Dec 16 day advances the control row.
+    // Verify the control row advances only after Dec 16 is fully published.
     const archive = await prisma.archive.findUnique({ where: { id: 1 } });
     expect(archive!.lastDay!.getTime()).toBe(TEST_DAY_START.getTime());
   });
@@ -334,16 +356,23 @@ describe('Daily Archive Process', () => {
   /**
    * GAP GUARD: Stops daily archiving when the next expected hourly partition is missing.
    *
-   * The daily archive can process old hours incrementally once they leave the 24h
-   * retention window, but it must not skip over a missing source hour. If 02:00 is
-   * missing, 03:00 must remain untouched until the gap is filled or investigated.
+   * Timeline:
+   *   Dec 16 00:00 -> exists and should be merged
+   *   Dec 16 01:00 -> exists and should be merged
+   *   Dec 16 02:00 -> missing, so archiving must stop here
+   *   Dec 16 03:00 -> exists, but must not be archived while 02:00 is missing
+   *
+   * Expected result:
+   *   - Dec 16 00:00 and 01:00 are staged in WIP
+   *   - Dec 16 03:00 remains untouched in hourly storage
+   *   - Dec 16 remains hidden from the daily parent because the day is incomplete
    */
   it('should stop at a missing hourly partition without archiving later hours', async () => {
     const hour00 = new Date('2025-12-16T00:00:00.000Z');
     const hour01 = new Date('2025-12-16T01:00:00.000Z');
     const hour03 = new Date('2025-12-16T03:00:00.000Z');
 
-    // Create the first two expected hours.
+    // Create the first two expected source hours for Dec 16.
     await createHourlyPartition(hour00, [
       {
         validatorIndex: VALIDATOR_1,
@@ -367,7 +396,7 @@ describe('Daily Archive Process', () => {
       },
     ]);
 
-    // Create a later hour while intentionally leaving 02:00 missing.
+    // Create Dec 16 03:00 while intentionally leaving Dec 16 02:00 missing.
     await createHourlyPartition(hour03, [
       {
         validatorIndex: VALIDATOR_1,
@@ -380,24 +409,24 @@ describe('Daily Archive Process', () => {
       },
     ]);
 
-    // Set lastHour far enough ahead so every source hour would be retention-eligible.
+    // Set lastHour far enough ahead so the missing hour is the only blocker.
     await prisma.archive.update({
       where: { id: 1 },
       data: { lastHour: new Date('2025-12-18T00:00:00.000Z') },
     });
 
-    // Process the contiguous hours and stop at the missing 02:00 partition.
+    // Process Dec 16 00:00 and 01:00, then stop when Dec 16 02:00 is missing.
     const archivedHours = await runArchiveSteps(4);
     expect(archivedHours).toEqual([hour00, hour01]);
 
-    // Verify the later 03:00 source partition was not archived or dropped.
+    // Verify Dec 16 03:00 was not archived or dropped after the gap.
     const laterPartition = getHourlyArchivePartitionName('validator_hourly_archive', hour03);
     const remainingLaterPartitions = await prisma.$queryRaw<Array<{ tablename: string }>>`
       SELECT tablename FROM pg_tables WHERE tablename = ${laterPartition}
     `;
     expect(remainingLaterPartitions).toHaveLength(1);
 
-    // Verify the detached WIP archive contains only the two contiguous source hours.
+    // Verify WIP contains only Dec 16 00:00 and 01:00 for this validator.
     const [wipRow] = await prisma.$queryRawUnsafe<Array<{ attestation_count: number }>>(
       `SELECT attestation_count FROM "validator_daily_archive_wip_20251216" ` +
         `WHERE "timestamp" = '2025-12-16T00:00:00.000Z'::timestamp ` +
@@ -415,25 +444,26 @@ describe('Daily Archive Process', () => {
   /**
    * JSON CONCATENATION: Empty arrays mixed with non-empty arrays.
    *
-   * Some hours have empty data_by_slot ([]) while having non-empty data_by_epoch,
-   * and vice versa. The string_agg concatenation must handle empty arrays by
-   * excluding them (the CASE WHEN jsonb_array_length > 0 guard).
+   * This scenario verifies daily JSON aggregation for one validator on Dec 16.
+   * Some hourly rows have empty data_by_slot or data_by_epoch arrays, and those
+   * empty arrays must not corrupt the concatenated daily JSON.
    *
-   * Setup (3 custom hours + 21 filler hours):
-   *   Hour 0: data_by_slot = [[100, 0]], data_by_epoch = []     (slots only)
-   *   Hour 1: data_by_slot = [],         data_by_epoch = [[10, ...]]  (epochs only)
-   *   Hour 2: data_by_slot = [],         data_by_epoch = []     (both empty)
-   *   Hours 3–23: both non-empty (single element each)
+   * Timeline:
+   *   Dec 16 00:00 -> slot data only
+   *   Dec 16 01:00 -> epoch data only
+   *   Dec 16 02:00 -> both arrays empty
+   *   Dec 16 03:00-Dec 16 23:00 -> one slot tuple and one epoch tuple per hour
+   *   Dec 17 00:00-Dec 18 00:00 -> recent hourly partitions, not archived here
    *
-   * After archiving:
-   *   - data_by_slot: 1 + 0 + 0 + 21 = 22 elements
-   *   - data_by_epoch: 0 + 1 + 0 + 21 = 22 elements
-   *   - Neither array should contain invalid JSON from empty-array concatenation
+   * Expected result:
+   *   - Dec 16 publishes one daily row for VALIDATOR_EMPTY
+   *   - data_by_slot has 22 elements: 1 + 0 + 0 + 21
+   *   - data_by_epoch has 22 elements: 0 + 1 + 0 + 21
    */
   it('should handle empty JSON arrays mixed with non-empty arrays', async () => {
     const VALIDATOR_EMPTY = 400;
 
-    // Hour 0: slots only, no epoch data
+    // Dec 16 00:00 has slot detail but no epoch detail.
     await createHourlyPartition(new Date('2025-12-16T00:00:00.000Z'), [
       {
         validatorIndex: VALIDATOR_EMPTY,
@@ -446,7 +476,7 @@ describe('Daily Archive Process', () => {
       },
     ]);
 
-    // Hour 1: epochs only, no slot data
+    // Dec 16 01:00 has epoch detail but no slot detail.
     await createHourlyPartition(new Date('2025-12-16T01:00:00.000Z'), [
       {
         validatorIndex: VALIDATOR_EMPTY,
@@ -459,7 +489,7 @@ describe('Daily Archive Process', () => {
       },
     ]);
 
-    // Hour 2: both empty
+    // Dec 16 02:00 has no JSON detail in either column.
     await createHourlyPartition(new Date('2025-12-16T02:00:00.000Z'), [
       {
         validatorIndex: VALIDATOR_EMPTY,
@@ -472,7 +502,7 @@ describe('Daily Archive Process', () => {
       },
     ]);
 
-    // Hours 3–23: both non-empty
+    // Dec 16 03:00 through 23:00 have normal one-element JSON arrays.
     for (let h = 3; h < 24; h++) {
       const hour = new Date(TEST_DAY_START.getTime() + h * 3600 * 1000);
       await createHourlyPartition(hour, [
@@ -488,7 +518,7 @@ describe('Daily Archive Process', () => {
       ]);
     }
 
-    // Retention hours
+    // Create Dec 17 00:00 through Dec 18 00:00 as the recent hourly window.
     for (let h = 0; h < 25; h++) {
       const hour = new Date(new Date('2025-12-17T00:00:00.000Z').getTime() + h * 3600 * 1000);
       await createHourlyPartition(hour, [
@@ -504,14 +534,17 @@ describe('Daily Archive Process', () => {
       ]);
     }
 
+    // Make all Dec 16 hours eligible while leaving the recent window untouched.
     await prisma.archive.update({
       where: { id: 1 },
       data: { lastHour: new Date('2025-12-18T00:00:00.000Z') },
     });
 
+    // Merge exactly the 24 Dec 16 hours and publish the daily row.
     const archivedHours = await runArchiveSteps(24);
     expect(archivedHours).toHaveLength(24);
 
+    // Read the published Dec 16 daily row for the custom validator.
     const dailyData = await prisma.validatorDailyArchive.findMany({
       where: { timestamp: TEST_DAY_START },
     });
@@ -519,23 +552,23 @@ describe('Daily Archive Process', () => {
 
     const v = dailyData[0];
 
-    // data_by_slot: 1 (hour 0) + 0 + 0 + 21 = 22
+    // data_by_slot keeps hour 0 and hours 3 through 23.
     const slots = v.dataBySlot as Array<(number | string)[]>;
     expect(slots).toHaveLength(22);
-    // First slot from hour 0
+    // First slot comes from Dec 16 00:00.
     expect(slots[0][0]).toBe(100);
-    // Remaining slots from hours 3–23 (slot numbers 203–223)
+    // Next slot comes from Dec 16 03:00 because hours 1 and 2 had no slot detail.
     expect(slots[1][0]).toBe(203);
 
-    // data_by_epoch: 0 + 1 (hour 1) + 0 + 21 = 22
+    // data_by_epoch keeps hour 1 and hours 3 through 23.
     const epochs = v.dataByEpoch as Array<(number | string)[]>;
     expect(epochs).toHaveLength(22);
-    // First epoch from hour 1
+    // First epoch comes from Dec 16 01:00.
     expect(epochs[0][0]).toBe(10);
-    // Remaining epochs from hours 3–23
+    // Next epoch comes from Dec 16 03:00 because hours 0 and 2 had no epoch detail.
     expect(epochs[1][0]).toBe(23);
 
-    // Verify ordering is preserved
+    // Verify the daily JSON arrays stay ordered after empty arrays are skipped.
     for (let i = 1; i < slots.length; i++) {
       expect(slots[i][0] as number).toBeGreaterThan(slots[i - 1][0] as number);
     }
@@ -547,19 +580,24 @@ describe('Daily Archive Process', () => {
   /**
    * JSON CONCATENATION: Slot tuples with extended fields (sync, exec, block rewards).
    *
-   * Slot tuples can have varying lengths depending on the validator's activity:
-   *   - Base:   [slot, delay]                               (attestation only, no sync)
-   *   - Sync:   [slot, delay, "sync_reward"]                (has sync committee reward)
-   *   - Full:   [slot, delay, "sync", "exec", "block"]     (proposer with all rewards)
+   * This scenario verifies that daily JSON aggregation preserves nested tuple
+   * shapes when different hourly rows use different slot tuple lengths.
    *
-   * The string concatenation must preserve the nested structure of these tuples,
-   * including the varying number of string-encoded bigint fields. This tests that
-   * the substring bracket-stripping doesn't corrupt nested arrays.
+   * Timeline:
+   *   Dec 16 00:00 -> base, sync-only, and full proposer slot tuples
+   *   Dec 16 01:00 -> full proposer tuple and base tuple
+   *   Dec 16 02:00-Dec 16 23:00 -> simple one-element slot arrays
+   *   Dec 17 00:00-Dec 18 00:00 -> recent hourly partitions, not archived here
+   *
+   * Expected result:
+   *   - Dec 16 publishes one daily row for VALIDATOR_EXTENDED
+   *   - the first five slot tuples keep their original nested array shapes
+   *   - exec and block rewards are summed without losing precision
    */
   it('should preserve nested tuple structure with varying-length slot tuples', async () => {
     const VALIDATOR_EXTENDED = 500;
 
-    // Hour 0: mixed tuple lengths — base, sync-only, and full proposer tuples
+    // Dec 16 00:00 mixes base, sync-only, and full proposer tuples.
     await createHourlyPartition(new Date('2025-12-16T00:00:00.000Z'), [
       {
         validatorIndex: VALIDATOR_EXTENDED,
@@ -578,7 +616,7 @@ describe('Daily Archive Process', () => {
       },
     ]);
 
-    // Hour 1: another set of mixed tuples
+    // Dec 16 01:00 adds another full proposer tuple and a base tuple.
     await createHourlyPartition(new Date('2025-12-16T01:00:00.000Z'), [
       {
         validatorIndex: VALIDATOR_EXTENDED,
@@ -596,7 +634,7 @@ describe('Daily Archive Process', () => {
       },
     ]);
 
-    // Hours 2–23: simple single-element tuples
+    // Dec 16 02:00 through 23:00 add simple one-element slot arrays.
     for (let h = 2; h < 24; h++) {
       const hour = new Date(TEST_DAY_START.getTime() + h * 3600 * 1000);
       await createHourlyPartition(hour, [
@@ -612,7 +650,7 @@ describe('Daily Archive Process', () => {
       ]);
     }
 
-    // Retention hours
+    // Create Dec 17 00:00 through Dec 18 00:00 as the recent hourly window.
     for (let h = 0; h < 25; h++) {
       const hour = new Date(new Date('2025-12-17T00:00:00.000Z').getTime() + h * 3600 * 1000);
       await createHourlyPartition(hour, [
@@ -628,14 +666,17 @@ describe('Daily Archive Process', () => {
       ]);
     }
 
+    // Make all Dec 16 hours eligible while leaving the recent window untouched.
     await prisma.archive.update({
       where: { id: 1 },
       data: { lastHour: new Date('2025-12-18T00:00:00.000Z') },
     });
 
+    // Merge exactly the 24 Dec 16 hours and publish the daily row.
     const archivedHours = await runArchiveSteps(24);
     expect(archivedHours).toHaveLength(24);
 
+    // Read the published Dec 16 daily row for the custom validator.
     const dailyData = await prisma.validatorDailyArchive.findMany({
       where: { timestamp: TEST_DAY_START },
     });
@@ -643,30 +684,28 @@ describe('Daily Archive Process', () => {
 
     const v = dailyData[0];
 
-    // data_by_slot: 3 (hour 0) + 2 (hour 1) + 22×1 = 27
+    // data_by_slot keeps 3 tuples from 00:00, 2 from 01:00, and 22 later tuples.
     const slots = v.dataBySlot as Array<(number | string)[]>;
     expect(slots).toHaveLength(27);
 
-    // Verify tuple structures are preserved:
-    // Hour 0, slot 100: base tuple [slot, delay]
+    // Dec 16 00:00, slot 100: base tuple [slot, delay].
     expect(slots[0]).toEqual([100, 0]);
-    // Hour 0, slot 101: sync tuple [slot, delay, "sync"]
+    // Dec 16 00:00, slot 101: sync tuple [slot, delay, "sync"].
     expect(slots[1]).toEqual([101, 1, '500']);
-    // Hour 0, slot 102: full tuple [slot, delay, "sync", "exec", "block"]
+    // Dec 16 00:00, slot 102: full tuple [slot, delay, "sync", "exec", "block"].
     expect(slots[2]).toEqual([102, 0, '600', '1000000000000000000', '50000']);
-    // Hour 1, slot 200: full tuple
+    // Dec 16 01:00, slot 200: full tuple.
     expect(slots[3]).toEqual([200, 0, '0', '2000000000000000000', '60000']);
-    // Hour 1, slot 201: base tuple
+    // Dec 16 01:00, slot 201: base tuple.
     expect(slots[4]).toEqual([201, 0]);
 
-    // Verify exec_reward_total aggregation (large numbers as Decimal/string)
-    // 1000000000000000000 + 2000000000000000000 = 3000000000000000000
+    // Verify large exec rewards are summed through Decimal without precision loss.
     expect(v.execRewardTotal?.toString()).toBe('3000000000000000000');
 
-    // Verify block_reward_total: 50000 + 60000 = 110000
+    // Verify block rewards from the two proposer tuples are summed.
     expect(v.blockRewardTotal).toBe(BigInt(110000));
 
-    // Verify ordering across all slots
+    // Verify all concatenated slot tuples remain in ascending slot order.
     for (let i = 1; i < slots.length; i++) {
       expect(slots[i][0] as number).toBeGreaterThan(slots[i - 1][0] as number);
     }
@@ -675,37 +714,41 @@ describe('Daily Archive Process', () => {
   /**
    * LOOKBACK_SLOT BASE CASE: The lookback_slot day can be partial.
    *
-   * When the indexer starts with a lookback_slot that doesn't align to midnight,
-   * the oldest hourly partition may be mid-day (e.g., 14:00). The controller uses
-   * lookbackSlotTimestamp to derive the lookback day (floored to UTC midnight),
-   * and allows partial archiving for that specific day because the missing hours
-   * simply don't exist — they were before the indexer started.
+   * This scenario covers a new indexer whose first available hourly data starts
+   * at Dec 16 14:00 instead of midnight. Missing Dec 16 00:00-13:00 hours are
+   * allowed only because Dec 16 is the lookback day.
    *
    * Timeline:
-   *   Dec 16 14:00–23:00  →  10 hourly partitions (partial first day)
-   *   Dec 17 00:00–23:00  →  24 hourly partitions (retained)
-   *   Dec 18 00:00         →  1 extra partition (retention satisfied)
+   *   Dec 16 14:00-Dec 16 23:00 -> partial first day, should be merged
+   *   Dec 17 00:00-Dec 17 23:00 -> recent hourly partitions, kept
+   *   Dec 18 00:00              -> latest hourly boundary
    *
-   * After archiving: daily record has 10h of data, the 10 hourly partitions are
-   * dropped, and the 25 remaining partitions (Dec 17 full + Dec 18 00:00) stay.
+   * Expected result:
+   *   - Dec 16 publishes a daily row with 10 hours of data
+   *   - Dec 16 14:00-Dec 16 23:00 hourly partitions are dropped
+   *   - Dec 17 00:00-Dec 18 00:00 hourly partitions remain
    */
   it('should archive a partial first day when lookback_slot starts mid-day', async () => {
     const partialDayStart = new Date('2025-12-16T14:00:00.000Z');
+
+    // Start the controller at Dec 16 14:00 so earlier Dec 16 hours are optional.
     createController(partialDayStart.getTime());
 
-    // 10h (Dec 16) + 24h (Dec 17) + 1h (Dec 18 00:00) = 35 partitions
+    // Create Dec 16 14:00 through Dec 18 00:00.
     const allHours = await createHourlyPartitionsForRange(partialDayStart, 35);
 
+    // Make the partial Dec 16 range eligible while keeping Dec 17-Dec 18 recent.
     await prisma.archive.update({
       where: { id: 1 },
-      data: { lastHour: allHours[34] }, // Dec 18 00:00
+      data: { lastHour: allHours[34] },
     });
 
+    // Merge only the 10 available Dec 16 hours.
     const archivedHours = await runArchiveSteps(10);
     expect(archivedHours).toHaveLength(10);
     expect(archivedHours[0].getTime()).toBe(partialDayStart.getTime());
 
-    // Daily data reflects only 10 hours
+    // Verify the Dec 16 daily row reflects the 10 available hours.
     const dailyData = await prisma.validatorDailyArchive.findMany({
       where: { timestamp: TEST_DAY_START },
       orderBy: { validatorIndex: 'asc' },
@@ -715,7 +758,7 @@ describe('Daily Archive Process', () => {
     const v1 = dailyData.find((d) => d.validatorIndex === VALIDATOR_1)!;
     expect(v1.attestationCount).toBe(10); // 10 hours x 1
 
-    // The 10 hourly partitions for Dec 16 were dropped
+    // Verify Dec 16 14:00 through 23:00 were dropped after merging.
     const remainingHourlyPartitions = await prisma.$queryRaw<Array<{ tablename: string }>>`
       SELECT tablename FROM pg_tables WHERE tablename LIKE 'validator_hourly_archive_%'
     `;
@@ -726,7 +769,7 @@ describe('Daily Archive Process', () => {
       expect(remainingNames).not.toContain(name);
     }
 
-    // Dec 17 (24h) + Dec 18 00:00 (1h) = 25 partitions remain
+    // Verify Dec 17 00:00 through Dec 18 00:00 remain as hourly partitions.
     expect(remainingNames).toHaveLength(25);
   });
 });
