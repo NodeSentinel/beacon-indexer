@@ -64,7 +64,7 @@ describe('Incremental Daily Archive Process', () => {
     await prisma.$executeRawUnsafe(`DELETE FROM validator_daily_archive`);
 
     // Clean progress rows when the migration is present.
-    await prisma.$executeRawUnsafe(`DELETE FROM archive_hour_merge_progress`);
+    await prisma.$executeRawUnsafe(`DELETE FROM archive_daily_merge_progress`);
 
     // Keep validator rows small but include one validator in each hardcoded 5000-sized batch.
     await prisma.validator.deleteMany({
@@ -217,13 +217,13 @@ describe('Incremental Daily Archive Process', () => {
     });
     expect(dailyRows).toHaveLength(0);
 
-    // Verify progress advanced to the next batch without marking the hour completed.
+    // Verify progress advanced to the next validator batch without marking the day completed.
     const [progress] = await prisma.$queryRaw<
       Array<{ next_batch_start: number; completed: boolean }>
     >`
       SELECT next_batch_start, completed
-      FROM archive_hour_merge_progress
-      WHERE hour_start = ${FIRST_HOUR}::timestamp
+      FROM archive_daily_merge_progress
+      WHERE target_day = ${TEST_DAY_START}::timestamp
     `;
     expect(progress).toEqual({ next_batch_start: 5000, completed: false });
 
@@ -232,43 +232,6 @@ describe('Incremental Daily Archive Process', () => {
       SELECT tablename FROM pg_tables WHERE tablename = ${sourcePartition}
     `;
     expect(remainingPartitions).toHaveLength(1);
-  });
-
-  /**
-   * Verifies that batch sizing stays in code and is not persisted as workflow state.
-   */
-  it('keeps batch size out of the persisted hourly merge progress row', async () => {
-    // Create one source partition so the merge progress table receives a row.
-    await createSourceHourlyPartition();
-
-    // Run one archive step so the progress row is created.
-    await dailyArchiveController.archive();
-
-    // Verify the progress table does not expose a batch_size column.
-    const columns = await prisma.$queryRaw<Array<{ column_name: string }>>`
-      SELECT column_name
-      FROM information_schema.columns
-      WHERE table_name = 'archive_hour_merge_progress'
-      ORDER BY column_name ASC
-    `;
-    expect(columns.map((column) => column.column_name)).not.toContain('batch_size');
-  });
-
-  /**
-   * Verifies that the e2e test catches the old persisted batch size contract.
-   */
-  it('uses the code-level batch size to advance progress', async () => {
-    // Create the source partition and process only the first validator batch.
-    await createSourceHourlyPartition();
-    await dailyArchiveController.archive();
-
-    // Verify progress advanced by the code-level batch size.
-    const [progress] = await prisma.$queryRaw<Array<{ next_batch_start: number }>>`
-      SELECT next_batch_start
-      FROM archive_hour_merge_progress
-      WHERE hour_start = ${FIRST_HOUR}::timestamp
-    `;
-    expect(progress.next_batch_start).toBe(5000);
   });
 
   /**
@@ -302,14 +265,17 @@ describe('Incremental Daily Archive Process', () => {
     });
     expect(dailyRows).toHaveLength(0);
 
-    // Verify progress is completed after the second batch.
-    const [progress] = await prisma.$queryRaw<Array<{ completed: boolean; completed_at: Date }>>`
-      SELECT completed, completed_at
-      FROM archive_hour_merge_progress
-      WHERE hour_start = ${FIRST_HOUR}::timestamp
+    // Verify the daily cursor moved to the next hour without completing the day.
+    const [progress] = await prisma.$queryRaw<
+      Array<{ current_hour: Date; source_partition: string | null; completed: boolean }>
+    >`
+      SELECT current_hour, source_partition, completed
+      FROM archive_daily_merge_progress
+      WHERE target_day = ${TEST_DAY_START}::timestamp
     `;
-    expect(progress.completed).toBe(true);
-    expect(progress.completed_at).toBeInstanceOf(Date);
+    expect(progress.current_hour).toStrictEqual(new Date('2025-12-16T01:00:00.000Z'));
+    expect(progress.source_partition).toBeNull();
+    expect(progress.completed).toBe(false);
 
     // Verify the completed source hourly partition was dropped.
     const remainingPartitions = await prisma.$queryRaw<Array<{ tablename: string }>>`
@@ -318,51 +284,6 @@ describe('Incremental Daily Archive Process', () => {
     expect(remainingPartitions).toHaveLength(0);
 
     // Verify the day boundary does not advance because only one hour of the day is complete.
-    const archive = await prisma.archive.findUnique({ where: { id: 1 } });
-    expect(archive?.lastDay).toBeNull();
-  });
-
-  /**
-   * Verifies that a completed progress row is a no-op when another worker reaches it after waiting for the row lock.
-   */
-  it('skips an already completed hourly merge progress row without recreating WIP work', async () => {
-    // Insert a completed cursor like the row a waiting worker sees after another worker finishes the hour.
-    await prisma.$executeRaw`
-      INSERT INTO archive_hour_merge_progress (
-        hour_start,
-        day_start,
-        source_partition,
-        next_batch_start,
-        max_validator,
-        completed,
-        completed_at
-      )
-      VALUES (
-        ${FIRST_HOUR}::timestamp,
-        ${TEST_DAY_START}::timestamp,
-        'validator_hourly_archive_2025121600',
-        5000,
-        1,
-        true,
-        NOW()
-      )
-    `;
-
-    // Re-run the merge step for the same hour to simulate a second worker acquiring the lock late.
-    await expect(dailyArchiveStorage.mergeNextHourBatch(FIRST_HOUR, 24)).resolves.toEqual({
-      hourStart: FIRST_HOUR,
-      completed: true,
-    });
-
-    // Verify the late worker did not recreate an empty daily WIP table.
-    const wipTables = await prisma.$queryRaw<Array<{ tablename: string }>>`
-      SELECT tablename
-      FROM pg_tables
-      WHERE tablename = ${getDailyWipPartitionName(TEST_DAY_START)}
-    `;
-    expect(wipTables).toHaveLength(0);
-
-    // Verify the late worker did not publish or advance archive state from already-completed progress.
     const archive = await prisma.archive.findUnique({ where: { id: 1 } });
     expect(archive?.lastDay).toBeNull();
   });
@@ -426,69 +347,6 @@ describe('Incremental Daily Archive Process', () => {
     // Verify the completed day advances the archive control row.
     const archive = await prisma.archive.findUnique({ where: { id: 1 } });
     expect(archive?.lastDay).toStrictEqual(TEST_DAY_START);
-  });
-
-  /**
-   * Verifies that old completed progress rows are cleaned after an hour completes.
-   */
-  it('cleans completed hourly merge progress older than 48 hours without deleting pending rows', async () => {
-    // Create progress rows around the 48-hour retention cutoff.
-    await prisma.$executeRaw`
-      INSERT INTO archive_hour_merge_progress (
-        hour_start,
-        day_start,
-        source_partition,
-        next_batch_start,
-        max_validator,
-        completed,
-        completed_at
-      )
-      VALUES
-        (
-          ${new Date('2025-12-13T23:00:00.000Z')}::timestamp,
-          ${new Date('2025-12-13T00:00:00.000Z')}::timestamp,
-          'old_completed_partition',
-          5000,
-          1,
-          true,
-          NOW()
-        ),
-        (
-          ${new Date('2025-12-14T00:00:00.000Z')}::timestamp,
-          ${new Date('2025-12-14T00:00:00.000Z')}::timestamp,
-          'kept_completed_partition',
-          5000,
-          1,
-          true,
-          NOW()
-        ),
-        (
-          ${new Date('2025-12-13T22:00:00.000Z')}::timestamp,
-          ${new Date('2025-12-13T00:00:00.000Z')}::timestamp,
-          'old_pending_partition',
-          0,
-          1,
-          false,
-          NULL
-        )
-    `;
-
-    // Create the source hourly partition and finish both batches.
-    await createSourceHourlyPartition();
-    await dailyArchiveController.archive();
-    await dailyArchiveController.archive();
-
-    // Verify only completed progress older than 48 hours was removed.
-    const remaining = await prisma.$queryRaw<Array<{ hour_start: Date }>>`
-      SELECT hour_start
-      FROM archive_hour_merge_progress
-      ORDER BY hour_start ASC
-    `;
-    expect(remaining.map((row) => row.hour_start.toISOString())).toEqual([
-      '2025-12-13T22:00:00.000Z',
-      '2025-12-14T00:00:00.000Z',
-      FIRST_HOUR.toISOString(),
-    ]);
   });
 
   /**
