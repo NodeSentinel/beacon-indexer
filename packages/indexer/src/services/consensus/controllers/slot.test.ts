@@ -60,4 +60,142 @@ describe('SlotController', () => {
       },
     ]);
   });
+
+  // This test verifies beacon body deposits get a source-local index because the
+  // Beacon API body deposit payload has no protocol deposit index.
+  it('stores body deposits with data source and positional index', async () => {
+    // This storage mock returns an unprocessed slot and captures body deposit rows.
+    const slotStorage = {
+      getBaseSlot: vi.fn().mockResolvedValue({
+        slot: 456,
+        depositsFetched: false,
+      }),
+      saveBodyDeposits: vi.fn().mockResolvedValue(undefined),
+    };
+
+    // This controller only needs slot storage for body deposit processing.
+    const controller = new SlotController(
+      slotStorage as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+    );
+
+    // This call uses two body deposits in one slot; their order is the only
+    // source-local identity available for body deposits in the block response.
+    await controller.processDeposits(456, [
+      {
+        proof: [],
+        data: {
+          pubkey:
+            '0x95bfbd34770dcf14d605342f8141ff54c5737af55edd3034dd3bc3beecef5c610b38860de24e2de99a179ad61d535bdb',
+          withdrawal_credentials:
+            '0x010000000000000000000000d1e0bfc4b19c8310b71ae202dc7cb96a8733aebc',
+          amount: '32000000000',
+          signature: '0x01',
+        },
+      },
+      {
+        proof: [],
+        data: {
+          pubkey:
+            '0xa1202e8dec943df62a030f6d8226393c9914d12d6a03edfbeac2979326f63daa104bc6aacbffb39747db0552497065a4',
+          withdrawal_credentials:
+            '0x010000000000000000000000d1e0bfc4b19c8310b71ae202dc7cb96a8733aebc',
+          amount: '32000000000',
+          signature: '0x02',
+        },
+      },
+    ]);
+
+    // This assertion verifies body deposits are uniquely identified inside their
+    // slot by source plus response position, without relying on pubkey uniqueness.
+    expect(slotStorage.saveBodyDeposits).toHaveBeenCalledWith(456, [
+      {
+        slot: 456,
+        source: 'd',
+        pubkey:
+          '0x95bfbd34770dcf14d605342f8141ff54c5737af55edd3034dd3bc3beecef5c610b38860de24e2de99a179ad61d535bdb',
+        withdrawalCredentials: '0x010000000000000000000000d1e0bfc4b19c8310b71ae202dc7cb96a8733aebc',
+        amount: BigInt('32000000000'),
+        index: 0,
+      },
+      {
+        slot: 456,
+        source: 'd',
+        pubkey:
+          '0xa1202e8dec943df62a030f6d8226393c9914d12d6a03edfbeac2979326f63daa104bc6aacbffb39747db0552497065a4',
+        withdrawalCredentials: '0x010000000000000000000000d1e0bfc4b19c8310b71ae202dc7cb96a8733aebc',
+        amount: BigInt('32000000000'),
+        index: 1,
+      },
+    ]);
+  });
+
+  // This test protects repeated execution request deposit pubkeys in one slot.
+  it('stores execution request deposits with data source and request index', async () => {
+    // This storage mock returns an unprocessed slot and captures execution request deposits.
+    const slotStorage = {
+      getBaseSlot: vi.fn().mockResolvedValue({
+        slot: 789,
+        erDepositsFetched: false,
+      }),
+      saveValidatorDeposits: vi.fn().mockResolvedValue(undefined),
+    };
+
+    // This controller only needs slot storage for execution request deposit processing.
+    const controller = new SlotController(
+      slotStorage as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+    );
+
+    // This call mirrors slot 14366232: two request deposits share one pubkey but
+    // carry different request indexes and amounts.
+    await controller.processErDeposits(789, [
+      {
+        pubkey:
+          '0x81e4e336806f73d993b2148a3421f2bcf54bef9f358410826aec4833634d34da88bb57610f0d645a4cf8b3ffff2f77af',
+        withdrawal_credentials:
+          '0x02000000000000000000000085122eae301063fe709f8ae2411ef1a89e40a73e',
+        amount: '1100000000',
+        signature: '0x01',
+        index: '2479367',
+      },
+      {
+        pubkey:
+          '0x81e4e336806f73d993b2148a3421f2bcf54bef9f358410826aec4833634d34da88bb57610f0d645a4cf8b3ffff2f77af',
+        withdrawal_credentials:
+          '0x02000000000000000000000085122eae301063fe709f8ae2411ef1a89e40a73e',
+        amount: '2500000000',
+        signature: '0x02',
+        index: '2479368',
+      },
+    ]);
+
+    // This assertion verifies duplicate pubkeys are stored as separate request rows.
+    expect(slotStorage.saveValidatorDeposits).toHaveBeenCalledWith(789, [
+      {
+        slot: 789,
+        source: 'e',
+        pubkey:
+          '0x81e4e336806f73d993b2148a3421f2bcf54bef9f358410826aec4833634d34da88bb57610f0d645a4cf8b3ffff2f77af',
+        withdrawalCredentials: '0x02000000000000000000000085122eae301063fe709f8ae2411ef1a89e40a73e',
+        index: 2479367,
+        amount: BigInt('1100000000'),
+      },
+      {
+        slot: 789,
+        source: 'e',
+        pubkey:
+          '0x81e4e336806f73d993b2148a3421f2bcf54bef9f358410826aec4833634d34da88bb57610f0d645a4cf8b3ffff2f77af',
+        withdrawalCredentials: '0x02000000000000000000000085122eae301063fe709f8ae2411ef1a89e40a73e',
+        index: 2479368,
+        amount: BigInt('2500000000'),
+      },
+    ]);
+  });
 });

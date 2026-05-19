@@ -285,12 +285,13 @@ export class SlotController extends SlotControllerHelpers {
 
     await this.slotStorage.saveBodyDeposits(
       baseSlot.slot,
-      deposits.map((deposit) => ({
+      deposits.map((deposit, depositIndex) => ({
         slot: baseSlot.slot,
+        source: 'd',
         pubkey: deposit.data.pubkey,
         withdrawalCredentials: deposit.data.withdrawal_credentials,
         amount: BigInt(deposit.data.amount),
-        index: undefined,
+        index: depositIndex,
       })),
     );
   }
@@ -355,6 +356,7 @@ export class SlotController extends SlotControllerHelpers {
       baseSlot.slot,
       deposits.map((deposit) => ({
         slot: baseSlot.slot,
+        source: 'e',
         pubkey: deposit.pubkey,
         withdrawalCredentials: deposit.withdrawal_credentials,
         index: Number(deposit.index),

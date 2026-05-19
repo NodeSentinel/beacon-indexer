@@ -772,7 +772,7 @@ export class SlotStorage {
   async getValidatorDepositsForSlot(slot: number) {
     return this.prisma.validatorDeposits.findMany({
       where: { slot },
-      orderBy: { pubkey: 'asc' },
+      orderBy: [{ source: 'asc' }, { index: 'asc' }],
     });
   }
 
