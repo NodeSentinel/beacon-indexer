@@ -3,6 +3,7 @@ import { BeaconTime } from '@beacon-indexer/beacon-utils/beaconTime';
 
 import {
   getDailyArchiveActor,
+  getDailyArchiveDetailCleanupActor,
   getHourlyArchiveActor,
   getMonthlyArchiveActor,
 } from './archive/index.js';
@@ -15,6 +16,7 @@ import { getValidatorActivityStatusActor } from './validatorActivityStatus/index
 
 import { ChainStatsController } from '@/src/services/consensus/controllers/chainStats.js';
 import { DailyArchiveController } from '@/src/services/consensus/controllers/dailyArchive.js';
+import { DailyArchiveDetailCleanupController } from '@/src/services/consensus/controllers/dailyArchiveDetailCleanup.js';
 import { EpochController } from '@/src/services/consensus/controllers/epoch.js';
 import { HourlyArchiveController } from '@/src/services/consensus/controllers/hourlyArchive.js';
 import { IncidentRewardsController } from '@/src/services/consensus/controllers/incidentRewards.js';
@@ -34,6 +36,7 @@ export default function initXstateMachines(
   validatorsController: ValidatorsController,
   hourlyArchiveController: HourlyArchiveController,
   dailyArchiveController: DailyArchiveController,
+  dailyArchiveDetailCleanupController: DailyArchiveDetailCleanupController,
   monthlyArchiveController: MonthlyArchiveController,
   chainStatsController: ChainStatsController,
   snapshotController: SnapshotController,
@@ -51,6 +54,12 @@ export default function initXstateMachines(
   // Create and start daily archive actor
   const dailyArchiveActor = getDailyArchiveActor(dailyArchiveController);
   dailyArchiveActor.start();
+
+  // Create and start daily archive detail cleanup actor
+  const dailyArchiveDetailCleanupActor = getDailyArchiveDetailCleanupActor(
+    dailyArchiveDetailCleanupController,
+  );
+  dailyArchiveDetailCleanupActor.start();
 
   // Create and start monthly archive actor
   const monthlyArchiveActor = getMonthlyArchiveActor(monthlyArchiveController);

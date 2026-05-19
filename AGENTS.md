@@ -28,42 +28,8 @@
 Run e2e tests only from the repo root with `pnpm test:e2e:local`.
 Never run e2e tests directly with package scripts, Vitest, `.env`, or custom DB credentials. If the root command cannot be used, stop and ask.
 
-### E2E Test Documentation
-
-Every end-to-end test must include clear comments explaining what the test does.
-
-- Each test block (`describe`, `test`, `it`, etc.) should include a high-level comment describing the scenario being tested.
-- Inside the test, every significant line or block should have a short comment explaining its purpose.
-
-A developer should be able to fully understand the intent and flow of the test by reading the comments, without having to infer or guess behavior from the code itself.
-
-## GitHub workflow
-
-- When creating pull requests, do **not** prefix the title with `[codex]`.
-
 ## Best practices
 
-- Every code block must include clear comments explaining its purpose. Comments should be sufficient for a developer to understand the logic without reading the code itself.
-- Every function must have a short comment summarizing what it does.
-- Comments must be simple, easy to understand, direct and describe the local code only
-- Do not move chat context, refactor history, or temporary reasoning into durable code comments.
-- Do not mix reusable helpers with feature logic. Move reusable formatting, parsing, calculation, or conversion helpers to a shared `utils` module with generic names and interfaces.
+### Code conventions
 
-## Agent
-
-- NEVER do changes without confirmation.
-- Full filesystem/tool permissions do not imply permission to make product, architecture, workflow, security, infrastructure, environment, or repository-policy decisions without confirmation.
-- If a decision could be controversial, surprising, hard to revert, or outside the exact requested scope, stop and ask before changing code.
-- Always make sure the request is fully understood before implementing. If the intent, scope, or tradeoff is unclear, stop and ask instead of guessing.
-- For complex tasks, organize work into small semantic commits. Each commit should represent one coherent change and be easy to review or revert.
-
-## Communication
-
-- Be brutally concise.
-- Answer the exact question only.
-- No preambles.
-- No extra context.
-- No alternatives unless asked.
-- No "it depends" unless strictly necessary.
-- State facts first.
-- Then, if useful, add one supporting code reference.
+- Use `date-fns` for date parsing, formatting, arithmetic, comparisons, and range calculations.

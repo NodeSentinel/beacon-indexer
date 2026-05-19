@@ -1,15 +1,18 @@
 import { createActor } from 'xstate';
 
 import { dailyArchiveMachine } from './dailyArchive.machine.js';
+import { dailyArchiveDetailCleanupMachine } from './dailyArchiveDetailCleanup.machine.js';
 import { hourlyArchiveMachine } from './hourlyArchive.machine.js';
 import { monthlyArchiveMachine } from './monthlyArchive.machine.js';
 
 import { DailyArchiveController } from '@/src/services/consensus/controllers/dailyArchive.js';
+import { DailyArchiveDetailCleanupController } from '@/src/services/consensus/controllers/dailyArchiveDetailCleanup.js';
 import { HourlyArchiveController } from '@/src/services/consensus/controllers/hourlyArchive.js';
 import { MonthlyArchiveController } from '@/src/services/consensus/controllers/monthlyArchive.js';
 
 export { hourlyArchiveMachine } from './hourlyArchive.machine.js';
 export { dailyArchiveMachine } from './dailyArchive.machine.js';
+export { dailyArchiveDetailCleanupMachine } from './dailyArchiveDetailCleanup.machine.js';
 export { monthlyArchiveMachine } from './monthlyArchive.machine.js';
 
 /**
@@ -33,6 +36,21 @@ export const getDailyArchiveActor = (dailyArchiveController: DailyArchiveControl
   const actor = createActor(dailyArchiveMachine, {
     input: {
       dailyArchiveController,
+    },
+  });
+
+  return actor;
+};
+
+/**
+ * Creates and returns the daily archive detail cleanup actor.
+ */
+export const getDailyArchiveDetailCleanupActor = (
+  dailyArchiveDetailCleanupController: DailyArchiveDetailCleanupController,
+) => {
+  const actor = createActor(dailyArchiveDetailCleanupMachine, {
+    input: {
+      dailyArchiveDetailCleanupController,
     },
   });
 

@@ -379,17 +379,42 @@ model Archive {
   @@map("archive")
 }
 
+/**
+ * ArchiveDailyMergeProgress - Tracks one sequential hourly-to-daily merge per day.
+ * Each row stores the current source hour and validator batch cursor for that day.
+ */
+model ArchiveDailyMergeProgress {
+  // UTC day being built from hourly archive partitions.
+  targetDay       DateTime  @id @map("target_day") @db.Timestamp
+  // Hourly archive timestamp currently being merged into the target day.
+  currentHour     DateTime  @map("current_hour") @db.Timestamp
+  // Physical hourly partition being read while the current hour is in progress.
+  sourcePartition String?   @map("source_partition") @db.VarChar(255)
+  // First validator index for the next merge batch in the current source hour.
+  nextBatchStart  Int       @default(0) @map("next_batch_start")
+  // Highest validator index found in the current source hour when the cursor started.
+  maxValidator    Int       @default(0) @map("max_validator")
+  // Marks that all expected hours for this target day were published to the daily archive.
+  completed       Boolean   @default(false) @map("completed")
+  startedAt       DateTime  @default(now()) @map("started_at") @db.Timestamp
+  updatedAt       DateTime  @updatedAt @map("updated_at") @db.Timestamp
+  completedAt     DateTime? @map("completed_at") @db.Timestamp
+
+  @@index([completed, targetDay], map: "archive_daily_merge_progress_completed_target_day_idx")
+  @@map("archive_daily_merge_progress")
+}
+
 model ValidatorsSnapshotActivity {
   validatorIndex Int @id(map: "validators_snapshot_activity_pkey") @map("validator_index")
 
   // State owned by the activity worker.
-  status                            String  @map("status") @db.VarChar(10)
-  isInactive                        Boolean @default(false) @map("is_inactive")
-  inactiveSinceSlot                 Int?    @map("inactive_since_slot")
-  activeSinceSlot                   Int?    @map("active_since_slot")
-  consecutiveMissedAttestations     Int     @default(0) @map("consecutive_missed_attestations")
-  missedStreakStartedAtSlot         Int?    @map("missed_streak_started_at_slot")
-  missedRewardsProcessedThroughSlot Int?    @map("missed_rewards_processed_through_slot")
+  status                            String   @map("status") @db.VarChar(10)
+  isInactive                        Boolean  @default(false) @map("is_inactive")
+  inactiveSinceSlot                 Int?     @map("inactive_since_slot")
+  activeSinceSlot                   Int?     @map("active_since_slot")
+  consecutiveMissedAttestations     Int      @default(0) @map("consecutive_missed_attestations")
+  missedStreakStartedAtSlot         Int?     @map("missed_streak_started_at_slot")
+  missedRewardsProcessedThroughSlot Int?     @map("missed_rewards_processed_through_slot")
   updatedAt                         DateTime @default(now()) @map("updated_at") @db.Timestamp
 
   @@map("validators_snapshot_activity")

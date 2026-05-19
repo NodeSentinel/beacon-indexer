@@ -4,7 +4,7 @@ import { DailyArchiveController } from '@/src/services/consensus/controllers/dai
 import { pinoLog } from '@/src/xstate/pinoLog.js';
 
 /**
- * @fileoverview The daily archive machine aggregates hourly archives into daily archives.
+ * @fileoverview The daily archive machine incrementally merges hourly archives into daily archives.
  *
  * Triggered by EPOCH_PROCESSED events from the epoch orchestrator.
  * Same pattern as hourlyArchiveMachine:
@@ -60,7 +60,7 @@ export const dailyArchiveMachine = setup({
       },
     },
     archiving: {
-      description: 'Archiving the oldest eligible day',
+      description: 'Merging the next eligible hourly archive batch into daily',
       invoke: {
         src: 'runArchive',
         input: ({ context }) => ({
@@ -69,17 +69,20 @@ export const dailyArchiveMachine = setup({
         onDone: [
           {
             guard: 'archiveSucceeded',
-            target: 'idle',
+            target: 'archiving',
+            reenter: true,
             actions: [
               pinoLog(({ event }) => {
-                const day = event.output as Date;
-                return `Daily archive completed: day=${day.toISOString()}`;
+                const hour = event.output as Date;
+                return `Daily archive step completed: hour=${hour.toISOString()}`;
               }, 'DailyArchive'),
             ],
           },
           {
             target: 'idle',
-            actions: [pinoLog(() => 'No eligible day found for daily archive', 'DailyArchive')],
+            actions: [
+              pinoLog(() => 'No eligible hourly batch found for daily archive', 'DailyArchive'),
+            ],
           },
         ],
         onError: {

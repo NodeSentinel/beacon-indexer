@@ -26,10 +26,13 @@ Single initial migration: `packages/db/prisma/migrations/20251210144216_initial/
 
 ### Archive Tables
 
-| Model                    | Table                      | Partitioned By | Purpose                                                      |
-| ------------------------ | -------------------------- | -------------- | ------------------------------------------------------------ |
-| `ValidatorHourlyArchive` | `validator_hourly_archive` | timestamp      | Hourly aggregated validator data                             |
-| `Archive`                | `archive`                  | —              | Control table: tracks archival boundaries (`lastHour`, etc.) |
+| Model                       | Table                          | Partitioned By | Purpose                                                      |
+| --------------------------- | ------------------------------ | -------------- | ------------------------------------------------------------ |
+| `ValidatorHourlyArchive`    | `validator_hourly_archive`     | timestamp      | Hourly aggregated validator data                             |
+| `ValidatorDailyArchive`     | `validator_daily_archive`      | timestamp      | Daily aggregated validator data                              |
+| `ValidatorMonthlyArchive`   | `validator_monthly_archive`    | timestamp      | Monthly aggregated validator data                            |
+| `Archive`                   | `archive`                      | —              | Control table: tracks archival boundaries (`lastHour`, etc.) |
+| `ArchiveDailyMergeProgress` | `archive_daily_merge_progress` | —              | Progress table for daily incremental archive batches         |
 
 ### Execution Request Tables
 
@@ -66,3 +69,5 @@ No direct User → Validator relationship. Everything goes through clusters.
 - `Validator.effectiveBalance` is `BigInt?` — used for staking calculations.
 - `ChainEpochStats` is NOT partitioned — stores one row per epoch indefinitely.
 - `Slot` table has many boolean flags tracking what data has been fetched (`attestationsFetched`, `erConsolidationsFetched`, etc.).
+- `Archive.lastHour` tracks raw-to-hourly archive progress only.
+- Hourly-to-daily archive progress is tracked in `ArchiveDailyMergeProgress` and each batch is committed atomically.

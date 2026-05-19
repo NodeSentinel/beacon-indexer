@@ -1,11 +1,14 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { HourlyArchiveStorage } from './hourlyArchive.js';
+import { HOURLY_ARCHIVE_VALIDATOR_BATCH_SIZE, HourlyArchiveStorage } from './hourlyArchive.js';
 
 // This suite verifies resource-friendly hourly archive database writes.
 describe('HourlyArchiveStorage', () => {
   // This test verifies hourly aggregation is split by validator ranges.
   it('archives an hour in validator batches', async () => {
+    // This value simulates the highest validator id present in the database.
+    const maxValidatorIndex = 100001;
+
     // This list records every raw SQL call made inside the archive transaction.
     const rawCalls: string[] = [];
 
@@ -16,7 +19,7 @@ describe('HourlyArchiveStorage', () => {
         rawCalls.push(strings.join('?'));
         return Promise.resolve(undefined);
       }),
-      $queryRaw: vi.fn().mockResolvedValue([{ max_idx: 100001 }]),
+      $queryRaw: vi.fn().mockResolvedValue([{ max_idx: maxValidatorIndex }]),
       archive: {
         update: vi.fn().mockResolvedValue(undefined),
       },
@@ -50,8 +53,12 @@ describe('HourlyArchiveStorage', () => {
       sql.includes('INSERT INTO validator_hourly_archive'),
     );
 
+    // This value mirrors the inclusive batch loop used by hourly archive storage.
+    const expectedInsertCount =
+      Math.floor(maxValidatorIndex / HOURLY_ARCHIVE_VALIDATOR_BATCH_SIZE) + 1;
+
     // This assertion verifies one INSERT is executed per validator batch.
-    expect(insertCalls).toHaveLength(5);
+    expect(insertCalls).toHaveLength(expectedInsertCount);
 
     // This assertion verifies the batch loop is driven by validator cardinality.
     expect(tx.$queryRaw).toHaveBeenCalledTimes(1);
