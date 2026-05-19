@@ -358,7 +358,7 @@ export class SlotStorage {
           },
         });
       },
-      { timeout: ms('3m') },
+      { timeout: ms('5m') },
     );
   }
 
