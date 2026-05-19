@@ -22,7 +22,8 @@ UPDATE "public"."validator_deposits" target
 SET "index" = numbered_deposits."backfilled_index"::integer
 FROM numbered_deposits
 WHERE target."slot" = numbered_deposits."slot"
-  AND target."pubkey" = numbered_deposits."pubkey";
+  AND target."pubkey" = numbered_deposits."pubkey"
+  AND target."index" IS NULL;
 
 ALTER TABLE "public"."validator_deposits"
   ALTER COLUMN "source" SET NOT NULL,
