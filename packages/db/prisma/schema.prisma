@@ -149,12 +149,16 @@ model validatorWithdrawals {
 
 model validatorDeposits {
   slot                  Int    @map("slot")
+  // Stores the compact deposit origin: body deposits use d, execution requests use e.
+  source                String @map("source") @db.Char(1)
   pubkey                String @map("pubkey") @db.VarChar(98)
   withdrawalCredentials String @map("withdrawal_credentials") @db.VarChar(66)
   amount                BigInt @map("amount")
-  index                 Int?   @map("index")
+  // Body deposits store the block-body array position; execution request deposits store the request index.
+  index                 Int    @map("index")
 
-  @@id([slot, pubkey])
+  @@id([slot, source, index])
+  @@index([pubkey, slot(sort: Desc)], map: "validator_deposits_pubkey_slot_idx")
   @@map("validator_deposits")
 }
 
