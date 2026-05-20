@@ -19,9 +19,6 @@ import { getEpochSlots } from '@/src/services/consensus/utils/misc.js';
 import { ReliableRequestClient } from '@/src/services/consensus/utils/reliableRequestClient.js';
 import { getSlotNumberFromTimestamp } from '@/src/services/consensus/utils/time.deprecated.js';
 
-const PREFETCH_REWARDS_API_URL =
-  'https://ethereum-mainnet.core.chainstack.com/beacon/1663f40bb6b6a2af1d252c63a18e6d6f';
-
 // Extend Axios config to include metadata for nodeType
 interface ExtendedAxiosRequestConfig extends InternalAxiosRequestConfig {
   metadata?: {
@@ -60,81 +57,25 @@ export class BeaconClient extends ReliableRequestClient {
    * Caches block rewards fetched in advance for delayed slots, with a fallback to handle missed slots.
    * 'SLOT MISSED' is used to indicate that the slot was missed, allowing the caller to handle it accordingly.
    */
-  private readonly blockRewardsCache = new LRUCache<
-    number,
-    BlockRewards | 'SLOT MISSED',
-    { prefetch?: boolean } | undefined
-  >({
+  private readonly blockRewardsCache = new LRUCache<number, BlockRewards | 'SLOT MISSED'>({
     max: 8,
     ttl: ms('10m'),
     ttlAutopurge: true,
-    fetchMethod: async (slot, _staleValue, { context }) => {
-      if (context?.prefetch) {
-        try {
-          const res = await axios.get<BlockRewards>(
-            `${PREFETCH_REWARDS_API_URL}/eth/v1/beacon/rewards/blocks/${slot}`,
-            {
-              timeout: ms('1.5m'),
-            },
-          );
-          return res.data;
-        } catch {
-          return undefined;
-        }
-      }
-
-      return this.fetchBlockRewardsUncached(slot);
-    },
+    // Use the normal reliable request path so prefetch uses the configured beacon nodes.
+    fetchMethod: async (slot) => this.fetchBlockRewardsUncached(slot).catch(() => undefined),
   });
 
   /**
    * Caches sync committee rewards fetched in advance.
    */
-  private readonly syncCommitteeRewardsCache = new LRUCache<
-    string,
-    SyncCommitteeRewards,
-    { ignoreErrors?: boolean; prefetch?: boolean } | undefined
-  >({
+  private readonly syncCommitteeRewardsCache = new LRUCache<string, SyncCommitteeRewards>({
     max: 8,
     ttl: ms('10m'),
     ttlAutopurge: true,
-    fetchMethod: async (key, _staleValue, { context }) => {
+    // Use the normal reliable request path so sync reward prefetch cannot drift from chain config.
+    fetchMethod: async (key) => {
       const [slot, validatorIndexes] = this.parseSyncCommitteeRewardsCacheKey(key);
-      // null marks ignored prefetch errors as handled so makeReliableRequest does not retry.
-      const handleError = context?.ignoreErrors ? () => null : undefined;
-
-      if (context?.prefetch) {
-        try {
-          const res = await axios.post<SyncCommitteeRewards>(
-            `${PREFETCH_REWARDS_API_URL}/eth/v1/beacon/rewards/sync_committee/${slot}`,
-            validatorIndexes,
-            {
-              timeout: ms('1.5m'),
-            },
-          );
-          return res.data;
-        } catch {
-          return undefined;
-        }
-      }
-
-      const rewards = await this.makeReliableRequest<SyncCommitteeRewards | null>(
-        async (url) => {
-          const res = await this.axiosInstance.post<SyncCommitteeRewards>(
-            `${url}/eth/v1/beacon/rewards/sync_committee/${slot}`,
-            validatorIndexes,
-            {
-              timeout: ms('1.5m'),
-            },
-          );
-          return res.data;
-        },
-        this.isIndexerDelayed({ value: slot, type: 'slot' }) ? 'archive' : 'full',
-        handleError,
-      );
-
-      // undefined prevents lru-cache from storing failed prefetch results.
-      return rewards ?? undefined;
+      return this.fetchSyncCommitteeRewardsUncached(slot, validatorIndexes).catch(() => undefined);
     },
   });
 
@@ -468,6 +409,28 @@ export class BeaconClient extends ReliableRequestClient {
   };
 
   /**
+   * Fetch sync committee rewards for one slot without using the prefetch cache.
+   */
+  private fetchSyncCommitteeRewardsUncached = async (
+    slot: number,
+    validatorIndexes: string[],
+  ): Promise<SyncCommitteeRewards> => {
+    return this.makeReliableRequest<SyncCommitteeRewards>(
+      async (url) => {
+        const res = await this.axiosInstance.post<SyncCommitteeRewards>(
+          `${url}/eth/v1/beacon/rewards/sync_committee/${slot}`,
+          validatorIndexes,
+          {
+            timeout: ms('1.5m'),
+          },
+        );
+        return res.data;
+      },
+      this.isIndexerDelayed({ value: slot, type: 'slot' }) ? 'archive' : 'full',
+    );
+  };
+
+  /**
    * Prefetch block rewards for a delayed slot without blocking slot processing.
    */
   prefetchBlockRewards(slot: number): void {
@@ -475,24 +438,8 @@ export class BeaconClient extends ReliableRequestClient {
       return;
     }
 
-    void this.blockRewardsCache.fetch(slot, { context: { prefetch: true } }).catch(() => undefined);
+    void this.blockRewardsCache.fetch(slot).catch(() => undefined);
   }
-
-  /**
-   * Get block rewards for a specific slot using the prefetch cache.
-   */
-  getBlockRewards = async (slot: number): Promise<BlockRewards | 'SLOT MISSED'> => {
-    let rewards = await this.blockRewardsCache.fetch(slot);
-    if (rewards === undefined) {
-      rewards = await this.blockRewardsCache.fetch(slot);
-    }
-
-    if (rewards === undefined) {
-      throw new Error(`Failed to fetch block rewards for slot ${slot} from cache.`);
-    }
-
-    return rewards;
-  };
 
   /**
    * Prefetch sync committee rewards for a delayed slot without blocking slot processing.
@@ -503,10 +450,20 @@ export class BeaconClient extends ReliableRequestClient {
     }
 
     const key = this.getSyncCommitteeRewardsCacheKey(slot, validatorIndexes);
-    void this.syncCommitteeRewardsCache
-      .fetch(key, { context: { ignoreErrors: true, prefetch: true } })
-      .catch(() => undefined);
+    void this.syncCommitteeRewardsCache.fetch(key).catch(() => undefined);
   }
+
+  /**
+   * Get block rewards for a specific slot using the prefetch cache.
+   */
+  getBlockRewards = async (slot: number): Promise<BlockRewards | 'SLOT MISSED'> => {
+    let rewards = await this.blockRewardsCache.fetch(slot);
+    if (rewards === undefined) {
+      rewards = await this.fetchBlockRewardsUncached(slot);
+    }
+
+    return rewards;
+  };
 
   /**
    * Get sync committee rewards for specific validators in a slot using the prefetch cache.
@@ -522,11 +479,7 @@ export class BeaconClient extends ReliableRequestClient {
     const key = this.getSyncCommitteeRewardsCacheKey(slot, validatorIndexes);
     let rewards = await this.syncCommitteeRewardsCache.fetch(key);
     if (rewards === undefined) {
-      rewards = await this.syncCommitteeRewardsCache.fetch(key);
-    }
-
-    if (rewards === undefined) {
-      throw new Error(`Failed to fetch sync committee rewards for slot ${slot} from cache.`);
+      rewards = await this.fetchSyncCommitteeRewardsUncached(slot, validatorIndexes);
     }
 
     return rewards;
