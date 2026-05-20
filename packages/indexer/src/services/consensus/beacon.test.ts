@@ -110,7 +110,7 @@ describe('BeaconClient reward cache', () => {
       fullNodeRetries: 0,
       archiveNodeUrl: 'http://archive-node',
       archiveNodeConcurrency: 1,
-      archiveNodeRetries: 0,
+      archiveNodeRetries: 1,
       baseDelay: 1,
       slotStartIndexing: 1,
       slotsPerEpoch: 32,
@@ -146,6 +146,12 @@ describe('BeaconClient reward cache', () => {
 
     // This wait confirms the prefetch request reached the configured archive endpoint.
     await vi.waitFor(() => expect(getSpy).toHaveBeenCalledTimes(1));
+
+    // This wait covers the normal retry window; prefetch failures must not retry.
+    await new Promise((resolve) => setTimeout(resolve, 1200));
+
+    // This assertion verifies the failed prefetch did not make a retry attempt.
+    expect(getSpy).toHaveBeenCalledTimes(1);
 
     // This tick lets the rejected prefetch promise settle before normal processing starts.
     await new Promise((resolve) => setTimeout(resolve, 0));
@@ -251,7 +257,7 @@ describe('BeaconClient reward cache', () => {
       fullNodeRetries: 0,
       archiveNodeUrl: 'http://archive-node',
       archiveNodeConcurrency: 1,
-      archiveNodeRetries: 0,
+      archiveNodeRetries: 1,
       baseDelay: 1,
       slotStartIndexing: 1,
       slotsPerEpoch: 32,
@@ -288,8 +294,14 @@ describe('BeaconClient reward cache', () => {
     // This call starts a fire-and-forget prefetch that should fail silently.
     beaconClient.prefetchCommittees(2, 64);
 
-    // This wait confirms the prefetch request reached the temporary endpoint.
+    // This wait confirms the prefetch request reached the configured archive endpoint.
     await vi.waitFor(() => expect(getSpy).toHaveBeenCalledTimes(1));
+
+    // This wait covers the normal retry window; prefetch failures must not retry.
+    await new Promise((resolve) => setTimeout(resolve, 1200));
+
+    // This assertion verifies the failed prefetch did not make a retry attempt.
+    expect(getSpy).toHaveBeenCalledTimes(1);
 
     // This tick lets the rejected prefetch promise settle before normal processing starts.
     await new Promise((resolve) => setTimeout(resolve, 0));
@@ -572,8 +584,8 @@ describe('BeaconClient reward cache', () => {
     expect(postSpy).not.toHaveBeenCalled();
   });
 
-  // This test verifies sync committee prefetch uses configured reliable retries.
-  it('retries sync committee prefetch errors through the configured request client', async () => {
+  // This test verifies sync committee prefetch errors do not enter the normal retry loop.
+  it('does not retry sync committee prefetch errors', async () => {
     // This client is configured far behind head so sync committee prefetching is enabled.
     const beaconClient = new BeaconClient({
       fullNodeUrl: 'http://full-node',
@@ -602,14 +614,17 @@ describe('BeaconClient reward cache', () => {
       .axiosInstance;
     const postSpy = vi.spyOn(axiosInstance, 'post' as never).mockRejectedValue(prefetchError);
 
-    // This call starts a fire-and-forget prefetch that should use normal retry behavior.
+    // This call starts a fire-and-forget prefetch that should stop after the first failure.
     beaconClient.prefetchSyncCommitteeRewards(1, ['1']);
 
     // This wait lets the fire-and-forget prefetch make the initial request.
     await vi.waitFor(() => expect(postSpy).toHaveBeenCalledTimes(1));
 
-    // This assertion verifies prefetch no longer bypasses makeReliableRequest retry behavior.
-    await vi.waitFor(() => expect(postSpy).toHaveBeenCalledTimes(2));
+    // This wait covers the retry delay that would run for normal archive requests.
+    await new Promise((resolve) => setTimeout(resolve, 1200));
+
+    // This assertion verifies prefetch treated the failed response as final.
+    expect(postSpy).toHaveBeenCalledTimes(1);
   });
 
   // This test verifies normal processing can join a successful in-flight sync committee prefetch.
