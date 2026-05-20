@@ -253,7 +253,13 @@ export class BeaconClient extends ReliableRequestClient {
     const key = this.getCommitteesCacheKey(epoch, stateId);
     let committees = await this.committeesCache.fetch(key);
     if (committees === undefined) {
-      committees = await this.fetchCommittees(epoch, stateId);
+      // Normal processing can receive undefined when it joins a failed prefetch; re-enter
+      // the cache so strict callers share one request and the successful response is stored.
+      committees = await this.committeesCache.fetch(key);
+    }
+
+    if (committees === undefined) {
+      throw new Error(`Failed to fetch committees for epoch ${epoch}`);
     }
 
     this.committeesCache.delete(key);
@@ -559,7 +565,13 @@ export class BeaconClient extends ReliableRequestClient {
   getBlockRewards = async (slot: number): Promise<BlockRewards | 'SLOT MISSED'> => {
     let rewards = await this.blockRewardsCache.fetch(slot);
     if (rewards === undefined) {
-      rewards = await this.fetchBlockRewards(slot);
+      // Normal processing can receive undefined when it joins a failed prefetch; re-enter
+      // the cache so strict callers share one request and the successful response is stored.
+      rewards = await this.blockRewardsCache.fetch(slot);
+    }
+
+    if (rewards === undefined) {
+      throw new Error(`Failed to fetch block rewards for slot ${slot}`);
     }
 
     return rewards;
@@ -579,7 +591,13 @@ export class BeaconClient extends ReliableRequestClient {
     const key = this.getSyncCommitteeRewardsCacheKey(slot, validatorIndexes);
     let rewards = await this.syncCommitteeRewardsCache.fetch(key);
     if (rewards === undefined) {
-      rewards = await this.fetchSyncCommitteeRewards(slot, validatorIndexes);
+      // Normal processing can receive undefined when it joins a failed prefetch; re-enter
+      // the cache so strict callers share one request and the successful response is stored.
+      rewards = await this.syncCommitteeRewardsCache.fetch(key);
+    }
+
+    if (rewards === undefined) {
+      throw new Error(`Failed to fetch sync committee rewards for slot ${slot}`);
     }
 
     return rewards;
