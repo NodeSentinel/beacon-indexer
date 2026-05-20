@@ -69,7 +69,7 @@ export class BeaconClient extends ReliableRequestClient {
     ttlAutopurge: true,
     fetchMethod: async (slot, _staleValue, { context }) => {
       if (context?.prefetch) {
-        return this.preFetchBlockRewards(slot).catch(() => undefined);
+        return this.fetchBlockRewardsForPrefetch(slot).catch(() => undefined);
       }
 
       return this.fetchBlockRewards(slot);
@@ -90,7 +90,9 @@ export class BeaconClient extends ReliableRequestClient {
     fetchMethod: async (key, _staleValue, { context }) => {
       const [slot, validatorIndexes] = this.parseSyncCommitteeRewardsCacheKey(key);
       if (context?.prefetch) {
-        return this.preFetchSyncCommitteeRewards(slot, validatorIndexes).catch(() => undefined);
+        return this.fetchSyncCommitteeRewardsForPrefetch(slot, validatorIndexes).catch(
+          () => undefined,
+        );
       }
 
       return this.fetchSyncCommitteeRewards(slot, validatorIndexes);
@@ -115,7 +117,7 @@ export class BeaconClient extends ReliableRequestClient {
       };
 
       if (context?.prefetch) {
-        return this.preFetchCommittees(epoch, stateId).catch(() => undefined);
+        return this.fetchCommitteesForPrefetch(epoch, stateId).catch(() => undefined);
       }
 
       return this.fetchCommittees(epoch, stateId);
@@ -283,7 +285,7 @@ export class BeaconClient extends ReliableRequestClient {
   /**
    * Fetch committees once for prefetch, leaving normal processing to handle failures and retries.
    */
-  private preFetchCommittees(
+  private fetchCommitteesForPrefetch(
     epoch: number,
     stateId: string | number = 'head',
   ): Promise<GetCommittees['data']> {
@@ -467,7 +469,7 @@ export class BeaconClient extends ReliableRequestClient {
   /**
    * Fetch block rewards once for prefetch without converting 404 responses into cache entries.
    */
-  private preFetchBlockRewards = async (slot: number): Promise<BlockRewards> => {
+  private fetchBlockRewardsForPrefetch = async (slot: number): Promise<BlockRewards> => {
     return this.makePrefetchRequest<BlockRewards>(
       async (url) => {
         const res = await this.axiosInstance.get<BlockRewards>(
@@ -507,7 +509,7 @@ export class BeaconClient extends ReliableRequestClient {
   /**
    * Fetch sync committee rewards once for prefetch, keeping all failures out of the cache.
    */
-  private preFetchSyncCommitteeRewards = async (
+  private fetchSyncCommitteeRewardsForPrefetch = async (
     slot: number,
     validatorIndexes: string[],
   ): Promise<SyncCommitteeRewards> => {
