@@ -1,4 +1,4 @@
-import axios, { AxiosError } from 'axios';
+import { AxiosError } from 'axios';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { BeaconClient } from './beacon.js';
@@ -65,13 +65,10 @@ describe('BeaconClient reward cache', () => {
       slotsPerEpoch: 32,
     });
 
-    // This spy verifies normal processing does not issue its own configured-node request.
+    // This spy verifies prefetch and normal processing share the configured-node request path.
     const axiosInstance = (beaconClient as unknown as { axiosInstance: { get: unknown } })
       .axiosInstance;
-    const normalGetSpy = vi.spyOn(axiosInstance, 'get' as never);
-
-    // This spy resolves the dedicated prefetch request without depending on its temporary base URL.
-    const prefetchGetSpy = vi.spyOn(axios, 'get' as never).mockResolvedValue({
+    const getSpy = vi.spyOn(axiosInstance, 'get' as never).mockResolvedValue({
       data: {
         data: {
           proposer_index: '1',
@@ -94,11 +91,14 @@ describe('BeaconClient reward cache', () => {
       },
     });
 
-    // This assertion verifies the prefetch path made the rewards request.
-    expect(prefetchGetSpy).toHaveBeenCalledTimes(1);
+    // This assertion verifies the configured archive node served the prefetch request.
+    expect(getSpy).toHaveBeenCalledWith(
+      'http://archive-node/eth/v1/beacon/rewards/blocks/1',
+      expect.any(Object),
+    );
 
     // This assertion verifies normal processing joined the in-flight prefetch instead of fetching again.
-    expect(normalGetSpy).not.toHaveBeenCalled();
+    expect(getSpy).toHaveBeenCalledTimes(1);
   });
 
   // This test verifies failed block reward prefetches do not poison normal processing.
@@ -110,13 +110,13 @@ describe('BeaconClient reward cache', () => {
       fullNodeRetries: 0,
       archiveNodeUrl: 'http://archive-node',
       archiveNodeConcurrency: 1,
-      archiveNodeRetries: 0,
+      archiveNodeRetries: 1,
       baseDelay: 1,
       slotStartIndexing: 1,
       slotsPerEpoch: 32,
     });
 
-    // This error simulates an auth failure from the temporary prefetch endpoint.
+    // This error simulates an auth failure from the configured archive endpoint during prefetch.
     const prefetchError = new AxiosError('Request failed with status code 401');
     prefetchError.response = {
       status: 401,
@@ -126,26 +126,32 @@ describe('BeaconClient reward cache', () => {
       data: { message: 'Unauthorized' },
     };
 
-    // This spy makes the dedicated prefetch endpoint fail.
-    const prefetchGetSpy = vi.spyOn(axios, 'get' as never).mockRejectedValue(prefetchError);
-
-    // This spy makes the configured normal endpoint succeed after prefetch failure.
+    // This spy makes prefetch fail and the strict normal request succeed afterward.
     const axiosInstance = (beaconClient as unknown as { axiosInstance: { get: unknown } })
       .axiosInstance;
-    const normalGetSpy = vi.spyOn(axiosInstance, 'get' as never).mockResolvedValue({
-      data: {
+    const getSpy = vi
+      .spyOn(axiosInstance, 'get' as never)
+      .mockRejectedValueOnce(prefetchError)
+      .mockResolvedValueOnce({
         data: {
-          proposer_index: '1',
-          total: '10',
+          data: {
+            proposer_index: '1',
+            total: '10',
+          },
         },
-      },
-    } as never);
+      } as never);
 
     // This call starts a fire-and-forget prefetch that should fail silently.
     beaconClient.prefetchBlockRewards(1);
 
-    // This wait confirms the prefetch request reached the temporary endpoint.
-    await vi.waitFor(() => expect(prefetchGetSpy).toHaveBeenCalledTimes(1));
+    // This wait confirms the prefetch request reached the configured archive endpoint.
+    await vi.waitFor(() => expect(getSpy).toHaveBeenCalledTimes(1));
+
+    // This wait covers the normal retry window; prefetch failures must not retry.
+    await new Promise((resolve) => setTimeout(resolve, 1200));
+
+    // This assertion verifies the failed prefetch did not make a retry attempt.
+    expect(getSpy).toHaveBeenCalledTimes(1);
 
     // This tick lets the rejected prefetch promise settle before normal processing starts.
     await new Promise((resolve) => setTimeout(resolve, 0));
@@ -162,7 +168,7 @@ describe('BeaconClient reward cache', () => {
     });
 
     // This assertion verifies normal processing made a fresh configured-node request.
-    expect(normalGetSpy).toHaveBeenCalledTimes(1);
+    expect(getSpy).toHaveBeenCalledTimes(2);
   });
 
   // This test verifies prefetching committees warms the cache for normal processing.
@@ -251,7 +257,7 @@ describe('BeaconClient reward cache', () => {
       fullNodeRetries: 0,
       archiveNodeUrl: 'http://archive-node',
       archiveNodeConcurrency: 1,
-      archiveNodeRetries: 0,
+      archiveNodeRetries: 1,
       baseDelay: 1,
       slotStartIndexing: 1,
       slotsPerEpoch: 32,
@@ -288,8 +294,14 @@ describe('BeaconClient reward cache', () => {
     // This call starts a fire-and-forget prefetch that should fail silently.
     beaconClient.prefetchCommittees(2, 64);
 
-    // This wait confirms the prefetch request reached the temporary endpoint.
+    // This wait confirms the prefetch request reached the configured archive endpoint.
     await vi.waitFor(() => expect(getSpy).toHaveBeenCalledTimes(1));
+
+    // This wait covers the normal retry window; prefetch failures must not retry.
+    await new Promise((resolve) => setTimeout(resolve, 1200));
+
+    // This assertion verifies the failed prefetch did not make a retry attempt.
+    expect(getSpy).toHaveBeenCalledTimes(1);
 
     // This tick lets the rejected prefetch promise settle before normal processing starts.
     await new Promise((resolve) => setTimeout(resolve, 0));
@@ -572,7 +584,7 @@ describe('BeaconClient reward cache', () => {
     expect(postSpy).not.toHaveBeenCalled();
   });
 
-  // This test verifies sync committee prefetch does not retry failed responses.
+  // This test verifies sync committee prefetch errors do not enter the normal retry loop.
   it('does not retry sync committee prefetch errors', async () => {
     // This client is configured far behind head so sync committee prefetching is enabled.
     const beaconClient = new BeaconClient({
@@ -597,10 +609,12 @@ describe('BeaconClient reward cache', () => {
       data: { message: 'Internal Server Error' },
     };
 
-    // This spy makes every dedicated prefetch attempt receive the failed response.
-    const postSpy = vi.spyOn(axios, 'post' as never).mockRejectedValue(prefetchError);
+    // This spy makes every configured archive attempt receive the failed response.
+    const axiosInstance = (beaconClient as unknown as { axiosInstance: { post: unknown } })
+      .axiosInstance;
+    const postSpy = vi.spyOn(axiosInstance, 'post' as never).mockRejectedValue(prefetchError);
 
-    // This call starts a prefetch that should stop on error without retrying.
+    // This call starts a fire-and-forget prefetch that should stop after the first failure.
     beaconClient.prefetchSyncCommitteeRewards(1, ['1']);
 
     // This wait lets the fire-and-forget prefetch make the initial request.
@@ -634,19 +648,16 @@ describe('BeaconClient reward cache', () => {
       resolveResponse = resolve;
     });
 
-    // This spy verifies normal processing does not issue its own configured-node request.
+    // This spy returns the same delayed configured-node response to expose duplicate requests.
     const axiosInstance = (beaconClient as unknown as { axiosInstance: { post: unknown } })
       .axiosInstance;
-    const normalPostSpy = vi.spyOn(axiosInstance, 'post' as never);
-
-    // This spy returns the same delayed prefetch response to expose duplicate requests.
-    const prefetchPostSpy = vi.spyOn(axios, 'post' as never).mockReturnValue(responsePromise);
+    const postSpy = vi.spyOn(axiosInstance, 'post' as never).mockReturnValue(responsePromise);
 
     // This call starts the prefetch request for the slot and validators.
     beaconClient.prefetchSyncCommitteeRewards(1, ['1']);
 
     // This wait confirms the prefetch request is in flight before normal processing starts.
-    await vi.waitFor(() => expect(prefetchPostSpy).toHaveBeenCalledTimes(1));
+    await vi.waitFor(() => expect(postSpy).toHaveBeenCalledTimes(1));
 
     // This call starts normal processing while prefetch is still unresolved.
     const rewardsPromise = beaconClient.getSyncCommitteeRewards(1, ['1']);
@@ -668,10 +679,14 @@ describe('BeaconClient reward cache', () => {
     });
 
     // This assertion verifies prefetch and normal processing shared one HTTP call.
-    expect(prefetchPostSpy).toHaveBeenCalledTimes(1);
+    expect(postSpy).toHaveBeenCalledWith(
+      'http://archive-node/eth/v1/beacon/rewards/sync_committee/1',
+      ['1'],
+      expect.any(Object),
+    );
 
     // This assertion verifies normal processing joined the in-flight prefetch instead of fetching again.
-    expect(normalPostSpy).not.toHaveBeenCalled();
+    expect(postSpy).toHaveBeenCalledTimes(1);
   });
 
   // This test verifies normal processing stays strict after an in-flight prefetch 404.
@@ -705,27 +720,25 @@ describe('BeaconClient reward cache', () => {
       rejectPrefetchResponse = reject;
     });
 
-    // This spy makes the dedicated prefetch request receive 404.
-    const prefetchPostSpy = vi
-      .spyOn(axios, 'post' as never)
-      .mockReturnValueOnce(prefetchResponsePromise as never);
-
-    // This spy makes normal processing receive rewards from the configured endpoint later.
+    // This spy makes prefetch receive 404 and normal processing receive rewards later.
     const axiosInstance = (beaconClient as unknown as { axiosInstance: { post: unknown } })
       .axiosInstance;
-    const normalPostSpy = vi.spyOn(axiosInstance, 'post' as never).mockResolvedValue({
-      data: {
-        data: [{ validator_index: '1', reward: '10' }],
-        execution_optimistic: false,
-        finalized: true,
-      },
-    } as never);
+    const postSpy = vi
+      .spyOn(axiosInstance, 'post' as never)
+      .mockReturnValueOnce(prefetchResponsePromise as never)
+      .mockResolvedValueOnce({
+        data: {
+          data: [{ validator_index: '1', reward: '10' }],
+          execution_optimistic: false,
+          finalized: true,
+        },
+      } as never);
 
     // This call starts a prefetch that should stop on 404 without filling the cache.
     beaconClient.prefetchSyncCommitteeRewards(1, ['1']);
 
     // This wait confirms the prefetch request is in flight before normal processing starts.
-    await vi.waitFor(() => expect(prefetchPostSpy).toHaveBeenCalledTimes(1));
+    await vi.waitFor(() => expect(postSpy).toHaveBeenCalledTimes(1));
 
     // This normal processing call starts while prefetch is still unresolved.
     const rewardsPromise = beaconClient.getSyncCommitteeRewards(1, ['1']);
@@ -741,6 +754,6 @@ describe('BeaconClient reward cache', () => {
     });
 
     // This assertion verifies normal processing made a configured-node request after prefetch 404.
-    expect(normalPostSpy).toHaveBeenCalledTimes(1);
+    expect(postSpy).toHaveBeenCalledTimes(2);
   });
 });
