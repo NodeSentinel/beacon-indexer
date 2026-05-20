@@ -30,6 +30,17 @@ interface ExtendedAxiosRequestConfig extends InternalAxiosRequestConfig {
 type PrefetchCacheContext = { prefetch?: boolean } | undefined;
 
 /**
+ * Reject incomplete block reward payloads before the fetch cache can store unusable data.
+ */
+function assertCompleteBlockRewards(slot: number, blockRewards: BlockRewards): BlockRewards {
+  if (blockRewards.data?.proposer_index == null || blockRewards.data?.total == null) {
+    throw new Error(`Incomplete block rewards response for slot ${slot}`);
+  }
+
+  return blockRewards;
+}
+
+/**
  * Configuration interface for BeaconClient
  */
 export interface BeaconClientConfig {
@@ -459,7 +470,7 @@ export class BeaconClient extends ReliableRequestClient {
             timeout: ms('1.5m'),
           },
         );
-        return res.data;
+        return assertCompleteBlockRewards(slot, res.data);
       },
       this.isIndexerDelayed({ value: slot, type: 'slot' }) ? 'archive' : 'full',
       (error) => this.handleSlotError(error),
@@ -478,7 +489,7 @@ export class BeaconClient extends ReliableRequestClient {
             timeout: ms('1.5m'),
           },
         );
-        return res.data;
+        return assertCompleteBlockRewards(slot, res.data);
       },
       this.isIndexerDelayed({ value: slot, type: 'slot' }) ? 'archive' : 'full',
     );

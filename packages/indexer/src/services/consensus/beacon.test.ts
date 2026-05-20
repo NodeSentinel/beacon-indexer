@@ -171,6 +171,120 @@ describe('BeaconClient reward cache', () => {
     expect(getSpy).toHaveBeenCalledTimes(2);
   });
 
+  // This test verifies an incomplete 200 response from block reward prefetch does not poison processing.
+  it('fetches block rewards normally after an incomplete prefetched response', async () => {
+    // This client is configured far behind head so block reward prefetching warms the archive cache path.
+    const beaconClient = new BeaconClient({
+      fullNodeUrl: 'http://full-node',
+      fullNodeConcurrency: 1,
+      fullNodeRetries: 0,
+      archiveNodeUrl: 'http://archive-node',
+      archiveNodeConcurrency: 1,
+      archiveNodeRetries: 0,
+      baseDelay: 1,
+      slotStartIndexing: 1,
+      slotsPerEpoch: 32,
+    });
+
+    // This spy returns a malformed successful response first, then the valid reward expected later.
+    const axiosInstance = (beaconClient as unknown as { axiosInstance: { get: unknown } })
+      .axiosInstance;
+    const getSpy = vi
+      .spyOn(axiosInstance, 'get' as never)
+      .mockResolvedValueOnce({
+        data: {
+          data: {
+            proposer_index: '1',
+          },
+        },
+      } as never)
+      .mockResolvedValueOnce({
+        data: {
+          data: {
+            proposer_index: '1',
+            total: '10',
+          },
+        },
+      } as never);
+
+    // This prefetch simulates a beacon node returning HTTP 200 before the reward payload is usable.
+    beaconClient.prefetchBlockRewards(1);
+
+    // This wait confirms the malformed response has completed before normal processing starts.
+    await vi.waitFor(() => expect(getSpy).toHaveBeenCalledTimes(1));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    // This normal processing call must ignore the malformed prefetch result and request fresh data.
+    const result = await beaconClient.getBlockRewards(1);
+
+    // This assertion verifies processing receives the later complete reward payload.
+    expect(result).toEqual({
+      data: {
+        proposer_index: '1',
+        total: '10',
+      },
+    });
+
+    // This assertion verifies the incomplete prefetch response was not reused from cache.
+    expect(getSpy).toHaveBeenCalledTimes(2);
+  });
+
+  // This test verifies an incomplete normal block reward response is treated as a retryable fetch failure.
+  it('does not cache incomplete block rewards from normal processing', async () => {
+    // This client exercises the strict processing path that also writes through the LRU fetch cache.
+    const beaconClient = new BeaconClient({
+      fullNodeUrl: 'http://full-node',
+      fullNodeConcurrency: 1,
+      fullNodeRetries: 0,
+      archiveNodeUrl: 'http://archive-node',
+      archiveNodeConcurrency: 1,
+      archiveNodeRetries: 0,
+      baseDelay: 1,
+      slotStartIndexing: 1,
+      slotsPerEpoch: 32,
+    });
+
+    // This spy returns a malformed 200 response first, then a complete reward for the retry.
+    const axiosInstance = (beaconClient as unknown as { axiosInstance: { get: unknown } })
+      .axiosInstance;
+    const getSpy = vi
+      .spyOn(axiosInstance, 'get' as never)
+      .mockResolvedValueOnce({
+        data: {
+          data: {
+            proposer_index: '1',
+          },
+        },
+      } as never)
+      .mockResolvedValueOnce({
+        data: {
+          data: {
+            proposer_index: '1',
+            total: '10',
+          },
+        },
+      } as never);
+
+    // This first processing call should reject because the reward is missing the total amount.
+    await expect(beaconClient.getBlockRewards(1)).rejects.toThrow(
+      'Incomplete block rewards response',
+    );
+
+    // This second processing call should make a fresh request instead of reusing the bad payload.
+    const result = await beaconClient.getBlockRewards(1);
+
+    // This assertion verifies processing receives the complete reward after the bad response.
+    expect(result).toEqual({
+      data: {
+        proposer_index: '1',
+        total: '10',
+      },
+    });
+
+    // This assertion verifies the incomplete normal response was not cached.
+    expect(getSpy).toHaveBeenCalledTimes(2);
+  });
+
   // This test verifies prefetching committees warms the cache for normal processing.
   it('serves committees from a prefetched request', async () => {
     // This client exercises the committee prefetch cache path.
