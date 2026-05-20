@@ -450,7 +450,7 @@ export class BeaconClient extends ReliableRequestClient {
   /**
    * Fetch block rewards for a slot without using the prefetch cache.
    */
-  private fetchBlockRewards = async (slot: number): Promise<BlockRewards | 'SLOT MISSED'> => {
+  private async fetchBlockRewards(slot: number): Promise<BlockRewards | 'SLOT MISSED'> {
     return this.makeReliableRequest<BlockRewards | 'SLOT MISSED'>(
       async (url) => {
         const res = await this.axiosInstance.get<BlockRewards>(
@@ -464,12 +464,12 @@ export class BeaconClient extends ReliableRequestClient {
       this.isIndexerDelayed({ value: slot, type: 'slot' }) ? 'archive' : 'full',
       (error) => this.handleSlotError(error),
     );
-  };
+  }
 
   /**
    * Fetch block rewards once for prefetch without converting 404 responses into cache entries.
    */
-  private fetchBlockRewardsForPrefetch = async (slot: number): Promise<BlockRewards> => {
+  private async fetchBlockRewardsForPrefetch(slot: number): Promise<BlockRewards> {
     return this.makePrefetchRequest<BlockRewards>(
       async (url) => {
         const res = await this.axiosInstance.get<BlockRewards>(
@@ -482,15 +482,15 @@ export class BeaconClient extends ReliableRequestClient {
       },
       this.isIndexerDelayed({ value: slot, type: 'slot' }) ? 'archive' : 'full',
     );
-  };
+  }
 
   /**
    * Fetch sync committee rewards for one slot without using the prefetch cache.
    */
-  private fetchSyncCommitteeRewards = async (
+  private async fetchSyncCommitteeRewards(
     slot: number,
     validatorIndexes: string[],
-  ): Promise<SyncCommitteeRewards> => {
+  ): Promise<SyncCommitteeRewards> {
     return this.makeReliableRequest<SyncCommitteeRewards>(
       async (url) => {
         const res = await this.axiosInstance.post<SyncCommitteeRewards>(
@@ -504,15 +504,15 @@ export class BeaconClient extends ReliableRequestClient {
       },
       this.isIndexerDelayed({ value: slot, type: 'slot' }) ? 'archive' : 'full',
     );
-  };
+  }
 
   /**
    * Fetch sync committee rewards once for prefetch, keeping all failures out of the cache.
    */
-  private fetchSyncCommitteeRewardsForPrefetch = async (
+  private async fetchSyncCommitteeRewardsForPrefetch(
     slot: number,
     validatorIndexes: string[],
-  ): Promise<SyncCommitteeRewards> => {
+  ): Promise<SyncCommitteeRewards> {
     return this.makePrefetchRequest<SyncCommitteeRewards>(
       async (url) => {
         const res = await this.axiosInstance.post<SyncCommitteeRewards>(
@@ -526,7 +526,7 @@ export class BeaconClient extends ReliableRequestClient {
       },
       this.isIndexerDelayed({ value: slot, type: 'slot' }) ? 'archive' : 'full',
     );
-  };
+  }
 
   /**
    * Prefetch block rewards for a delayed slot without blocking slot processing.
