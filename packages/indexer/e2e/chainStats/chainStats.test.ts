@@ -74,12 +74,12 @@ describe('Chain Stats', () => {
     const pad = (n: number) => '0x' + n.toString().padStart(96, '0');
     await prisma.validatorConsolidationsRequests.createMany({
       data: [
-        { slot: 1600, sourcePubkey: pad(1), targetPubkey: pad(10) },
-        { slot: 1610, sourcePubkey: pad(2), targetPubkey: pad(20) },
+        { slot: 1600, requestIndex: 0, sourcePubkey: pad(1), targetPubkey: pad(10) },
+        { slot: 1610, requestIndex: 0, sourcePubkey: pad(2), targetPubkey: pad(20) },
         // Same source as first, different slot - should NOT add to distinct count
-        { slot: 1605, sourcePubkey: pad(1), targetPubkey: pad(30) },
+        { slot: 1605, requestIndex: 0, sourcePubkey: pad(1), targetPubkey: pad(30) },
         // Outside slot range - should NOT be counted
-        { slot: 1616, sourcePubkey: pad(3), targetPubkey: pad(40) },
+        { slot: 1616, requestIndex: 0, sourcePubkey: pad(3), targetPubkey: pad(40) },
       ],
     });
 

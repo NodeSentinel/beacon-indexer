@@ -198,4 +198,67 @@ describe('SlotController', () => {
       },
     ]);
   });
+
+  // This test protects duplicate consolidation requests with the same source and target pubkeys.
+  it('preserves execution consolidation request order and source address', async () => {
+    // This storage mock returns an unprocessed slot and captures consolidation request rows.
+    const slotStorage = {
+      getBaseSlot: vi.fn().mockResolvedValue({
+        slot: 14417443,
+        erConsolidationsFetched: false,
+      }),
+      saveValidatorConsolidationsRequests: vi.fn().mockResolvedValue(undefined),
+    };
+
+    // This controller only needs slot storage for execution consolidation request processing.
+    const controller = new SlotController(
+      slotStorage as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+    );
+
+    // This call mirrors slot 14417443: two valid consolidation requests have
+    // identical source address, source pubkey, and target pubkey.
+    await controller.processErConsolidations(14417443, [
+      {
+        source_address: '0xf692ff7984721182352ba275eae0d3f2dbaf3382',
+        source_pubkey:
+          '0xaf93aa9e3a10b0ff351fb9352b79cf5010bdd1755d90476ccdfec4f00882e0dcbf9d9f75db6371f97b0dbd3d982cef25',
+        target_pubkey:
+          '0x84c76421ffc9f8a2590acf39a46be555a0f0623629106cb326865ffb54867f33a86cbde9a7d705c723e62d8f18ce4e41',
+      },
+      {
+        source_address: '0xf692ff7984721182352ba275eae0d3f2dbaf3382',
+        source_pubkey:
+          '0xaf93aa9e3a10b0ff351fb9352b79cf5010bdd1755d90476ccdfec4f00882e0dcbf9d9f75db6371f97b0dbd3d982cef25',
+        target_pubkey:
+          '0x84c76421ffc9f8a2590acf39a46be555a0f0623629106cb326865ffb54867f33a86cbde9a7d705c723e62d8f18ce4e41',
+      },
+    ]);
+
+    // This assertion verifies identical consolidation payloads are stored as
+    // separate ordered requests instead of being collapsed by pubkey identity.
+    expect(slotStorage.saveValidatorConsolidationsRequests).toHaveBeenCalledWith(14417443, [
+      {
+        slot: 14417443,
+        requestIndex: 0,
+        sourceAddress: '0xf692ff7984721182352ba275eae0d3f2dbaf3382',
+        sourcePubkey:
+          '0xaf93aa9e3a10b0ff351fb9352b79cf5010bdd1755d90476ccdfec4f00882e0dcbf9d9f75db6371f97b0dbd3d982cef25',
+        targetPubkey:
+          '0x84c76421ffc9f8a2590acf39a46be555a0f0623629106cb326865ffb54867f33a86cbde9a7d705c723e62d8f18ce4e41',
+      },
+      {
+        slot: 14417443,
+        requestIndex: 1,
+        sourceAddress: '0xf692ff7984721182352ba275eae0d3f2dbaf3382',
+        sourcePubkey:
+          '0xaf93aa9e3a10b0ff351fb9352b79cf5010bdd1755d90476ccdfec4f00882e0dcbf9d9f75db6371f97b0dbd3d982cef25',
+        targetPubkey:
+          '0x84c76421ffc9f8a2590acf39a46be555a0f0623629106cb326865ffb54867f33a86cbde9a7d705c723e62d8f18ce4e41',
+      },
+    ]);
+  });
 });

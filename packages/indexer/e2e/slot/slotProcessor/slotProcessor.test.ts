@@ -794,12 +794,16 @@ describe('Slot Processor E2E Tests', () => {
         // Expected consolidations from block_24672001.json
         const expectedConsolidations = [
           {
+            requestIndex: 0,
+            sourceAddress: '0xad786f8e975e4ac00b94e2eb1d7ab714c1a232f7',
             sourcePubkey:
               '0xb311b7458d61a0124060557cbce90d002473cfc301e0e7898f0f11ba52894cdb125214234258a710d041771e53e19ac5',
             targetPubkey:
               '0x84e8a653de922a22b844a78caec1de0a1891a5ba633ce4138d537424abe8853e586a3b5a1580c71d25671e733aaf1114',
           },
           {
+            requestIndex: 1,
+            sourceAddress: '0xad786f8e975e4ac00b94e2eb1d7ab714c1a232f7',
             sourcePubkey:
               '0xa0b865f5e3663fdb3a446f4d6eb1bac845988f834fea306c3708e827f5565f633b8a41c62b15a567c0aed5944e703ffa',
             targetPubkey:
@@ -814,15 +818,16 @@ describe('Slot Processor E2E Tests', () => {
         // Verify we have the correct number of consolidation requests
         expect(consolidationRequests.length).toBe(expectedConsolidations.length);
 
-        // Verify each consolidation request matches expected data
-        // Don't rely on order - find by sourcePubkey and then verify targetPubkey
+        // Verify each consolidation request matches the indexed execution request payload.
         for (const expected of expectedConsolidations) {
           const actual = consolidationRequests.find(
-            (req) => req.sourcePubkey === expected.sourcePubkey,
+            (req) => req.requestIndex === expected.requestIndex,
           );
 
           expect(actual).toBeDefined();
           expect(actual?.slot).toBe(slot24672001);
+          expect(actual?.requestIndex).toBe(expected.requestIndex);
+          expect(actual?.sourceAddress).toBe(expected.sourceAddress);
           expect(actual?.sourcePubkey).toBe(expected.sourcePubkey);
           expect(actual?.targetPubkey).toBe(expected.targetPubkey);
         }
