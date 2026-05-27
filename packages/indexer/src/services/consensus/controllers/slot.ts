@@ -404,8 +404,10 @@ export class SlotController extends SlotControllerHelpers {
 
     await this.slotStorage.saveValidatorConsolidationsRequests(
       baseSlot.slot,
-      consolidations.map((consolidation) => ({
+      consolidations.map((consolidation, requestIndex) => ({
         slot: baseSlot.slot,
+        requestIndex,
+        sourceAddress: consolidation.source_address,
         sourcePubkey: consolidation.source_pubkey,
         targetPubkey: consolidation.target_pubkey,
       })),

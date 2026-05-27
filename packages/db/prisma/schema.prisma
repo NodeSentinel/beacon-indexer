@@ -199,11 +199,15 @@ model validatorWithdrawalsRequests {
 }
 
 model validatorConsolidationsRequests {
-  slot         Int    @map("slot")
-  sourcePubkey String @map("source_pubkey") @db.VarChar(98)
-  targetPubkey String @map("target_pubkey") @db.VarChar(98)
+  slot          Int     @map("slot")
+  // Execution request consolidations are identified by their array position in the block body.
+  requestIndex  Int     @map("request_index")
+  sourceAddress String? @map("source_address") @db.VarChar(42)
+  sourcePubkey  String  @map("source_pubkey") @db.VarChar(98)
+  targetPubkey  String  @map("target_pubkey") @db.VarChar(98)
 
-  @@id([slot, sourcePubkey, targetPubkey])
+  @@id([slot, requestIndex])
+  @@index([sourcePubkey, slot(sort: Desc)], map: "validator_request_consolidations_source_pubkey_slot_idx")
   @@map("validator_request_consolidations")
 }
 
