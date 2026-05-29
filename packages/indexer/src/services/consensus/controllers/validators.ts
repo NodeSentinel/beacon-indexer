@@ -8,6 +8,10 @@ import { BeaconClient } from '@/src/services/consensus/beacon.js';
 import { ValidatorsStorage } from '@/src/services/consensus/storage/validators.js';
 import type { GetValidators } from '@/src/services/consensus/types.js';
 
+const VALIDATOR_STATE_FETCH_BATCH_SIZE = 100_000;
+const VALIDATOR_STATE_FETCH_CONCURRENCY = 5;
+const MAX_PENDING_DEPOSITS_PER_EPOCH = 16;
+
 export class ValidatorsController {
   private readonly logger = createLogger('ValidatorsController');
 
@@ -167,30 +171,36 @@ export class ValidatorsController {
    * The caller must provide the epoch corresponding to the slot to avoid coupling with time utils.
    */
   async fetchValidatorsState(slot: number, epoch: number) {
-    const totalValidators = await this.validatorsStorage.getMaxValidatorIndex();
-    if (totalValidators === 0) {
+    const maxValidatorIndex = await this.validatorsStorage.getMaxValidatorIndex();
+    if (maxValidatorIndex === 0) {
       return;
     }
 
     const finalStateValidatorIndexes = await this.validatorsStorage.getFinalValidatorIndexes();
     const finalStateValidatorsSet = new Set(finalStateValidatorIndexes);
 
-    const allValidatorIndexes = Array.from({ length: totalValidators + 1 }, (_, i) => i).filter(
-      (id) => !finalStateValidatorsSet.has(id),
-    );
+    const maxValidatorIndexToFetch = maxValidatorIndex + MAX_PENDING_DEPOSITS_PER_EPOCH;
+    const allValidatorIndexes: number[] = [];
+    for (let id = 0; id <= maxValidatorIndexToFetch; id++) {
+      if (!finalStateValidatorsSet.has(id)) {
+        allValidatorIndexes.push(id);
+      }
+    }
 
-    const batchSize = 1_000_000;
-    const batches = chunk(allValidatorIndexes, batchSize);
+    const batches = chunk(allValidatorIndexes, VALIDATOR_STATE_FETCH_BATCH_SIZE);
+    const batchGroups = chunk(batches, VALIDATOR_STATE_FETCH_CONCURRENCY);
     let allValidatorsData: GetValidators['data'] = [];
 
-    for (const batchIds of batches) {
-      const batchResult = await this.beaconClient.getValidators(slot, batchIds.map(String), null);
+    // Run a fixed-size wave of requests so each POST body stays below provider
+    // limits while covering the protocol maximum of new validators per epoch.
+    for (const batchGroup of batchGroups) {
+      const batchResults = await Promise.all(
+        batchGroup.map((batchIds) =>
+          this.beaconClient.getValidators(slot, batchIds.map(String), null),
+        ),
+      );
 
-      allValidatorsData = [...allValidatorsData, ...batchResult];
-
-      if (batchResult.length < batchSize) {
-        break;
-      }
+      allValidatorsData = allValidatorsData.concat(...batchResults);
     }
 
     await this.validatorsStorage.saveValidatorsForEpoch(allValidatorsData, epoch);
