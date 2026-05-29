@@ -1,19 +1,27 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { ValidatorsController } from './validators.js';
+import {
+  MAX_PENDING_DEPOSITS_PER_EPOCH,
+  VALIDATOR_STATE_FETCH_BATCH_SIZE,
+  VALIDATOR_STATE_FETCH_CONCURRENCY,
+  ValidatorsController,
+} from './validators.js';
 
 // This suite verifies validator controller batching before data is persisted.
 describe('ValidatorsController', () => {
-  // This test covers mainnet-scale validator snapshots where up to one epoch of
-  // pending deposits can create new validator records after the stored max
-  // index. The controller should fetch the known range plus the protocol
-  // pending-deposit lookahead while keeping requests under the provider limit.
-  it('fetches validator state with a 16-validator lookahead in 100k batches', async () => {
-    // This storage mock represents validators 0 through 500,000 as already
-    // known locally, so the controller must request those validators plus 16
-    // possible new validators from the next epoch.
+  // This test covers validator snapshots that cross one full fetch batch. The
+  // controller should fetch complete batches first, then include the
+  // pending-deposit lookahead in the final partial batch.
+  it('fetches validator state with the pending-deposit lookahead after full batches', async () => {
+    // This value creates exactly one full batch plus one final partial batch
+    // containing the known max validator and every possible new validator from
+    // one epoch of pending deposits.
+    const maxValidatorIndex = VALIDATOR_STATE_FETCH_BATCH_SIZE;
+
+    // This storage mock represents a local validator table whose max index
+    // lands just after a full batch boundary.
     const validatorsStorage = {
-      getMaxValidatorIndex: vi.fn().mockResolvedValue(500_000),
+      getMaxValidatorIndex: vi.fn().mockResolvedValue(maxValidatorIndex),
       getFinalValidatorIndexes: vi.fn().mockResolvedValue([]),
       saveValidatorsForEpoch: vi.fn().mockResolvedValue(undefined),
     };
@@ -52,14 +60,17 @@ describe('ValidatorsController', () => {
     // This action fetches one epoch snapshot from the supplied slot.
     await controller.fetchValidatorsState(123_456, 3_858);
 
-    // This assertion verifies every request stays below the provider POST body
-    // limit while the final request contains only the 16-validator lookahead
-    // plus the known max validator index.
-    expect(requestedBatchSizes).toEqual([100_000, 100_000, 100_000, 100_000, 100_000, 17]);
+    // This assertion verifies the controller uses the configured batch size and
+    // leaves only the pending-deposit lookahead plus max validator for the
+    // second request.
+    expect(requestedBatchSizes).toEqual([
+      VALIDATOR_STATE_FETCH_BATCH_SIZE,
+      MAX_PENDING_DEPOSITS_PER_EPOCH + 1,
+    ]);
 
-    // This assertion verifies five Beacon API requests run together for the
-    // first wave, leaving the small lookahead batch for the second wave.
-    expect(maxActiveRequests).toBe(5);
+    // This assertion verifies the controller honors the configured concurrency
+    // without depending on the specific numeric value chosen for production.
+    expect(maxActiveRequests).toBe(VALIDATOR_STATE_FETCH_CONCURRENCY);
 
     // This assertion verifies the epoch fetched flag remains tied to the single
     // final storage call instead of being marked per partial request.

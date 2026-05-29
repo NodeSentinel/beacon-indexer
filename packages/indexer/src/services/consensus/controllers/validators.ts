@@ -8,9 +8,9 @@ import { BeaconClient } from '@/src/services/consensus/beacon.js';
 import { ValidatorsStorage } from '@/src/services/consensus/storage/validators.js';
 import type { GetValidators } from '@/src/services/consensus/types.js';
 
-const VALIDATOR_STATE_FETCH_BATCH_SIZE = 100_000;
-const VALIDATOR_STATE_FETCH_CONCURRENCY = 5;
-const MAX_PENDING_DEPOSITS_PER_EPOCH = 16;
+export const VALIDATOR_STATE_FETCH_BATCH_SIZE = 1_000_000;
+export const VALIDATOR_STATE_FETCH_CONCURRENCY = 1;
+export const MAX_PENDING_DEPOSITS_PER_EPOCH = 16;
 
 export class ValidatorsController {
   private readonly logger = createLogger('ValidatorsController');
