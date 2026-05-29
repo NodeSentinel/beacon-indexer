@@ -180,10 +180,12 @@ export class ValidatorsController {
     const finalStateValidatorsSet = new Set(finalStateValidatorIndexes);
 
     const maxValidatorIndexToFetch = maxValidatorIndex + MAX_PENDING_DEPOSITS_PER_EPOCH;
-    const allValidatorIndexes = Array.from(
-      { length: maxValidatorIndexToFetch + 1 },
-      (_, i) => i,
-    ).filter((id) => !finalStateValidatorsSet.has(id));
+    const allValidatorIndexes: number[] = [];
+    for (let id = 0; id <= maxValidatorIndexToFetch; id++) {
+      if (!finalStateValidatorsSet.has(id)) {
+        allValidatorIndexes.push(id);
+      }
+    }
 
     const batches = chunk(allValidatorIndexes, VALIDATOR_STATE_FETCH_BATCH_SIZE);
     const batchGroups = chunk(batches, VALIDATOR_STATE_FETCH_CONCURRENCY);
