@@ -7,6 +7,8 @@ import { BeaconClient } from '@/src/services/consensus/beacon.js';
 import { EpochStorage } from '@/src/services/consensus/storage/epoch.js';
 import { ValidatorsStorage } from '@/src/services/consensus/storage/validators.js';
 
+export const EPOCH_REWARDS_FETCH_BATCH_SIZE = 100_000;
+
 export class EpochController extends EpochControllerHelpers {
   static readonly maxUnprocessedEpochs: number = 5;
 
@@ -125,7 +127,7 @@ export class EpochController extends EpochControllerHelpers {
     }> = [];
 
     // Fetch rewards in batches and process them
-    const validatorBatches = chunk(attestingValidatorIndexes, 1000000);
+    const validatorBatches = chunk(attestingValidatorIndexes, EPOCH_REWARDS_FETCH_BATCH_SIZE);
     for (const batch of validatorBatches) {
       // Get effective balances for the validators
       // used to calculate missed rewards based on ideal rewards
