@@ -18,85 +18,144 @@ const migrationUrl = new URL(
 describe('ClusterStorage.getSummary', () => {
   // Verifies the API-key summary keeps inactive and blocked users out of active metrics.
   it('groups active, blocked, inactive, Telegram, anonymous, and Lido user metrics', async () => {
-    // This case verifies the compact cluster summary used by the API key endpoint.
-    const findMany = vi.fn().mockResolvedValue([
+    // This query result includes repeated summary columns plus one row per cluster.
+    const queryRaw = vi.fn().mockResolvedValue([
       {
-        id: 'cluster-a',
-        name: 'Telegram cluster',
-        ownerId: 'user-tg-active',
-        createdAt: new Date('2026-04-22T10:00:00.000Z'),
-        lidoOperatorId: null,
-        owner: { username: 'alice', telegramId: 123n, hasBlockedBot: false },
-        validators: [
-          { validatorIndex: 1, validator: { effectiveBalance: 32_000_000_000n } },
-          { validatorIndex: 2, validator: { effectiveBalance: 31_500_000_000n } },
-        ],
-        _count: { validators: 2 },
+        total_clusters: 5n,
+        active_total: 2n,
+        active_unique_validators: 4n,
+        active_effective_balance: 157_500_000_000n,
+        telegram_total: 1n,
+        telegram_unique_validators: 3n,
+        telegram_effective_balance: 95_500_000_000n,
+        lido_total: 1n,
+        lido_unique_validators: 1n,
+        lido_effective_balance: 32_000_000_000n,
+        annon_total: 1n,
+        annon_unique_validators: 2n,
+        annon_effective_balance: 62_000_000_000n,
+        blocked_total: 1n,
+        blocked_unique_validators: 1n,
+        blocked_effective_balance: 31_000_000_000n,
+        inactive_annon: 1n,
+        inactive_tg: 1n,
+        cluster_id: 'cluster-a',
+        cluster_name: 'Telegram cluster',
+        cluster_owner_id: 'user-tg-active',
+        cluster_owner_username: 'alice',
+        cluster_validator_count: 2n,
+        cluster_effective_balance: 63_500_000_000n,
       },
       {
-        id: 'cluster-b',
-        name: 'Telegram Lido cluster',
-        ownerId: 'user-tg-active',
-        createdAt: new Date('2026-04-21T10:00:00.000Z'),
-        lidoOperatorId: '42',
-        owner: { username: 'alice', telegramId: 123n, hasBlockedBot: false },
-        validators: [{ validatorIndex: 3, validator: { effectiveBalance: 32_000_000_000n } }],
-        _count: { validators: 1 },
+        total_clusters: 5n,
+        active_total: 2n,
+        active_unique_validators: 4n,
+        active_effective_balance: 157_500_000_000n,
+        telegram_total: 1n,
+        telegram_unique_validators: 3n,
+        telegram_effective_balance: 95_500_000_000n,
+        lido_total: 1n,
+        lido_unique_validators: 1n,
+        lido_effective_balance: 32_000_000_000n,
+        annon_total: 1n,
+        annon_unique_validators: 2n,
+        annon_effective_balance: 62_000_000_000n,
+        blocked_total: 1n,
+        blocked_unique_validators: 1n,
+        blocked_effective_balance: 31_000_000_000n,
+        inactive_annon: 1n,
+        inactive_tg: 1n,
+        cluster_id: 'cluster-b',
+        cluster_name: 'Telegram Lido cluster',
+        cluster_owner_id: 'user-tg-active',
+        cluster_owner_username: 'alice',
+        cluster_validator_count: 1n,
+        cluster_effective_balance: 32_000_000_000n,
       },
       {
-        id: 'cluster-c',
-        name: 'Anonymous cluster',
-        ownerId: 'user-anon-active',
-        createdAt: new Date('2026-04-20T10:00:00.000Z'),
-        lidoOperatorId: null,
-        owner: { username: 'anon:session-c', telegramId: null, hasBlockedBot: false },
-        validators: [
-          { validatorIndex: 3, validator: { effectiveBalance: 32_000_000_000n } },
-          { validatorIndex: 4, validator: { effectiveBalance: 30_000_000_000n } },
-        ],
-        _count: { validators: 2 },
+        total_clusters: 5n,
+        active_total: 2n,
+        active_unique_validators: 4n,
+        active_effective_balance: 157_500_000_000n,
+        telegram_total: 1n,
+        telegram_unique_validators: 3n,
+        telegram_effective_balance: 95_500_000_000n,
+        lido_total: 1n,
+        lido_unique_validators: 1n,
+        lido_effective_balance: 32_000_000_000n,
+        annon_total: 1n,
+        annon_unique_validators: 2n,
+        annon_effective_balance: 62_000_000_000n,
+        blocked_total: 1n,
+        blocked_unique_validators: 1n,
+        blocked_effective_balance: 31_000_000_000n,
+        inactive_annon: 1n,
+        inactive_tg: 1n,
+        cluster_id: 'cluster-c',
+        cluster_name: 'Anonymous cluster',
+        cluster_owner_id: 'user-anon-active',
+        cluster_owner_username: 'annon',
+        cluster_validator_count: 2n,
+        cluster_effective_balance: 62_000_000_000n,
       },
       {
-        id: 'cluster-d',
-        name: 'Blocked Telegram cluster',
-        ownerId: 'user-tg-blocked',
-        createdAt: new Date('2026-04-19T10:00:00.000Z'),
-        lidoOperatorId: null,
-        owner: { username: 'blocked', telegramId: 456n, hasBlockedBot: true },
-        validators: [{ validatorIndex: 5, validator: { effectiveBalance: 31_000_000_000n } }],
-        _count: { validators: 1 },
+        total_clusters: 5n,
+        active_total: 2n,
+        active_unique_validators: 4n,
+        active_effective_balance: 157_500_000_000n,
+        telegram_total: 1n,
+        telegram_unique_validators: 3n,
+        telegram_effective_balance: 95_500_000_000n,
+        lido_total: 1n,
+        lido_unique_validators: 1n,
+        lido_effective_balance: 32_000_000_000n,
+        annon_total: 1n,
+        annon_unique_validators: 2n,
+        annon_effective_balance: 62_000_000_000n,
+        blocked_total: 1n,
+        blocked_unique_validators: 1n,
+        blocked_effective_balance: 31_000_000_000n,
+        inactive_annon: 1n,
+        inactive_tg: 1n,
+        cluster_id: 'cluster-d',
+        cluster_name: 'Blocked Telegram cluster',
+        cluster_owner_id: 'user-tg-blocked',
+        cluster_owner_username: 'blocked',
+        cluster_validator_count: 1n,
+        cluster_effective_balance: 31_000_000_000n,
       },
       {
-        id: 'cluster-e',
-        name: 'Empty Telegram cluster',
-        ownerId: 'user-tg-inactive',
-        createdAt: new Date('2026-04-18T10:00:00.000Z'),
-        lidoOperatorId: null,
-        owner: { username: 'idle', telegramId: 789n, hasBlockedBot: false },
-        validators: [],
-        _count: { validators: 0 },
+        total_clusters: 5n,
+        active_total: 2n,
+        active_unique_validators: 4n,
+        active_effective_balance: 157_500_000_000n,
+        telegram_total: 1n,
+        telegram_unique_validators: 3n,
+        telegram_effective_balance: 95_500_000_000n,
+        lido_total: 1n,
+        lido_unique_validators: 1n,
+        lido_effective_balance: 32_000_000_000n,
+        annon_total: 1n,
+        annon_unique_validators: 2n,
+        annon_effective_balance: 62_000_000_000n,
+        blocked_total: 1n,
+        blocked_unique_validators: 1n,
+        blocked_effective_balance: 31_000_000_000n,
+        inactive_annon: 1n,
+        inactive_tg: 1n,
+        cluster_id: 'cluster-e',
+        cluster_name: 'Empty Telegram cluster',
+        cluster_owner_id: 'user-tg-inactive',
+        cluster_owner_username: 'idle',
+        cluster_validator_count: 0n,
+        cluster_effective_balance: 0n,
       },
     ]);
-    const userFindMany = vi.fn().mockResolvedValue([
-      // This Telegram user has active validator-loaded clusters and should count as active.
-      { id: 'user-tg-active', telegramId: 123n },
-      // This anonymous user has an active validator-loaded cluster and should count as active.
-      { id: 'user-anon-active', telegramId: null },
-      // This Telegram user has validators but blocked the bot, so active metrics must exclude it.
-      { id: 'user-tg-blocked', telegramId: 456n },
-      // This Telegram user has only an empty cluster and should count as inactive.
-      { id: 'user-tg-inactive', telegramId: 789n },
-      // This anonymous user has no clusters and should count as inactive.
-      { id: 'user-anon-inactive', telegramId: null },
-    ]);
 
-    // Provides only the Prisma delegate used by the method under test.
-    const storage = new ClusterStorage({
-      cluster: { findMany },
-      user: { findMany: userFindMany },
-    } as never);
+    // Provides only the raw-query delegate used by this reporting method.
+    const storage = new ClusterStorage({ $queryRaw: queryRaw } as never);
 
-    // Gets the cross-user cluster summary from the mocked Prisma delegates.
+    // Gets the cross-user cluster summary from the mocked raw query result.
     const summary = await storage.getSummary();
 
     // Confirms the summary reports all clusters returned by storage.
@@ -179,28 +238,8 @@ describe('ClusterStorage.getSummary', () => {
         effectiveBalance: 0n,
       },
     ]);
-    // Confirms Prisma loads the user and validator data required for summary categorization.
-    expect(findMany).toHaveBeenCalledWith({
-      include: {
-        owner: { select: { username: true, telegramId: true, hasBlockedBot: true } },
-        validators: {
-          select: {
-            validatorIndex: true,
-            validator: {
-              select: {
-                effectiveBalance: true,
-              },
-            },
-          },
-        },
-        _count: { select: { validators: true } },
-      },
-      orderBy: { createdAt: 'desc' },
-    });
-    // Confirms inactive users are computed from all user IDs and auth modes.
-    expect(userFindMany).toHaveBeenCalledWith({
-      select: { id: true, telegramId: true },
-    });
+    // Confirms the reporting endpoint does one database aggregation query.
+    expect(queryRaw).toHaveBeenCalledOnce();
   });
 });
 

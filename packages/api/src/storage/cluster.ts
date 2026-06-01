@@ -27,10 +27,62 @@ interface ClusterSummaryMetric {
   totalEffectiveBalance: bigint;
 }
 
-interface MutableClusterSummaryMetric {
-  userIds: Set<string>;
-  validatorIndexes: Set<number>;
-  totalEffectiveBalance: bigint;
+type NumericQueryValue = bigint | number | string | { toString(): string };
+
+interface ClusterSummaryQueryRow {
+  total_clusters: NumericQueryValue;
+  active_total: NumericQueryValue;
+  active_unique_validators: NumericQueryValue;
+  active_effective_balance: NumericQueryValue;
+  telegram_total: NumericQueryValue;
+  telegram_unique_validators: NumericQueryValue;
+  telegram_effective_balance: NumericQueryValue;
+  lido_total: NumericQueryValue;
+  lido_unique_validators: NumericQueryValue;
+  lido_effective_balance: NumericQueryValue;
+  annon_total: NumericQueryValue;
+  annon_unique_validators: NumericQueryValue;
+  annon_effective_balance: NumericQueryValue;
+  blocked_total: NumericQueryValue;
+  blocked_unique_validators: NumericQueryValue;
+  blocked_effective_balance: NumericQueryValue;
+  inactive_annon: NumericQueryValue;
+  inactive_tg: NumericQueryValue;
+  cluster_id: string | null;
+  cluster_name: string | null;
+  cluster_owner_id: string | null;
+  cluster_owner_username: string | null;
+  cluster_validator_count: NumericQueryValue | null;
+  cluster_effective_balance: NumericQueryValue | null;
+}
+
+/**
+ * Converts count values from raw SQL into JavaScript numbers.
+ */
+function queryNumber(value: NumericQueryValue | null | undefined): number {
+  return Number(value ?? 0);
+}
+
+/**
+ * Converts bigint-like raw SQL values into bigint storage totals.
+ */
+function queryBigInt(value: NumericQueryValue | null | undefined): bigint {
+  return BigInt((value ?? 0).toString());
+}
+
+/**
+ * Builds one storage summary metric from raw SQL aggregate columns.
+ */
+function createQueryMetric(params: {
+  total: NumericQueryValue;
+  totalUniqueValidators: NumericQueryValue;
+  totalEffectiveBalance: NumericQueryValue;
+}): ClusterSummaryMetric {
+  return {
+    total: queryNumber(params.total),
+    totalUniqueValidators: queryNumber(params.totalUniqueValidators),
+    totalEffectiveBalance: queryBigInt(params.totalEffectiveBalance),
+  };
 }
 
 /**
@@ -39,47 +91,6 @@ interface MutableClusterSummaryMetric {
  */
 export class ClusterStorage {
   constructor(private readonly prisma: PrismaClient) {}
-
-  /**
-   * Creates an empty accumulator for user-count, validator-count, and balance metrics.
-   */
-  private createSummaryMetric(): MutableClusterSummaryMetric {
-    return {
-      userIds: new Set<string>(),
-      validatorIndexes: new Set<number>(),
-      totalEffectiveBalance: BigInt(0),
-    };
-  }
-
-  /**
-   * Adds one user to a metric while keeping the user count distinct.
-   */
-  private addMetricUser(metric: MutableClusterSummaryMetric, userId: string): void {
-    metric.userIds.add(userId);
-  }
-
-  /**
-   * Adds one validator membership to a metric and keeps validator count distinct by index.
-   */
-  private addMetricValidator(
-    metric: MutableClusterSummaryMetric,
-    validatorIndex: number,
-    effectiveBalance: bigint,
-  ): void {
-    metric.validatorIndexes.add(validatorIndex);
-    metric.totalEffectiveBalance += effectiveBalance;
-  }
-
-  /**
-   * Converts a mutable metric accumulator into the API storage summary shape.
-   */
-  private finalizeSummaryMetric(metric: MutableClusterSummaryMetric): ClusterSummaryMetric {
-    return {
-      total: metric.userIds.size,
-      totalUniqueValidators: metric.validatorIndexes.size,
-      totalEffectiveBalance: metric.totalEffectiveBalance,
-    };
-  }
 
   /**
    * Removes duplicate validator indexes while preserving the first occurrence.
@@ -275,154 +286,182 @@ export class ClusterStorage {
    * Get a cross-user summary of clusters and validator membership counts.
    */
   async getSummary() {
-    const [clusters, users] = await Promise.all([
-      this.prisma.cluster.findMany({
-        include: {
-          owner: { select: { username: true, telegramId: true, hasBlockedBot: true } },
-          validators: {
-            select: {
-              validatorIndex: true,
-              validator: {
-                select: {
-                  effectiveBalance: true,
-                },
-              },
-            },
-          },
-          _count: { select: { validators: true } },
+    const rows = await this.prisma.$queryRaw<ClusterSummaryQueryRow[]>(Prisma.sql`
+      WITH cluster_memberships AS (
+        SELECT
+          c.id AS cluster_id,
+          c.name AS cluster_name,
+          c.owner_id AS cluster_owner_id,
+          c.created_at AS cluster_created_at,
+          c.lido_operator_id AS cluster_lido_operator_id,
+          CASE WHEN u.telegram_id IS NULL THEN 'annon' ELSE u.username END AS cluster_owner_username,
+          u.telegram_id AS owner_telegram_id,
+          u.has_blocked_bot AS owner_has_blocked_bot,
+          cv.validator_index AS validator_index,
+          COALESCE(v.effective_balance, 0)::bigint AS effective_balance
+        FROM "cluster" c
+        INNER JOIN "user" u ON u.id = c.owner_id
+        LEFT JOIN "cluster_validator" cv ON cv.cluster_id = c.id
+        LEFT JOIN "validator" v ON v.id = cv.validator_index
+      ),
+      cluster_summaries AS (
+        SELECT
+          cluster_id,
+          cluster_name,
+          cluster_owner_id,
+          cluster_created_at,
+          cluster_owner_username,
+          COUNT(validator_index)::bigint AS cluster_validator_count,
+          COALESCE(SUM(effective_balance), 0)::bigint AS cluster_effective_balance
+        FROM cluster_memberships
+        GROUP BY
+          cluster_id,
+          cluster_name,
+          cluster_owner_id,
+          cluster_created_at,
+          cluster_owner_username
+      ),
+      active_memberships AS (
+        SELECT *
+        FROM cluster_memberships
+        WHERE
+          validator_index IS NOT NULL
+          AND NOT (owner_telegram_id IS NOT NULL AND owner_has_blocked_bot)
+      ),
+      blocked_memberships AS (
+        SELECT *
+        FROM cluster_memberships
+        WHERE
+          validator_index IS NOT NULL
+          AND owner_telegram_id IS NOT NULL
+          AND owner_has_blocked_bot
+      ),
+      inactive_users AS (
+        SELECT
+          COUNT(*) FILTER (WHERE u.telegram_id IS NULL)::bigint AS inactive_annon,
+          COUNT(*) FILTER (WHERE u.telegram_id IS NOT NULL)::bigint AS inactive_tg
+        FROM "user" u
+        WHERE NOT EXISTS (
+          SELECT 1
+          FROM "cluster" c
+          INNER JOIN "cluster_validator" cv ON cv.cluster_id = c.id
+          WHERE c.owner_id = u.id
+        )
+      ),
+      summary AS (
+        SELECT
+          (SELECT COUNT(*)::bigint FROM "cluster") AS total_clusters,
+          (SELECT COUNT(DISTINCT cluster_owner_id)::bigint FROM active_memberships) AS active_total,
+          (SELECT COUNT(DISTINCT validator_index)::bigint FROM active_memberships) AS active_unique_validators,
+          (SELECT COALESCE(SUM(effective_balance), 0)::bigint FROM active_memberships) AS active_effective_balance,
+          (SELECT COUNT(DISTINCT cluster_owner_id)::bigint FROM active_memberships WHERE owner_telegram_id IS NOT NULL) AS telegram_total,
+          (SELECT COUNT(DISTINCT validator_index)::bigint FROM active_memberships WHERE owner_telegram_id IS NOT NULL) AS telegram_unique_validators,
+          (SELECT COALESCE(SUM(effective_balance), 0)::bigint FROM active_memberships WHERE owner_telegram_id IS NOT NULL) AS telegram_effective_balance,
+          (SELECT COUNT(DISTINCT cluster_owner_id)::bigint FROM active_memberships WHERE cluster_lido_operator_id IS NOT NULL) AS lido_total,
+          (SELECT COUNT(DISTINCT validator_index)::bigint FROM active_memberships WHERE cluster_lido_operator_id IS NOT NULL) AS lido_unique_validators,
+          (SELECT COALESCE(SUM(effective_balance), 0)::bigint FROM active_memberships WHERE cluster_lido_operator_id IS NOT NULL) AS lido_effective_balance,
+          (SELECT COUNT(DISTINCT cluster_owner_id)::bigint FROM active_memberships WHERE owner_telegram_id IS NULL) AS annon_total,
+          (SELECT COUNT(DISTINCT validator_index)::bigint FROM active_memberships WHERE owner_telegram_id IS NULL) AS annon_unique_validators,
+          (SELECT COALESCE(SUM(effective_balance), 0)::bigint FROM active_memberships WHERE owner_telegram_id IS NULL) AS annon_effective_balance,
+          (SELECT COUNT(DISTINCT cluster_owner_id)::bigint FROM blocked_memberships) AS blocked_total,
+          (SELECT COUNT(DISTINCT validator_index)::bigint FROM blocked_memberships) AS blocked_unique_validators,
+          (SELECT COALESCE(SUM(effective_balance), 0)::bigint FROM blocked_memberships) AS blocked_effective_balance,
+          inactive_users.inactive_annon,
+          inactive_users.inactive_tg
+        FROM inactive_users
+      )
+      SELECT
+        summary.total_clusters,
+        summary.active_total,
+        summary.active_unique_validators,
+        summary.active_effective_balance,
+        summary.telegram_total,
+        summary.telegram_unique_validators,
+        summary.telegram_effective_balance,
+        summary.lido_total,
+        summary.lido_unique_validators,
+        summary.lido_effective_balance,
+        summary.annon_total,
+        summary.annon_unique_validators,
+        summary.annon_effective_balance,
+        summary.blocked_total,
+        summary.blocked_unique_validators,
+        summary.blocked_effective_balance,
+        summary.inactive_annon,
+        summary.inactive_tg,
+        cluster_summaries.cluster_id,
+        cluster_summaries.cluster_name,
+        cluster_summaries.cluster_owner_id,
+        cluster_summaries.cluster_owner_username,
+        cluster_summaries.cluster_validator_count,
+        cluster_summaries.cluster_effective_balance
+      FROM summary
+      LEFT JOIN cluster_summaries ON TRUE
+      ORDER BY cluster_summaries.cluster_created_at DESC NULLS LAST
+    `);
+
+    const summaryRow = rows[0];
+
+    if (summaryRow === undefined) {
+      throw new Error('Cluster summary query returned no rows');
+    }
+
+    const clusterSummaries = rows.flatMap((row) => {
+      if (row.cluster_id === null) {
+        return [];
+      }
+
+      return [
+        {
+          id: row.cluster_id,
+          name: row.cluster_name ?? '',
+          ownerId: row.cluster_owner_id ?? '',
+          ownerUsername: row.cluster_owner_username ?? 'annon',
+          validatorCount: queryNumber(row.cluster_validator_count),
+          effectiveBalance: queryBigInt(row.cluster_effective_balance),
         },
-        orderBy: { createdAt: 'desc' },
-      }),
-      this.prisma.user.findMany({
-        select: { id: true, telegramId: true },
-      }),
-    ]);
-
-    const activeUsers = this.createSummaryMetric();
-    const telegramActiveUsers = this.createSummaryMetric();
-    const lidoActiveUsers = this.createSummaryMetric();
-    const annonActiveUsers = this.createSummaryMetric();
-    const tgBlockedUsers = this.createSummaryMetric();
-    const usersWithValidatorLoadedClusters = new Set<string>();
-
-    const clusterSummaries = clusters.map((cluster) => {
-      let effectiveBalance = BigInt(0);
-
-      for (const clusterValidator of cluster.validators) {
-        const validatorEffectiveBalance = clusterValidator.validator.effectiveBalance ?? BigInt(0);
-
-        effectiveBalance += validatorEffectiveBalance;
-      }
-
-      if (cluster.validators.length > 0) {
-        usersWithValidatorLoadedClusters.add(cluster.ownerId);
-
-        const ownerIsBlockedTelegram =
-          cluster.owner.telegramId !== null && cluster.owner.hasBlockedBot;
-        const ownerIsTelegram = cluster.owner.telegramId !== null;
-
-        if (ownerIsBlockedTelegram) {
-          this.addMetricUser(tgBlockedUsers, cluster.ownerId);
-        } else {
-          this.addMetricUser(activeUsers, cluster.ownerId);
-
-          if (ownerIsTelegram) {
-            this.addMetricUser(telegramActiveUsers, cluster.ownerId);
-          } else {
-            this.addMetricUser(annonActiveUsers, cluster.ownerId);
-          }
-
-          if (cluster.lidoOperatorId !== null) {
-            this.addMetricUser(lidoActiveUsers, cluster.ownerId);
-          }
-        }
-
-        // Validator totals are accumulated per category from each matching cluster.
-        for (const clusterValidator of cluster.validators) {
-          const validatorEffectiveBalance =
-            clusterValidator.validator.effectiveBalance ?? BigInt(0);
-
-          if (ownerIsBlockedTelegram) {
-            this.addMetricValidator(
-              tgBlockedUsers,
-              clusterValidator.validatorIndex,
-              validatorEffectiveBalance,
-            );
-          } else {
-            this.addMetricValidator(
-              activeUsers,
-              clusterValidator.validatorIndex,
-              validatorEffectiveBalance,
-            );
-
-            if (ownerIsTelegram) {
-              this.addMetricValidator(
-                telegramActiveUsers,
-                clusterValidator.validatorIndex,
-                validatorEffectiveBalance,
-              );
-            } else {
-              this.addMetricValidator(
-                annonActiveUsers,
-                clusterValidator.validatorIndex,
-                validatorEffectiveBalance,
-              );
-            }
-
-            if (cluster.lidoOperatorId !== null) {
-              this.addMetricValidator(
-                lidoActiveUsers,
-                clusterValidator.validatorIndex,
-                validatorEffectiveBalance,
-              );
-            }
-          }
-        }
-      }
-
-      const ownerUsername = cluster.owner.telegramId === null ? 'annon' : cluster.owner.username;
-
-      return {
-        id: cluster.id,
-        name: cluster.name,
-        ownerId: cluster.ownerId,
-        ownerUsername,
-        validatorCount: cluster._count.validators,
-        effectiveBalance,
-      };
+      ];
     });
 
-    const inactiveUsers = users.reduce(
-      (counts, user) => {
-        if (usersWithValidatorLoadedClusters.has(user.id)) {
-          return counts;
-        }
-
-        counts.total += 1;
-
-        if (user.telegramId === null) {
-          counts.annon += 1;
-        } else {
-          counts.tg += 1;
-        }
-
-        return counts;
-      },
-      { total: 0, annon: 0, tg: 0 },
-    );
+    const inactiveAnnon = queryNumber(summaryRow.inactive_annon);
+    const inactiveTg = queryNumber(summaryRow.inactive_tg);
 
     return {
-      totalClusters: clusters.length,
+      totalClusters: queryNumber(summaryRow.total_clusters),
       activeUsers: {
-        ...this.finalizeSummaryMetric(activeUsers),
+        ...createQueryMetric({
+          total: summaryRow.active_total,
+          totalUniqueValidators: summaryRow.active_unique_validators,
+          totalEffectiveBalance: summaryRow.active_effective_balance,
+        }),
         details: {
-          telegram: this.finalizeSummaryMetric(telegramActiveUsers),
-          lido: this.finalizeSummaryMetric(lidoActiveUsers),
-          annon: this.finalizeSummaryMetric(annonActiveUsers),
+          telegram: createQueryMetric({
+            total: summaryRow.telegram_total,
+            totalUniqueValidators: summaryRow.telegram_unique_validators,
+            totalEffectiveBalance: summaryRow.telegram_effective_balance,
+          }),
+          lido: createQueryMetric({
+            total: summaryRow.lido_total,
+            totalUniqueValidators: summaryRow.lido_unique_validators,
+            totalEffectiveBalance: summaryRow.lido_effective_balance,
+          }),
+          annon: createQueryMetric({
+            total: summaryRow.annon_total,
+            totalUniqueValidators: summaryRow.annon_unique_validators,
+            totalEffectiveBalance: summaryRow.annon_effective_balance,
+          }),
         },
       },
-      tgBlockedUsers: this.finalizeSummaryMetric(tgBlockedUsers),
-      inactiveUsers,
+      tgBlockedUsers: createQueryMetric({
+        total: summaryRow.blocked_total,
+        totalUniqueValidators: summaryRow.blocked_unique_validators,
+        totalEffectiveBalance: summaryRow.blocked_effective_balance,
+      }),
+      inactiveUsers: {
+        total: inactiveAnnon + inactiveTg,
+        annon: inactiveAnnon,
+        tg: inactiveTg,
+      },
       clusters: clusterSummaries,
     };
   }
