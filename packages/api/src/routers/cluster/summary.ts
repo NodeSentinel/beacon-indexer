@@ -11,6 +11,26 @@ import { formatBalance } from '@/utils/tokenFormat.js';
 const ClusterSummaryResponseSchema = ApiResponseSchema(ClusterSummarySchema);
 type ClusterSummaryResponse = z.infer<typeof ClusterSummaryResponseSchema>;
 
+interface RawClusterSummaryMetric {
+  total: number;
+  totalUniqueValidators: number;
+  totalEffectiveBalance: bigint;
+}
+
+/**
+ * Formats a raw bigint-backed summary metric for API consumers.
+ */
+function formatSummaryMetric(
+  metric: RawClusterSummaryMetric,
+  chain: Chain,
+): Omit<RawClusterSummaryMetric, 'totalEffectiveBalance'> & { tokenAmount: string } {
+  return {
+    total: metric.total,
+    totalUniqueValidators: metric.totalUniqueValidators,
+    tokenAmount: formatBalance(metric.totalEffectiveBalance, chain),
+  };
+}
+
 /**
  * Creates the cluster summary route.
  */
@@ -30,9 +50,16 @@ export function createClusterSummaryRoute(params: {
 
         return successResponse({
           totalClusters: summary.totalClusters,
-          totalUsers: summary.totalUsers,
-          totalUniqueValidators: summary.totalUniqueValidators,
-          totalTokenAmount: formatBalance(summary.totalEffectiveBalance, params.chain),
+          activeUsers: {
+            ...formatSummaryMetric(summary.activeUsers, params.chain),
+            details: {
+              telegram: formatSummaryMetric(summary.activeUsers.details.telegram, params.chain),
+              lido: formatSummaryMetric(summary.activeUsers.details.lido, params.chain),
+              annon: formatSummaryMetric(summary.activeUsers.details.annon, params.chain),
+            },
+          },
+          tgBlockedUsers: formatSummaryMetric(summary.tgBlockedUsers, params.chain),
+          inactiveUsers: summary.inactiveUsers,
           clusters: summary.clusters.map((cluster: any) => ({
             id: cluster.id,
             name: cluster.name,

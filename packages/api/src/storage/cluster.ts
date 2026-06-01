@@ -21,12 +21,65 @@ interface UpdateClusterWithValidatorsData extends UpdateClusterData {
 
 type UpdateClusterWithLidoOperatorData = UpdateClusterWithValidatorsData;
 
+interface ClusterSummaryMetric {
+  total: number;
+  totalUniqueValidators: number;
+  totalEffectiveBalance: bigint;
+}
+
+interface MutableClusterSummaryMetric {
+  userIds: Set<string>;
+  validatorIndexes: Set<number>;
+  totalEffectiveBalance: bigint;
+}
+
 /**
  * ClusterStorage - Database persistence layer for cluster operations
  * Uses Prisma ORM for standard CRUD operations
  */
 export class ClusterStorage {
   constructor(private readonly prisma: PrismaClient) {}
+
+  /**
+   * Creates an empty accumulator for user-count, validator-count, and balance metrics.
+   */
+  private createSummaryMetric(): MutableClusterSummaryMetric {
+    return {
+      userIds: new Set<string>(),
+      validatorIndexes: new Set<number>(),
+      totalEffectiveBalance: BigInt(0),
+    };
+  }
+
+  /**
+   * Adds one user to a metric while keeping the user count distinct.
+   */
+  private addMetricUser(metric: MutableClusterSummaryMetric, userId: string): void {
+    metric.userIds.add(userId);
+  }
+
+  /**
+   * Adds one validator membership to a metric and keeps validator count distinct by index.
+   */
+  private addMetricValidator(
+    metric: MutableClusterSummaryMetric,
+    validatorIndex: number,
+    effectiveBalance: bigint,
+  ): void {
+    metric.validatorIndexes.add(validatorIndex);
+    metric.totalEffectiveBalance += effectiveBalance;
+  }
+
+  /**
+   * Converts a mutable metric accumulator into the API storage summary shape.
+   */
+  private finalizeSummaryMetric(metric: MutableClusterSummaryMetric): ClusterSummaryMetric {
+    return {
+      total: metric.userIds.size,
+      totalUniqueValidators: metric.validatorIndexes.size,
+      totalEffectiveBalance: metric.totalEffectiveBalance,
+    };
+  }
 
   /**
    * Removes duplicate validator indexes while preserving the first occurrence.
@@ -222,12 +275,13 @@ export class ClusterStorage {
    * Get a cross-user summary of clusters and validator membership counts.
    */
   async getSummary() {
-    const [clusters, uniqueValidators, totalUsers] = await Promise.all([
+    const [clusters, users] = await Promise.all([
       this.prisma.cluster.findMany({
         include: {
-          owner: { select: { username: true, telegramId: true } },
+          owner: { select: { username: true, telegramId: true, hasBlockedBot: true } },
           validators: {
             select: {
+              validatorIndex: true,
               validator: {
                 select: {
                   effectiveBalance: true,
@@ -239,36 +293,136 @@ export class ClusterStorage {
         },
         orderBy: { createdAt: 'desc' },
       }),
-      this.prisma.clusterValidator.groupBy({
-        by: ['validatorIndex'],
+      this.prisma.user.findMany({
+        select: { id: true, telegramId: true },
       }),
-      this.prisma.user.count(),
     ]);
-    let totalEffectiveBalance = BigInt(0);
+
+    const activeUsers = this.createSummaryMetric();
+    const telegramActiveUsers = this.createSummaryMetric();
+    const lidoActiveUsers = this.createSummaryMetric();
+    const annonActiveUsers = this.createSummaryMetric();
+    const tgBlockedUsers = this.createSummaryMetric();
+    const usersWithValidatorLoadedClusters = new Set<string>();
+
     const clusterSummaries = clusters.map((cluster) => {
       let effectiveBalance = BigInt(0);
 
       for (const clusterValidator of cluster.validators) {
-        effectiveBalance += clusterValidator.validator.effectiveBalance ?? BigInt(0);
+        const validatorEffectiveBalance = clusterValidator.validator.effectiveBalance ?? BigInt(0);
+
+        effectiveBalance += validatorEffectiveBalance;
       }
 
-      totalEffectiveBalance += effectiveBalance;
+      if (cluster.validators.length > 0) {
+        usersWithValidatorLoadedClusters.add(cluster.ownerId);
+
+        const ownerIsBlockedTelegram =
+          cluster.owner.telegramId !== null && cluster.owner.hasBlockedBot;
+        const ownerIsTelegram = cluster.owner.telegramId !== null;
+
+        if (ownerIsBlockedTelegram) {
+          this.addMetricUser(tgBlockedUsers, cluster.ownerId);
+        } else {
+          this.addMetricUser(activeUsers, cluster.ownerId);
+
+          if (ownerIsTelegram) {
+            this.addMetricUser(telegramActiveUsers, cluster.ownerId);
+          } else {
+            this.addMetricUser(annonActiveUsers, cluster.ownerId);
+          }
+
+          if (cluster.lidoOperatorId !== null) {
+            this.addMetricUser(lidoActiveUsers, cluster.ownerId);
+          }
+        }
+
+        // Validator totals are accumulated per category from each matching cluster.
+        for (const clusterValidator of cluster.validators) {
+          const validatorEffectiveBalance =
+            clusterValidator.validator.effectiveBalance ?? BigInt(0);
+
+          if (ownerIsBlockedTelegram) {
+            this.addMetricValidator(
+              tgBlockedUsers,
+              clusterValidator.validatorIndex,
+              validatorEffectiveBalance,
+            );
+          } else {
+            this.addMetricValidator(
+              activeUsers,
+              clusterValidator.validatorIndex,
+              validatorEffectiveBalance,
+            );
+
+            if (ownerIsTelegram) {
+              this.addMetricValidator(
+                telegramActiveUsers,
+                clusterValidator.validatorIndex,
+                validatorEffectiveBalance,
+              );
+            } else {
+              this.addMetricValidator(
+                annonActiveUsers,
+                clusterValidator.validatorIndex,
+                validatorEffectiveBalance,
+              );
+            }
+
+            if (cluster.lidoOperatorId !== null) {
+              this.addMetricValidator(
+                lidoActiveUsers,
+                clusterValidator.validatorIndex,
+                validatorEffectiveBalance,
+              );
+            }
+          }
+        }
+      }
+
+      const ownerUsername = cluster.owner.telegramId === null ? 'annon' : cluster.owner.username;
 
       return {
         id: cluster.id,
         name: cluster.name,
         ownerId: cluster.ownerId,
-        ownerUsername: cluster.owner.telegramId === null ? 'annon' : cluster.owner.username,
+        ownerUsername,
         validatorCount: cluster._count.validators,
         effectiveBalance,
       };
     });
 
+    const inactiveUsers = users.reduce(
+      (counts, user) => {
+        if (usersWithValidatorLoadedClusters.has(user.id)) {
+          return counts;
+        }
+
+        counts.total += 1;
+
+        if (user.telegramId === null) {
+          counts.annon += 1;
+        } else {
+          counts.tg += 1;
+        }
+
+        return counts;
+      },
+      { total: 0, annon: 0, tg: 0 },
+    );
+
     return {
       totalClusters: clusters.length,
-      totalUsers,
-      totalUniqueValidators: uniqueValidators.length,
-      totalEffectiveBalance,
+      activeUsers: {
+        ...this.finalizeSummaryMetric(activeUsers),
+        details: {
+          telegram: this.finalizeSummaryMetric(telegramActiveUsers),
+          lido: this.finalizeSummaryMetric(lidoActiveUsers),
+          annon: this.finalizeSummaryMetric(annonActiveUsers),
+        },
+      },
+      tgBlockedUsers: this.finalizeSummaryMetric(tgBlockedUsers),
+      inactiveUsers,
       clusters: clusterSummaries,
     };
   }
