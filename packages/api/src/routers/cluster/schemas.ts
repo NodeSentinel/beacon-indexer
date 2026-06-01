@@ -246,13 +246,42 @@ export const ClusterSummaryItemSchema = z.object({
 });
 
 /**
+ * Count and validator totals for one user category in the summary response.
+ */
+export const ClusterSummaryMetricSchema = z.object({
+  total: z.number(),
+  totalUniqueValidators: z.number(),
+  tokenAmount: z.string(),
+});
+
+/**
+ * Active user totals plus category breakdowns that may overlap by design.
+ */
+export const ActiveUsersSummarySchema = ClusterSummaryMetricSchema.extend({
+  details: z.object({
+    telegram: ClusterSummaryMetricSchema,
+    lido: ClusterSummaryMetricSchema,
+    annon: ClusterSummaryMetricSchema,
+  }),
+});
+
+/**
+ * Counts users with no cluster that currently has loaded validators.
+ */
+export const InactiveUsersSummarySchema = z.object({
+  total: z.number(),
+  annon: z.number(),
+  tg: z.number(),
+});
+
+/**
  * Cross-user cluster summary response schema.
  */
 export const ClusterSummarySchema = z.object({
   totalClusters: z.number(),
-  totalUsers: z.number(),
-  totalUniqueValidators: z.number(),
-  totalTokenAmount: z.string(),
+  activeUsers: ActiveUsersSummarySchema,
+  tgBlockedUsers: ClusterSummaryMetricSchema,
+  inactiveUsers: InactiveUsersSummarySchema,
   clusters: z.array(ClusterSummaryItemSchema),
 });
 
