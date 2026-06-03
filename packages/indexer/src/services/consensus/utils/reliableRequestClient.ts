@@ -121,18 +121,14 @@ export abstract class ReliableRequestClient {
   }
 
   /**
-   * Log failed request attempts only when debug logging is enabled.
+   * Log failed request attempts as errors so retry failures are always visible.
    */
   private logFailedAttempt(error: unknown, attemptNumber: number): void {
-    if (!retryLogger.isLevelEnabled('debug')) {
-      return;
-    }
-
     const endpoint = extractEndpointFromError(error);
     const errorMessage = error instanceof Error ? error.message : String(error);
     const statusCode = error instanceof AxiosError ? error.response?.status : undefined;
 
-    retryLogger.debug(`Failed attempt ${attemptNumber} for ${endpoint}`, {
+    retryLogger.error(`Failed attempt ${attemptNumber} for ${endpoint}`, {
       error: errorMessage,
       statusCode,
     });
