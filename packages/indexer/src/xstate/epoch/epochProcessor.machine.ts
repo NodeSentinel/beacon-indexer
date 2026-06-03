@@ -1,4 +1,5 @@
 import { BeaconTime } from '@beacon-indexer/beacon-utils/beaconTime';
+import ms from 'ms';
 import { ActorRefFrom, assign, fromPromise, raise, sendParent, setup, stopChild } from 'xstate';
 
 import { slotOrchestratorMachine, SlotsCompletedEvent } from '../slot/slotOrchestrator.machine.js';
@@ -280,6 +281,7 @@ export const epochProcessorMachine = setup({
     },
   },
   delays: {
+    retryWait: ms('5s'),
     slotDurationHalf: ({ context }) => context.config.slotDuration / 2,
   },
 }).createMachine({
@@ -421,6 +423,7 @@ export const epochProcessorMachine = setup({
                       target: 'committeesFetched',
                     },
                     onError: {
+                      target: 'waitingRetry',
                       actions: pinoLog(
                         ({ context, event }) =>
                           `error processing committees for epoch ${context.epoch}: ${event.error}`,
@@ -430,6 +433,11 @@ export const epochProcessorMachine = setup({
                     },
                   },
                 }),
+                waitingRetry: {
+                  after: {
+                    retryWait: 'fetchingCommittees',
+                  },
+                },
                 committeesFetched: {
                   type: 'final',
                   entry: [
@@ -470,6 +478,7 @@ export const epochProcessorMachine = setup({
                       target: 'syncCommitteesFetched',
                     },
                     onError: {
+                      target: 'waitingRetry',
                       actions: pinoLog(
                         ({ context, event }) =>
                           `error processing sync committees for epoch ${context.epoch}: ${event.error}`,
@@ -479,6 +488,11 @@ export const epochProcessorMachine = setup({
                     },
                   },
                 }),
+                waitingRetry: {
+                  after: {
+                    retryWait: 'fetchingSyncCommittees',
+                  },
+                },
                 syncCommitteesFetched: {
                   type: 'final',
                   entry: [
@@ -806,6 +820,7 @@ export const epochProcessorMachine = setup({
                       target: 'validatorsBalancesFetched',
                     },
                     onError: {
+                      target: 'waitingRetry',
                       actions: pinoLog(
                         ({ context, event }) =>
                           `error processing validators balances for epoch ${context.epoch}: ${event.error}`,
@@ -815,6 +830,11 @@ export const epochProcessorMachine = setup({
                     },
                   },
                 }),
+                waitingRetry: {
+                  after: {
+                    retryWait: 'fetchingValidatorsBalances',
+                  },
+                },
                 validatorsBalancesFetched: {
                   type: 'final',
                   entry: [
@@ -898,6 +918,7 @@ export const epochProcessorMachine = setup({
                       target: 'rewardsFetched',
                     },
                     onError: {
+                      target: 'waitingRetry',
                       actions: pinoLog(
                         ({ context, event }) =>
                           `error processing rewards for epoch ${context.epoch}: ${event.error}`,
@@ -907,6 +928,11 @@ export const epochProcessorMachine = setup({
                     },
                   },
                 }),
+                waitingRetry: {
+                  after: {
+                    retryWait: 'fetchingRewards',
+                  },
+                },
                 rewardsFetched: {
                   type: 'final',
                   entry: [

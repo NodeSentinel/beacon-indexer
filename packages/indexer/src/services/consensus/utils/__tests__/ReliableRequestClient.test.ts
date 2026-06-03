@@ -63,13 +63,15 @@ describe('ReliableRequestClient', () => {
       expect(mockFetch).toHaveBeenCalledWith(`${fullNodeUrl}/test`);
     });
 
-    it('should create full node request, fail, do exponential backoff 1 time, then work', async () => {
+    // This test verifies a full-priority request uses the second full attempt before falling
+    // back to archive, matching the indexer's preferred full-node recovery order.
+    it('tries full again after the first failed full-node attempt', async () => {
       const mockFetch = vi
         .fn()
         .mockRejectedValueOnce(new Error('First attempt failed'))
         .mockResolvedValueOnce({
           ok: true,
-          text: () => Promise.resolve('Full node success after retries'),
+          text: () => Promise.resolve('Full node success after retry'),
         });
 
       global.fetch = mockFetch;
@@ -78,7 +80,7 @@ describe('ReliableRequestClient', () => {
       const result = await client.method1Full();
       const endTime = Date.now();
 
-      expect(result).toBe('Full node success after retries');
+      expect(result).toBe('Full node success after retry');
       expect(mockFetch).toHaveBeenCalledTimes(2);
       expect(mockFetch).toHaveBeenNthCalledWith(1, `${fullNodeUrl}/test`);
       expect(mockFetch).toHaveBeenNthCalledWith(2, `${fullNodeUrl}/test`);
@@ -102,7 +104,9 @@ describe('ReliableRequestClient', () => {
       expect(mockFetch).toHaveBeenCalledWith(`${archiveNodeUrl}/test`);
     });
 
-    it('should create archive node request, fail, do exponential backoff 2 times, then work', async () => {
+    // This test verifies archive-priority requests retry the archive node according to the
+    // configured retry count before the request succeeds.
+    it('should create archive node request, fail, do backoff 2 times, then work', async () => {
       const mockFetch = vi
         .fn()
         .mockRejectedValueOnce(new Error('First attempt failed'))
@@ -124,43 +128,94 @@ describe('ReliableRequestClient', () => {
       expect(mockFetch).toHaveBeenNthCalledWith(2, `${archiveNodeUrl}/test`);
       expect(mockFetch).toHaveBeenNthCalledWith(3, `${archiveNodeUrl}/test`);
 
-      // Verify that exponential backoff was applied (at least 1ms + 2ms = 3ms total)
-      expect(endTime - startTime).toBeGreaterThan(3);
+      // Verify that Fibonacci backoff was applied (at least 1ms + 2ms = 3ms total).
+      expect(endTime - startTime).toBeGreaterThanOrEqual(3);
     });
 
-    it('should exhaust full nodes with backoff and fallback to archive', async () => {
-      // Mock fetch to fail all full node attempts (1 retry) and succeed on archive
+    // This test verifies full-priority requests exhaust two full attempts before trying the
+    // archive node three times, then return the successful archive response.
+    it('tries full twice then archive three times for full-priority requests', async () => {
+      const alternatingClient = new TestReliableClient({
+        fullNodeConcurrency: 10,
+        archiveNodeConcurrency: 5,
+        fullNodeUrl,
+        archiveNodeUrl,
+        baseDelay: ms('1ms'),
+        fullNodeRetries: 1,
+        archiveNodeRetries: 2,
+      });
       const mockFetch = vi.fn();
 
-      // First 2 calls to full node fail (1 retry + 1 initial attempt)
-      for (let i = 0; i < 2; i++) {
-        mockFetch.mockRejectedValueOnce(new Error('Full node failed'));
+      // The first four failures force full/full/archive/archive before the final archive success.
+      for (let i = 0; i < 4; i++) {
+        mockFetch.mockRejectedValueOnce(new Error('Beacon node failed'));
       }
 
-      // 3rd call to archive succeeds
+      // The fifth attempt succeeds on archive, proving the final fallback is reached.
       mockFetch.mockResolvedValueOnce({
         ok: true,
-        text: () => Promise.resolve('Archive fallback success'),
+        text: () => Promise.resolve('Final archive fallback success'),
       });
 
       global.fetch = mockFetch;
 
-      const startTime = Date.now();
-      const result = await client.method1Full();
-      const endTime = Date.now();
+      const result = await alternatingClient.method1Full();
 
-      expect(result).toBe('Archive fallback success');
-      expect(mockFetch).toHaveBeenCalledTimes(3);
-
-      // First 2 calls should be to full node
-      for (let i = 1; i <= 2; i++) {
-        expect(mockFetch).toHaveBeenNthCalledWith(i, `${fullNodeUrl}/test`);
-      }
-      // 3rd call should be to archive node
+      expect(result).toBe('Final archive fallback success');
+      expect(mockFetch).toHaveBeenCalledTimes(5);
+      expect(mockFetch).toHaveBeenNthCalledWith(1, `${fullNodeUrl}/test`);
+      expect(mockFetch).toHaveBeenNthCalledWith(2, `${fullNodeUrl}/test`);
       expect(mockFetch).toHaveBeenNthCalledWith(3, `${archiveNodeUrl}/test`);
+      expect(mockFetch).toHaveBeenNthCalledWith(4, `${archiveNodeUrl}/test`);
+      expect(mockFetch).toHaveBeenNthCalledWith(5, `${archiveNodeUrl}/test`);
+    });
 
-      // Verify that some time passed due to exponential backoff on full node
-      expect(endTime - startTime).toBeGreaterThan(1); // At least 1ms
+    // This test verifies archive-priority requests can make five archive attempts when the
+    // configured retry count allows four retries after the first attempt.
+    it('tries archive up to five times for archive-priority requests', async () => {
+      const archiveClient = new TestReliableClient({
+        fullNodeConcurrency: 10,
+        archiveNodeConcurrency: 5,
+        fullNodeUrl,
+        archiveNodeUrl,
+        baseDelay: ms('1ms'),
+        fullNodeRetries: 2,
+        archiveNodeRetries: 4,
+      });
+      const mockFetch = vi.fn();
+
+      // Four failures force every retry slot before the fifth archive attempt succeeds.
+      for (let i = 0; i < 4; i++) {
+        mockFetch.mockRejectedValueOnce(new Error('Archive node failed'));
+      }
+
+      // The fifth archive request succeeds and should be the final network call.
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        text: () => Promise.resolve('Fifth archive attempt success'),
+      });
+
+      global.fetch = mockFetch;
+
+      const result = await archiveClient.method1Archive();
+
+      expect(result).toBe('Fifth archive attempt success');
+      expect(mockFetch).toHaveBeenCalledTimes(5);
+      for (let callNumber = 1; callNumber <= 5; callNumber++) {
+        expect(mockFetch).toHaveBeenNthCalledWith(callNumber, `${archiveNodeUrl}/test`);
+      }
+    });
+
+    // This test verifies the retry backoff uses the requested Fibonacci delay sequence.
+    it('uses fibonacci backoff delays for failed attempts', () => {
+      // With a 1ms base delay, each failed attempt maps directly to the expected delay.
+      expect([1, 2, 3, 4, 5].map((attempt) => client.delayForAttempt(attempt))).toEqual([
+        ms('1ms'),
+        ms('2ms'),
+        ms('3ms'),
+        ms('5ms'),
+        ms('8ms'),
+      ]);
     });
   });
 

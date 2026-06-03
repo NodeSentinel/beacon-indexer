@@ -1,5 +1,3 @@
-import { AxiosError } from 'axios';
-
 import { ReliableRequestClient } from '@/src/services/consensus/utils/reliableRequestClient.js';
 
 /**
@@ -88,39 +86,9 @@ export class TestReliableClient extends ReliableRequestClient {
   }
 
   /**
-   * Override callAPI to use shorter minTimeout for faster tests
+   * Expose retry delay calculation so tests can verify the production backoff sequence.
    */
-  protected async callAPI<T>(
-    callEndpoint: (url: string) => Promise<T>,
-    retries: number,
-    url: string,
-    nodeType: 'full' | 'archive',
-    errorHandler?: (error: AxiosError<{ message: string }>) => T | undefined,
-  ): Promise<T> {
-    const pRetry = await import('p-retry');
-    try {
-      // Select the appropriate limit based on node type
-      const limit = nodeType === 'full' ? this.fullNodeLimit : this.archiveNodeLimit;
-      return await limit(() =>
-        pRetry.default(() => callEndpoint(url), {
-          retries,
-          minTimeout: 50, // Use much shorter timeout for tests
-          onFailedAttempt: async (error: { attemptNumber: number }) => {
-            const delay = this.calculateBackoffDelay(error.attemptNumber);
-            await new Promise((resolve) => setTimeout(resolve, delay));
-          },
-        }),
-      );
-    } catch (error) {
-      // Try to handle the error if handler provided
-      if (errorHandler) {
-        const handled = errorHandler(error as AxiosError<{ message: string }>);
-        if (handled !== undefined) {
-          return handled;
-        }
-      }
-
-      throw error;
-    }
+  delayForAttempt(attempt: number): number {
+    return this.calculateBackoffDelay(attempt);
   }
 }
