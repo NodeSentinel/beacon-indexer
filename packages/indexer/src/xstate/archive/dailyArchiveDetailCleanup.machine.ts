@@ -68,7 +68,7 @@ export const dailyArchiveDetailCleanupMachine = setup({
           actions: [
             pinoLog(({ event }) => {
               const result = event.output;
-              return `Daily archive detail cleanup completed: batches=${result.batches} rows=${result.rows}`;
+              return `Daily archive detail cleanup completed: batches=${result.batches} rows=${result.rows} vacuumedPartitions=${result.vacuumedPartitions}`;
             }, LOGGER_CONTEXT),
           ],
         },

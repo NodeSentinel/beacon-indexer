@@ -3,43 +3,46 @@ import { DailyArchiveDetailCleanupStorage } from '../storage/dailyArchiveDetailC
 export type DailyArchiveDetailCleanupResult = {
   batches: number;
   rows: number;
+  vacuumedPartitions: number;
 };
 
 export type DailyArchiveDetailCleanupOptions = {
   batchSize: number;
-  maxBatchesPerRun: number;
 };
 
-const DEFAULT_BATCH_SIZE = 10_000;
-const DEFAULT_MAX_BATCHES_PER_RUN = 100;
+const DEFAULT_BATCH_SIZE = 5_000;
 
 /**
  * DailyArchiveDetailCleanupController - Coordinates old daily archive JSON cleanup.
  */
 export class DailyArchiveDetailCleanupController {
   private readonly batchSize: number;
-  private readonly maxBatchesPerRun: number;
 
   constructor(
     private readonly storage: DailyArchiveDetailCleanupStorage,
     options: Partial<DailyArchiveDetailCleanupOptions> = {},
   ) {
     this.batchSize = options.batchSize ?? DEFAULT_BATCH_SIZE;
-    this.maxBatchesPerRun = options.maxBatchesPerRun ?? DEFAULT_MAX_BATCHES_PER_RUN;
   }
 
   /**
-   * Run cleanup batches until there is no work or this wake reaches its budget.
+   * Clean one eligible daily partition completely and vacuum it.
    *
-   * The budget prevents a large backlog from turning one cleanup wake into a
-   * long database job. Later wakes continue from rows that still have JSON.
+   * Each batch commits independently through storage. The target is selected by
+   * scanning current archive rows, so a restarted worker starts from database state.
    */
   async cleanupOldDailyDetails(): Promise<DailyArchiveDetailCleanupResult> {
+    const target = await this.storage.findDailyArchiveDetailCleanupTarget();
+    if (!target) {
+      return { batches: 0, rows: 0, vacuumedPartitions: 0 };
+    }
+
     let batches = 0;
     let rows = 0;
+    let cleaned = this.batchSize;
 
-    for (let batch = 0; batch < this.maxBatchesPerRun; batch++) {
-      const cleaned = await this.storage.cleanOldDailyArchiveDetailBatch(this.batchSize);
+    while (cleaned === this.batchSize) {
+      cleaned = await this.storage.cleanDailyArchiveDetailBatch(target.targetDay, this.batchSize);
       if (cleaned === 0) {
         break;
       }
@@ -52,6 +55,8 @@ export class DailyArchiveDetailCleanupController {
       }
     }
 
-    return { batches, rows };
+    await this.storage.vacuumDailyArchivePartition(target.partitionName);
+
+    return { batches, rows, vacuumedPartitions: 1 };
   }
 }

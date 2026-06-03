@@ -1,6 +1,11 @@
 import { PrismaClient } from '@beacon-indexer/db';
 import { subDays } from 'date-fns';
 
+export type DailyArchiveDetailCleanupTarget = {
+  targetDay: Date;
+  partitionName: string;
+};
+
 /**
  * DailyArchiveDetailCleanupStorage - Database operations for daily archive JSON cleanup.
  */
@@ -38,24 +43,57 @@ export class DailyArchiveDetailCleanupStorage {
   }
 
   /**
-   * Clear JSON detail from one bounded set of old daily archive rows.
+   * Find the oldest daily partition with JSON detail outside retention.
    *
-   * The batch size limits row locks per cleanup pass. The query only targets
-   * rows that still have JSON detail, so already-cleaned rows are skipped.
+   * Cleanup is intentionally stateless. If the process restarts, the next wake
+   * scans the archive table again and picks the oldest day that still has JSON.
    */
-  async cleanOldDailyArchiveDetailBatch(batchSize: number): Promise<number> {
+  async findDailyArchiveDetailCleanupTarget(): Promise<DailyArchiveDetailCleanupTarget | null> {
     const cleanupCutoff = await this.getCleanupCutoff();
     if (!cleanupCutoff) {
-      return 0;
+      return null;
     }
 
+    const [target] = await this.prisma.$queryRaw<
+      Array<{
+        target_day: Date;
+        partition_name: string;
+      }>
+    >`
+      SELECT
+        archive."timestamp" AS target_day,
+        archive.tableoid::regclass::text AS partition_name
+      FROM validator_daily_archive archive
+      WHERE archive."timestamp" < ${cleanupCutoff}::timestamp
+        AND (archive.data_by_slot IS NOT NULL OR archive.data_by_epoch IS NOT NULL)
+      ORDER BY archive."timestamp" ASC, archive.validator_index ASC
+      LIMIT 1
+    `;
+
+    if (!target) {
+      return null;
+    }
+
+    return {
+      targetDay: target.target_day,
+      partitionName: target.partition_name,
+    };
+  }
+
+  /**
+   * Clear JSON detail from one bounded set of rows for a single daily partition.
+   *
+   * The batch size limits row locks per cleanup pass. The query only targets
+   * rows that still have JSON detail, so restarted cleanup skips null rows.
+   */
+  async cleanDailyArchiveDetailBatch(targetDay: Date, batchSize: number): Promise<number> {
     const [result] = await this.prisma.$queryRaw<Array<{ cleaned: number }>>`
       WITH rows_to_clean AS (
         SELECT tableoid, ctid
         FROM validator_daily_archive
-        WHERE "timestamp" < ${cleanupCutoff}::timestamp
+        WHERE "timestamp" = ${targetDay}::timestamp
           AND (data_by_slot IS NOT NULL OR data_by_epoch IS NOT NULL)
-        ORDER BY "timestamp" ASC, validator_index ASC
+        ORDER BY validator_index ASC
         LIMIT ${batchSize}
       ),
       updated_rows AS (
@@ -71,4 +109,22 @@ export class DailyArchiveDetailCleanupStorage {
 
     return result.cleaned;
   }
+
+  /**
+   * Run VACUUM FULL on the finished daily archive partition.
+   */
+  async vacuumDailyArchivePartition(partitionName: string): Promise<void> {
+    await this.prisma.$executeRawUnsafe(`VACUUM FULL ${quotePostgresIdentifier(partitionName)}`);
+  }
+}
+
+/**
+ * Quote a daily archive partition identifier after rejecting unsafe table names.
+ */
+function quotePostgresIdentifier(identifier: string): string {
+  if (!/^validator_daily_archive_\d{8}$/.test(identifier)) {
+    throw new Error(`Unsafe daily archive partition name: ${identifier}`);
+  }
+
+  return `"${identifier.replaceAll('"', '""')}"`;
 }
