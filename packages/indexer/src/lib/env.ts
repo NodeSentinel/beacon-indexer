@@ -37,14 +37,6 @@ export const env = createEnv({
       (val) => Number(val),
       z.number().int().positive(),
     ),
-    CONSENSUS_FULL_API_RETRIES: z.preprocess(
-      (val) => (val === undefined ? undefined : Number(val)),
-      z.number().int().min(0).default(1),
-    ),
-    CONSENSUS_ARCHIVE_API_RETRIES: z.preprocess(
-      (val) => (val === undefined ? undefined : Number(val)),
-      z.number().int().min(0).default(2),
-    ),
     ARCHIVE_DETAIL_RETENTION_DAYS: z.preprocess(
       (val) => (val === undefined ? undefined : Number(val)),
       z.number().int().positive().default(14),
@@ -66,6 +58,12 @@ export const env = createEnv({
   },
   emptyStringAsUndefined: true,
 });
+
+// Keep beacon request retry counts centralized without adding deployment-facing env vars.
+export const consensusApiRetryConfig = {
+  fullNodeRetries: 1,
+  archiveNodeRetries: 2,
+} as const;
 
 // Get chain configuration
 export const chainConfig = getChainConfig(env.CHAIN);

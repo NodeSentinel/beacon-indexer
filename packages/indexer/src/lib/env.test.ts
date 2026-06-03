@@ -1,12 +1,14 @@
 import { describe, expect, test } from 'vitest';
 
-import { env } from '@/src/lib/env.js';
+import { consensusApiRetryConfig } from '@/src/lib/env.js';
 
 describe('env', () => {
-  test('uses beacon retry defaults when retry env vars are not provided', () => {
-    // Scenario: deployments can omit explicit beacon retry settings and still receive
-    // the current bounded retry policy used by the indexer.
-    expect(env.CONSENSUS_FULL_API_RETRIES).toBe(1);
-    expect(env.CONSENSUS_ARCHIVE_API_RETRIES).toBe(2);
+  test('keeps beacon retry defaults out of deployment env vars', () => {
+    // Scenario: retry counts are runtime config owned by the indexer code, not new .env keys
+    // that deployments must define or accidentally override.
+    expect(consensusApiRetryConfig).toEqual({
+      fullNodeRetries: 1,
+      archiveNodeRetries: 2,
+    });
   });
 });
