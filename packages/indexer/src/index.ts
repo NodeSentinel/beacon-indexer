@@ -1,7 +1,7 @@
 import { BeaconTime } from '@beacon-indexer/beacon-utils/beaconTime';
 import ms from 'ms';
 
-import { chainConfig, consensusApiRetryConfig, env } from '@/src/lib/env.js';
+import { chainConfig, env } from '@/src/lib/env.js';
 import createLogger from '@/src/lib/pino.js';
 import { getPrisma } from '@/src/lib/prisma.js';
 import { BeaconClient } from '@/src/services/consensus/beacon.js';
@@ -99,10 +99,10 @@ async function main() {
   const beaconClient = new BeaconClient({
     fullNodeUrl: env.CONSENSUS_FULL_API_URL,
     fullNodeConcurrency: env.CONSENSUS_API_REQUEST_PER_SECOND,
-    fullNodeRetries: consensusApiRetryConfig.fullNodeRetries,
+    fullNodeRetries: 1,
     archiveNodeUrl: env.CONSENSUS_ARCHIVE_API_URL,
     archiveNodeConcurrency: env.CONSENSUS_API_REQUEST_PER_SECOND,
-    archiveNodeRetries: consensusApiRetryConfig.archiveNodeRetries,
+    archiveNodeRetries: 2,
     baseDelay: ms('1s'),
     slotStartIndexing: env.CONSENSUS_LOOKBACK_SLOT,
     slotsPerEpoch: chainConfig.beacon.slotsPerEpoch,

@@ -59,11 +59,5 @@ export const env = createEnv({
   emptyStringAsUndefined: true,
 });
 
-// Keep beacon request retry counts centralized without adding deployment-facing env vars.
-export const consensusApiRetryConfig = {
-  fullNodeRetries: 1,
-  archiveNodeRetries: 2,
-} as const;
-
 // Get chain configuration
 export const chainConfig = getChainConfig(env.CHAIN);
