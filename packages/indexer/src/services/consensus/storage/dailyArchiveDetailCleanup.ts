@@ -107,7 +107,7 @@ export class DailyArchiveDetailCleanupStorage {
       SELECT COUNT(*)::int AS cleaned FROM updated_rows
     `;
 
-    return result.cleaned;
+    return result?.cleaned ?? 0;
   }
 
   /**

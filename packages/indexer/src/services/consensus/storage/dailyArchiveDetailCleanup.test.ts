@@ -4,6 +4,30 @@ import { DailyArchiveDetailCleanupStorage } from './dailyArchiveDetailCleanup.js
 
 describe('DailyArchiveDetailCleanupStorage', () => {
   /**
+   * Scenario: PostgreSQL unexpectedly returns no COUNT row for a cleanup batch.
+   * The storage method should treat the missing result as zero cleaned rows so
+   * the controller can finish the wake without crashing.
+   */
+  it('returns zero when a cleanup batch query returns no count row', async () => {
+    // This Prisma stub simulates an unexpected empty result from the raw COUNT query.
+    const prisma = {
+      $queryRaw: vi.fn().mockResolvedValue([]),
+    };
+
+    // This storage instance exercises the defensive result handling in the batch cleanup path.
+    const storage = new DailyArchiveDetailCleanupStorage(prisma as never, 14);
+
+    // Run one cleanup batch against a daily archive timestamp.
+    const cleaned = await storage.cleanDailyArchiveDetailBatch(
+      new Date('2025-12-01T00:00:00.000Z'),
+      5_000,
+    );
+
+    // A missing COUNT row means no rows can be reported as cleaned.
+    expect(cleaned).toBe(0);
+  });
+
+  /**
    * Scenario: VACUUM FULL receives the expected published daily archive partition.
    * The storage layer must quote the partition name as a PostgreSQL identifier before
    * executing raw SQL because table names cannot be passed as bind parameters.
