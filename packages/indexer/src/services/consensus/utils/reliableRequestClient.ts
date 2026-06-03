@@ -181,22 +181,29 @@ export abstract class ReliableRequestClient {
     errorHandler?: (error: AxiosError<{ message: string }>) => T | undefined,
   ): Promise<T> {
     const attempts = this.getAttemptSequence(nodeType);
+    const failedAttemptsByNodeType: Record<RequestAttempt['nodeType'], number> = {
+      full: 0,
+      archive: 0,
+    };
     let lastError: unknown;
 
     for (let attemptIndex = 0; attemptIndex < attempts.length; attemptIndex++) {
-      const attemptNumber = attemptIndex + 1;
       const attempt = attempts[attemptIndex];
 
       try {
         return await this.callAPI(callEndpoint, attempt.url, attempt.nodeType, errorHandler);
       } catch (error) {
         lastError = error;
+        // Keep retry backoff scoped to the node type so archive fallback starts from its first delay.
+        failedAttemptsByNodeType[attempt.nodeType]++;
+        const nodeTypeAttemptNumber = failedAttemptsByNodeType[attempt.nodeType];
+
         if (attemptIndex === attempts.length - 1) {
           break;
         }
 
-        this.logFailedAttempt(error, attemptNumber);
-        await this.waitBeforeRetry(attemptNumber);
+        this.logFailedAttempt(error, nodeTypeAttemptNumber);
+        await this.waitBeforeRetry(nodeTypeAttemptNumber);
       }
     }
 

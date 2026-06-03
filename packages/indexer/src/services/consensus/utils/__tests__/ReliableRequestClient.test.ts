@@ -217,6 +217,50 @@ describe('ReliableRequestClient', () => {
         ms('8ms'),
       ]);
     });
+
+    // This test verifies a full-priority request restarts the backoff progression when it
+    // falls back from the full node to the archive node after exhausting full-node attempts.
+    it('resets fibonacci backoff attempts when falling back from full to archive', async () => {
+      const fallbackClient = new TestReliableClient({
+        fullNodeConcurrency: 10,
+        archiveNodeConcurrency: 5,
+        fullNodeUrl,
+        archiveNodeUrl,
+        baseDelay: ms('1ms'),
+        fullNodeRetries: 1,
+        archiveNodeRetries: 2,
+      });
+      const mockFetch = vi.fn();
+      const delaySpy = vi.spyOn(
+        fallbackClient as unknown as { calculateBackoffDelay: (attempt: number) => number },
+        'calculateBackoffDelay',
+      );
+
+      // The first two failures exhaust the full node, and the next two failures exercise
+      // archive-node retry delays before the final archive attempt succeeds.
+      for (let i = 0; i < 4; i++) {
+        mockFetch.mockRejectedValueOnce(new Error('Beacon node failed'));
+      }
+
+      // The final response proves the request reached the last archive attempt after retries.
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        text: () => Promise.resolve('Archive fallback success'),
+      });
+
+      // This setup sends the request through full/full/archive/archive/archive.
+      global.fetch = mockFetch;
+
+      // Running the request should calculate two full-node delays and then restart the archive
+      // delay progression from the first Fibonacci step.
+      const result = await fallbackClient.method1Full();
+
+      // The request should still resolve from archive after all planned failures.
+      expect(result).toBe('Archive fallback success');
+
+      // Full-node failures use attempts 1 and 2; archive-node failures must restart at 1 and 2.
+      expect(delaySpy.mock.calls.map(([attempt]) => attempt)).toEqual([1, 2, 1, 2]);
+    });
   });
 
   describe('concurrency control methods', () => {
