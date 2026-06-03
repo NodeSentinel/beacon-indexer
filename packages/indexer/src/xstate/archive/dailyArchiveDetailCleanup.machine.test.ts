@@ -21,7 +21,9 @@ describe('dailyArchiveDetailCleanupMachine', () => {
     vi.useFakeTimers();
 
     // Expose only the controller method that the machine should invoke.
-    const cleanupOldDailyDetails = vi.fn().mockResolvedValue({ batches: 0, rows: 0 });
+    const cleanupOldDailyDetails = vi
+      .fn()
+      .mockResolvedValue({ batches: 0, rows: 0, vacuumedPartitions: 0 });
 
     // Start the actor with the cleanup controller dependency.
     const actor = createActor(dailyArchiveDetailCleanupMachine, {
@@ -48,12 +50,16 @@ describe('dailyArchiveDetailCleanupMachine', () => {
     // Use fake timers to trigger multiple wakeups without waiting.
     vi.useFakeTimers();
 
-    let resolveCleanup!: (value: { batches: number; rows: number }) => void;
+    let resolveCleanup!: (value: {
+      batches: number;
+      rows: number;
+      vacuumedPartitions: number;
+    }) => void;
 
     // Keep the first cleanup pending so the second timer cannot overlap it.
     const cleanupOldDailyDetails = vi.fn(
       () =>
-        new Promise<{ batches: number; rows: number }>((resolve) => {
+        new Promise<{ batches: number; rows: number; vacuumedPartitions: number }>((resolve) => {
           resolveCleanup = resolve;
         }),
     );
@@ -77,7 +83,7 @@ describe('dailyArchiveDetailCleanupMachine', () => {
     expect(cleanupOldDailyDetails).toHaveBeenCalledTimes(1);
 
     // Resolve the first pass and let the machine return to waiting.
-    resolveCleanup({ batches: 1, rows: 10_000 });
+    resolveCleanup({ batches: 1, rows: 10_000, vacuumedPartitions: 1 });
     await vi.waitFor(() => expect(actor.getSnapshot().value).toBe('waiting'));
 
     actor.stop();

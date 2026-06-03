@@ -9,6 +9,7 @@ describe('Daily Archive Detail Cleanup Process', () => {
   let cleanupController: DailyArchiveDetailCleanupController;
 
   const ARCHIVED_DAY = new Date('2025-12-16T00:00:00.000Z');
+  const OLDEST_DAY = new Date('2025-11-30T00:00:00.000Z');
   const OLD_DAY = new Date('2025-12-01T00:00:00.000Z');
   const RETAINED_DAY = new Date('2025-12-02T00:00:00.000Z');
 
@@ -27,7 +28,6 @@ describe('Daily Archive Detail Cleanup Process', () => {
       new DailyArchiveDetailCleanupStorage(prisma, 14),
       {
         batchSize: 2,
-        maxBatchesPerRun: 2,
       },
     );
   });
@@ -152,24 +152,24 @@ describe('Daily Archive Detail Cleanup Process', () => {
   }
 
   /**
-   * CLEANUP BUDGET: Cleans old daily JSON detail in bounded batches.
+   * CLEANUP COMPLETION: Cleans one old daily partition in bounded batches.
    *
-   * The cleanup worker runs independently from daily archiving. Each run has a
-   * maximum number of batches so a backlog cannot monopolize the database.
+   * The cleanup worker runs independently from daily archiving. Each wake fully
+   * clears one selected day before vacuuming that partition.
    */
-  it('cleans old daily JSON detail using the configured batch budget', async () => {
+  it('cleans one old daily partition completely using bounded batches', async () => {
     // Create old rows outside the 14-day retention window.
     await createDailyArchiveRows(OLD_DAY, 5);
 
     // Create retained rows exactly at the cutoff so they must keep JSON detail.
     await createDailyArchiveRows(RETAINED_DAY, 3);
 
-    // Run one cleanup pass with batchSize=2 and maxBatchesPerRun=2.
+    // Run one cleanup pass with batchSize=2 so the day needs three committed batches.
     const result = await cleanupController.cleanupOldDailyDetails();
-    expect(result).toEqual({ batches: 2, rows: 4 });
+    expect(result).toEqual({ batches: 3, rows: 5, vacuumedPartitions: 1 });
 
-    // Verify only four old rows were cleaned by this pass.
-    await expect(countDetailRows(OLD_DAY)).resolves.toEqual({ cleaned: 4, remaining: 1 });
+    // Verify the whole old partition was cleaned by this wake.
+    await expect(countDetailRows(OLD_DAY)).resolves.toEqual({ cleaned: 5, remaining: 0 });
 
     // Verify rows inside the retention window still keep JSON detail.
     await expect(countDetailRows(RETAINED_DAY)).resolves.toEqual({ cleaned: 0, remaining: 3 });
@@ -188,19 +188,25 @@ describe('Daily Archive Detail Cleanup Process', () => {
   });
 
   /**
-   * CLEANUP CONVERGENCE: Repeated cleanup runs eventually remove all old detail.
+   * ONE-DAY SCOPE: Each cleanup wake finishes one day and leaves later old days for later wakes.
    */
-  it('continues cleanup on later runs until no old daily JSON detail remains', async () => {
-    // Create one more old row than a single cleanup run can process.
-    await createDailyArchiveRows(OLD_DAY, 5);
+  it('continues cleanup on later runs with the next old daily partition', async () => {
+    // Create two old daily partitions so the test can observe one-day-per-wake behavior.
+    await createDailyArchiveRows(OLDEST_DAY, 3);
+    await createDailyArchiveRows(OLD_DAY, 2);
 
-    // Run two cleanup passes so the second pass finishes the remaining row.
-    await cleanupController.cleanupOldDailyDetails();
+    // Run the first cleanup pass so only the oldest partition is completed and vacuumed.
+    const firstResult = await cleanupController.cleanupOldDailyDetails();
+    expect(firstResult).toEqual({ batches: 2, rows: 3, vacuumedPartitions: 1 });
+    await expect(countDetailRows(OLDEST_DAY)).resolves.toEqual({ cleaned: 3, remaining: 0 });
+    await expect(countDetailRows(OLD_DAY)).resolves.toEqual({ cleaned: 0, remaining: 2 });
+
+    // Run the second cleanup pass so the next old partition is processed.
     const result = await cleanupController.cleanupOldDailyDetails();
 
-    // Verify the second pass processed only the leftover old row.
-    expect(result).toEqual({ batches: 1, rows: 1 });
-    await expect(countDetailRows(OLD_DAY)).resolves.toEqual({ cleaned: 5, remaining: 0 });
+    // Verify later wakes continue from the next old partition, not from already-vacuumed days.
+    expect(result).toEqual({ batches: 1, rows: 2, vacuumedPartitions: 1 });
+    await expect(countDetailRows(OLD_DAY)).resolves.toEqual({ cleaned: 2, remaining: 0 });
   });
 
   /**
@@ -215,7 +221,7 @@ describe('Daily Archive Detail Cleanup Process', () => {
 
     // Run cleanup so only parent-visible rows are eligible.
     const result = await cleanupController.cleanupOldDailyDetails();
-    expect(result).toEqual({ batches: 1, rows: 2 });
+    expect(result).toEqual({ batches: 1, rows: 2, vacuumedPartitions: 1 });
 
     // Verify published rows were cleaned normally.
     await expect(countDetailRows(OLD_DAY)).resolves.toEqual({ cleaned: 2, remaining: 0 });
