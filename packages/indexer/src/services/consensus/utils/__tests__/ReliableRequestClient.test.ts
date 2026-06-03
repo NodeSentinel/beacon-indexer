@@ -73,20 +73,26 @@ describe('ReliableRequestClient', () => {
           ok: true,
           text: () => Promise.resolve('Full node success after retry'),
         });
+      const delaySpy = vi.spyOn(
+        client as unknown as { calculateBackoffDelay: (attempt: number) => number },
+        'calculateBackoffDelay',
+      );
 
+      // This setup makes the first full-node request fail and the second full-node request
+      // succeed, so the test exercises exactly one retry delay.
       global.fetch = mockFetch;
 
-      const startTime = Date.now();
+      // Running the request should retry on the full node before any archive fallback happens.
       const result = await client.method1Full();
-      const endTime = Date.now();
 
+      // The request should return the second full-node response after the configured retry.
       expect(result).toBe('Full node success after retry');
       expect(mockFetch).toHaveBeenCalledTimes(2);
       expect(mockFetch).toHaveBeenNthCalledWith(1, `${fullNodeUrl}/test`);
       expect(mockFetch).toHaveBeenNthCalledWith(2, `${fullNodeUrl}/test`);
 
-      // Verify that exponential backoff was applied (at least 1ms)
-      expect(endTime - startTime).toBeGreaterThan(1);
+      // The single full-node failure should use the first Fibonacci backoff attempt.
+      expect(delaySpy.mock.calls.map(([attempt]) => attempt)).toEqual([1]);
     });
 
     it('should create archive node request and work successfully', async () => {
