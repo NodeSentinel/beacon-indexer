@@ -140,4 +140,79 @@ describe('slotProcessorMachine', () => {
     // Stop the actor so no state machine work leaks into other tests.
     actor.stop();
   });
+
+  // This test verifies beacon block fetching recovers through XState after the request layer fails.
+  test('retries beacon block fetching after waiting five seconds', async () => {
+    // This controller simulates a beacon API outage that survives makeReliableRequest once,
+    // then returns the block on the next XState-level attempt.
+    const slotController = createSlotController();
+    slotController.fetchBeaconBlock
+      .mockRejectedValueOnce(new Error('beacon archive timeout'))
+      .mockResolvedValueOnce(createBlock());
+
+    // This flag verifies the parent sees slot completion after the retry succeeds.
+    let receivedSlotCompleted = false;
+
+    // This parent receives the slot completion event from the real slot processor.
+    const parentMachine = setup({
+      actors: {
+        slotProcessor: slotProcessorMachine,
+      },
+    }).createMachine({
+      id: 'testBeaconBlockRetryParent',
+      initial: 'running',
+      states: {
+        running: {
+          invoke: {
+            id: 'slotProcessor',
+            src: 'slotProcessor',
+            input: {
+              epoch: 1,
+              lookbackSlot: 0,
+              slot: 32,
+              slotController: slotController as never,
+              slotDuration: 12_000,
+            },
+            onDone: {
+              target: 'completed',
+            },
+          },
+          on: {
+            SLOT_COMPLETED: {
+              actions: () => {
+                receivedSlotCompleted = true;
+              },
+            },
+          },
+        },
+        completed: {
+          type: 'final',
+        },
+      },
+    });
+
+    // This actor starts slot processing and reaches the first failed beacon block request.
+    const actor = createActor(parentMachine);
+    actor.start();
+    await vi.advanceTimersByTimeAsync(0);
+
+    // The failed request must not retry before the five-second recovery delay elapses.
+    expect(slotController.fetchBeaconBlock).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(4_999);
+    expect(slotController.fetchBeaconBlock).toHaveBeenCalledTimes(1);
+
+    // Advancing the final millisecond triggers the retry, allowing processing to finish.
+    await vi.advanceTimersByTimeAsync(1);
+    await vi.runAllTimersAsync();
+
+    // This assertion verifies the beacon block request was retried by XState.
+    expect(slotController.fetchBeaconBlock).toHaveBeenCalledTimes(2);
+
+    // This assertion verifies the retry allowed the slot processor to complete normally.
+    expect(receivedSlotCompleted).toBe(true);
+    expect(actor.getSnapshot().value).toBe('completed');
+
+    // Stop the actor so no state machine work leaks into other tests.
+    actor.stop();
+  });
 });

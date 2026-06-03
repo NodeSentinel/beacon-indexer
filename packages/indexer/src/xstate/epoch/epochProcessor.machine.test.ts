@@ -383,6 +383,40 @@ describe('epochProcessorMachine', () => {
         subscription.unsubscribe();
       });
 
+      test('retries committees fetch after waiting five seconds', async () => {
+        // Scenario: the beacon API fails after makeReliableRequest exhausts its attempts,
+        // so the epoch processor must keep the indexer alive and retry from XState.
+        vi.setSystemTime(new Date(EPOCH_101_START_TIME + 50));
+
+        // This fetch fails once to simulate a temporary beacon provider outage.
+        (mockEpochController.fetchCommittees as ReturnType<typeof vi.fn>)
+          .mockRejectedValueOnce(new Error('beacon committees timeout'))
+          .mockResolvedValueOnce(undefined);
+
+        // Start the epoch processor and let it reach the first failed committees request.
+        const { actor, subscription } = createAndStartActor(
+          epochProcessorMachine,
+          createProcessorMachineDefaultInput(100),
+        );
+        await vi.advanceTimersByTimeAsync(0);
+        await waitForXStateTransitions();
+
+        // The machine must not retry until the five-second recovery delay has elapsed.
+        expect(mockEpochController.fetchCommittees).toHaveBeenCalledTimes(1);
+        await vi.advanceTimersByTimeAsync(4_999);
+        await waitForXStateTransitions();
+        expect(mockEpochController.fetchCommittees).toHaveBeenCalledTimes(1);
+
+        // Advancing the final millisecond triggers the second XState-level attempt.
+        await vi.advanceTimersByTimeAsync(1);
+        await waitForXStateTransitions();
+        expect(mockEpochController.fetchCommittees).toHaveBeenCalledTimes(2);
+
+        // Stop the actor so the retry loop does not leak into other tests.
+        actor.stop();
+        subscription.unsubscribe();
+      });
+
       test('should emit COMMITTEES_FETCHED on complete', async () => {
         vi.setSystemTime(new Date(EPOCH_101_START_TIME + 50));
 
@@ -436,6 +470,40 @@ describe('epochProcessorMachine', () => {
         expect(syncState).toBe('syncCommitteesFetched');
         expect(mockEpochController.fetchSyncCommittees).toHaveBeenCalledWith(100);
 
+        actor.stop();
+        subscription.unsubscribe();
+      });
+
+      test('retries sync committees fetch after waiting five seconds', async () => {
+        // Scenario: the sync committee request fails after request-layer retries,
+        // so XState must wait five seconds and try the same controller call again.
+        vi.setSystemTime(new Date(EPOCH_101_START_TIME + 50));
+
+        // This fetch fails once, then succeeds on the XState retry.
+        (mockEpochController.fetchSyncCommittees as ReturnType<typeof vi.fn>)
+          .mockRejectedValueOnce(new Error('sync committee provider unavailable'))
+          .mockResolvedValueOnce(undefined);
+
+        // Start processing and allow the first failed sync committee fetch to settle.
+        const { actor, subscription } = createAndStartActor(
+          epochProcessorMachine,
+          createProcessorMachineDefaultInput(100),
+        );
+        await vi.advanceTimersByTimeAsync(0);
+        await waitForXStateTransitions();
+
+        // Before five seconds pass, the failed state must remain parked without another request.
+        expect(mockEpochController.fetchSyncCommittees).toHaveBeenCalledTimes(1);
+        await vi.advanceTimersByTimeAsync(4_999);
+        await waitForXStateTransitions();
+        expect(mockEpochController.fetchSyncCommittees).toHaveBeenCalledTimes(1);
+
+        // The five-second boundary starts the next sync committee request.
+        await vi.advanceTimersByTimeAsync(1);
+        await waitForXStateTransitions();
+        expect(mockEpochController.fetchSyncCommittees).toHaveBeenCalledTimes(2);
+
+        // Stop the actor so no pending state machine work remains.
         actor.stop();
         subscription.unsubscribe();
       });
@@ -821,6 +889,40 @@ describe('epochProcessorMachine', () => {
         subscription.unsubscribe();
       });
 
+      test('retries validator balances fetch after waiting five seconds', async () => {
+        // Scenario: fetching validator state from the beacon API fails once after request-layer
+        // retries, and the epoch processor must keep retrying instead of parking forever.
+        vi.setSystemTime(new Date(EPOCH_101_START_TIME + 50));
+
+        // This validator state fetch fails once and succeeds on the XState retry.
+        (mockValidatorsController.fetchValidatorsState as ReturnType<typeof vi.fn>)
+          .mockRejectedValueOnce(new Error('validator state timeout'))
+          .mockResolvedValueOnce(undefined);
+
+        // Start the epoch processor and let the first validator state request fail.
+        const { actor, subscription } = createAndStartActor(
+          epochProcessorMachine,
+          createProcessorMachineDefaultInput(100),
+        );
+        await vi.advanceTimersByTimeAsync(0);
+        await waitForXStateTransitions();
+
+        // The request must not be repeated before the five-second retry delay.
+        expect(mockValidatorsController.fetchValidatorsState).toHaveBeenCalledTimes(1);
+        await vi.advanceTimersByTimeAsync(4_999);
+        await waitForXStateTransitions();
+        expect(mockValidatorsController.fetchValidatorsState).toHaveBeenCalledTimes(1);
+
+        // After five seconds, XState retries the validator state fetch.
+        await vi.advanceTimersByTimeAsync(1);
+        await waitForXStateTransitions();
+        expect(mockValidatorsController.fetchValidatorsState).toHaveBeenCalledTimes(2);
+
+        // Stop the actor so this retry scenario is isolated.
+        actor.stop();
+        subscription.unsubscribe();
+      });
+
       test('should emit VALIDATORS_BALANCES_FETCHED on complete', async () => {
         vi.setSystemTime(new Date(EPOCH_101_START_TIME + 50));
 
@@ -901,6 +1003,44 @@ describe('epochProcessorMachine', () => {
         // Controller should have been called once prerequisites were met
         expect(mockEpochController.fetchEpochRewards).toHaveBeenCalledWith(100);
 
+        actor.stop();
+        subscription.unsubscribe();
+      });
+
+      test('retries epoch rewards fetch after waiting five seconds', async () => {
+        // Scenario: the epoch is ended and balances are ready, but the rewards request fails
+        // after makeReliableRequest; XState must retry instead of leaving rewards stuck.
+        const epochEndTime = EPOCH_101_START_TIME + SLOTS_PER_EPOCH * SLOT_DURATION + 100;
+        vi.setSystemTime(new Date(epochEndTime));
+
+        // This rewards fetch fails once, then succeeds when the recovery delay expires.
+        (mockEpochController.fetchEpochRewards as ReturnType<typeof vi.fn>)
+          .mockRejectedValueOnce(new Error('attestation rewards timeout'))
+          .mockResolvedValueOnce(undefined);
+
+        // Start with the balances guard satisfied so the rewards branch can fetch immediately.
+        const { actor, subscription } = createAndStartActor(
+          epochProcessorMachine,
+          createProcessorMachineDefaultInput(100),
+          {
+            areValidatorsBalancesFetched: () => true,
+          },
+        );
+        await vi.advanceTimersByTimeAsync(0);
+        await waitForXStateTransitions();
+
+        // The failed rewards request must wait the full five seconds before retrying.
+        expect(mockEpochController.fetchEpochRewards).toHaveBeenCalledTimes(1);
+        await vi.advanceTimersByTimeAsync(4_999);
+        await waitForXStateTransitions();
+        expect(mockEpochController.fetchEpochRewards).toHaveBeenCalledTimes(1);
+
+        // The next millisecond triggers the second rewards request.
+        await vi.advanceTimersByTimeAsync(1);
+        await waitForXStateTransitions();
+        expect(mockEpochController.fetchEpochRewards).toHaveBeenCalledTimes(2);
+
+        // Stop the actor so no retry timers remain active.
         actor.stop();
         subscription.unsubscribe();
       });

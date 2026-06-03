@@ -1,11 +1,15 @@
 import { AxiosError } from 'axios';
-import ms from 'ms';
 import pLimit from 'p-limit';
-import pRetry from 'p-retry';
 
 import createLogger from '@/src/lib/pino.js';
 
 const retryLogger = createLogger('ReliableRequest');
+const FIBONACCI_RETRY_DELAY_STEPS = [1, 2, 3, 5, 8] as const;
+
+type RequestAttempt = {
+  nodeType: 'full' | 'archive';
+  url: string;
+};
 
 /**
  * Extract endpoint path from a full URL or AxiosError
@@ -75,14 +79,67 @@ export abstract class ReliableRequestClient {
   }
 
   /**
-   * Calculate exponential backoff delay
+   * Calculate the Fibonacci backoff delay for a failed attempt.
    */
   protected calculateBackoffDelay(attempt: number): number {
-    return this.baseDelay * Math.pow(2, attempt);
+    // Clamp the attempt-based index so retries beyond the configured sequence keep using the last delay.
+    const requestedDelayIndex = attempt - 1;
+    const maxDelayIndex = FIBONACCI_RETRY_DELAY_STEPS.length - 1;
+    const delayIndex = Math.min(Math.max(requestedDelayIndex, 0), maxDelayIndex);
+
+    return this.baseDelay * FIBONACCI_RETRY_DELAY_STEPS[delayIndex];
   }
 
   /**
-   * Call API endpoint with specified retries and error handling
+   * Build the ordered node sequence for a reliable request.
+   */
+  private getAttemptSequence(nodeType: 'full' | 'archive'): RequestAttempt[] {
+    if (nodeType === 'archive') {
+      return Array.from({ length: this.archiveNodeRetries + 1 }, () => ({
+        nodeType: 'archive' as const,
+        url: this.archiveNodeUrl,
+      }));
+    }
+
+    return [
+      ...Array.from({ length: this.fullNodeRetries + 1 }, () => ({
+        nodeType: 'full' as const,
+        url: this.fullNodeUrl,
+      })),
+      ...Array.from({ length: this.archiveNodeRetries + 1 }, () => ({
+        nodeType: 'archive' as const,
+        url: this.archiveNodeUrl,
+      })),
+    ];
+  }
+
+  /**
+   * Wait between XState-visible request attempts without holding a concurrency slot.
+   */
+  private async waitBeforeRetry(attempt: number): Promise<void> {
+    await new Promise((resolve) => setTimeout(resolve, this.calculateBackoffDelay(attempt)));
+  }
+
+  /**
+   * Log failed request attempts only when debug logging is enabled.
+   */
+  private logFailedAttempt(error: unknown, attemptNumber: number): void {
+    if (!retryLogger.isLevelEnabled('debug')) {
+      return;
+    }
+
+    const endpoint = extractEndpointFromError(error);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    const statusCode = error instanceof AxiosError ? error.response?.status : undefined;
+
+    retryLogger.debug(`Failed attempt ${attemptNumber} for ${endpoint}`, {
+      error: errorMessage,
+      statusCode,
+    });
+  }
+
+  /**
+   * Call one API endpoint attempt with concurrency control and optional error handling.
    * TODO: if 404 and near head, minTimeout should start in a half of slot time.
    * if error is not 429 (rate limit), think about it, perhaps 2s is enough.
    * if error if another, keep trying.
@@ -91,7 +148,6 @@ export abstract class ReliableRequestClient {
    */
   protected async callAPI<T>(
     callEndpoint: (url: string) => Promise<T>,
-    retries: number,
     url: string,
     nodeType: 'full' | 'archive',
     errorHandler?: (error: AxiosError<{ message: string }>) => T | undefined,
@@ -99,51 +155,21 @@ export abstract class ReliableRequestClient {
     // Select the appropriate limit based on node type
     const limit = nodeType === 'full' ? this.fullNodeLimit : this.archiveNodeLimit;
 
-    return await limit(() =>
-      pRetry(
-        async () => {
-          try {
-            return await callEndpoint(url);
-          } catch (error) {
-            // If errorHandler is provided, try to handle the error before retrying
-            // If the handler can handle it (returns a value), return it immediately
-            // This prevents unnecessary retries for errors like 404
-            if (errorHandler && error instanceof AxiosError) {
-              const handled = errorHandler(error);
-              if (handled !== undefined) {
-                // Return the handled value directly - p-retry won't retry on success
-                return handled;
-              }
-            }
-            // If errorHandler didn't handle it or doesn't exist, re-throw to continue retries
-            throw error;
+    return await limit(async () => {
+      try {
+        return await callEndpoint(url);
+      } catch (error) {
+        // Error handlers convert domain-specific failures, like missed slots, into values.
+        if (errorHandler && error instanceof AxiosError) {
+          const handled = errorHandler(error);
+          if (handled !== undefined) {
+            return handled;
           }
-        },
-        {
-          retries,
-          minTimeout: ms('1s'),
-          onFailedAttempt: async (error: unknown) => {
-            // p-retry adds attemptNumber property to the error object
-            const attemptNumber = (error as { attemptNumber?: number }).attemptNumber || 0;
-            // Extract endpoint from the error (if it's an AxiosError)
-            const endpoint = extractEndpointFromError(error);
-            const errorMessage = error instanceof Error ? error.message : String(error);
-            const statusCode = error instanceof AxiosError ? error.response?.status : undefined;
+        }
 
-            // Only log retries in DEBUG mode
-            const isDebugLevel = process.env.LOG_LEVEL === 'debug';
-            if (isDebugLevel) {
-              retryLogger.debug(`Failed attempt ${attemptNumber} for ${endpoint}`, {
-                error: errorMessage,
-                statusCode,
-              });
-            }
-            const delay = this.calculateBackoffDelay(attemptNumber);
-            await new Promise((resolve) => setTimeout(resolve, delay));
-          },
-        },
-      ),
-    );
+        throw error;
+      }
+    });
   }
 
   /**
@@ -154,35 +180,34 @@ export abstract class ReliableRequestClient {
     nodeType: 'full' | 'archive',
     errorHandler?: (error: AxiosError<{ message: string }>) => T | undefined,
   ): Promise<T> {
-    // If nodeType is 'full', try with fullNodeRetries first, then fallback to archive logic
-    if (nodeType === 'full') {
+    const attempts = this.getAttemptSequence(nodeType);
+    const failedAttemptsByNodeType: Record<RequestAttempt['nodeType'], number> = {
+      full: 0,
+      archive: 0,
+    };
+    let lastError: unknown;
+
+    for (let attemptIndex = 0; attemptIndex < attempts.length; attemptIndex++) {
+      const attempt = attempts[attemptIndex];
+
       try {
-        return await this.callAPI(
-          callEndpoint,
-          this.fullNodeRetries,
-          this.fullNodeUrl,
-          'full',
-          errorHandler,
-        );
-      } catch {
-        return await this.callAPI(
-          callEndpoint,
-          this.archiveNodeRetries,
-          this.archiveNodeUrl,
-          'archive',
-          errorHandler,
-        );
+        return await this.callAPI(callEndpoint, attempt.url, attempt.nodeType, errorHandler);
+      } catch (error) {
+        lastError = error;
+        // Keep retry backoff scoped to the node type so archive fallback starts from its first delay.
+        failedAttemptsByNodeType[attempt.nodeType]++;
+        const nodeTypeAttemptNumber = failedAttemptsByNodeType[attempt.nodeType];
+
+        if (attemptIndex === attempts.length - 1) {
+          break;
+        }
+
+        this.logFailedAttempt(error, nodeTypeAttemptNumber);
+        await this.waitBeforeRetry(nodeTypeAttemptNumber);
       }
-    } else {
-      // If nodeType is 'archive', use archive node directly with archiveNodeRetries
-      return await this.callAPI(
-        callEndpoint,
-        this.archiveNodeRetries,
-        this.archiveNodeUrl,
-        'archive',
-        errorHandler,
-      );
     }
+
+    throw lastError;
   }
 
   /**

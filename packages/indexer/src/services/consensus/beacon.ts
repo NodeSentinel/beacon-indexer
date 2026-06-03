@@ -251,7 +251,7 @@ export class BeaconClient extends ReliableRequestClient {
     nodeType: 'full' | 'archive',
   ): Promise<T> {
     const url = nodeType === 'full' ? this.fullNodeUrl : this.archiveNodeUrl;
-    return this.callAPI(callEndpoint, 0, url, nodeType);
+    return this.callAPI(callEndpoint, url, nodeType);
   }
 
   /**

@@ -173,7 +173,7 @@ export const slotProcessorMachine = setup({
     hasBeaconBlockData: ({ context }) => context.beaconBlockData?.rawData !== null,
   },
   delays: {
-    retryWait: ms('2s'),
+    retryWait: ms('5s'),
   },
 }).createMachine({
   id: 'SlotProcessor',
@@ -273,6 +273,7 @@ export const slotProcessorMachine = setup({
           }),
         },
         onError: {
+          target: 'waitingBeaconBlockRetry',
           actions: pinoLog(
             ({ context, event }) =>
               `error fetching beacon block data for slot ${context.slot}: ${event.error}`,
@@ -282,6 +283,12 @@ export const slotProcessorMachine = setup({
         },
       },
     }),
+
+    waitingBeaconBlockRetry: {
+      after: {
+        retryWait: 'fetchingBeaconBlock',
+      },
+    },
 
     checkingForMissedSlot: {
       description: 'Check if the slot was missed or has valid data',
