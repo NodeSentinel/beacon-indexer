@@ -68,6 +68,7 @@ const createLogger = (initialContext: string | null, enabled: boolean = true) =>
       logWithContext('error', message, error);
     },
     debug: (message: string, ...args: unknown[]) => logWithContext('debug', message, ...args),
+    isLevelEnabled: (level: 'info' | 'warn' | 'error' | 'debug') => logger.isLevelEnabled(level),
   };
 };
 

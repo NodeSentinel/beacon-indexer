@@ -99,10 +99,10 @@ async function main() {
   const beaconClient = new BeaconClient({
     fullNodeUrl: env.CONSENSUS_FULL_API_URL,
     fullNodeConcurrency: env.CONSENSUS_API_REQUEST_PER_SECOND,
-    fullNodeRetries: 1,
+    fullNodeRetries: env.CONSENSUS_FULL_API_RETRIES,
     archiveNodeUrl: env.CONSENSUS_ARCHIVE_API_URL,
     archiveNodeConcurrency: env.CONSENSUS_API_REQUEST_PER_SECOND,
-    archiveNodeRetries: 2,
+    archiveNodeRetries: env.CONSENSUS_ARCHIVE_API_RETRIES,
     baseDelay: ms('1s'),
     slotStartIndexing: env.CONSENSUS_LOOKBACK_SLOT,
     slotsPerEpoch: chainConfig.beacon.slotsPerEpoch,

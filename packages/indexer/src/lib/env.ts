@@ -37,6 +37,14 @@ export const env = createEnv({
       (val) => Number(val),
       z.number().int().positive(),
     ),
+    CONSENSUS_FULL_API_RETRIES: z.preprocess(
+      (val) => (val === undefined ? undefined : Number(val)),
+      z.number().int().min(0).default(1),
+    ),
+    CONSENSUS_ARCHIVE_API_RETRIES: z.preprocess(
+      (val) => (val === undefined ? undefined : Number(val)),
+      z.number().int().min(0).default(2),
+    ),
     ARCHIVE_DETAIL_RETENTION_DAYS: z.preprocess(
       (val) => (val === undefined ? undefined : Number(val)),
       z.number().int().positive().default(14),

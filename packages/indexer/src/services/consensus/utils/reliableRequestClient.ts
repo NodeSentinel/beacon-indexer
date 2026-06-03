@@ -124,7 +124,7 @@ export abstract class ReliableRequestClient {
    * Log failed request attempts only when debug logging is enabled.
    */
   private logFailedAttempt(error: unknown, attemptNumber: number): void {
-    if (process.env.LOG_LEVEL !== 'debug') {
+    if (!retryLogger.isLevelEnabled('debug')) {
       return;
     }
 
@@ -148,7 +148,6 @@ export abstract class ReliableRequestClient {
    */
   protected async callAPI<T>(
     callEndpoint: (url: string) => Promise<T>,
-    _retries: number,
     url: string,
     nodeType: 'full' | 'archive',
     errorHandler?: (error: AxiosError<{ message: string }>) => T | undefined,
@@ -189,7 +188,7 @@ export abstract class ReliableRequestClient {
       const attempt = attempts[attemptIndex];
 
       try {
-        return await this.callAPI(callEndpoint, 0, attempt.url, attempt.nodeType, errorHandler);
+        return await this.callAPI(callEndpoint, attempt.url, attempt.nodeType, errorHandler);
       } catch (error) {
         lastError = error;
         if (attemptIndex === attempts.length - 1) {
