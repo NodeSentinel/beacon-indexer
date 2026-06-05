@@ -4,6 +4,7 @@ import type { ApiProcedures } from '@/auth/middleware.js';
 import type { SystemConfigController } from '@/controllers/systemConfig.js';
 import type { ValidatorController } from '@/controllers/validator.js';
 import type { Logger } from '@/lib/logger.js';
+import type { ClaimWithdrawalsService } from '@/services/gnosis/claim-withdrawals.js';
 import type { AnalyticsStorage } from '@/storage/analytics.js';
 import type { BlockStorage } from '@/storage/block.js';
 import type { BotCommunicationsStorage } from '@/storage/bot-communications.js';
@@ -42,4 +43,5 @@ export interface ApiDependencies {
   validatorController: ValidatorController;
   validatorStorage: ValidatorStorage;
   chain: 'ethereum' | 'gnosis';
+  claimWithdrawalsService: ClaimWithdrawalsService | null;
 }

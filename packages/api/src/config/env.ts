@@ -31,6 +31,12 @@ const serverEnv = {
   // Coingecko
   COINGECKO_TOKEN_PRICE_API_URL: z.string().url(),
   COINGECKO_TOKEN_NAME: z.string().min(1),
+
+  // Gnosis claim execution
+  NODE_SENTINEL_PRIVATE_KEY: z
+    .string()
+    .regex(/^0x[0-9a-fA-F]{64}$/, 'Private key must be a 0x-prefixed 32-byte hex string')
+    .optional(),
 };
 
 /**

@@ -11,6 +11,7 @@ import { createLogger } from './lib/logger.js';
 import { createPrisma, disconnectPrisma } from './lib/prisma.js';
 import { createRouter } from './routers/index.js';
 import { createHttpServer } from './server.js';
+import { createGnosisClaimWithdrawalsService } from './services/gnosis/claim-withdrawals.js';
 import { AnalyticsStorage } from './storage/analytics.js';
 import { BlockStorage } from './storage/block.js';
 import { BotCommunicationsStorage } from './storage/bot-communications.js';
@@ -74,6 +75,12 @@ async function main() {
     botNotificationsStorage: new BotNotificationsStorage(prisma),
     botUsersStorage: new BotUsersStorage(prisma),
     chain: env.CHAIN,
+    claimWithdrawalsService: createGnosisClaimWithdrawalsService({
+      depositContractAddress: beaconHelpers.chainConfig.blockchain.scDepositAddress,
+      executionExplorerUrl: beaconHelpers.chainConfig.blockchain.executionExplorerUrl,
+      privateKey: env.NODE_SENTINEL_PRIVATE_KEY,
+      rpcUrl: env.EXECUTION_RPC_URL,
+    }),
     clusterStorage: new ClusterStorage(prisma),
     executionRpcUrl: env.EXECUTION_RPC_URL,
     incidentStorage: new IncidentStorage(prisma),

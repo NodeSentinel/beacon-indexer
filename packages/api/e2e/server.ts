@@ -12,6 +12,7 @@ import { createLogger } from '@/lib/logger.js';
 import { createPrisma, disconnectPrisma } from '@/lib/prisma.js';
 import { createRouter } from '@/routers/index.js';
 import { createHttpServer } from '@/server.js';
+import { createGnosisClaimWithdrawalsService } from '@/services/gnosis/claim-withdrawals.js';
 import { AnalyticsStorage } from '@/storage/analytics.js';
 import { BlockStorage } from '@/storage/block.js';
 import { BotCommunicationsStorage } from '@/storage/bot-communications.js';
@@ -33,6 +34,7 @@ interface E2EServerOverrides {
   databaseUrl?: string;
   executionRpcUrl?: string;
   nativeTokenDecimals?: number;
+  nodeSentinelPrivateKey?: `0x${string}`;
   telegramBotToken?: string;
   telegramInitDataMaxAgeSeconds?: number;
   tokenPriceApiUrl?: string;
@@ -138,6 +140,8 @@ export async function startE2EServer(overrides: E2EServerOverrides = {}): Promis
     NATIVE_TOKEN_DECIMALS: String(
       overrides.nativeTokenDecimals ?? process.env.NATIVE_TOKEN_DECIMALS ?? 18,
     ),
+    NODE_SENTINEL_PRIVATE_KEY:
+      overrides.nodeSentinelPrivateKey ?? process.env.NODE_SENTINEL_PRIVATE_KEY,
     NODE_ENV: process.env.NODE_ENV ?? 'test',
     TELEGRAM_BOT_TOKEN: overrides.telegramBotToken ?? process.env.TELEGRAM_BOT_TOKEN!,
     TELEGRAM_INIT_DATA_MAX_AGE_SECONDS: String(
@@ -188,6 +192,12 @@ export async function startE2EServer(overrides: E2EServerOverrides = {}): Promis
     botNotificationsStorage: new BotNotificationsStorage(prisma),
     botUsersStorage: new BotUsersStorage(prisma),
     chain: env.CHAIN,
+    claimWithdrawalsService: createGnosisClaimWithdrawalsService({
+      depositContractAddress: beaconHelpers.chainConfig.blockchain.scDepositAddress,
+      executionExplorerUrl: beaconHelpers.chainConfig.blockchain.executionExplorerUrl,
+      privateKey: env.NODE_SENTINEL_PRIVATE_KEY,
+      rpcUrl: env.EXECUTION_RPC_URL,
+    }),
     clusterStorage: new ClusterStorage(prisma),
     executionRpcUrl: env.EXECUTION_RPC_URL,
     incidentStorage: new IncidentStorage(prisma),

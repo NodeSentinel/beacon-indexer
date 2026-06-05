@@ -61,4 +61,37 @@ export class UserStorage {
       select: this.userContextSelect,
     });
   }
+
+  /**
+   * Finds the fields required to decide whether a user can claim.
+   */
+  async findClaimUserById(userId: string) {
+    return this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, telegramId: true, lastClaimed: true },
+    });
+  }
+
+  /**
+   * Lists unique fee recipient addresses configured on clusters owned by the user.
+   */
+  async listOwnedClusterFeeRecipientAddresses(userId: string): Promise<string[]> {
+    const rows = await this.prisma.cluster.findMany({
+      where: { ownerId: userId, feeRecipientAddress: { not: null } },
+      select: { feeRecipientAddress: true },
+      distinct: ['feeRecipientAddress'],
+    });
+
+    return rows.map((row) => row.feeRecipientAddress as string);
+  }
+
+  /**
+   * Stores the timestamp of the last successful claim for cooldown enforcement.
+   */
+  async updateLastClaimed(userId: string, claimedAt: Date) {
+    return this.prisma.user.update({
+      where: { id: userId },
+      data: { lastClaimed: claimedAt },
+    });
+  }
 }
