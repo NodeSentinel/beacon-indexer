@@ -73,16 +73,25 @@ export class UserStorage {
   }
 
   /**
-   * Lists unique fee recipient addresses configured on clusters owned by the user.
+   * Lists unique withdrawal addresses from validators in clusters owned by the user.
    */
-  async listOwnedClusterFeeRecipientAddresses(userId: string): Promise<string[]> {
-    const rows = await this.prisma.cluster.findMany({
-      where: { ownerId: userId, feeRecipientAddress: { not: null } },
-      select: { feeRecipientAddress: true },
-      distinct: ['feeRecipientAddress'],
+  async listOwnedClusterWithdrawalAddresses(userId: string): Promise<string[]> {
+    const rows = await this.prisma.validator.findMany({
+      where: {
+        clusters: {
+          some: {
+            cluster: {
+              ownerId: userId,
+            },
+          },
+        },
+        withdrawalAddress: { not: null },
+      },
+      select: { withdrawalAddress: true },
+      distinct: ['withdrawalAddress'],
     });
 
-    return rows.map((row) => row.feeRecipientAddress as string);
+    return rows.map((row) => row.withdrawalAddress as string);
   }
 
   /**

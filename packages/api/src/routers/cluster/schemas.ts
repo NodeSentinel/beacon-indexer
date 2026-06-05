@@ -380,6 +380,7 @@ export const ClusterSnapshotSchema = z.object({
   avgAttestationDelayW: z.number().nullable(),
   avgAttestationDelayM: z.number().nullable(),
 
+  claimableRewards: z.string().nullable(),
   tokenPrice: z.number(),
 });
 

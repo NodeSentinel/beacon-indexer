@@ -43,7 +43,7 @@ describe('executeUserClaim', () => {
         telegramId: null,
         lastClaimed: null,
       }),
-      listOwnedClusterFeeRecipientAddresses: vi.fn(),
+      listOwnedClusterWithdrawalAddresses: vi.fn(),
       updateLastClaimed: vi.fn(),
     };
     const claimWithdrawalsService = {
@@ -66,7 +66,7 @@ describe('executeUserClaim', () => {
         code: 'CLAIM_TELEGRAM_REQUIRED',
       },
     });
-    expect(userStorage.listOwnedClusterFeeRecipientAddresses).not.toHaveBeenCalled();
+    expect(userStorage.listOwnedClusterWithdrawalAddresses).not.toHaveBeenCalled();
     expect(claimWithdrawalsService.claimWithdrawals).not.toHaveBeenCalled();
     expect(userStorage.updateLastClaimed).not.toHaveBeenCalled();
   });
@@ -75,7 +75,7 @@ describe('executeUserClaim', () => {
     // This scenario documents that claim support is Gnosis-only.
     const userStorage = {
       findClaimUserById: vi.fn(),
-      listOwnedClusterFeeRecipientAddresses: vi.fn(),
+      listOwnedClusterWithdrawalAddresses: vi.fn(),
       updateLastClaimed: vi.fn(),
     };
     const claimWithdrawalsService = {
@@ -105,7 +105,7 @@ describe('executeUserClaim', () => {
         telegramId: 123n,
         lastClaimed: RECENT_CLAIM,
       }),
-      listOwnedClusterFeeRecipientAddresses: vi.fn(),
+      listOwnedClusterWithdrawalAddresses: vi.fn(),
       updateLastClaimed: vi.fn(),
     };
     const claimWithdrawalsService = {
@@ -131,20 +131,20 @@ describe('executeUserClaim', () => {
         },
       },
     });
-    expect(userStorage.listOwnedClusterFeeRecipientAddresses).not.toHaveBeenCalled();
+    expect(userStorage.listOwnedClusterWithdrawalAddresses).not.toHaveBeenCalled();
     expect(claimWithdrawalsService.claimWithdrawals).not.toHaveBeenCalled();
     expect(userStorage.updateLastClaimed).not.toHaveBeenCalled();
   });
 
-  it('rejects Telegram users without owned cluster fee recipients', async () => {
-    // This scenario covers users with clusters that have no claimable fee-recipient address.
+  it('rejects Telegram users without owned cluster withdrawal addresses', async () => {
+    // This scenario covers users with clusters that have no claimable withdrawal address.
     const userStorage = {
       findClaimUserById: vi.fn().mockResolvedValue({
         id: 'user-a',
         telegramId: 123n,
         lastClaimed: OLD_CLAIM,
       }),
-      listOwnedClusterFeeRecipientAddresses: vi.fn().mockResolvedValue([]),
+      listOwnedClusterWithdrawalAddresses: vi.fn().mockResolvedValue([]),
       updateLastClaimed: vi.fn(),
     };
     const claimWithdrawalsService = {
@@ -171,15 +171,15 @@ describe('executeUserClaim', () => {
     expect(userStorage.updateLastClaimed).not.toHaveBeenCalled();
   });
 
-  it('claims all distinct owned cluster fee recipients and updates cooldown after success', async () => {
-    // This scenario verifies one transaction claims every unique fee recipient across the user clusters.
+  it('claims all distinct owned cluster withdrawal addresses and updates cooldown after success', async () => {
+    // This scenario verifies one transaction claims every unique withdrawal address across the user clusters.
     const userStorage = {
       findClaimUserById: vi.fn().mockResolvedValue({
         id: 'user-a',
         telegramId: 123n,
         lastClaimed: OLD_CLAIM,
       }),
-      listOwnedClusterFeeRecipientAddresses: vi
+      listOwnedClusterWithdrawalAddresses: vi
         .fn()
         .mockResolvedValue([ADDRESS_ONE, ADDRESS_ONE, ADDRESS_TWO]),
       updateLastClaimed: vi.fn().mockResolvedValue(undefined),
@@ -191,7 +191,7 @@ describe('executeUserClaim', () => {
       }),
     };
 
-    // Claims after cooldown with two unique fee-recipient addresses.
+    // Claims after cooldown with two unique withdrawal addresses.
     const response = await executeUserClaim({
       chain: 'gnosis',
       claimWithdrawalsService,
@@ -227,7 +227,7 @@ describe('executeUserClaim', () => {
         telegramId: 123n,
         lastClaimed: OLD_CLAIM,
       }),
-      listOwnedClusterFeeRecipientAddresses: vi.fn().mockResolvedValue([ADDRESS_ONE]),
+      listOwnedClusterWithdrawalAddresses: vi.fn().mockResolvedValue([ADDRESS_ONE]),
       updateLastClaimed: vi.fn(),
     };
     const claimWithdrawalsService = {
@@ -267,7 +267,7 @@ describe('createUserClaimRoute', () => {
       procedures: { securedProcedure } as never,
       userStorage: {
         findClaimUserById: vi.fn(),
-        listOwnedClusterFeeRecipientAddresses: vi.fn(),
+        listOwnedClusterWithdrawalAddresses: vi.fn(),
         updateLastClaimed: vi.fn(),
       },
     });

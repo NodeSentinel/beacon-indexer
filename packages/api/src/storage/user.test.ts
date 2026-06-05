@@ -42,29 +42,38 @@ describe('UserStorage claim data', () => {
     });
   });
 
-  it('lists distinct fee recipient addresses from clusters owned by the user', async () => {
-    // This scenario verifies claim addresses come from owned cluster fee recipients.
+  it('lists distinct withdrawal addresses from validators in clusters owned by the user', async () => {
+    // This scenario verifies claim addresses come from validators owned through clusters.
     const findMany = vi
       .fn()
       .mockResolvedValue([
-        { feeRecipientAddress: '0x0000000000000000000000000000000000000001' },
-        { feeRecipientAddress: '0x0000000000000000000000000000000000000002' },
+        { withdrawalAddress: '0x0000000000000000000000000000000000000001' },
+        { withdrawalAddress: '0x0000000000000000000000000000000000000002' },
       ]);
-    const storage = new UserStorage({ cluster: { findMany } } as never);
+    const storage = new UserStorage({ validator: { findMany } } as never);
 
-    // Loads all non-null fee recipient addresses for the authenticated user clusters.
-    const result = await storage.listOwnedClusterFeeRecipientAddresses('user-a');
+    // Loads all non-null withdrawal addresses for validators in authenticated user clusters.
+    const result = await storage.listOwnedClusterWithdrawalAddresses('user-a');
 
     // Confirms storage returns the address strings consumed by the claim service.
     expect(result).toEqual([
       '0x0000000000000000000000000000000000000001',
       '0x0000000000000000000000000000000000000002',
     ]);
-    // Confirms Prisma applies owner scoping, null filtering, and distinct address selection.
+    // Confirms Prisma applies owner scoping through cluster membership and distinct address selection.
     expect(findMany).toHaveBeenCalledWith({
-      where: { ownerId: 'user-a', feeRecipientAddress: { not: null } },
-      select: { feeRecipientAddress: true },
-      distinct: ['feeRecipientAddress'],
+      where: {
+        clusters: {
+          some: {
+            cluster: {
+              ownerId: 'user-a',
+            },
+          },
+        },
+        withdrawalAddress: { not: null },
+      },
+      select: { withdrawalAddress: true },
+      distinct: ['withdrawalAddress'],
     });
   });
 

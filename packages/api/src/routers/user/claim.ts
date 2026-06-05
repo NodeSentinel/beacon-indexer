@@ -21,7 +21,7 @@ interface ClaimUser {
 
 interface UserClaimStorage {
   findClaimUserById: (userId: string) => Promise<ClaimUser | null>;
-  listOwnedClusterFeeRecipientAddresses: (userId: string) => Promise<string[]>;
+  listOwnedClusterWithdrawalAddresses: (userId: string) => Promise<string[]>;
   updateLastClaimed: (userId: string, claimedAt: Date) => Promise<unknown>;
 }
 
@@ -95,10 +95,10 @@ export async function executeUserClaim(
   }
 
   const claimedAddresses = uniqueAddresses(
-    await params.userStorage.listOwnedClusterFeeRecipientAddresses(params.userId),
+    await params.userStorage.listOwnedClusterWithdrawalAddresses(params.userId),
   );
   if (claimedAddresses.length === 0) {
-    return claimError('CLAIM_ADDRESSES_EMPTY', 'No cluster fee recipient addresses to claim');
+    return claimError('CLAIM_ADDRESSES_EMPTY', 'No cluster withdrawal addresses to claim');
   }
 
   try {
