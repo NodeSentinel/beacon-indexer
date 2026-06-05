@@ -9,6 +9,7 @@ export type ChainConfig = {
   // Blockchain Configuration
   blockchain: {
     chainId: number;
+    executionExplorerUrl?: string;
     scDepositAddress?: string;
   };
 
@@ -29,6 +30,7 @@ export type ChainConfig = {
 export const ethereumConfig: ChainConfig = {
   blockchain: {
     chainId: 1,
+    executionExplorerUrl: 'https://etherscan.io',
   },
   beacon: {
     genesisTimestamp: ms('1606824023s'), // 1606824023
@@ -46,6 +48,7 @@ export const ethereumConfig: ChainConfig = {
 export const gnosisConfig: ChainConfig = {
   blockchain: {
     chainId: 100,
+    executionExplorerUrl: 'https://gnosisscan.io',
     scDepositAddress: '0x0B98057eA310F4d31F2a452B414647007d1645d9',
   },
   beacon: {

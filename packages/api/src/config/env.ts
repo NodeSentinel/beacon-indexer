@@ -37,7 +37,6 @@ const serverEnv = {
     .string()
     .regex(/^0x[0-9a-fA-F]{64}$/, 'Private key must be a 0x-prefixed 32-byte hex string')
     .optional(),
-  EXECUTION_EXPLORER_URL: z.string().url().optional(),
 };
 
 /**

@@ -77,7 +77,7 @@ async function main() {
     chain: env.CHAIN,
     claimWithdrawalsService: createGnosisClaimWithdrawalsService({
       depositContractAddress: beaconHelpers.chainConfig.blockchain.scDepositAddress,
-      executionExplorerUrl: env.EXECUTION_EXPLORER_URL,
+      executionExplorerUrl: beaconHelpers.chainConfig.blockchain.executionExplorerUrl,
       privateKey: env.NODE_SENTINEL_PRIVATE_KEY,
       rpcUrl: env.EXECUTION_RPC_URL,
     }),

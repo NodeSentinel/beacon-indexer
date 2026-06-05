@@ -35,7 +35,6 @@ interface E2EServerOverrides {
   executionRpcUrl?: string;
   nativeTokenDecimals?: number;
   nodeSentinelPrivateKey?: `0x${string}`;
-  executionExplorerUrl?: string;
   telegramBotToken?: string;
   telegramInitDataMaxAgeSeconds?: number;
   tokenPriceApiUrl?: string;
@@ -143,7 +142,6 @@ export async function startE2EServer(overrides: E2EServerOverrides = {}): Promis
     ),
     NODE_SENTINEL_PRIVATE_KEY:
       overrides.nodeSentinelPrivateKey ?? process.env.NODE_SENTINEL_PRIVATE_KEY,
-    EXECUTION_EXPLORER_URL: overrides.executionExplorerUrl ?? process.env.EXECUTION_EXPLORER_URL,
     NODE_ENV: process.env.NODE_ENV ?? 'test',
     TELEGRAM_BOT_TOKEN: overrides.telegramBotToken ?? process.env.TELEGRAM_BOT_TOKEN!,
     TELEGRAM_INIT_DATA_MAX_AGE_SECONDS: String(
@@ -196,7 +194,7 @@ export async function startE2EServer(overrides: E2EServerOverrides = {}): Promis
     chain: env.CHAIN,
     claimWithdrawalsService: createGnosisClaimWithdrawalsService({
       depositContractAddress: beaconHelpers.chainConfig.blockchain.scDepositAddress,
-      executionExplorerUrl: env.EXECUTION_EXPLORER_URL,
+      executionExplorerUrl: beaconHelpers.chainConfig.blockchain.executionExplorerUrl,
       privateKey: env.NODE_SENTINEL_PRIVATE_KEY,
       rpcUrl: env.EXECUTION_RPC_URL,
     }),
