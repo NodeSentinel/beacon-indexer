@@ -1,5 +1,5 @@
 import type { Address, Hex } from 'viem';
-import { createPublicClient, createWalletClient, getAddress, http } from 'viem';
+import { createWalletClient, getAddress, http } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 import { gnosis } from 'viem/chains';
 
@@ -25,22 +25,23 @@ interface CreateGnosisClaimWithdrawalsServiceParams {
   depositContractAddress?: string;
   executionExplorerUrl?: string;
   privateKey?: string;
-  rpcUrl: string;
+  rpcUrl?: string;
 }
 
 /** Creates a claim service only when every signing-related setting is available. */
 export function createGnosisClaimWithdrawalsService(
   params: CreateGnosisClaimWithdrawalsServiceParams,
 ): ClaimWithdrawalsService | null {
-  if (!params.privateKey || !params.depositContractAddress || !params.executionExplorerUrl) {
+  if (
+    !params.privateKey ||
+    !params.depositContractAddress ||
+    !params.executionExplorerUrl ||
+    !params.rpcUrl
+  ) {
     return null;
   }
 
   const account = privateKeyToAccount(params.privateKey as Hex);
-  const publicClient = createPublicClient({
-    chain: gnosis,
-    transport: http(params.rpcUrl),
-  });
   const walletClient = createWalletClient({
     account,
     chain: gnosis,
@@ -50,7 +51,7 @@ export function createGnosisClaimWithdrawalsService(
   const explorerUrl = params.executionExplorerUrl.replace(/\/$/, '');
 
   return {
-    /** Sends the claim transaction and waits for the receipt before returning the explorer URL. */
+    /** Sends the claim transaction and returns the broadcast hash without waiting for confirmation. */
     async claimWithdrawals(addresses: string[]) {
       const normalizedAddresses = addresses.map((address) => getAddress(address) as Address);
       const transactionHash = await walletClient.writeContract({
@@ -59,8 +60,6 @@ export function createGnosisClaimWithdrawalsService(
         functionName: 'claimWithdrawals',
         args: [normalizedAddresses],
       });
-
-      await publicClient.waitForTransactionReceipt({ hash: transactionHash });
 
       return {
         transactionHash,
