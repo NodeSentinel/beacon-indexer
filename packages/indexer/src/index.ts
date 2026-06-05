@@ -6,6 +6,7 @@ import createLogger from '@/src/lib/pino.js';
 import { getPrisma } from '@/src/lib/prisma.js';
 import { BeaconClient } from '@/src/services/consensus/beacon.js';
 import { ChainStatsController } from '@/src/services/consensus/controllers/chainStats.js';
+import { ClaimableWithdrawalsController } from '@/src/services/consensus/controllers/claimableWithdrawals.js';
 import { DailyArchiveController } from '@/src/services/consensus/controllers/dailyArchive.js';
 import { DailyArchiveDetailCleanupController } from '@/src/services/consensus/controllers/dailyArchiveDetailCleanup.js';
 import { EpochController } from '@/src/services/consensus/controllers/epoch.js';
@@ -19,6 +20,7 @@ import { SnapshotController } from '@/src/services/consensus/controllers/snapsho
 import { ValidatorActivityStatusController } from '@/src/services/consensus/controllers/validatorActivityStatus.js';
 import { ValidatorsController } from '@/src/services/consensus/controllers/validators.js';
 import { ChainStatsStorage } from '@/src/services/consensus/storage/chainStats.js';
+import { ClaimableWithdrawalsStorage } from '@/src/services/consensus/storage/claimableWithdrawals.js';
 import { DailyArchiveStorage } from '@/src/services/consensus/storage/dailyArchive.js';
 import { DailyArchiveDetailCleanupStorage } from '@/src/services/consensus/storage/dailyArchiveDetailCleanup.js';
 import { EpochStorage } from '@/src/services/consensus/storage/epoch.js';
@@ -32,6 +34,7 @@ import { SnapshotStorage } from '@/src/services/consensus/storage/snapshot.js';
 import { ValidatorActivityStatusStorage } from '@/src/services/consensus/storage/validatorActivityStatus.js';
 import { ValidatorsStorage } from '@/src/services/consensus/storage/validators.js';
 import { ExecutionClient } from '@/src/services/execution/execution.js';
+import { GnosisWithdrawableAmountsReader } from '@/src/services/gnosis/withdrawableAmounts.js';
 import initXstateMachines from '@/src/xstate/index.js';
 
 const logger = createLogger('index file');
@@ -186,6 +189,18 @@ async function main() {
   // Create snapshot storage and controller
   const snapshotStorage = new SnapshotStorage(prisma);
   const snapshotController = new SnapshotController(snapshotStorage, beaconTime);
+  const claimableWithdrawalsController =
+    env.CHAIN === 'gnosis' && chainConfig.blockchain.scDepositAddress
+      ? new ClaimableWithdrawalsController({
+          chain: env.CHAIN,
+          reader: new GnosisWithdrawableAmountsReader({
+            bkpRpcUrl: env.BKP_EXECUTION_RPC,
+            depositContractAddress: chainConfig.blockchain.scDepositAddress,
+            mainRpcUrl: env.MAIN_EXECUTION_RPC,
+          }),
+          storage: new ClaimableWithdrawalsStorage(prisma),
+        })
+      : undefined;
 
   // Create incident storage and tracker controller
   const incidentRewardsStorage = new IncidentRewardsStorage(prisma, {
@@ -234,6 +249,7 @@ async function main() {
     chainConfig.beacon.maxAttestationDelay,
     chainConfig.beacon.delaySlotsToHead,
     chainConfig.beacon.missedAttestationsForInactivity,
+    claimableWithdrawalsController,
   );
 }
 
