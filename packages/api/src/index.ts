@@ -76,7 +76,7 @@ async function main() {
     botUsersStorage: new BotUsersStorage(prisma),
     chain: env.CHAIN,
     claimWithdrawalsService: createGnosisClaimWithdrawalsService({
-      depositContractAddress: env.BLOCKCHAIN_SC_DEPOSIT_ADDRESS,
+      depositContractAddress: beaconHelpers.chainConfig.blockchain.scDepositAddress,
       executionExplorerUrl: env.EXECUTION_EXPLORER_URL,
       privateKey: env.NODE_SENTINEL_PRIVATE_KEY,
       rpcUrl: env.EXECUTION_RPC_URL,

@@ -1,5 +1,4 @@
 import { createEnv } from '@t3-oss/env-core';
-import { isAddress } from 'viem';
 import { z } from 'zod';
 
 const serverEnv = {
@@ -37,10 +36,6 @@ const serverEnv = {
   NODE_SENTINEL_PRIVATE_KEY: z
     .string()
     .regex(/^0x[0-9a-fA-F]{64}$/, 'Private key must be a 0x-prefixed 32-byte hex string')
-    .optional(),
-  BLOCKCHAIN_SC_DEPOSIT_ADDRESS: z
-    .string()
-    .refine(isAddress, 'Invalid deposit contract address')
     .optional(),
   EXECUTION_EXPLORER_URL: z.string().url().optional(),
 };
