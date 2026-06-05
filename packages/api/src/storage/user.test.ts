@@ -2,6 +2,17 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { UserStorage } from './user.js';
 
+/**
+ * Extracts SQL text from a Prisma.sql object used by raw storage operations.
+ */
+function getSqlText(queryArg: unknown): string {
+  if (queryArg && typeof queryArg === 'object' && 'sql' in queryArg) {
+    return (queryArg as { sql: string }).sql;
+  }
+
+  return '';
+}
+
 describe('UserStorage user context', () => {
   it('returns only user identity when resolving the current user', async () => {
     // This case verifies authenticated user context excludes cluster-level Lido CSM state.
@@ -91,5 +102,25 @@ describe('UserStorage claim data', () => {
       where: { id: 'user-a' },
       data: { lastClaimed: claimedAt },
     });
+  });
+
+  it('clears claimable snapshot rows for claimed withdrawal addresses', async () => {
+    // This scenario ensures the API claim path removes stale claimable amounts immediately after claim.
+    const executeRaw = vi.fn().mockResolvedValue(undefined);
+    const storage = new UserStorage({ $executeRaw: executeRaw } as never);
+    const withdrawalAddresses = [
+      '0x0000000000000000000000000000000000000001',
+      '0x0000000000000000000000000000000000000002',
+    ];
+
+    // Clears the claimable snapshot cache for the exact addresses sent to the claim contract.
+    await storage.clearClaimableWithdrawalAddresses(withdrawalAddresses);
+
+    // Confirms storage deletes only from the withdrawal-address claimable snapshot table.
+    const sql = getSqlText(executeRaw.mock.calls[0]?.[0]);
+    expect(sql).toContain('DELETE FROM withdrawal_address_claimable_snapshot');
+    expect(sql).toContain('WHERE withdrawal_address IN');
+    // Confirms the delete is parameterized with the lowercased claimed withdrawal addresses.
+    expect(executeRaw.mock.calls[0]?.[0].values).toEqual(withdrawalAddresses);
   });
 });

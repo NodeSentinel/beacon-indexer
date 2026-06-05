@@ -1,4 +1,4 @@
-import { PrismaClient } from '@beacon-indexer/db';
+import { Prisma, PrismaClient } from '@beacon-indexer/db';
 
 /**
  * UserStorage - Database persistence layer for user operations
@@ -92,6 +92,24 @@ export class UserStorage {
     });
 
     return rows.map((row) => row.withdrawalAddress as string);
+  }
+
+  /**
+   * Removes cached claimable amounts for withdrawal addresses submitted to the claim contract.
+   */
+  async clearClaimableWithdrawalAddresses(withdrawalAddresses: string[]): Promise<void> {
+    if (withdrawalAddresses.length === 0) {
+      return;
+    }
+
+    const normalizedAddresses = Array.from(
+      new Set(withdrawalAddresses.map((address) => address.toLowerCase())),
+    );
+
+    await this.prisma.$executeRaw(Prisma.sql`
+      DELETE FROM withdrawal_address_claimable_snapshot
+      WHERE withdrawal_address IN (${Prisma.join(normalizedAddresses)})
+    `);
   }
 
   /**

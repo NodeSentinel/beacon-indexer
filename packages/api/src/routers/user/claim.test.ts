@@ -44,6 +44,7 @@ describe('executeUserClaim', () => {
         lastClaimed: null,
       }),
       listOwnedClusterWithdrawalAddresses: vi.fn(),
+      clearClaimableWithdrawalAddresses: vi.fn(),
       updateLastClaimed: vi.fn(),
     };
     const claimWithdrawalsService = {
@@ -67,6 +68,7 @@ describe('executeUserClaim', () => {
       },
     });
     expect(userStorage.listOwnedClusterWithdrawalAddresses).not.toHaveBeenCalled();
+    expect(userStorage.clearClaimableWithdrawalAddresses).not.toHaveBeenCalled();
     expect(claimWithdrawalsService.claimWithdrawals).not.toHaveBeenCalled();
     expect(userStorage.updateLastClaimed).not.toHaveBeenCalled();
   });
@@ -76,6 +78,7 @@ describe('executeUserClaim', () => {
     const userStorage = {
       findClaimUserById: vi.fn(),
       listOwnedClusterWithdrawalAddresses: vi.fn(),
+      clearClaimableWithdrawalAddresses: vi.fn(),
       updateLastClaimed: vi.fn(),
     };
     const claimWithdrawalsService = {
@@ -106,6 +109,7 @@ describe('executeUserClaim', () => {
         lastClaimed: RECENT_CLAIM,
       }),
       listOwnedClusterWithdrawalAddresses: vi.fn(),
+      clearClaimableWithdrawalAddresses: vi.fn(),
       updateLastClaimed: vi.fn(),
     };
     const claimWithdrawalsService = {
@@ -132,6 +136,7 @@ describe('executeUserClaim', () => {
       },
     });
     expect(userStorage.listOwnedClusterWithdrawalAddresses).not.toHaveBeenCalled();
+    expect(userStorage.clearClaimableWithdrawalAddresses).not.toHaveBeenCalled();
     expect(claimWithdrawalsService.claimWithdrawals).not.toHaveBeenCalled();
     expect(userStorage.updateLastClaimed).not.toHaveBeenCalled();
   });
@@ -145,6 +150,7 @@ describe('executeUserClaim', () => {
         lastClaimed: OLD_CLAIM,
       }),
       listOwnedClusterWithdrawalAddresses: vi.fn().mockResolvedValue([]),
+      clearClaimableWithdrawalAddresses: vi.fn(),
       updateLastClaimed: vi.fn(),
     };
     const claimWithdrawalsService = {
@@ -168,6 +174,7 @@ describe('executeUserClaim', () => {
       },
     });
     expect(claimWithdrawalsService.claimWithdrawals).not.toHaveBeenCalled();
+    expect(userStorage.clearClaimableWithdrawalAddresses).not.toHaveBeenCalled();
     expect(userStorage.updateLastClaimed).not.toHaveBeenCalled();
   });
 
@@ -182,6 +189,7 @@ describe('executeUserClaim', () => {
       listOwnedClusterWithdrawalAddresses: vi
         .fn()
         .mockResolvedValue([ADDRESS_ONE, ADDRESS_ONE, ADDRESS_TWO]),
+      clearClaimableWithdrawalAddresses: vi.fn().mockResolvedValue(undefined),
       updateLastClaimed: vi.fn().mockResolvedValue(undefined),
     };
     const claimWithdrawalsService = {
@@ -205,8 +213,16 @@ describe('executeUserClaim', () => {
       ADDRESS_ONE,
       ADDRESS_TWO,
     ]);
-    // Confirms cooldown is updated only after the transaction service succeeds.
+    // Confirms the claimable snapshot cache is cleared for the same deduplicated addresses.
+    expect(userStorage.clearClaimableWithdrawalAddresses).toHaveBeenCalledWith([
+      ADDRESS_ONE,
+      ADDRESS_TWO,
+    ]);
+    // Confirms cooldown is updated only after the transaction service succeeds and cache is cleared.
     expect(userStorage.updateLastClaimed).toHaveBeenCalledWith('user-a', NOW);
+    expect(userStorage.clearClaimableWithdrawalAddresses.mock.invocationCallOrder[0]).toBeLessThan(
+      userStorage.updateLastClaimed.mock.invocationCallOrder[0],
+    );
     expect(response).toEqual({
       success: true,
       data: {
@@ -228,6 +244,7 @@ describe('executeUserClaim', () => {
         lastClaimed: OLD_CLAIM,
       }),
       listOwnedClusterWithdrawalAddresses: vi.fn().mockResolvedValue([ADDRESS_ONE]),
+      clearClaimableWithdrawalAddresses: vi.fn(),
       updateLastClaimed: vi.fn(),
     };
     const claimWithdrawalsService = {
@@ -251,6 +268,7 @@ describe('executeUserClaim', () => {
         message: 'RPC timeout',
       },
     });
+    expect(userStorage.clearClaimableWithdrawalAddresses).not.toHaveBeenCalled();
     expect(userStorage.updateLastClaimed).not.toHaveBeenCalled();
   });
 });
@@ -268,6 +286,7 @@ describe('createUserClaimRoute', () => {
       userStorage: {
         findClaimUserById: vi.fn(),
         listOwnedClusterWithdrawalAddresses: vi.fn(),
+        clearClaimableWithdrawalAddresses: vi.fn(),
         updateLastClaimed: vi.fn(),
       },
     });

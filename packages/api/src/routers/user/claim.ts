@@ -22,6 +22,7 @@ interface ClaimUser {
 interface UserClaimStorage {
   findClaimUserById: (userId: string) => Promise<ClaimUser | null>;
   listOwnedClusterWithdrawalAddresses: (userId: string) => Promise<string[]>;
+  clearClaimableWithdrawalAddresses: (withdrawalAddresses: string[]) => Promise<unknown>;
   updateLastClaimed: (userId: string, claimedAt: Date) => Promise<unknown>;
 }
 
@@ -103,6 +104,7 @@ export async function executeUserClaim(
 
   try {
     const transaction = await params.claimWithdrawalsService.claimWithdrawals(claimedAddresses);
+    await params.userStorage.clearClaimableWithdrawalAddresses(claimedAddresses);
     await params.userStorage.updateLastClaimed(params.userId, params.now);
 
     return successResponse({
