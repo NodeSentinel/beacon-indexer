@@ -76,10 +76,12 @@ export default function ClusterOverviewContent({
   );
 
   const totalValidators = cluster.validatorCount ?? cluster.validators.length;
+  const showClaimable = env.NEXT_PUBLIC_CHAIN === 'gnosis';
+  const claimableRewards = snapshot?.claimableRewards ? Number(snapshot.claimableRewards) : null;
 
   const balanceUsd = formatNumber(cluster.totalBalance * gnoPrice);
   const effectiveBalanceUsd = formatNumber(cluster.totalEffectiveBalance * gnoPrice, 0);
-  const claimableUsd = formatNumber(cluster.claimableRewards * gnoPrice);
+  const claimableUsd = claimableRewards !== null ? formatNumber(claimableRewards * gnoPrice) : null;
 
   const getPerformance = (key: PeriodKey): number | null => {
     if (!snapshot) return null;
@@ -199,7 +201,9 @@ export default function ClusterOverviewContent({
             </span>
             <div className="flex-1 h-px bg-primary/20" />
           </div>
-          <div className="grid grid-cols-3 gap-3 md:gap-4 md:text-center">
+          <div
+            className={`grid ${showClaimable ? 'grid-cols-3' : 'grid-cols-2'} gap-3 md:gap-4 md:text-center`}
+          >
             <div>
               <p className="text-[10px] md:text-xs text-muted-foreground mb-0.5">Balance</p>
               <p className="text-sm md:text-lg font-normal font-semibold">
@@ -214,13 +218,19 @@ export default function ClusterOverviewContent({
               </p>
               <p className="text-[10px] text-muted-foreground">${effectiveBalanceUsd}</p>
             </div>
-            <div>
-              <p className="text-[10px] md:text-xs text-muted-foreground mb-0.5">Claimable</p>
-              <p className="text-sm md:text-lg font-normal font-semibold">
-                {cluster.claimableRewards.toFixed(balanceDecimals)} {tokenSymbol}
-              </p>
-              <p className="text-[10px] text-muted-foreground">${claimableUsd}</p>
-            </div>
+            {showClaimable && (
+              <div>
+                <p className="text-[10px] md:text-xs text-muted-foreground mb-0.5">Claimable</p>
+                <p className="text-sm md:text-lg font-normal font-semibold">
+                  {snapshotLoading || claimableRewards === null
+                    ? '-'
+                    : `${claimableRewards.toFixed(balanceDecimals)} ${tokenSymbol}`}
+                </p>
+                <p className="text-[10px] text-muted-foreground">
+                  {claimableUsd !== null ? `$${claimableUsd}` : '-'}
+                </p>
+              </div>
+            )}
           </div>
         </div>
 

@@ -25,6 +25,7 @@ interface ClusterSnapshotData {
   executionRewardD: { wei: string; token: string } | null;
   executionRewardW: { wei: string; token: string } | null;
   executionRewardM: { wei: string; token: string } | null;
+  claimableRewards: string | null;
   tokenPrice: number;
 }
 
@@ -127,9 +128,15 @@ export function formatStatsMessage(snapshot: ClusterSnapshotData): string {
     snapshot.performanceH != null ? `${(snapshot.performanceH * 100).toFixed(2)}%` : '-';
 
   // Main stats
+  const claimable = snapshot.claimableRewards ? parseFloat(snapshot.claimableRewards) : 0;
   const mainStats = [
     `*Last 1h performance:* ${perfStr}`,
     `*Bal:* ${formatNumber(balance)} ${chainDisplay.tokenSymbol} $${formatNumber(balance * tokenPrice)}`,
+    ...(env.CHAIN === 'gnosis'
+      ? [
+          `*Claimable:* ${formatNumber(claimable)} ${chainDisplay.tokenSymbol} $${formatNumber(claimable * tokenPrice)}`,
+        ]
+      : []),
   ].join('\n');
 
   // Rewards table

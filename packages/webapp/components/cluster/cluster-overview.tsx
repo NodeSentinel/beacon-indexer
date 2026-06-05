@@ -30,6 +30,7 @@ export default function ClusterOverview({
   const { balanceDecimals, executionTokenSymbol, tokenSymbol } = getTokenConfig(
     env.NEXT_PUBLIC_CHAIN,
   );
+  const showClaimable = env.NEXT_PUBLIC_CHAIN === 'gnosis';
 
   const balanceUsd = (cluster.totalBalance * gnoPrice).toFixed(2);
   const effectiveBalanceUsd = (cluster.totalEffectiveBalance * gnoPrice).toFixed(0);
@@ -71,7 +72,9 @@ export default function ClusterOverview({
           ))}
         </div>
 
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-2.5 md:gap-4 pb-3.5 md:pb-4 border-b border-border">
+        <div
+          className={`grid grid-cols-2 ${showClaimable ? 'md:grid-cols-3' : 'md:grid-cols-2'} gap-2.5 md:gap-4 pb-3.5 md:pb-4 border-b border-border`}
+        >
           <div>
             <p className="text-xs text-muted-foreground mb-0.5 md:mb-1">BALANCE</p>
             <span className="text-base md:text-xl font-display">
@@ -86,13 +89,15 @@ export default function ClusterOverview({
             </span>
             <p className="text-xs text-muted-foreground">${effectiveBalanceUsd}</p>
           </div>
-          <div className="col-span-2 md:col-span-1">
-            <p className="text-xs text-muted-foreground mb-0.5 md:mb-1">CLAIMABLE</p>
-            <span className="text-base md:text-xl font-display text-white">
-              {cluster.claimableRewards.toFixed(balanceDecimals)} {tokenSymbol}
-            </span>
-            <p className="text-xs text-muted-foreground">${claimableUsd}</p>
-          </div>
+          {showClaimable && (
+            <div className="col-span-2 md:col-span-1">
+              <p className="text-xs text-muted-foreground mb-0.5 md:mb-1">CLAIMABLE</p>
+              <span className="text-base md:text-xl font-display text-white">
+                {cluster.claimableRewards.toFixed(balanceDecimals)} {tokenSymbol}
+              </span>
+              <p className="text-xs text-muted-foreground">${claimableUsd}</p>
+            </div>
+          )}
         </div>
 
         <div className="pb-3.5 md:pb-4 border-b border-border">

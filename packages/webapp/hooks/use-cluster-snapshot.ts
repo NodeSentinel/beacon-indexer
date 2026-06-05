@@ -36,6 +36,7 @@ export interface ClusterSnapshot {
   avgAttestationDelay1d: number | null;
   avgAttestationDelay1w: number | null;
   avgAttestationDelay1m: number | null;
+  claimableRewards: string | null;
   tokenPrice: number;
 }
 
@@ -81,6 +82,7 @@ export function useClusterSnapshot(clusterId: string | null) {
         avgAttestationDelay1d: d.avgAttestationDelayD,
         avgAttestationDelay1w: d.avgAttestationDelayW,
         avgAttestationDelay1m: d.avgAttestationDelayM,
+        claimableRewards: d.claimableRewards,
         tokenPrice: d.tokenPrice,
       } satisfies ClusterSnapshot;
     },

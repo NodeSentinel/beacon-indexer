@@ -5,6 +5,8 @@ import { Settings } from 'lucide-react';
 import DashboardCard from '@/components/dashboard/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { env } from '@/env';
+import { getTokenConfig } from '@/lib/utils';
 import type { Cluster } from '@/types/cluster';
 
 interface ClusterCardProps {
@@ -60,6 +62,8 @@ export default function ClusterCard({ cluster, gnoPrice, onManage }: ClusterCard
   };
 
   const totalValidators = cluster.validatorCount ?? cluster.validators.length;
+  const { balanceDecimals, tokenSymbol } = getTokenConfig(env.NEXT_PUBLIC_CHAIN);
+  const showClaimable = env.NEXT_PUBLIC_CHAIN === 'gnosis';
 
   const balanceUsd = (cluster.totalBalance * gnoPrice).toFixed(2);
   const effectiveBalanceUsd = (cluster.totalEffectiveBalance * gnoPrice).toFixed(0);
@@ -81,24 +85,32 @@ export default function ClusterCard({ cluster, gnoPrice, onManage }: ClusterCard
       intent={cluster.performance >= 98 ? 'success' : 'default'}
     >
       <div className="section-spacing">
-        <div className="grid grid-cols-1 sm:grid-cols-3 grid-spacing pb-3 md:pb-4 border-b border-border">
+        <div
+          className={`grid grid-cols-1 ${showClaimable ? 'sm:grid-cols-3' : 'sm:grid-cols-2'} grid-spacing pb-3 md:pb-4 border-b border-border`}
+        >
           <div>
             <p className="label-primary mb-1">BALANCE</p>
-            <span className="value-secondary">{cluster.totalBalance.toFixed(2)} GNO</span>
+            <span className="value-secondary">
+              {cluster.totalBalance.toFixed(balanceDecimals)} {tokenSymbol}
+            </span>
             <p className="text-helper">${balanceUsd}</p>
           </div>
           <div>
             <p className="label-primary mb-1">EFFECTIVE BALANCE</p>
-            <span className="value-secondary">{cluster.totalEffectiveBalance.toFixed(0)} GNO</span>
+            <span className="value-secondary">
+              {cluster.totalEffectiveBalance.toFixed(0)} {tokenSymbol}
+            </span>
             <p className="text-helper">${effectiveBalanceUsd}</p>
           </div>
-          <div>
-            <p className="label-primary mb-1">CLAIMABLE</p>
-            <span className="value-secondary text-success">
-              {cluster.claimableRewards.toFixed(2)} GNO
-            </span>
-            <p className="text-helper">${claimableUsd}</p>
-          </div>
+          {showClaimable && (
+            <div>
+              <p className="label-primary mb-1">CLAIMABLE</p>
+              <span className="value-secondary text-success">
+                {cluster.claimableRewards.toFixed(balanceDecimals)} {tokenSymbol}
+              </span>
+              <p className="text-helper">${claimableUsd}</p>
+            </div>
+          )}
         </div>
 
         <div>

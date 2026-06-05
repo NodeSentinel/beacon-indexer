@@ -73,7 +73,7 @@ describe('ClusterOverview', () => {
     });
   });
 
-  it('uses Ethereum token labels and four decimals for balance and claimable only', () => {
+  it('uses Ethereum token labels and hides Gnosis-only claimable rewards', () => {
     // Render the overview with the default Ethereum chain environment.
     const markup = renderToStaticMarkup(
       <ClusterOverview
@@ -85,12 +85,14 @@ describe('ClusterOverview', () => {
       />,
     );
 
-    // Confirm total balance and claimable rewards use ETH with four decimals.
+    // Confirm total balance uses ETH with four decimals.
     assert.match(markup, /96\.1235 ETH/);
-    assert.match(markup, /0\.1235 ETH/);
 
     // Confirm effective balance keeps integer formatting with the ETH token.
     assert.match(markup, /96 ETH/);
+    // Confirm claimable rewards are omitted because they are only available on Gnosis.
+    assert.doesNotMatch(markup, /CLAIMABLE/);
+    assert.doesNotMatch(markup, /0\.1235 ETH/);
 
     // Confirm old Gnosis labels are not rendered on Ethereum.
     assert.doesNotMatch(markup, /GNO/);
