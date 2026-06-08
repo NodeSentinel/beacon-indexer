@@ -123,4 +123,38 @@ describe('UserStorage claim data', () => {
     // Confirms the delete is parameterized with the lowercased claimed withdrawal addresses.
     expect(executeRaw.mock.calls[0]?.[0].values).toEqual(withdrawalAddresses);
   });
+
+  it('finalizes a successful claim in one database transaction', async () => {
+    // This scenario keeps cache cleanup and cooldown updates atomic after an on-chain claim succeeds.
+    const transactionClient = {
+      $executeRaw: vi.fn().mockResolvedValue(undefined),
+      user: {
+        update: vi.fn().mockResolvedValue(undefined),
+      },
+    };
+    const transaction = vi.fn(async (callback: (tx: typeof transactionClient) => Promise<void>) => {
+      await callback(transactionClient);
+    });
+    const storage = new UserStorage({ $transaction: transaction } as never);
+    const claimedAt = new Date('2026-01-10T12:00:00.000Z');
+    const withdrawalAddresses = [
+      '0x0000000000000000000000000000000000000001',
+      '0x0000000000000000000000000000000000000002',
+    ];
+
+    // Finalizes the database state associated with a successful claim transaction.
+    await storage.finalizeSuccessfulClaim({
+      claimedAt,
+      userId: 'user-a',
+      withdrawalAddresses,
+    });
+
+    // Confirms both database writes are executed inside the same Prisma transaction callback.
+    expect(transaction).toHaveBeenCalledTimes(1);
+    expect(transactionClient.$executeRaw).toHaveBeenCalledTimes(1);
+    expect(transactionClient.user.update).toHaveBeenCalledWith({
+      where: { id: 'user-a' },
+      data: { lastClaimed: claimedAt },
+    });
+  });
 });

@@ -8,7 +8,7 @@ type ClaimableWithdrawalsReader = {
 
 type ClaimableWithdrawalsStorageLike = {
   listTrackedWithdrawalAddresses: () => Promise<string[]>;
-  pruneUntrackedWithdrawalAddresses: (trackedWithdrawalAddresses: string[]) => Promise<void>;
+  pruneUntrackedWithdrawalAddresses: () => Promise<void>;
   upsertClaimableAmounts: (amounts: ClaimableWithdrawalAmount[]) => Promise<void>;
 };
 
@@ -49,7 +49,7 @@ export class ClaimableWithdrawalsController {
     }
 
     await this.storage.upsertClaimableAmounts(claimableAmounts);
-    await this.storage.pruneUntrackedWithdrawalAddresses(withdrawalAddresses);
+    await this.storage.pruneUntrackedWithdrawalAddresses();
   }
 
   /**

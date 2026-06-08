@@ -1,5 +1,7 @@
 import { Prisma, PrismaClient } from '@beacon-indexer/db';
 
+type ClaimableSnapshotDeleteClient = Pick<PrismaClient, '$executeRaw'>;
+
 /**
  * UserStorage - Database persistence layer for user operations
  */
@@ -98,6 +100,33 @@ export class UserStorage {
    * Removes cached claimable amounts for withdrawal addresses submitted to the claim contract.
    */
   async clearClaimableWithdrawalAddresses(withdrawalAddresses: string[]): Promise<void> {
+    await this.deleteClaimableWithdrawalAddressRows(this.prisma, withdrawalAddresses);
+  }
+
+  /**
+   * Finalizes post-transaction claim state in one database transaction.
+   */
+  async finalizeSuccessfulClaim(params: {
+    claimedAt: Date;
+    userId: string;
+    withdrawalAddresses: string[];
+  }): Promise<void> {
+    await this.prisma.$transaction(async (tx) => {
+      await this.deleteClaimableWithdrawalAddressRows(tx, params.withdrawalAddresses);
+      await tx.user.update({
+        where: { id: params.userId },
+        data: { lastClaimed: params.claimedAt },
+      });
+    });
+  }
+
+  /**
+   * Deletes cached claimable rows using the provided Prisma client or active transaction.
+   */
+  private async deleteClaimableWithdrawalAddressRows(
+    prisma: ClaimableSnapshotDeleteClient,
+    withdrawalAddresses: string[],
+  ): Promise<void> {
     if (withdrawalAddresses.length === 0) {
       return;
     }
@@ -106,7 +135,7 @@ export class UserStorage {
       new Set(withdrawalAddresses.map((address) => address.toLowerCase())),
     );
 
-    await this.prisma.$executeRaw(Prisma.sql`
+    await prisma.$executeRaw(Prisma.sql`
       DELETE FROM withdrawal_address_claimable_snapshot
       WHERE withdrawal_address IN (${Prisma.join(normalizedAddresses)})
     `);

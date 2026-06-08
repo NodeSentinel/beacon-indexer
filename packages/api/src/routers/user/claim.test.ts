@@ -45,6 +45,7 @@ describe('executeUserClaim', () => {
       }),
       listOwnedClusterWithdrawalAddresses: vi.fn(),
       clearClaimableWithdrawalAddresses: vi.fn(),
+      finalizeSuccessfulClaim: vi.fn(),
       updateLastClaimed: vi.fn(),
     };
     const claimWithdrawalsService = {
@@ -79,6 +80,7 @@ describe('executeUserClaim', () => {
       findClaimUserById: vi.fn(),
       listOwnedClusterWithdrawalAddresses: vi.fn(),
       clearClaimableWithdrawalAddresses: vi.fn(),
+      finalizeSuccessfulClaim: vi.fn(),
       updateLastClaimed: vi.fn(),
     };
     const claimWithdrawalsService = {
@@ -110,6 +112,7 @@ describe('executeUserClaim', () => {
       }),
       listOwnedClusterWithdrawalAddresses: vi.fn(),
       clearClaimableWithdrawalAddresses: vi.fn(),
+      finalizeSuccessfulClaim: vi.fn(),
       updateLastClaimed: vi.fn(),
     };
     const claimWithdrawalsService = {
@@ -151,6 +154,7 @@ describe('executeUserClaim', () => {
       }),
       listOwnedClusterWithdrawalAddresses: vi.fn().mockResolvedValue([]),
       clearClaimableWithdrawalAddresses: vi.fn(),
+      finalizeSuccessfulClaim: vi.fn(),
       updateLastClaimed: vi.fn(),
     };
     const claimWithdrawalsService = {
@@ -190,6 +194,7 @@ describe('executeUserClaim', () => {
         .fn()
         .mockResolvedValue([ADDRESS_ONE, ADDRESS_ONE, ADDRESS_TWO]),
       clearClaimableWithdrawalAddresses: vi.fn().mockResolvedValue(undefined),
+      finalizeSuccessfulClaim: vi.fn().mockResolvedValue(undefined),
       updateLastClaimed: vi.fn().mockResolvedValue(undefined),
     };
     const claimWithdrawalsService = {
@@ -213,16 +218,12 @@ describe('executeUserClaim', () => {
       ADDRESS_ONE,
       ADDRESS_TWO,
     ]);
-    // Confirms the claimable snapshot cache is cleared for the same deduplicated addresses.
-    expect(userStorage.clearClaimableWithdrawalAddresses).toHaveBeenCalledWith([
-      ADDRESS_ONE,
-      ADDRESS_TWO,
-    ]);
-    // Confirms cooldown is updated only after the transaction service succeeds and cache is cleared.
-    expect(userStorage.updateLastClaimed).toHaveBeenCalledWith('user-a', NOW);
-    expect(userStorage.clearClaimableWithdrawalAddresses.mock.invocationCallOrder[0]).toBeLessThan(
-      userStorage.updateLastClaimed.mock.invocationCallOrder[0],
-    );
+    // Confirms post-transaction database updates are finalized together for consistency.
+    expect(userStorage.finalizeSuccessfulClaim).toHaveBeenCalledWith({
+      claimedAt: NOW,
+      userId: 'user-a',
+      withdrawalAddresses: [ADDRESS_ONE, ADDRESS_TWO],
+    });
     expect(response).toEqual({
       success: true,
       data: {
@@ -235,6 +236,57 @@ describe('executeUserClaim', () => {
     });
   });
 
+  it('returns the successful transaction when post-claim database finalization fails', async () => {
+    // This scenario protects users from receiving a transaction error after the transaction was broadcast.
+    const logger = { error: vi.fn() };
+    const userStorage = {
+      findClaimUserById: vi.fn().mockResolvedValue({
+        id: 'user-a',
+        telegramId: 123n,
+        lastClaimed: OLD_CLAIM,
+      }),
+      listOwnedClusterWithdrawalAddresses: vi.fn().mockResolvedValue([ADDRESS_ONE]),
+      clearClaimableWithdrawalAddresses: vi.fn(),
+      finalizeSuccessfulClaim: vi.fn().mockRejectedValue(new Error('database write failed')),
+      updateLastClaimed: vi.fn(),
+    };
+    const claimWithdrawalsService = {
+      claimWithdrawals: vi.fn().mockResolvedValue({
+        transactionHash: TRANSACTION_HASH,
+        transactionUrl: TRANSACTION_URL,
+      }),
+    };
+
+    // Claims after cooldown while the database finalization step fails after broadcast.
+    const response = await executeUserClaim({
+      chain: 'gnosis',
+      claimWithdrawalsService,
+      logger,
+      now: NOW,
+      userId: 'user-a',
+      userStorage,
+    });
+
+    // Confirms the API does not misreport a successful on-chain broadcast as a transaction failure.
+    expect(response).toMatchObject({
+      success: true,
+      data: {
+        claimedAddresses: [ADDRESS_ONE],
+        transactionHash: TRANSACTION_HASH,
+        transactionUrl: TRANSACTION_URL,
+      },
+    });
+    // Confirms the database failure is still logged for operators to investigate.
+    expect(logger.error).toHaveBeenCalledWith(
+      expect.objectContaining({
+        err: expect.any(Error),
+        transactionHash: TRANSACTION_HASH,
+        userId: 'user-a',
+      }),
+      'Failed to finalize successful claim',
+    );
+  });
+
   it('does not update cooldown when the on-chain claim fails', async () => {
     // This scenario preserves old bot behavior where failed transactions do not consume cooldown.
     const userStorage = {
@@ -245,6 +297,7 @@ describe('executeUserClaim', () => {
       }),
       listOwnedClusterWithdrawalAddresses: vi.fn().mockResolvedValue([ADDRESS_ONE]),
       clearClaimableWithdrawalAddresses: vi.fn(),
+      finalizeSuccessfulClaim: vi.fn(),
       updateLastClaimed: vi.fn(),
     };
     const claimWithdrawalsService = {
@@ -269,6 +322,7 @@ describe('executeUserClaim', () => {
       },
     });
     expect(userStorage.clearClaimableWithdrawalAddresses).not.toHaveBeenCalled();
+    expect(userStorage.finalizeSuccessfulClaim).not.toHaveBeenCalled();
     expect(userStorage.updateLastClaimed).not.toHaveBeenCalled();
   });
 });
@@ -287,6 +341,7 @@ describe('createUserClaimRoute', () => {
         findClaimUserById: vi.fn(),
         listOwnedClusterWithdrawalAddresses: vi.fn(),
         clearClaimableWithdrawalAddresses: vi.fn(),
+        finalizeSuccessfulClaim: vi.fn(),
         updateLastClaimed: vi.fn(),
       },
     });

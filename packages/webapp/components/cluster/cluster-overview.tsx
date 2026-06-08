@@ -31,10 +31,11 @@ export default function ClusterOverview({
     env.NEXT_PUBLIC_CHAIN,
   );
   const showClaimable = env.NEXT_PUBLIC_CHAIN === 'gnosis';
+  const claimableRewards = cluster.claimableRewards ?? 0;
 
   const balanceUsd = (cluster.totalBalance * gnoPrice).toFixed(2);
   const effectiveBalanceUsd = (cluster.totalEffectiveBalance * gnoPrice).toFixed(0);
-  const claimableUsd = (cluster.claimableRewards * gnoPrice).toFixed(2);
+  const claimableUsd = (claimableRewards * gnoPrice).toFixed(2);
 
   const performance24h = 82.0;
   const performance7d = 91.0;
@@ -93,7 +94,7 @@ export default function ClusterOverview({
             <div className="col-span-2 md:col-span-1">
               <p className="text-xs text-muted-foreground mb-0.5 md:mb-1">CLAIMABLE</p>
               <span className="text-base md:text-xl font-display text-white">
-                {cluster.claimableRewards.toFixed(balanceDecimals)} {tokenSymbol}
+                {claimableRewards.toFixed(balanceDecimals)} {tokenSymbol}
               </span>
               <p className="text-xs text-muted-foreground">${claimableUsd}</p>
             </div>

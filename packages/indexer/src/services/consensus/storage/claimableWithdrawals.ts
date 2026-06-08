@@ -56,19 +56,15 @@ export class ClaimableWithdrawalsStorage {
   /**
    * Removes claimable snapshot rows for withdrawal addresses no longer tracked by any cluster.
    */
-  async pruneUntrackedWithdrawalAddresses(trackedWithdrawalAddresses: string[]): Promise<void> {
-    if (trackedWithdrawalAddresses.length === 0) {
-      await this.prisma.$executeRaw(Prisma.sql`
-        DELETE FROM withdrawal_address_claimable_snapshot
-      `);
-      return;
-    }
-
-    const normalizedAddresses = trackedWithdrawalAddresses.map((address) => address.toLowerCase());
-
+  async pruneUntrackedWithdrawalAddresses(): Promise<void> {
     await this.prisma.$executeRaw(Prisma.sql`
       DELETE FROM withdrawal_address_claimable_snapshot
-      WHERE withdrawal_address NOT IN (${Prisma.join(normalizedAddresses)})
+      WHERE withdrawal_address NOT IN (
+        SELECT DISTINCT LOWER(v.withdrawal_address)
+        FROM cluster_validator cv
+        JOIN validator v ON v.id = cv.validator_index
+        WHERE v.withdrawal_address IS NOT NULL
+      )
     `);
   }
 }

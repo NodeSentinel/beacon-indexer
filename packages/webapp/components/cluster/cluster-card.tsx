@@ -64,10 +64,11 @@ export default function ClusterCard({ cluster, gnoPrice, onManage }: ClusterCard
   const totalValidators = cluster.validatorCount ?? cluster.validators.length;
   const { balanceDecimals, tokenSymbol } = getTokenConfig(env.NEXT_PUBLIC_CHAIN);
   const showClaimable = env.NEXT_PUBLIC_CHAIN === 'gnosis';
+  const claimableRewards = cluster.claimableRewards ?? 0;
 
   const balanceUsd = (cluster.totalBalance * gnoPrice).toFixed(2);
   const effectiveBalanceUsd = (cluster.totalEffectiveBalance * gnoPrice).toFixed(0);
-  const claimableUsd = (cluster.claimableRewards * gnoPrice).toFixed(2);
+  const claimableUsd = (claimableRewards * gnoPrice).toFixed(2);
 
   return (
     <DashboardCard
@@ -106,7 +107,7 @@ export default function ClusterCard({ cluster, gnoPrice, onManage }: ClusterCard
             <div>
               <p className="label-primary mb-1">CLAIMABLE</p>
               <span className="value-secondary text-success">
-                {cluster.claimableRewards.toFixed(balanceDecimals)} {tokenSymbol}
+                {claimableRewards.toFixed(balanceDecimals)} {tokenSymbol}
               </span>
               <p className="text-helper">${claimableUsd}</p>
             </div>

@@ -32,12 +32,20 @@ export class GnosisWithdrawableAmountsReader {
   async getWithdrawableAmounts(
     withdrawalAddresses: string[],
   ): Promise<ClaimableWithdrawalAmount[]> {
-    return Promise.all(
-      withdrawalAddresses.map(async (withdrawalAddress) => ({
-        amountWei: await this.readWithdrawableAmount(withdrawalAddress),
-        withdrawalAddress,
-      })),
+    const amounts = await Promise.all(
+      withdrawalAddresses.map(async (withdrawalAddress) => {
+        try {
+          return {
+            amountWei: await this.readWithdrawableAmount(withdrawalAddress),
+            withdrawalAddress,
+          };
+        } catch {
+          return null;
+        }
+      }),
     );
+
+    return amounts.filter((amount): amount is ClaimableWithdrawalAmount => amount !== null);
   }
 
   /**

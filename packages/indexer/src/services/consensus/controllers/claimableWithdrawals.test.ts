@@ -82,10 +82,6 @@ describe('ClaimableWithdrawalsController', () => {
       { amountWei: 200n, withdrawalAddress: ADDRESS_TWO },
       { amountWei: 300n, withdrawalAddress: ADDRESS_THREE },
     ]);
-    expect(storage.pruneUntrackedWithdrawalAddresses).toHaveBeenCalledWith([
-      ADDRESS_ONE,
-      ADDRESS_TWO,
-      ADDRESS_THREE,
-    ]);
+    expect(storage.pruneUntrackedWithdrawalAddresses).toHaveBeenCalledWith();
   });
 });
