@@ -1,4 +1,5 @@
 import type { Chain } from '@beacon-indexer/beacon-utils';
+import chunk from 'lodash/chunk.js';
 
 import type { ClaimableWithdrawalAmount } from '../storage/claimableWithdrawals.js';
 
@@ -44,24 +45,11 @@ export class ClaimableWithdrawalsController {
     const withdrawalAddresses = await this.storage.listTrackedWithdrawalAddresses();
     const claimableAmounts: ClaimableWithdrawalAmount[] = [];
 
-    for (const addressChunk of this.chunkAddresses(withdrawalAddresses)) {
+    for (const addressChunk of chunk(withdrawalAddresses, this.chunkSize)) {
       claimableAmounts.push(...(await this.reader.getWithdrawableAmounts(addressChunk)));
     }
 
     await this.storage.upsertClaimableAmounts(claimableAmounts);
     await this.storage.pruneUntrackedWithdrawalAddresses();
-  }
-
-  /**
-   * Splits withdrawal addresses into deterministic RPC batches.
-   */
-  private chunkAddresses(withdrawalAddresses: string[]): string[][] {
-    const chunks: string[][] = [];
-
-    for (let index = 0; index < withdrawalAddresses.length; index += this.chunkSize) {
-      chunks.push(withdrawalAddresses.slice(index, index + this.chunkSize));
-    }
-
-    return chunks;
   }
 }
