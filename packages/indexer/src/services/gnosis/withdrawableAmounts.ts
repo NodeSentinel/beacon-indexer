@@ -1,10 +1,44 @@
-import axios, { AxiosInstance } from 'axios';
-import ms from 'ms';
+import chunk from 'lodash/chunk.js';
+import { type Address, createPublicClient as createViemPublicClient, getAddress, http } from 'viem';
+import { gnosis } from 'viem/chains';
 
 import type { ClaimableWithdrawalAmount } from '@/src/services/consensus/storage/claimableWithdrawals.js';
-import type { JsonRpcResponse } from '@/src/services/execution/types.js';
 
-const WITHDRAWABLE_AMOUNT_SELECTOR = '0xbe7ab51b';
+const WITHDRAWABLE_AMOUNT_MULTICALL_BATCH_SIZE = 50;
+
+const GNOSIS_DEPOSIT_ABI = [
+  {
+    inputs: [{ internalType: 'address', name: '_address', type: 'address' }],
+    name: 'withdrawableAmount',
+    outputs: [{ internalType: 'uint256', name: '', type: 'uint256' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+] as const;
+
+type GnosisDepositContractCall = {
+  abi: typeof GNOSIS_DEPOSIT_ABI;
+  address: Address;
+  args: readonly [Address];
+  functionName: 'withdrawableAmount';
+};
+
+type GnosisMulticallResult =
+  | {
+      result: bigint;
+      status: 'success';
+    }
+  | {
+      error: unknown;
+      status: 'failure';
+    };
+
+type GnosisMulticallClient = {
+  multicall: (params: {
+    allowFailure: true;
+    contracts: GnosisDepositContractCall[];
+  }) => Promise<GnosisMulticallResult[]>;
+};
 
 type GnosisWithdrawableAmountsReaderParams = {
   bkpRpcUrl: string;
@@ -16,108 +50,118 @@ type GnosisWithdrawableAmountsReaderParams = {
  * GnosisWithdrawableAmountsReader reads claimable withdrawal amounts from the Gnosis deposit contract.
  */
 export class GnosisWithdrawableAmountsReader {
-  private readonly axiosInstance: AxiosInstance;
-  private readonly depositContractAddress: string;
-  private readonly rpcUrls: string[];
+  private readonly depositContractAddress: Address;
+  private readonly publicClients: GnosisMulticallClient[];
 
   constructor(params: GnosisWithdrawableAmountsReaderParams) {
-    this.axiosInstance = axios.create();
     this.depositContractAddress = this.normalizeAddress(params.depositContractAddress);
-    this.rpcUrls = [params.mainRpcUrl, params.bkpRpcUrl];
+    this.publicClients = [
+      this.createPublicClient(params.mainRpcUrl),
+      this.createPublicClient(params.bkpRpcUrl),
+    ];
   }
 
   /**
-   * Reads raw uint256 amounts for each withdrawal address and returns values keyed by original address.
+   * Reads raw uint256 amounts using multicall batches capped to a conservative RPC-safe size.
    */
   async getWithdrawableAmounts(
     withdrawalAddresses: string[],
   ): Promise<ClaimableWithdrawalAmount[]> {
-    const amounts = await Promise.all(
-      withdrawalAddresses.map(async (withdrawalAddress) => {
-        try {
-          return {
-            amountWei: await this.readWithdrawableAmount(withdrawalAddress),
-            withdrawalAddress,
-          };
-        } catch {
-          return null;
-        }
-      }),
-    );
+    const amounts: ClaimableWithdrawalAmount[] = [];
 
-    return amounts.filter((amount): amount is ClaimableWithdrawalAmount => amount !== null);
+    for (const addressBatch of chunk(
+      withdrawalAddresses,
+      WITHDRAWABLE_AMOUNT_MULTICALL_BATCH_SIZE,
+    )) {
+      amounts.push(...(await this.readWithdrawableAmountBatch(addressBatch)));
+    }
+
+    return amounts;
   }
 
   /**
-   * Reads one withdrawal address from the main RPC and then the backup RPC if needed.
+   * Creates a viem public client for the configured Gnosis RPC endpoint.
    */
-  private async readWithdrawableAmount(withdrawalAddress: string): Promise<bigint> {
-    let lastError: unknown;
+  private createPublicClient(rpcUrl: string): GnosisMulticallClient {
+    return createViemPublicClient({
+      chain: gnosis,
+      transport: http(rpcUrl, { timeout: 15_000 }),
+    }) as unknown as GnosisMulticallClient;
+  }
 
-    for (const rpcUrl of this.rpcUrls) {
+  /**
+   * Reads one safe-sized address batch from main RPC and retries failed entries on the backup RPC.
+   */
+  private async readWithdrawableAmountBatch(
+    withdrawalAddresses: string[],
+  ): Promise<ClaimableWithdrawalAmount[]> {
+    const amounts: ClaimableWithdrawalAmount[] = [];
+    let pendingWithdrawalAddresses = withdrawalAddresses;
+
+    for (const publicClient of this.publicClients) {
+      if (pendingWithdrawalAddresses.length === 0) break;
+
       try {
-        return await this.readWithdrawableAmountFromRpc(rpcUrl, withdrawalAddress);
-      } catch (error) {
-        lastError = error;
+        const result = await this.readWithdrawableAmountsFromClient(
+          publicClient,
+          pendingWithdrawalAddresses,
+        );
+        amounts.push(...result.amounts);
+        pendingWithdrawalAddresses = result.failedWithdrawalAddresses;
+      } catch {
+        // A full RPC failure keeps the pending addresses available for the next configured RPC.
       }
     }
 
-    throw lastError instanceof Error
-      ? lastError
-      : new Error(`Failed to read withdrawableAmount for ${withdrawalAddress}`);
+    return amounts;
   }
 
   /**
-   * Sends one eth_call for withdrawableAmount(address) and parses the uint256 result.
+   * Executes one viem multicall and separates successful amounts from addresses that need retrying.
    */
-  private async readWithdrawableAmountFromRpc(
-    rpcUrl: string,
-    withdrawalAddress: string,
-  ): Promise<bigint> {
-    const response = await this.axiosInstance.post<JsonRpcResponse<string>>(
-      rpcUrl,
-      {
-        id: 1,
-        jsonrpc: '2.0',
-        method: 'eth_call',
-        params: [
-          {
-            data: this.encodeWithdrawableAmountCall(withdrawalAddress),
-            to: this.depositContractAddress,
-          },
-          'latest',
-        ],
-      },
-      { timeout: ms('15s') },
-    );
+  private async readWithdrawableAmountsFromClient(
+    publicClient: GnosisMulticallClient,
+    withdrawalAddresses: string[],
+  ): Promise<{
+    amounts: ClaimableWithdrawalAmount[];
+    failedWithdrawalAddresses: string[];
+  }> {
+    const results = await publicClient.multicall({
+      allowFailure: true,
+      contracts: withdrawalAddresses.map((withdrawalAddress) => ({
+        abi: GNOSIS_DEPOSIT_ABI,
+        address: this.depositContractAddress,
+        args: [this.normalizeAddress(withdrawalAddress)] as const,
+        functionName: 'withdrawableAmount',
+      })),
+    });
 
-    if (response.data.error) {
-      throw new Error(`eth_call withdrawableAmount error: ${response.data.error.message}`);
-    }
+    const amounts: ClaimableWithdrawalAmount[] = [];
+    const failedWithdrawalAddresses: string[] = [];
 
-    if (!response.data.result) {
-      throw new Error(`eth_call withdrawableAmount returned empty result for ${withdrawalAddress}`);
-    }
+    results.forEach((result, index) => {
+      const withdrawalAddress = withdrawalAddresses[index];
+      if (!withdrawalAddress) return;
 
-    return BigInt(response.data.result);
+      if (result.status === 'success') {
+        amounts.push({ amountWei: result.result, withdrawalAddress });
+        return;
+      }
+
+      failedWithdrawalAddresses.push(withdrawalAddress);
+    });
+
+    return { amounts, failedWithdrawalAddresses };
   }
 
   /**
-   * Encodes withdrawableAmount(address) calldata for a normalized Ethereum address.
+   * Validates and normalizes an EVM address before using it in contract calls.
    */
-  private encodeWithdrawableAmountCall(withdrawalAddress: string): string {
-    const normalizedAddress = this.normalizeAddress(withdrawalAddress).slice(2);
-    return `${WITHDRAWABLE_AMOUNT_SELECTOR}${normalizedAddress.padStart(64, '0')}`;
-  }
-
-  /**
-   * Validates and lowercases an EVM address before using it in contract calls.
-   */
-  private normalizeAddress(address: string): string {
-    if (!/^0x[0-9a-fA-F]{40}$/.test(address)) {
+  private normalizeAddress(address: string): Address {
+    try {
+      return getAddress(address);
+    } catch {
       throw new Error(`Invalid EVM address: ${address}`);
     }
-
-    return address.toLowerCase();
   }
 }

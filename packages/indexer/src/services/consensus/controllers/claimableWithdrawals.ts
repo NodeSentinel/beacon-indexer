@@ -3,6 +3,8 @@ import chunk from 'lodash/chunk.js';
 
 import type { ClaimableWithdrawalAmount } from '../storage/claimableWithdrawals.js';
 
+const DEFAULT_CLAIMABLE_WITHDRAWAL_BATCH_SIZE = 50;
+
 type ClaimableWithdrawalsReader = {
   getWithdrawableAmounts: (withdrawalAddresses: string[]) => Promise<ClaimableWithdrawalAmount[]>;
 };
@@ -31,7 +33,7 @@ export class ClaimableWithdrawalsController {
 
   constructor(params: ClaimableWithdrawalsControllerParams) {
     this.chain = params.chain;
-    this.chunkSize = params.chunkSize ?? 25;
+    this.chunkSize = params.chunkSize ?? DEFAULT_CLAIMABLE_WITHDRAWAL_BATCH_SIZE;
     this.reader = params.reader;
     this.storage = params.storage;
   }
