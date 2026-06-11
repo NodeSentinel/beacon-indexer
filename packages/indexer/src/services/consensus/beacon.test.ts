@@ -10,9 +10,9 @@ describe('BeaconClient reward cache', () => {
     vi.restoreAllMocks();
   });
 
-  // This test verifies simultaneous block reward reads for one slot share one HTTP request.
-  it('coalesces concurrent block reward requests for the same slot', async () => {
-    // This client uses a single archive request lane so duplicate requests are easy to observe.
+  // This test verifies simultaneous block reward reads do not use the prefetch cache as a request cache.
+  it('fetches concurrent block reward requests independently', async () => {
+    // This client uses a single archive request lane so direct duplicate requests are easy to observe.
     const beaconClient = new BeaconClient({
       fullNodeUrl: 'http://full-node',
       fullNodeConcurrency: 1,
@@ -37,17 +37,17 @@ describe('BeaconClient reward cache', () => {
       },
     } as never);
 
-    // These calls simulate processing and prefetch waiting on the same slow slot endpoint.
+    // These calls simulate two normal processing reads without a completed prefetched value.
     const [firstResult, secondResult] = await Promise.all([
       beaconClient.getBlockRewards(1),
       beaconClient.getBlockRewards(1),
     ]);
 
-    // This assertion verifies both callers receive the same endpoint result.
+    // This assertion verifies both callers still receive the endpoint result shape.
     expect(firstResult).toEqual(secondResult);
 
-    // This assertion verifies only one underlying HTTP request was made for the slot.
-    expect(getSpy).toHaveBeenCalledTimes(1);
+    // This assertion verifies normal reads do not coalesce through the prefetch cache.
+    expect(getSpy).toHaveBeenCalledTimes(2);
   });
 
   // This test verifies prefetching a block reward warms the cache for normal processing.
@@ -65,22 +65,36 @@ describe('BeaconClient reward cache', () => {
       slotsPerEpoch: 32,
     });
 
-    // This spy verifies prefetch and normal processing share the configured-node request path.
+    // This spy returns different responses so one-shot consumption is observable.
     const axiosInstance = (beaconClient as unknown as { axiosInstance: { get: unknown } })
       .axiosInstance;
-    const getSpy = vi.spyOn(axiosInstance, 'get' as never).mockResolvedValue({
-      data: {
+    const getSpy = vi
+      .spyOn(axiosInstance, 'get' as never)
+      .mockResolvedValueOnce({
         data: {
-          proposer_index: '1',
-          total: '10',
+          data: {
+            proposer_index: '1',
+            total: '10',
+          },
         },
-      },
-    } as never);
+      } as never)
+      .mockResolvedValueOnce({
+        data: {
+          data: {
+            proposer_index: '1',
+            total: '20',
+          },
+        },
+      } as never);
 
     // This call starts the request before the slot reaches normal processing.
     beaconClient.prefetchBlockRewards(1);
 
-    // This normal processing call should reuse the prefetched request result.
+    // This wait confirms the prefetched response has completed and exists as a cache entry.
+    await vi.waitFor(() => expect(getSpy).toHaveBeenCalledTimes(1));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    // This normal processing call should consume the completed prefetched result.
     const result = await beaconClient.getBlockRewards(1);
 
     // This assertion verifies normal processing receives the prefetched endpoint result.
@@ -97,8 +111,22 @@ describe('BeaconClient reward cache', () => {
       expect.any(Object),
     );
 
-    // This assertion verifies normal processing joined the in-flight prefetch instead of fetching again.
+    // This assertion verifies normal processing consumed the completed prefetch without fetching again.
     expect(getSpy).toHaveBeenCalledTimes(1);
+
+    // This second normal call verifies the prefetched block reward is consumed only once.
+    const secondResult = await beaconClient.getBlockRewards(1);
+
+    // This assertion verifies processing receives fresh data after the prefetched entry is deleted.
+    expect(secondResult).toEqual({
+      data: {
+        proposer_index: '1',
+        total: '20',
+      },
+    });
+
+    // This assertion verifies the consumed cache entry was not reused.
+    expect(getSpy).toHaveBeenCalledTimes(2);
   });
 
   // This test verifies failed block reward prefetches do not poison normal processing.
@@ -231,7 +259,7 @@ describe('BeaconClient reward cache', () => {
 
   // This test verifies an incomplete normal block reward response is treated as a retryable fetch failure.
   it('does not cache incomplete block rewards from normal processing', async () => {
-    // This client exercises the strict processing path that also writes through the LRU fetch cache.
+    // This client exercises the strict processing path without relying on prefetched cache entries.
     const beaconClient = new BeaconClient({
       fullNodeUrl: 'http://full-node',
       fullNodeConcurrency: 1,
@@ -300,7 +328,7 @@ describe('BeaconClient reward cache', () => {
       slotsPerEpoch: 32,
     });
 
-    // This spy verifies normal processing shares the configured-node prefetch request.
+    // This spy verifies normal processing consumes only a completed prefetched cache entry.
     const axiosInstance = (beaconClient as unknown as { axiosInstance: { get: unknown } })
       .axiosInstance;
     const getSpy = vi
@@ -331,7 +359,11 @@ describe('BeaconClient reward cache', () => {
     // This call starts the request before the epoch reaches normal processing.
     beaconClient.prefetchCommittees(2, 64);
 
-    // This normal processing call should reuse the prefetched request result.
+    // This wait confirms the prefetched response has completed and exists as a cache entry.
+    await vi.waitFor(() => expect(getSpy).toHaveBeenCalledTimes(1));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    // This normal processing call should consume the completed prefetched request result.
     const result = await beaconClient.getCommittees(2, 64);
 
     // This assertion verifies normal processing receives the prefetched endpoint result.
@@ -343,7 +375,7 @@ describe('BeaconClient reward cache', () => {
       },
     ]);
 
-    // This assertion verifies normal processing joined the prefetch instead of fetching again.
+    // This assertion verifies normal processing consumed the completed prefetch without fetching again.
     expect(getSpy).toHaveBeenCalledTimes(1);
 
     // This second normal call verifies consumed committee entries are removed from cache.
@@ -436,38 +468,28 @@ describe('BeaconClient reward cache', () => {
     expect(getSpy).toHaveBeenCalledTimes(2);
   });
 
-  // This test verifies normal processing retries when it joins a failed committee prefetch.
-  it('fetches committees normally after joining an in-flight failed prefetch', async () => {
-    // This client exercises the coalescing path for committee prefetch failures.
+  // This test verifies normal processing does not join an in-flight committee prefetch.
+  it('fetches committees directly while a prefetch is in flight', async () => {
+    // This client allows the direct normal request to run while the prefetch request is still open.
     const beaconClient = new BeaconClient({
       fullNodeUrl: 'http://full-node',
-      fullNodeConcurrency: 1,
+      fullNodeConcurrency: 2,
       fullNodeRetries: 0,
       archiveNodeUrl: 'http://archive-node',
-      archiveNodeConcurrency: 1,
+      archiveNodeConcurrency: 2,
       archiveNodeRetries: 0,
       baseDelay: 1,
       slotStartIndexing: 1,
       slotsPerEpoch: 32,
     });
 
-    // This error simulates a failed prefetch request.
-    const prefetchError = new AxiosError('Request failed with status code 500');
-    prefetchError.response = {
-      status: 500,
-      statusText: 'Internal Server Error',
-      headers: {},
-      config: {} as never,
-      data: { message: 'Internal Server Error' },
-    };
-
-    // This deferred rejection keeps the prefetch request in flight.
-    let rejectPrefetchResponse: (error: unknown) => void;
-    const prefetchResponsePromise = new Promise((_resolve, reject) => {
-      rejectPrefetchResponse = reject;
+    // This deferred response keeps the prefetch request in flight during normal processing.
+    let resolvePrefetchResponse: (value: unknown) => void;
+    const prefetchResponsePromise = new Promise((resolve) => {
+      resolvePrefetchResponse = resolve;
     });
 
-    // This spy makes the in-flight prefetch fail and the retry succeed.
+    // This spy keeps prefetch open and returns a separate response for the normal request.
     const axiosInstance = (beaconClient as unknown as { axiosInstance: { get: unknown } })
       .axiosInstance;
     const getSpy = vi
@@ -485,19 +507,19 @@ describe('BeaconClient reward cache', () => {
         },
       } as never);
 
-    // This call starts a prefetch request that normal processing will join.
+    // This call starts a prefetch request that normal processing must not join.
     beaconClient.prefetchCommittees(2, 64);
 
     // This wait confirms the prefetch request is in flight.
     await vi.waitFor(() => expect(getSpy).toHaveBeenCalledTimes(1));
 
-    // This normal call joins the in-flight prefetch.
+    // This normal call should make its own request because no completed cache entry exists.
     const committeesPromise = beaconClient.getCommittees(2, 64);
 
-    // This rejection makes the joined prefetch return no cache value.
-    rejectPrefetchResponse!(prefetchError);
+    // This wait verifies the normal request started before the prefetched response completed.
+    await vi.waitFor(() => expect(getSpy).toHaveBeenCalledTimes(2));
 
-    // This assertion verifies normal processing retries and receives fresh committees.
+    // This assertion verifies normal processing receives the direct request response.
     await expect(committeesPromise).resolves.toEqual([
       {
         index: '0',
@@ -506,7 +528,21 @@ describe('BeaconClient reward cache', () => {
       },
     ]);
 
-    // This assertion verifies the retry made a second configured-node request.
+    // This response lets the fire-and-forget prefetch settle after normal processing is complete.
+    resolvePrefetchResponse!({
+      data: {
+        data: [
+          {
+            index: 'prefetch',
+            slot: '64',
+            validators: ['9'],
+          },
+        ],
+      },
+    });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    // This assertion verifies prefetch and normal processing used separate requests.
     expect(getSpy).toHaveBeenCalledTimes(2);
   });
 
@@ -545,9 +581,9 @@ describe('BeaconClient reward cache', () => {
     expect(getSpy).not.toHaveBeenCalled();
   });
 
-  // This test verifies simultaneous sync committee reward reads share one HTTP request.
-  it('coalesces concurrent sync committee reward requests for the same slot and validators', async () => {
-    // This client uses a single archive request lane so duplicate requests are easy to observe.
+  // This test verifies simultaneous sync committee reward reads do not use the prefetch cache as a request cache.
+  it('fetches concurrent sync committee reward requests independently', async () => {
+    // This client uses a single archive request lane so direct duplicate requests are easy to observe.
     const beaconClient = new BeaconClient({
       fullNodeUrl: 'http://full-node',
       fullNodeConcurrency: 1,
@@ -569,22 +605,22 @@ describe('BeaconClient reward cache', () => {
       },
     } as never);
 
-    // These calls simulate processing and prefetch waiting on the same slow slot endpoint.
+    // These calls simulate two normal processing reads without a completed prefetched value.
     const [firstResult, secondResult] = await Promise.all([
       beaconClient.getSyncCommitteeRewards(1, ['1', '2']),
       beaconClient.getSyncCommitteeRewards(1, ['1', '2']),
     ]);
 
-    // This assertion verifies both callers receive the same endpoint result.
+    // This assertion verifies both callers still receive the endpoint result shape.
     expect(firstResult).toEqual(secondResult);
 
-    // This assertion verifies only one underlying HTTP request was made for the slot.
-    expect(postSpy).toHaveBeenCalledTimes(1);
+    // This assertion verifies normal reads do not coalesce through the prefetch cache.
+    expect(postSpy).toHaveBeenCalledTimes(2);
   });
 
-  // This test verifies sync committee reward cache keys do not depend on validator order.
-  it('coalesces sync committee reward requests when validator order differs', async () => {
-    // This client exercises the public sync committee rewards cache key builder.
+  // This test verifies validator order does not make normal reads use the prefetch cache.
+  it('fetches sync committee reward requests independently when validator order differs', async () => {
+    // This client exercises normal sync committee rewards without a completed prefetched value.
     const beaconClient = new BeaconClient({
       fullNodeUrl: 'http://full-node',
       fullNodeConcurrency: 1,
@@ -612,13 +648,13 @@ describe('BeaconClient reward cache', () => {
       beaconClient.getSyncCommitteeRewards(1, ['1', '2']),
     ]);
 
-    // This assertion verifies both calls use one canonical cache entry.
-    expect(postSpy).toHaveBeenCalledTimes(1);
+    // This assertion verifies normal reads bypass cache coalescing even with a canonical prefetch key.
+    expect(postSpy).toHaveBeenCalledTimes(2);
   });
 
-  // This test verifies sync committee rewards use fresh cache entries by default.
-  it('serves sync committee reward cache entries by default', async () => {
-    // This client exercises the public sync committee rewards cache behavior.
+  // This test verifies normal sync committee reads do not populate reusable cache entries.
+  it('fetches sync committee rewards normally after a normal request', async () => {
+    // This client exercises two normal sync committee reward reads with no prefetched value.
     const beaconClient = new BeaconClient({
       fullNodeUrl: 'http://full-node',
       fullNodeConcurrency: 1,
@@ -651,21 +687,21 @@ describe('BeaconClient reward cache', () => {
         },
       } as never);
 
-    // This call fills the cache entry for the slot and validator.
+    // This first call fetches rewards through the normal processing path.
     await beaconClient.getSyncCommitteeRewards(1, ['1']);
 
-    // This call uses the default behavior and should reuse the cached entry.
+    // This second call should fetch again because normal reads must not populate cache.
     const result = await beaconClient.getSyncCommitteeRewards(1, ['1']);
 
-    // This assertion verifies the default call returns the cached endpoint response.
+    // This assertion verifies the second call returns the fresh endpoint response.
     expect(result).toEqual({
-      data: [{ validator_index: '1', reward: '10' }],
+      data: [{ validator_index: '1', reward: '20' }],
       execution_optimistic: false,
       finalized: true,
     });
 
-    // This assertion verifies the cached entry was reused by default.
-    expect(postSpy).toHaveBeenCalledTimes(1);
+    // This assertion verifies the first normal response was not stored for reuse.
+    expect(postSpy).toHaveBeenCalledTimes(2);
   });
 
   // This test verifies sync committee rewards skip the cache and API when there are no validators.
@@ -741,8 +777,8 @@ describe('BeaconClient reward cache', () => {
     expect(postSpy).toHaveBeenCalledTimes(1);
   });
 
-  // This test verifies normal processing can join a successful in-flight sync committee prefetch.
-  it('coalesces normal sync committee rewards with an in-flight prefetch', async () => {
+  // This test verifies sync committee prefetch entries are consumed once by normal processing.
+  it('serves sync committee rewards from a completed prefetch once', async () => {
     // This client is configured far behind head so sync committee prefetching is enabled.
     const beaconClient = new BeaconClient({
       fullNodeUrl: 'http://full-node',
@@ -756,51 +792,65 @@ describe('BeaconClient reward cache', () => {
       slotsPerEpoch: 32,
     });
 
-    // This deferred response keeps the prefetch request in flight during normal processing.
-    let resolveResponse: (value: unknown) => void;
-    const responsePromise = new Promise((resolve) => {
-      resolveResponse = resolve;
-    });
-
-    // This spy returns the same delayed configured-node response to expose duplicate requests.
+    // This spy returns different responses so one-shot consumption is observable.
     const axiosInstance = (beaconClient as unknown as { axiosInstance: { post: unknown } })
       .axiosInstance;
-    const postSpy = vi.spyOn(axiosInstance, 'post' as never).mockReturnValue(responsePromise);
+    const postSpy = vi
+      .spyOn(axiosInstance, 'post' as never)
+      .mockResolvedValueOnce({
+        data: {
+          data: [{ validator_index: '1', reward: '10' }],
+          execution_optimistic: false,
+          finalized: true,
+        },
+      } as never)
+      .mockResolvedValueOnce({
+        data: {
+          data: [{ validator_index: '1', reward: '20' }],
+          execution_optimistic: false,
+          finalized: true,
+        },
+      } as never);
 
     // This call starts the prefetch request for the slot and validators.
     beaconClient.prefetchSyncCommitteeRewards(1, ['1']);
 
-    // This wait confirms the prefetch request is in flight before normal processing starts.
+    // This wait confirms the prefetched response has completed and exists as a cache entry.
     await vi.waitFor(() => expect(postSpy).toHaveBeenCalledTimes(1));
+    await new Promise((resolve) => setTimeout(resolve, 0));
 
-    // This call starts normal processing while prefetch is still unresolved.
-    const rewardsPromise = beaconClient.getSyncCommitteeRewards(1, ['1']);
-
-    // This response completes the shared request.
-    resolveResponse!({
-      data: {
-        data: [{ validator_index: '1', reward: '10' }],
-        execution_optimistic: false,
-        finalized: true,
-      },
-    });
+    // This call consumes the completed prefetched response.
+    const result = await beaconClient.getSyncCommitteeRewards(1, ['1']);
 
     // This assertion verifies normal processing receives the prefetched response.
-    await expect(rewardsPromise).resolves.toEqual({
+    expect(result).toEqual({
       data: [{ validator_index: '1', reward: '10' }],
       execution_optimistic: false,
       finalized: true,
     });
 
-    // This assertion verifies prefetch and normal processing shared one HTTP call.
+    // This assertion verifies the configured archive node served the prefetch request.
     expect(postSpy).toHaveBeenCalledWith(
       'http://archive-node/eth/v1/beacon/rewards/sync_committee/1',
       ['1'],
       expect.any(Object),
     );
 
-    // This assertion verifies normal processing joined the in-flight prefetch instead of fetching again.
+    // This assertion verifies normal processing consumed the completed prefetch without fetching again.
     expect(postSpy).toHaveBeenCalledTimes(1);
+
+    // This second normal call verifies the prefetched rewards are consumed only once.
+    const secondResult = await beaconClient.getSyncCommitteeRewards(1, ['1']);
+
+    // This assertion verifies processing receives fresh data after the prefetched entry is deleted.
+    expect(secondResult).toEqual({
+      data: [{ validator_index: '1', reward: '20' }],
+      execution_optimistic: false,
+      finalized: true,
+    });
+
+    // This assertion verifies the consumed cache entry was not reused.
+    expect(postSpy).toHaveBeenCalledTimes(2);
   });
 
   // This test verifies normal processing stays strict after an in-flight prefetch 404.
