@@ -79,11 +79,11 @@ export class BeaconClient extends ReliableRequestClient {
     ttl: ms('10m'),
     ttlAutopurge: true,
     fetchMethod: async (slot, _staleValue, { context }) => {
-      if (context?.prefetch) {
-        return this.fetchBlockRewardsForPrefetch(slot).catch(() => undefined);
+      if (!context?.prefetch) {
+        return undefined;
       }
 
-      return this.fetchBlockRewards(slot);
+      return this.fetchBlockRewardsForPrefetch(slot).catch(() => undefined);
     },
   });
 
@@ -99,14 +99,14 @@ export class BeaconClient extends ReliableRequestClient {
     ttl: ms('10m'),
     ttlAutopurge: true,
     fetchMethod: async (key, _staleValue, { context }) => {
-      const [slot, validatorIndexes] = this.parseSyncCommitteeRewardsCacheKey(key);
-      if (context?.prefetch) {
-        return this.fetchSyncCommitteeRewardsForPrefetch(slot, validatorIndexes).catch(
-          () => undefined,
-        );
+      if (!context?.prefetch) {
+        return undefined;
       }
 
-      return this.fetchSyncCommitteeRewards(slot, validatorIndexes);
+      const [slot, validatorIndexes] = this.parseSyncCommitteeRewardsCacheKey(key);
+      return this.fetchSyncCommitteeRewardsForPrefetch(slot, validatorIndexes).catch(
+        () => undefined,
+      );
     },
   });
 
@@ -122,16 +122,16 @@ export class BeaconClient extends ReliableRequestClient {
     ttl: ms('10m'),
     ttlAutopurge: true,
     fetchMethod: async (key, _staleValue, { context }) => {
+      if (!context?.prefetch) {
+        return undefined;
+      }
+
       const { epoch, stateId } = JSON.parse(key) as {
         epoch: number;
         stateId: string | number;
       };
 
-      if (context?.prefetch) {
-        return this.fetchCommitteesForPrefetch(epoch, stateId).catch(() => undefined);
-      }
-
-      return this.fetchCommittees(epoch, stateId);
+      return this.fetchCommitteesForPrefetch(epoch, stateId).catch(() => undefined);
     },
   });
 
@@ -262,14 +262,14 @@ export class BeaconClient extends ReliableRequestClient {
     stateId: string | number = 'head',
   ): Promise<GetCommittees['data']> {
     const key = this.getCommitteesCacheKey(epoch, stateId);
-    let committees = await this.committeesCache.fetch(key);
-    if (committees === undefined) {
-      committees = await this.fetchCommittees(epoch, stateId);
-    }
-
+    const committees = this.committeesCache.get(key);
     this.committeesCache.delete(key);
 
-    return committees;
+    if (committees !== undefined) {
+      return committees;
+    }
+
+    return this.fetchCommittees(epoch, stateId);
   }
 
   /**
@@ -565,19 +565,21 @@ export class BeaconClient extends ReliableRequestClient {
   }
 
   /**
-   * Get block rewards for a specific slot using the prefetch cache.
+   * Get block rewards for a specific slot, consuming one completed prefetch when available.
    */
   getBlockRewards = async (slot: number): Promise<BlockRewards | 'SLOT MISSED'> => {
-    let rewards = await this.blockRewardsCache.fetch(slot);
-    if (rewards === undefined) {
-      rewards = await this.fetchBlockRewards(slot);
+    const rewards = this.blockRewardsCache.get(slot);
+    this.blockRewardsCache.delete(slot);
+
+    if (rewards !== undefined) {
+      return rewards;
     }
 
-    return rewards;
+    return this.fetchBlockRewards(slot);
   };
 
   /**
-   * Get sync committee rewards for specific validators in a slot using the prefetch cache.
+   * Get sync committee rewards for specific validators, consuming one completed prefetch when available.
    */
   getSyncCommitteeRewards = async (
     slot: number,
@@ -588,11 +590,13 @@ export class BeaconClient extends ReliableRequestClient {
     }
 
     const key = this.getSyncCommitteeRewardsCacheKey(slot, validatorIndexes);
-    let rewards = await this.syncCommitteeRewardsCache.fetch(key);
-    if (rewards === undefined) {
-      rewards = await this.fetchSyncCommitteeRewards(slot, validatorIndexes);
+    const rewards = this.syncCommitteeRewardsCache.get(key);
+    this.syncCommitteeRewardsCache.delete(key);
+
+    if (rewards !== undefined) {
+      return rewards;
     }
 
-    return rewards;
+    return this.fetchSyncCommitteeRewards(slot, validatorIndexes);
   };
 }
