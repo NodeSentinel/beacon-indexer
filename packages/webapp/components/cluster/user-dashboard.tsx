@@ -35,7 +35,10 @@ function getAggregatedCluster(clusters: Cluster[]): Cluster {
     (sum, cluster) => sum + cluster.totalEffectiveBalance,
     0,
   );
-  const totalClaimable = clusters.reduce((sum, cluster) => sum + cluster.claimableRewards, 0);
+  const totalClaimable = clusters.reduce(
+    (sum, cluster) => sum + (cluster.claimableRewards ?? 0),
+    0,
+  );
   const avgPerformance =
     clusters.length > 0
       ? clusters.reduce((sum, cluster) => sum + cluster.performance, 0) / clusters.length

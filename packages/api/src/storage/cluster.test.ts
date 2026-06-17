@@ -15,6 +15,20 @@ const migrationUrl = new URL(
   import.meta.url,
 );
 
+/**
+ * Extracts SQL text from either a Prisma tagged-template call or a Prisma.sql object.
+ */
+function getSqlText(queryArg: unknown): string {
+  if (Array.isArray(queryArg)) return Array.from(queryArg).join('?');
+  if (queryArg && typeof queryArg === 'object' && 'strings' in queryArg) {
+    return Array.from((queryArg as { strings: string[] }).strings).join('?');
+  }
+  if (queryArg && typeof queryArg === 'object' && 'sql' in queryArg) {
+    return (queryArg as { sql: string }).sql;
+  }
+  return '';
+}
+
 describe('ClusterStorage.getSummary', () => {
   // Verifies the API-key summary keeps inactive and blocked users out of active metrics.
   it('groups active, blocked, inactive, Telegram, anonymous, and Lido user metrics', async () => {
@@ -418,14 +432,46 @@ describe('ClusterStorage query performance safeguards', () => {
     const storage = new ClusterStorage({ $queryRaw: queryRaw } as never);
 
     // Executes the method so the Prisma tagged SQL is constructed through real code.
-    await storage.getClusterSnapshot('cluster-a');
+    await storage.getClusterSnapshot({ clusterId: 'cluster-a', includeClaimable: false });
 
     // Reads the raw SQL template sent to Prisma for structural assertions.
-    const sql = Array.from(queryRaw.mock.calls[0]?.[0] ?? []).join('?');
+    const sql = getSqlText(queryRaw.mock.calls[0]?.[0]);
 
     // Confirms the joined validator snapshot set is materialized once for reuse.
     expect(sql).toContain('WITH merged_snapshot AS MATERIALIZED');
     // Confirms status breakdown reuses the merged snapshot instead of a second membership join.
     expect(sql).not.toContain('FROM cluster_validator cv2');
+  });
+
+  it('omits claimable reward joins when claimable rewards are disabled', async () => {
+    // This case protects Ethereum deployments from spending DB work on Gnosis-only claimable rewards.
+    const queryRaw = vi.fn().mockResolvedValue([]);
+    const storage = new ClusterStorage({ $queryRaw: queryRaw } as never);
+
+    // Requests a cluster snapshot with claimable rewards explicitly disabled.
+    await storage.getClusterSnapshot({ clusterId: 'cluster-a', includeClaimable: false });
+
+    // Reads the generated SQL to verify no claimable table or withdrawal-address aggregation is used.
+    const sql = getSqlText(queryRaw.mock.calls[0]?.[0]);
+
+    // Confirms disabled claimable rewards do not join or aggregate the claimable cache table.
+    expect(sql).not.toContain('withdrawal_address_claimable_snapshot');
+  });
+
+  it('deduplicates claimable rewards by withdrawal address when enabled', async () => {
+    // This case protects clusters with many validators sharing one withdrawal address from double counting.
+    const queryRaw = vi.fn().mockResolvedValue([]);
+    const storage = new ClusterStorage({ $queryRaw: queryRaw } as never);
+
+    // Requests a Gnosis snapshot with claimable rewards enabled.
+    await storage.getClusterSnapshot({ clusterId: 'cluster-a', includeClaimable: true });
+
+    // Reads the generated SQL to verify claimable rewards are aggregated by distinct withdrawal address.
+    const sql = getSqlText(queryRaw.mock.calls[0]?.[0]);
+
+    // Confirms the claimable cache is joined only through distinct withdrawal addresses.
+    expect(sql).toContain('withdrawal_address_claimable_snapshot');
+    expect(sql).toContain('claimable_addresses AS');
+    expect(sql).toContain('SELECT DISTINCT');
   });
 });

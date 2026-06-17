@@ -20,7 +20,7 @@ export interface Cluster {
   validators: ClusterValidator[];
   totalBalance: number;
   totalEffectiveBalance: number;
-  claimableRewards: number;
+  claimableRewards: number | null;
   performance: number;
   // From API response
   validatorCount?: number;

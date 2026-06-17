@@ -501,6 +501,14 @@ model ValidatorsSnapshotPerformance {
   @@map("validators_snapshot_performance")
 }
 
+model WithdrawalAddressClaimableSnapshot {
+  withdrawalAddress String   @id(map: "withdrawal_address_claimable_snapshot_pkey") @map("withdrawal_address") @db.VarChar(42)
+  amountWei         Decimal  @map("amount_wei") @db.Decimal(78, 0)
+  updatedAt         DateTime @default(now()) @map("updated_at") @db.Timestamp
+
+  @@map("withdrawal_address_claimable_snapshot")
+}
+
 model ValidatorActivityProcessorState {
   processor             String   @id @map("processor") @db.VarChar(64)
   lastEvaluatedDutySlot Int      @map("last_evaluated_duty_slot")

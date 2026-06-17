@@ -3,6 +3,7 @@ import { createActor } from 'xstate';
 
 import { snapshotMachine } from './snapshot.machine.js';
 
+import type { ClaimableWithdrawalsController } from '@/src/services/consensus/controllers/claimableWithdrawals.js';
 import { SnapshotController } from '@/src/services/consensus/controllers/snapshot.js';
 
 export { snapshotMachine } from './snapshot.machine.js';
@@ -15,6 +16,7 @@ export const getSnapshotActor = (
   maxAttestationDelay: number,
   delaySlotsToHead: number,
   missedAttestationsForInactivity: number,
+  claimableWithdrawalsController?: ClaimableWithdrawalsController,
 ) => {
   const actor = createActor(snapshotMachine, {
     input: {
@@ -22,6 +24,7 @@ export const getSnapshotActor = (
       slotDuration,
       slotsPerEpoch,
       chain,
+      claimableWithdrawalsController,
       maxAttestationDelay,
       delaySlotsToHead,
       missedAttestationsForInactivity,

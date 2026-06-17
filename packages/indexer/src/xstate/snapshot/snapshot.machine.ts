@@ -1,6 +1,7 @@
 import type { Chain } from '@beacon-indexer/beacon-utils';
 import { assign, fromPromise, setup } from 'xstate';
 
+import type { ClaimableWithdrawalsController } from '@/src/services/consensus/controllers/claimableWithdrawals.js';
 import { SnapshotController } from '@/src/services/consensus/controllers/snapshot.js';
 import { pinoLog } from '@/src/xstate/pinoLog.js';
 
@@ -9,6 +10,7 @@ type SnapshotContext = {
   slotDuration: number;
   slotsPerEpoch: number;
   chain: Chain;
+  claimableWithdrawalsController?: ClaimableWithdrawalsController;
   maxAttestationDelay: number;
   delaySlotsToHead: number;
   missedAttestationsForInactivity: number;
@@ -19,6 +21,7 @@ type SnapshotContext = {
   lastWUpdate: number | null;
   lastMUpdate: number | null;
   lastNewValidatorCheck: number | null;
+  lastClaimableUpdate: number | null;
 };
 
 type TickResult = {
@@ -29,9 +32,11 @@ type TickResult = {
   lastWUpdate: number | null;
   lastMUpdate: number | null;
   lastNewValidatorCheck: number | null;
+  lastClaimableUpdate: number | null;
 };
 
 const INTERVAL_NEW_VALIDATOR_CHECK = 30 * 1000; // 30 seconds
+const INTERVAL_CLAIMABLE = 60 * 60 * 1000; // 1 hour
 const INTERVAL_D = 30 * 60 * 1000; // 30 minutes
 const INTERVAL_W = 3 * 60 * 60 * 1000; // 3 hours
 const INTERVAL_M = 6 * 60 * 60 * 1000; // 6 hours
@@ -48,6 +53,7 @@ const runTick = fromPromise(async ({ input }: { input: { context: SnapshotContex
   let lastWUpdate = ctx.lastWUpdate;
   let lastMUpdate = ctx.lastMUpdate;
   let lastNewValidatorCheck = ctx.lastNewValidatorCheck;
+  let lastClaimableUpdate = ctx.lastClaimableUpdate;
 
   // Level 0: Detect and backfill new validators (every 30s)
   if (
@@ -70,6 +76,17 @@ const runTick = fromPromise(async ({ input }: { input: { context: SnapshotContex
     updatedLevels.push('h');
 
     lastEpochUpdate = currentEpoch;
+  }
+
+  // Level 1b: Gnosis claimable withdrawal snapshots (hourly)
+  if (
+    ctx.chain === 'gnosis' &&
+    ctx.claimableWithdrawalsController &&
+    (lastClaimableUpdate === null || now - lastClaimableUpdate >= INTERVAL_CLAIMABLE)
+  ) {
+    await ctx.claimableWithdrawalsController.updateClaimableSnapshots();
+    lastClaimableUpdate = now;
+    updatedLevels.push('claimable');
   }
 
   // Level 4: d performance (every 30 min)
@@ -101,6 +118,7 @@ const runTick = fromPromise(async ({ input }: { input: { context: SnapshotContex
     lastWUpdate,
     lastMUpdate,
     lastNewValidatorCheck,
+    lastClaimableUpdate,
   } satisfies TickResult;
 });
 
@@ -109,6 +127,7 @@ export const snapshotMachine = setup({
     context: SnapshotContext;
     input: {
       snapshotController: SnapshotController;
+      claimableWithdrawalsController?: ClaimableWithdrawalsController;
       slotDuration: number;
       slotsPerEpoch: number;
       chain: Chain;
@@ -128,6 +147,7 @@ export const snapshotMachine = setup({
   initial: 'waiting',
   context: ({ input }) => ({
     snapshotController: input.snapshotController,
+    claimableWithdrawalsController: input.claimableWithdrawalsController,
     slotDuration: input.slotDuration,
     slotsPerEpoch: input.slotsPerEpoch,
     chain: input.chain,
@@ -140,6 +160,7 @@ export const snapshotMachine = setup({
     lastWUpdate: null,
     lastMUpdate: null,
     lastNewValidatorCheck: null,
+    lastClaimableUpdate: null,
   }),
   states: {
     waiting: {
@@ -163,6 +184,7 @@ export const snapshotMachine = setup({
               lastWUpdate: ({ event }) => event.output.lastWUpdate,
               lastMUpdate: ({ event }) => event.output.lastMUpdate,
               lastNewValidatorCheck: ({ event }) => event.output.lastNewValidatorCheck,
+              lastClaimableUpdate: ({ event }) => event.output.lastClaimableUpdate,
             }),
             pinoLog(({ event }) => {
               const levels = event.output.updatedLevels;

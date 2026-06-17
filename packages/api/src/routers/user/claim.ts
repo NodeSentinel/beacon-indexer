@@ -7,6 +7,7 @@ import { ClaimUserResponseSchema } from './schemas.js';
 
 import type { ApiProcedures } from '@/auth/middleware.js';
 import { CLAIM_COOLDOWN_DAYS } from '@/constants/claim.js';
+import type { Logger } from '@/lib/logger.js';
 import type { ClaimWithdrawalsService } from '@/services/gnosis/claim-withdrawals.js';
 import type { ApiResponse } from '@/utils/response.js';
 import { ApiResponseSchema, errorResponse, successResponse } from '@/utils/response.js';
@@ -21,13 +22,20 @@ interface ClaimUser {
 
 interface UserClaimStorage {
   findClaimUserById: (userId: string) => Promise<ClaimUser | null>;
-  listOwnedClusterFeeRecipientAddresses: (userId: string) => Promise<string[]>;
+  listOwnedClusterWithdrawalAddresses: (userId: string) => Promise<string[]>;
+  clearClaimableWithdrawalAddresses: (withdrawalAddresses: string[]) => Promise<unknown>;
+  finalizeSuccessfulClaim: (params: {
+    claimedAt: Date;
+    userId: string;
+    withdrawalAddresses: string[];
+  }) => Promise<unknown>;
   updateLastClaimed: (userId: string, claimedAt: Date) => Promise<unknown>;
 }
 
 interface ExecuteUserClaimParams {
   chain: Chain;
   claimWithdrawalsService: ClaimWithdrawalsService | null;
+  logger?: Pick<Logger, 'error'>;
   now: Date;
   userId: string;
   userStorage: UserClaimStorage;
@@ -95,34 +103,53 @@ export async function executeUserClaim(
   }
 
   const claimedAddresses = uniqueAddresses(
-    await params.userStorage.listOwnedClusterFeeRecipientAddresses(params.userId),
+    await params.userStorage.listOwnedClusterWithdrawalAddresses(params.userId),
   );
   if (claimedAddresses.length === 0) {
-    return claimError('CLAIM_ADDRESSES_EMPTY', 'No cluster fee recipient addresses to claim');
+    return claimError('CLAIM_ADDRESSES_EMPTY', 'No cluster withdrawal addresses to claim');
   }
 
-  try {
-    const transaction = await params.claimWithdrawalsService.claimWithdrawals(claimedAddresses);
-    await params.userStorage.updateLastClaimed(params.userId, params.now);
+  let transaction: Awaited<ReturnType<ClaimWithdrawalsService['claimWithdrawals']>>;
 
-    return successResponse({
-      claimedAddresses,
-      nextClaimAt: getNextClaimAt(params.now).toISOString(),
-      transactionHash: transaction.transactionHash,
-      transactionUrl: transaction.transactionUrl,
-    });
+  try {
+    transaction = await params.claimWithdrawalsService.claimWithdrawals(claimedAddresses);
   } catch (error) {
     return claimError(
       'CLAIM_TX_ERROR',
       error instanceof Error ? error.message : 'Failed to send claim transaction',
     );
   }
+
+  try {
+    await params.userStorage.finalizeSuccessfulClaim({
+      claimedAt: params.now,
+      userId: params.userId,
+      withdrawalAddresses: claimedAddresses,
+    });
+  } catch (error) {
+    params.logger?.error(
+      {
+        err: error,
+        transactionHash: transaction.transactionHash,
+        userId: params.userId,
+      },
+      'Failed to finalize successful claim',
+    );
+  }
+
+  return successResponse({
+    claimedAddresses,
+    nextClaimAt: getNextClaimAt(params.now).toISOString(),
+    transactionHash: transaction.transactionHash,
+    transactionUrl: transaction.transactionUrl,
+  });
 }
 
 /** Creates the current-user claim route. */
 export function createUserClaimRoute(params: {
   chain: Chain;
   claimWithdrawalsService: ClaimWithdrawalsService | null;
+  logger?: Pick<Logger, 'error'>;
   procedures: ApiProcedures;
   userStorage: UserClaimStorage;
 }) {
@@ -142,6 +169,7 @@ export function createUserClaimRoute(params: {
       return executeUserClaim({
         chain: params.chain,
         claimWithdrawalsService: params.claimWithdrawalsService,
+        logger: params.logger,
         now: new Date(),
         userId: context.user.id,
         userStorage: params.userStorage,

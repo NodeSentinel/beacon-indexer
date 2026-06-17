@@ -133,6 +133,7 @@ interface SnapshotData {
   executionRewardD: { wei: string; token: string } | null;
   executionRewardW: { wei: string; token: string } | null;
   executionRewardM: { wei: string; token: string } | null;
+  claimableRewards: string | null;
   tokenPrice: number;
 }
 
@@ -171,6 +172,8 @@ function aggregateSnapshots(snapshots: SnapshotData[]): SnapshotData {
   let elRewardD = 0,
     elRewardW = 0,
     elRewardM = 0;
+  let claimableRewards = 0;
+  let hasClaimableRewards = false;
 
   for (const s of snapshots) {
     const validatorCount = s.activeCount + s.inactiveCount;
@@ -217,6 +220,10 @@ function aggregateSnapshots(snapshots: SnapshotData[]): SnapshotData {
     if (s.executionRewardD) elRewardD += parseFloat(s.executionRewardD.token);
     if (s.executionRewardW) elRewardW += parseFloat(s.executionRewardW.token);
     if (s.executionRewardM) elRewardM += parseFloat(s.executionRewardM.token);
+    if (s.claimableRewards !== null) {
+      claimableRewards += parseFloat(s.claimableRewards);
+      hasClaimableRewards = true;
+    }
   }
 
   return {
@@ -237,6 +244,7 @@ function aggregateSnapshots(snapshots: SnapshotData[]): SnapshotData {
     executionRewardD: elRewardD ? { wei: '0', token: elRewardD.toString() } : null,
     executionRewardW: elRewardW ? { wei: '0', token: elRewardW.toString() } : null,
     executionRewardM: elRewardM ? { wei: '0', token: elRewardM.toString() } : null,
+    claimableRewards: hasClaimableRewards ? claimableRewards.toString() : null,
     tokenPrice,
   };
 }

@@ -29,6 +29,11 @@ interface ClusterSummaryMetric {
 
 type NumericQueryValue = bigint | number | string | { toString(): string };
 
+type GetClusterSnapshotParams = {
+  clusterId: string;
+  includeClaimable: boolean;
+};
+
 interface ClusterSummaryQueryRow {
   total_clusters: NumericQueryValue;
   active_total: NumericQueryValue;
@@ -683,7 +688,30 @@ export class ClusterStorage {
   /**
    * Get aggregated snapshot data for a cluster's validators
    */
-  async getClusterSnapshot(clusterId: string) {
+  async getClusterSnapshot(params: GetClusterSnapshotParams) {
+    const { clusterId, includeClaimable } = params;
+    const claimableCte = includeClaimable
+      ? Prisma.sql`,
+      claimable_addresses AS MATERIALIZED (
+        SELECT DISTINCT LOWER(v.withdrawal_address) AS withdrawal_address
+        FROM cluster_validator cv
+        JOIN validator v ON v.id = cv.validator_index
+        WHERE cv.cluster_id = ${clusterId}
+          AND v.withdrawal_address IS NOT NULL
+      ),
+      claimable_snapshot AS (
+        SELECT COALESCE(SUM(wacs.amount_wei), 0)::text AS claimable_rewards
+        FROM claimable_addresses ca
+        JOIN withdrawal_address_claimable_snapshot wacs
+          ON wacs.withdrawal_address = ca.withdrawal_address
+      )`
+      : Prisma.empty;
+    const claimableSelect = includeClaimable
+      ? Prisma.sql`,
+        (SELECT claimable_rewards FROM claimable_snapshot) AS claimable_rewards`
+      : Prisma.sql`,
+        NULL::text AS claimable_rewards`;
+
     const rows = await this.prisma.$queryRaw<
       Array<{
         active_count: bigint;
@@ -716,9 +744,10 @@ export class ClusterStorage {
         avg_attestation_delay_d: string | null;
         avg_attestation_delay_w: string | null;
         avg_attestation_delay_m: string | null;
+        claimable_rewards: string | null;
         beacon_status_breakdown: string;
       }>
-    >`
+    >(Prisma.sql`
       WITH merged_snapshot AS MATERIALIZED (
         SELECT
           cv.validator_index,
@@ -762,6 +791,7 @@ export class ClusterStorage {
         LEFT JOIN validators_snapshot_performance p ON p.validator_index = cv.validator_index
         WHERE cv.cluster_id = ${clusterId}
       )
+      ${claimableCte}
       SELECT
         COUNT(*) FILTER (WHERE merged_snapshot.is_inactive = false AND COALESCE(merged_snapshot.beacon_status, 0) IN (0, 1, 2, 3, 4))::bigint AS active_count,
         COUNT(*) FILTER (WHERE merged_snapshot.is_inactive = true AND COALESCE(merged_snapshot.beacon_status, 0) IN (0, 1, 2, 3, 4))::bigint AS inactive_count,
@@ -831,8 +861,9 @@ export class ClusterStorage {
            ) sub),
           '{}'
         ) AS beacon_status_breakdown
+        ${claimableSelect}
       FROM merged_snapshot
-    `;
+    `);
 
     return rows[0] ?? null;
   }

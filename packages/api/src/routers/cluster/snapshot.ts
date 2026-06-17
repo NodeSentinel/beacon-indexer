@@ -36,7 +36,10 @@ export function createClusterSnapshotRoute(params: {
           return ownershipError;
         }
 
-        const row = await params.clusterStorage.getClusterSnapshot(input.id);
+        const row = await params.clusterStorage.getClusterSnapshot({
+          clusterId: input.id,
+          includeClaimable: params.chain === 'gnosis',
+        });
         if (!row) {
           return {
             success: false,
@@ -65,6 +68,10 @@ export function createClusterSnapshotRoute(params: {
         const toExecReward = (value: string | null) =>
           value !== null
             ? { wei: value, token: formatWeiToToken(value, params.nativeTokenDecimals) }
+            : null;
+        const claimableRewards =
+          params.chain === 'gnosis' && row.claimable_rewards !== null
+            ? formatWeiToToken(row.claimable_rewards, params.nativeTokenDecimals)
             : null;
 
         return {
@@ -104,6 +111,7 @@ export function createClusterSnapshotRoute(params: {
             avgAttestationDelayD: toNum(row.avg_attestation_delay_d),
             avgAttestationDelayW: toNum(row.avg_attestation_delay_w),
             avgAttestationDelayM: toNum(row.avg_attestation_delay_m),
+            claimableRewards,
             tokenPrice,
           },
           meta: { timestamp: new Date().toISOString() },

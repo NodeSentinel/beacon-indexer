@@ -15,6 +15,7 @@ import { getSnapshotActor } from './snapshot/index.js';
 import { getValidatorActivityStatusActor } from './validatorActivityStatus/index.js';
 
 import { ChainStatsController } from '@/src/services/consensus/controllers/chainStats.js';
+import type { ClaimableWithdrawalsController } from '@/src/services/consensus/controllers/claimableWithdrawals.js';
 import { DailyArchiveController } from '@/src/services/consensus/controllers/dailyArchive.js';
 import { DailyArchiveDetailCleanupController } from '@/src/services/consensus/controllers/dailyArchiveDetailCleanup.js';
 import { EpochController } from '@/src/services/consensus/controllers/epoch.js';
@@ -46,6 +47,7 @@ export default function initXstateMachines(
   maxAttestationDelay: number,
   delaySlotsToHead: number,
   missedAttestationsForInactivity: number,
+  claimableWithdrawalsController?: ClaimableWithdrawalsController,
 ) {
   // Create and start hourly archive actor
   const hourlyArchiveActor = getHourlyArchiveActor(hourlyArchiveController);
@@ -104,6 +106,7 @@ export default function initXstateMachines(
     maxAttestationDelay,
     delaySlotsToHead,
     missedAttestationsForInactivity,
+    claimableWithdrawalsController,
   );
   snapshotActor.start();
 
