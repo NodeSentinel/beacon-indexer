@@ -288,6 +288,33 @@ export class ClusterStorage {
   }
 
   /**
+   * Lists one owner's clusters with validator details for API-key inspection.
+   */
+  async listWithValidatorsByOwner(ownerId: string) {
+    return this.prisma.cluster.findMany({
+      where: { ownerId },
+      include: {
+        validators: {
+          orderBy: { validatorIndex: 'asc' },
+          select: {
+            validatorIndex: true,
+            validator: {
+              select: {
+                withdrawalAddress: true,
+                status: true,
+                balance: true,
+                effectiveBalance: true,
+                pubkey: true,
+              },
+            },
+          },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  /**
    * Get a cross-user summary of clusters and validator membership counts.
    */
   async getSummary() {
