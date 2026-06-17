@@ -84,7 +84,7 @@ export function createUserClustersRoute(params: {
     .route({ method: 'GET', path: '/users/{userId}/clusters' })
     .input(UserIdParamSchema)
     .output(UserClustersResponseSchema)
-    .handler(async ({ input }: any) => {
+    .handler(async ({ input }) => {
       try {
         const clusters = await params.clusterStorage.listWithValidatorsByOwner(input.userId);
 
