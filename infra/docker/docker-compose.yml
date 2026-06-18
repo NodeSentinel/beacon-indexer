@@ -1,0 +1,219 @@
+name: beacon-chain-validators-monitor
+
+services:
+  postgres:
+    build:
+      context: ../..
+      dockerfile: packages/db/Dockerfile
+    container_name: beacon_db
+    env_file:
+      - ${DB_ENV_FILE:-../../packages/db/.env}
+    ports:
+      - '${POSTGRES_PORT}:${POSTGRES_PORT}'
+    volumes:
+      - beacon_postgres_data:/var/lib/postgresql/data
+    command:
+      - -c
+      - port=${POSTGRES_PORT}
+      - -c
+      - max_wal_size=2GB
+      - -c
+      - shared_buffers=512MB
+      - -c
+      - work_mem=32MB
+      - -c
+      - maintenance_work_mem=128MB
+      - -c
+      - effective_cache_size=2GB
+      - -c
+      - temp_file_limit=4GB
+      - -c
+      - max_connections=200
+      - -c
+      - shared_preload_libraries=pg_stat_statements
+      - -c
+      - pg_stat_statements.track=all
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB} -p $${POSTGRES_PORT}']
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - app-network
+
+  migrate:
+    env_file:
+      - ${DB_ENV_FILE:-../../packages/db/.env}
+    environment:
+      - DOCKER_ENV=true
+    build:
+      context: ../..
+      dockerfile: infra/docker/Dockerfile.services
+      target: migrate
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: >
+      sh -c "
+        echo 'Waiting for database to be ready...' &&
+        pnpm exec prisma migrate deploy --schema=./packages/db/prisma/schema.prisma &&
+        echo 'Database migration completed successfully!'
+      "
+    networks:
+      - app-network
+
+  indexer:
+    container_name: indexer
+    restart: on-failure
+    env_file:
+      - ${INDEXER_ENV_FILE:-../../packages/indexer/.env}
+    environment:
+      - DOCKER_ENV=true
+      - LOG_DIR=/app/logs
+      - LOKI_URL=http://loki:3100/loki/api/v1/push
+    build:
+      context: ../..
+      dockerfile: infra/docker/Dockerfile.services
+      target: indexer
+    volumes:
+      - ../../packages/indexer/logs:/app/logs
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      loki:
+        condition: service_started
+    networks:
+      - app-network
+
+  api:
+    container_name: api
+    restart: on-failure
+    env_file:
+      - ${API_ENV_FILE:-../../packages/api/.env}
+    environment:
+      - DOCKER_ENV=true
+    build:
+      context: ../..
+      dockerfile: infra/docker/Dockerfile.services
+      target: api
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    ports:
+      - '${API_PORT:-3000}:${API_PORT:-3000}'
+    networks:
+      - app-network
+
+  bot:
+    container_name: bot
+    restart: on-failure
+    env_file:
+      - ${BOT_ENV_FILE:-../../packages/telegram-bot/.env}
+    environment:
+      - DOCKER_ENV=true
+    build:
+      context: ../..
+      dockerfile: infra/docker/Dockerfile.services
+      target: bot
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      api:
+        condition: service_started
+    networks:
+      - app-network
+
+  postgres-exporter:
+    image: prometheuscommunity/postgres-exporter:latest
+    container_name: postgres_exporter
+    restart: unless-stopped
+    env_file:
+      - ${DB_ENV_FILE:-../../packages/db/.env}
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        export DATA_SOURCE_NAME="postgresql://$${POSTGRES_USER}:$${POSTGRES_PASSWORD}@$${POSTGRES_HOST}:$${POSTGRES_PORT}/$${POSTGRES_DB}?sslmode=disable"
+        exec postgres_exporter --collector.stat_statements
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - '127.0.0.1:9187:9187'
+    networks:
+      - app-network
+
+  prometheus:
+    image: prom/prometheus
+    container_name: prometheus
+    restart: unless-stopped
+    volumes:
+      - ../monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.retention.time=2d
+    ports:
+      - '127.0.0.1:9090:9090'
+    depends_on:
+      - postgres-exporter
+    networks:
+      - app-network
+
+  grafana:
+    image: grafana/grafana:12.2.0
+    container_name: grafana
+    restart: unless-stopped
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ../grafana/provisioning:/etc/grafana/provisioning
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_SERVER_HTTP_PORT=3002
+    ports:
+      - '127.0.0.1:3002:3002'
+    depends_on:
+      - prometheus
+      - loki
+    networks:
+      - app-network
+
+  loki:
+    image: grafana/loki:3.1.1
+    container_name: loki
+    restart: unless-stopped
+    command: -config.file=/etc/loki/config.yml
+    volumes:
+      - ../monitoring/loki.yml:/etc/loki/config.yml:ro
+      - loki_data:/loki
+    ports:
+      - '127.0.0.1:3100:3100'
+    networks:
+      - app-network
+
+  node-exporter:
+    image: prom/node-exporter
+    container_name: node-exporter
+    restart: unless-stopped
+    pid: host
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+    command:
+      - '--path.procfs=/host/proc'
+      - '--path.sysfs=/host/sys'
+      - '--path.rootfs=/rootfs'
+      - '--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)'
+    networks:
+      - app-network
+
+networks:
+  app-network:
+    driver: bridge
+
+volumes:
+  beacon_postgres_data:
+  prometheus_data:
+  grafana_data:
+  loki_data:

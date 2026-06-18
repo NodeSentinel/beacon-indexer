@@ -1,0 +1,66 @@
+{
+  "execution_optimistic": false,
+  "finalized": true,
+  "data": [
+    {
+      "index": "549046",
+      "balance": "1801094963714",
+      "status": "withdrawal_possible",
+      "validator": {
+        "pubkey": "0xaa57b216b38b93c271b147ae6c3086753e6ae290bb3e90a4517935ed2dee393ac6a078442c2122dfd5e0335ff77e3c32",
+        "withdrawal_credentials": "0x020000000000000000000000663a8c9e88c5cdc565cc4bf0b2bec8d862d744a6",
+        "effective_balance": "1800000000000",
+        "slashed": false,
+        "activation_eligibility_epoch": "1521305",
+        "activation_epoch": "1521311",
+        "exit_epoch": "1524636",
+        "withdrawable_epoch": "1524892"
+      }
+    },
+    {
+      "index": "549417",
+      "balance": "1801592450996",
+      "status": "active_ongoing",
+      "validator": {
+        "pubkey": "0x8d5fe63bfb3d332b74f05ab8324281463ccfe19a7b8ea63443501db650de88fd13f749f44329903373306fe275e8bc49",
+        "withdrawal_credentials": "0x020000000000000000000000663a8c9e88c5cdc565cc4bf0b2bec8d862d744a6",
+        "effective_balance": "1801000000000",
+        "slashed": false,
+        "activation_eligibility_epoch": "1521559",
+        "activation_epoch": "1521565",
+        "exit_epoch": "18446744073709551615",
+        "withdrawable_epoch": "18446744073709551615"
+      }
+    },
+    {
+      "index": "549418",
+      "balance": "1801710991901",
+      "status": "active_ongoing",
+      "validator": {
+        "pubkey": "0x867d5885c6f35b8fe0ac9557f04220bb7ac6d1b1446521152f5f051e6144ae727f99c7f64a8bddaf2fdd436c6bdef245",
+        "withdrawal_credentials": "0x020000000000000000000000663a8c9e88c5cdc565cc4bf0b2bec8d862d744a6",
+        "effective_balance": "1801000000000",
+        "slashed": false,
+        "activation_eligibility_epoch": "1521587",
+        "activation_epoch": "1521593",
+        "exit_epoch": "18446744073709551615",
+        "withdrawable_epoch": "18446744073709551615"
+      }
+    },
+    {
+      "index": "549419",
+      "balance": "776694281938",
+      "status": "active_ongoing",
+      "validator": {
+        "pubkey": "0xb04e75d123e062f5f3e76f23e236aaf5d58bfff33ab8040be339d4bb4ed49eb9076a246d0fd2ae7a521a95f88df83de4",
+        "withdrawal_credentials": "0x020000000000000000000000663a8c9e88c5cdc565cc4bf0b2bec8d862d744a6",
+        "effective_balance": "776000000000",
+        "slashed": false,
+        "activation_eligibility_epoch": "1521599",
+        "activation_epoch": "1521605",
+        "exit_epoch": "18446744073709551615",
+        "withdrawable_epoch": "18446744073709551615"
+      }
+    }
+  ]
+}

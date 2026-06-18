@@ -1,0 +1,50 @@
+{
+  "name": "@beacon-indexer/api",
+  "version": "1.0.0",
+  "description": "API server for beacon chain validators monitor",
+  "type": "module",
+  "license": "SEE LICENSE IN LICENSE",
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "exports": {
+    "./routers": {
+      "types": "./dist/routers/index.d.ts",
+      "default": "./dist/routers/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "start": "tsx src/index.ts",
+    "dev": "tsx watch src/index.ts",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint . --max-warnings=0",
+    "lint:fix": "eslint . --fix",
+    "test": "vitest --passWithNoTests",
+    "test:e2e": "vitest run --config vitest.e2e.config.ts --no-coverage"
+  },
+  "dependencies": {
+    "@beacon-indexer/beacon-utils": "workspace:*",
+    "@beacon-indexer/db": "workspace:*",
+    "@orpc/experimental-pino": "^1.13.0",
+    "@orpc/openapi": "1.13.4",
+    "@orpc/server": "1.13.4",
+    "date-fns": "^4.1.0",
+    "memoizee": "^0.4.17",
+    "ms": "^2.1.3",
+    "node-cron": "^3.0.3",
+    "pino": "^10.1.0",
+    "pino-pretty": "^11.3.0",
+    "tsx": "^4.19.2",
+    "viem": "^2.23.13",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/memoizee": "^0.4.11",
+    "@types/ms": "^0.7.34",
+    "@types/node": "^22.10.1",
+    "@types/node-cron": "^3.0.11",
+    "typescript": "^5.7.2",
+    "vitest": "^3.2.4"
+  }
+}

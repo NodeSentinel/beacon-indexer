@@ -1,0 +1,385 @@
+{
+  "uid": "indexer-task-monitor",
+  "title": "Indexer Task Monitor",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "5s",
+  "time": {
+    "from": "now-30m",
+    "to": "now"
+  },
+  "templating": {
+    "list": [
+      {
+        "name": "epoch",
+        "query": "",
+        "current": {
+          "text": "",
+          "value": ""
+        },
+        "type": "textbox"
+      },
+      {
+        "name": "slot",
+        "query": "",
+        "current": {
+          "text": "",
+          "value": ""
+        },
+        "type": "textbox"
+      },
+      {
+        "name": "task",
+        "type": "query",
+        "datasource": {
+          "type": "loki",
+          "uid": "loki"
+        },
+        "query": "label_values({app=\"beacon-chain-validators-monitor\", job=\"indexer-task-monitor\", epoch=~\"^${epoch}$|^[0-9]+$(?:${epoch})|^none$(?:${epoch})\", slot=~\"^${slot}$|^[0-9]+$(?:${slot})|^none$(?:${slot})\"}, task_filter)",
+        "refresh": 1,
+        "includeAll": true,
+        "allValue": ".*",
+        "current": {
+          "text": "All",
+          "value": ".*"
+        }
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "title": "",
+      "type": "table",
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "gridPos": {
+        "h": 24,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": false
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "started"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 90
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "status"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 48
+              },
+              {
+                "id": "custom.align",
+                "value": "center"
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              },
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "●": {
+                        "color": "yellow",
+                        "index": 0,
+                        "text": "●"
+                      },
+                      "✓": {
+                        "color": "green",
+                        "index": 1,
+                        "text": "✓"
+                      },
+                      "✕": {
+                        "color": "red",
+                        "index": 2,
+                        "text": "✕"
+                      }
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "task"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              },
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "white",
+                  "mode": "fixed"
+                }
+              },
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "regex",
+                    "options": {
+                      "pattern": ".+ / TOTAL$",
+                      "result": {
+                        "color": "blue",
+                        "index": 0
+                      }
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "total"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 86
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "avg"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 86
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "delta"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 86
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              },
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "red",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "transformations": [
+        {
+          "id": "extractFields",
+          "options": {
+            "source": "Line",
+            "format": "json",
+            "replace": true
+          }
+        },
+        {
+          "id": "sortBy",
+          "options": {
+            "sort": [
+              {
+                "field": "reportedAt",
+                "desc": true
+              }
+            ]
+          }
+        },
+        {
+          "id": "groupBy",
+          "options": {
+            "fields": {
+              "actorId": {
+                "aggregations": ["firstNotNull"],
+                "operation": "aggregate"
+              },
+              "avgDisplay": {
+                "aggregations": ["firstNotNull"],
+                "operation": "aggregate"
+              },
+              "deltaDisplay": {
+                "aggregations": ["firstNotNull"],
+                "operation": "aggregate"
+              },
+              "epoch": {
+                "aggregations": ["firstNotNull"],
+                "operation": "aggregate"
+              },
+              "errorMessage": {
+                "aggregations": ["firstNotNull"],
+                "operation": "aggregate"
+              },
+              "isTotal": {
+                "aggregations": ["firstNotNull"],
+                "operation": "aggregate"
+              },
+              "reportedAt": {
+                "aggregations": ["firstNotNull"],
+                "operation": "aggregate"
+              },
+              "slot": {
+                "aggregations": ["firstNotNull"],
+                "operation": "aggregate"
+              },
+              "started": {
+                "aggregations": ["firstNotNull"],
+                "operation": "aggregate"
+              },
+              "status": {
+                "aggregations": ["firstNotNull"],
+                "operation": "aggregate"
+              },
+              "statusIcon": {
+                "aggregations": ["firstNotNull"],
+                "operation": "aggregate"
+              },
+              "task": {
+                "aggregations": ["firstNotNull"],
+                "operation": "aggregate"
+              },
+              "taskPath": {
+                "aggregations": [],
+                "operation": "groupby"
+              },
+              "taskPathDisplay": {
+                "aggregations": ["firstNotNull"],
+                "operation": "aggregate"
+              },
+              "totalDisplay": {
+                "aggregations": ["firstNotNull"],
+                "operation": "aggregate"
+              }
+            }
+          }
+        },
+        {
+          "id": "sortBy",
+          "options": {
+            "sort": [
+              {
+                "field": "reportedAt (firstNotNull)",
+                "desc": true
+              }
+            ]
+          }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "actorId": true,
+              "actorId (firstNotNull)": true,
+              "epoch": true,
+              "epoch (firstNotNull)": true,
+              "errorMessage": true,
+              "errorMessage (firstNotNull)": true,
+              "isTotal": true,
+              "isTotal (firstNotNull)": true,
+              "reportedAt": true,
+              "reportedAt (firstNotNull)": true,
+              "slot": true,
+              "slot (firstNotNull)": true,
+              "status": true,
+              "status (firstNotNull)": true,
+              "task": true,
+              "task (firstNotNull)": true,
+              "taskPath": true
+            },
+            "indexByName": {
+              "started": 0,
+              "started (firstNotNull)": 0,
+              "statusIcon": 1,
+              "statusIcon (firstNotNull)": 1,
+              "taskPathDisplay": 2,
+              "taskPathDisplay (firstNotNull)": 2,
+              "totalDisplay": 3,
+              "totalDisplay (firstNotNull)": 3,
+              "avgDisplay": 4,
+              "avgDisplay (firstNotNull)": 4,
+              "deltaDisplay": 5,
+              "deltaDisplay (firstNotNull)": 5
+            },
+            "renameByName": {
+              "avgDisplay": "avg",
+              "avgDisplay (firstNotNull)": "avg",
+              "deltaDisplay": "delta",
+              "deltaDisplay (firstNotNull)": "delta",
+              "started": "started",
+              "started (firstNotNull)": "started",
+              "statusIcon": "status",
+              "statusIcon (firstNotNull)": "status",
+              "taskPathDisplay": "task",
+              "taskPathDisplay (firstNotNull)": "task",
+              "totalDisplay": "total",
+              "totalDisplay (firstNotNull)": "total"
+            }
+          }
+        }
+      ],
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "{app=\"beacon-chain-validators-monitor\", job=\"indexer-task-monitor\", epoch=~\"^${epoch}$|^[0-9]+$(?:${epoch})|^none$(?:${epoch})\", slot=~\"^${slot}$|^[0-9]+$(?:${slot})|^none$(?:${slot})\", task_filter=~\"$task\"}",
+          "queryType": "range"
+        }
+      ]
+    }
+  ]
+}

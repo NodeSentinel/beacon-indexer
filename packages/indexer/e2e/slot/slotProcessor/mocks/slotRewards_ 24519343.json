@@ -1,0 +1,12 @@
+{
+  "execution_optimistic": false,
+  "finalized": false,
+  "data": {
+    "proposer_index": "536011",
+    "total": "20546222",
+    "attestations": "19802213",
+    "sync_aggregate": "744009",
+    "proposer_slashings": "0",
+    "attester_slashings": "0"
+  }
+}

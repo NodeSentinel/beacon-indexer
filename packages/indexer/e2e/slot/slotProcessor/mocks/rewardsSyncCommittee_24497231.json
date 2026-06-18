@@ -1,0 +1,2054 @@
+{
+  "execution_optimistic": false,
+  "finalized": true,
+  "data": [
+    {
+      "validator_index": "272088",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "361272",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "458175",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "310393",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "550204",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "528170",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "514701",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "467163",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "462380",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "551064",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "91462",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "536354",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "411399",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "474757",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "547935",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "197303",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "16991",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "463563",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "54501",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "548001",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "369281",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "547665",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "472646",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "46268",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "548313",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "534620",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "198815",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "548090",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "548299",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "121548",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "425192",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "417049",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "547925",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "427526",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "239750",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "53842",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "376678",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "415896",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "425681",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "386386",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "107738",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "39417",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "418079",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "487223",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "417885",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "118375",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "256306",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "547724",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "548117",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "300970",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "384957",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "463957",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "94906",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "420131",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "347768",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "125702",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "528538",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "307964",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "290035",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "118440",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "125465",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "46118",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "495208",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "254003",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "546306",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "137717",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "542867",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "376234",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "547652",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "25028",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "122976",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "379173",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "379638",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "90446",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "174103",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "61398",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "536355",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "304685",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "295068",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "440444",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "548140",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "241912",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "297468",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "250716",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "474639",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "413044",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "241883",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "546607",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "265271",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "414918",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "403728",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "91587",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "231029",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "138014",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "271483",
+      "reward": "-10437"
+    },
+    {
+      "validator_index": "250902",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "462948",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "512363",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "535590",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "358246",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "269904",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "17007",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "486646",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "488860",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "538569",
+      "reward": "-10437"
+    },
+    {
+      "validator_index": "456186",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "35982",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "478176",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "408724",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "531816",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "46681",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "545797",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "34070",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "465165",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "256821",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "269145",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "539647",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "539123",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "466647",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "265337",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "463700",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "454810",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "433074",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "244572",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "245244",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "15957",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "356937",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "547768",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "417955",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "369518",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "285065",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "547765",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "37988",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "46041",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "547656",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "91494",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "536419",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "171528",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "548202",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "118618",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "547876",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "172109",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "458489",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "548263",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "448353",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "477448",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "543033",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "233179",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "238381",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "413435",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "535577",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "527230",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "402914",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "439372",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "548265",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "542876",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "382489",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "409288",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "458983",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "547939",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "472427",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "406469",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "45085",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "547805",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "16444",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "242570",
+      "reward": "-10437"
+    },
+    {
+      "validator_index": "548012",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "438296",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "542858",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "259225",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "548177",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "534118",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "467974",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "472561",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "61526",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "449750",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "542408",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "136923",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "456395",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "90450",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "267768",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "530891",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "506821",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "370509",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "154854",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "39083",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "463061",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "20461",
+      "reward": "-10437"
+    },
+    {
+      "validator_index": "536435",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "365803",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "247349",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "110432",
+      "reward": "-10437"
+    },
+    {
+      "validator_index": "269387",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "297295",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "279615",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "232242",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "59062",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "264037",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "547967",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "267230",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "498576",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "245251",
+      "reward": "-10437"
+    },
+    {
+      "validator_index": "256469",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "434599",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "509597",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "144755",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "250589",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "427883",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "432598",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "445741",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "255865",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "535086",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "548040",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "547777",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "280064",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "548145",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "536328",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "114131",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "173071",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "256526",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "286718",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "547895",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "20614",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "300728",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "545591",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "278713",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "547853",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "546960",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "550607",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "468653",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "477924",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "370716",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "547815",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "367175",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "446185",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "451467",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "548206",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "367230",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "289609",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "535593",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "548067",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "364975",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "136755",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "375412",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "292724",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "243184",
+      "reward": "-10437"
+    },
+    {
+      "validator_index": "198918",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "245575",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "17739",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "34290",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "419833",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "442530",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "272276",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "368860",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "244694",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "310405",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "419435",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "536317",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "548043",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "419983",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "243985",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "504068",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "90922",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "548356",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "180324",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "532911",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "547821",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "239497",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "377580",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "529627",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "530634",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "358807",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "247167",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "126201",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "145087",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "269221",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "39596",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "123058",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "139494",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "446146",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "548093",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "382017",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "402865",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "536420",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "20466",
+      "reward": "-10437"
+    },
+    {
+      "validator_index": "451706",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "526955",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "269715",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "466299",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "244006",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "456559",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "548374",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "544355",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "287896",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "351580",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "476497",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "290324",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "450873",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "534164",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "541660",
+      "reward": "-10437"
+    },
+    {
+      "validator_index": "247619",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "434344",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "547645",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "547896",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "406930",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "262881",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "179820",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "106461",
+      "reward": "-10437"
+    },
+    {
+      "validator_index": "548238",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "492901",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "457976",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "182373",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "404901",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "139755",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "470298",
+      "reward": "-10437"
+    },
+    {
+      "validator_index": "422196",
+      "reward": "-10437"
+    },
+    {
+      "validator_index": "118865",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "54248",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "283429",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "490542",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "407944",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "547952",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "369173",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "547648",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "450273",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "126771",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "547464",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "450336",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "548014",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "19295",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "461421",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "237648",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "525333",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "370441",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "547867",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "548400",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "136108",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "547171",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "547881",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "359044",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "129488",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "454167",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "290263",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "265781",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "527378",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "423259",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "454311",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "469863",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "547975",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "50122",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "381574",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "96965",
+      "reward": "-10437"
+    },
+    {
+      "validator_index": "301541",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "125714",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "349347",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "542989",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "386533",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "385963",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "21844",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "464715",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "424216",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "365378",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "119962",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "547772",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "548375",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "480105",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "354348",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "300556",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "487094",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "525647",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "125625",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "173075",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "537142",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "363984",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "397653",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "257984",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "242113",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "109165",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "156249",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "435001",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "380925",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "288392",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "198146",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "121424",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "548762",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "376416",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "548404",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "437819",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "547938",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "548174",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "413926",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "286723",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "44549",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "429571",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "395754",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "110514",
+      "reward": "-10437"
+    },
+    {
+      "validator_index": "147092",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "470726",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "279295",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "547993",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "287970",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "538543",
+      "reward": "-10437"
+    },
+    {
+      "validator_index": "63567",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "312203",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "548013",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "286768",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "172972",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "536362",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "431690",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "536319",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "141165",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "371046",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "473756",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "134968",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "143265",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "242067",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "531892",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "247904",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "347765",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "535262",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "271718",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "358258",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "286491",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "126528",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "230812",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "477227",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "550605",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "547953",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "250433",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "408044",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "414717",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "476852",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "288144",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "445702",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "536437",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "285754",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "547766",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "262387",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "152186",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "303742",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "419384",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "121682",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "239088",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "531604",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "490551",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "547962",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "458849",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "461995",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "49909",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "260477",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "35701",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "547807",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "368468",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "151147",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "256913",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "252501",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "266640",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "301966",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "8767",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "547762",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "63185",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "550606",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "547123",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "136053",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "546174",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "263371",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "266502",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "152816",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "135634",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "288122",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "418467",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "547832",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "269265",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "26275",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "547658",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "536004",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "172066",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "457669",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "18141",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "349095",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "310401",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "135117",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "401310",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "543239",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "310383",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "548279",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "146106",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "45134",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "279385",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "506750",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "412175",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "58919",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "446458",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "410072",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "110231",
+      "reward": "-10437"
+    },
+    {
+      "validator_index": "432606",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "420625",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "130154",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "107642",
+      "reward": "-10437"
+    },
+    {
+      "validator_index": "110201",
+      "reward": "-10437"
+    },
+    {
+      "validator_index": "383995",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "468348",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "135181",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "351690",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "233539",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "547672",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "382068",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "540379",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "47049",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "349309",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "119968",
+      "reward": "10437"
+    },
+    {
+      "validator_index": "450987",
+      "reward": "10437"
+    }
+  ]
+}

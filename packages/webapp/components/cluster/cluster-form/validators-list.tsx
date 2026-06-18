@@ -1,0 +1,103 @@
+'use client';
+
+import { LidoCsmOperatorCard } from './lido-csm-operator-card';
+import { VirtualizedChipList } from './virtualized-chip-list';
+import { WithdrawalAddressCard } from './withdrawal-address-card';
+
+import { Label } from '@/components/ui/label';
+import type { ValidatorItem } from '@/hooks/use-validator-input';
+
+interface ValidatorsListProps {
+  validators: ValidatorItem[];
+  allWithdrawalAddresses: string[];
+  validatorsByAddress: Record<string, ValidatorItem[]>;
+  missingValidatorsByAddress: Record<string, ValidatorItem[]>;
+  isEditMode: boolean;
+  lidoCsmOperatorId?: string | null;
+  lidoCsmValidatorCount?: number;
+  missingLidoCsmValidatorCount?: number;
+  onRemoveValidator: (id: string) => void;
+  onRemoveByWithdrawal: (address: string) => void;
+  onAddMissingValidators: (address: string) => void;
+  onAddMissingLidoCsmValidators?: () => void;
+}
+
+/** Renders the selected validators with grouped missing-validator actions. */
+export function ValidatorsList({
+  allWithdrawalAddresses,
+  isEditMode: _isEditMode,
+  lidoCsmOperatorId,
+  lidoCsmValidatorCount = 0,
+  missingLidoCsmValidatorCount = 0,
+  missingValidatorsByAddress,
+  onAddMissingLidoCsmValidators,
+  onAddMissingValidators,
+  onRemoveByWithdrawal,
+  onRemoveValidator,
+  validators,
+  validatorsByAddress,
+}: ValidatorsListProps) {
+  const hasLidoCsmOperator = lidoCsmOperatorId !== null && lidoCsmOperatorId !== undefined;
+
+  if (validators.length === 0 && !hasLidoCsmOperator) {
+    return null;
+  }
+
+  // Sort validators descending by index for flat list view
+  const sortedValidators = [...validators].sort((a, b) => b.index - a.index);
+
+  // Show grouped view when in edit mode OR when we have multiple addresses
+  const showGroupedByAddress = allWithdrawalAddresses.length > 0;
+
+  return (
+    <div className="space-y-3 p-3 rounded-lg bg-primary/5 border border-primary/10">
+      <div className="flex items-center justify-between">
+        <Label className="text-primary">Validators ({validators.length})</Label>
+      </div>
+
+      {hasLidoCsmOperator && (
+        <LidoCsmOperatorCard
+          operatorId={lidoCsmOperatorId}
+          validatorCount={lidoCsmValidatorCount}
+          missingCount={missingLidoCsmValidatorCount}
+          onAddMissing={onAddMissingLidoCsmValidators ?? (() => {})}
+        />
+      )}
+
+      {validators.length > 0 &&
+        (showGroupedByAddress ? (
+          <div className="space-y-3">
+            {allWithdrawalAddresses.map((address) => {
+              const lowerAddr = address.toLowerCase();
+              const addressValidators = validatorsByAddress[lowerAddr] || [];
+              const missingCount = missingValidatorsByAddress[lowerAddr]?.length || 0;
+              const totalCount = addressValidators.length + missingCount;
+
+              if (addressValidators.length === 0) {
+                return null;
+              }
+
+              return (
+                <WithdrawalAddressCard
+                  key={address}
+                  address={address}
+                  validators={addressValidators}
+                  totalCount={totalCount}
+                  missingCount={missingCount}
+                  onRemoveAddress={() => onRemoveByWithdrawal(address)}
+                  onRemoveValidator={onRemoveValidator}
+                  onAddMissing={() => onAddMissingValidators(address)}
+                />
+              );
+            })}
+          </div>
+        ) : (
+          <VirtualizedChipList
+            validators={sortedValidators}
+            onRemoveValidator={onRemoveValidator}
+            maxHeight={192}
+          />
+        ))}
+    </div>
+  );
+}

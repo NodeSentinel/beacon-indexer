@@ -1,0 +1,96 @@
+{
+  "execution_optimistic": false,
+  "finalized": true,
+  "data": [
+    {
+      "index": "10000",
+      "balance": "0",
+      "status": "withdrawal_done",
+      "validator": {
+        "pubkey": "0x945f3b894c8e7fb6f61cff5d6f388298953b4114949dff1f356358d20657907e6af8ea81c8b326c378457d6593ffca16",
+        "withdrawal_credentials": "0x0200000000000000000000001959062d601c40ef3b093a63f0954c6ee54a0a0f",
+        "effective_balance": "0",
+        "slashed": false,
+        "activation_eligibility_epoch": "0",
+        "activation_epoch": "0",
+        "exit_epoch": "370639",
+        "withdrawable_epoch": "370895"
+      }
+    },
+    {
+      "index": "10001",
+      "balance": "32019036041",
+      "status": "active_ongoing",
+      "validator": {
+        "pubkey": "0xac8f2b0976fc3e53749e012aaff387ac11b6ea06da6b2b771a83c3d04aac3990b2f89e8ae7ae5b2f773f09ce2777f05f",
+        "withdrawal_credentials": "0x010000000000000000000000865c05c13d422310d9421e4da915b73e5289a6b1",
+        "effective_balance": "32000000000",
+        "slashed": false,
+        "activation_eligibility_epoch": "0",
+        "activation_epoch": "0",
+        "exit_epoch": "18446744073709551615",
+        "withdrawable_epoch": "18446744073709551615"
+      }
+    },
+    {
+      "index": "10002",
+      "balance": "32019124901",
+      "status": "active_ongoing",
+      "validator": {
+        "pubkey": "0x8fce1a2f6e38df9e2c1b8f10065eda6e8a98708b8fe661d80d599b5af379defa13be204b9c160cf0f3f750fd3913885a",
+        "withdrawal_credentials": "0x010000000000000000000000865c05c13d422310d9421e4da915b73e5289a6b1",
+        "effective_balance": "32000000000",
+        "slashed": false,
+        "activation_eligibility_epoch": "0",
+        "activation_epoch": "0",
+        "exit_epoch": "18446744073709551615",
+        "withdrawable_epoch": "18446744073709551615"
+      }
+    },
+    {
+      "index": "10003",
+      "balance": "0",
+      "status": "withdrawal_done",
+      "validator": {
+        "pubkey": "0x864e679a436fae4700395d0c9b06cf2efca4362650a93dca93d206f0d9b51c6fb8f3c5f902cb29eb543c3d1d82cb2c4d",
+        "withdrawal_credentials": "0x0200000000000000000000001959062d601c40ef3b093a63f0954c6ee54a0a0f",
+        "effective_balance": "0",
+        "slashed": false,
+        "activation_eligibility_epoch": "0",
+        "activation_epoch": "0",
+        "exit_epoch": "367632",
+        "withdrawable_epoch": "367888"
+      }
+    },
+    {
+      "index": "10004",
+      "balance": "0",
+      "status": "withdrawal_done",
+      "validator": {
+        "pubkey": "0xb5cc619446280f35fbba25ce41944a7856aa77abdc8e4b43071bf54a86878a3ef95ee2910eab211a5f8d56d1e59b736b",
+        "withdrawal_credentials": "0x010000000000000000000000865c05c13d422310d9421e4da915b73e5289a6b1",
+        "effective_balance": "0",
+        "slashed": false,
+        "activation_eligibility_epoch": "0",
+        "activation_epoch": "0",
+        "exit_epoch": "216027",
+        "withdrawable_epoch": "216283"
+      }
+    },
+    {
+      "index": "10005",
+      "balance": "32018977816",
+      "status": "active_ongoing",
+      "validator": {
+        "pubkey": "0x814d9538246ebe10368a8572114cf40be7b8e2456b09ef380867c13c6f91f1a9cdcfd3753247e1f2f5ade1a1e3b11075",
+        "withdrawal_credentials": "0x010000000000000000000000865c05c13d422310d9421e4da915b73e5289a6b1",
+        "effective_balance": "32000000000",
+        "slashed": false,
+        "activation_eligibility_epoch": "0",
+        "activation_epoch": "0",
+        "exit_epoch": "18446744073709551615",
+        "withdrawable_epoch": "18446744073709551615"
+      }
+    }
+  ]
+}

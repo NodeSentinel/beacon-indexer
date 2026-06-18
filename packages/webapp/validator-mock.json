@@ -1,0 +1,279 @@
+{
+  "clusters": [
+    {
+      "id": "group-1",
+      "name": "Group Alpha",
+      "visibility": "private",
+      "ownerId": "mock-user-123",
+      "withdrawalAddresses": ["0x1234...5678", "0x9999...8888"],
+      "feeRecipientAddress": "0xabcd...ef01",
+      "validatorIndices": [123456, 123457],
+      "validators": [
+        {
+          "id": "val-1",
+          "index": 123456,
+          "pubkey": "0x9876...4321",
+          "status": "inactive",
+          "balance": 32.45,
+          "effectiveBalance": 32,
+          "performance": 99.8,
+          "missedAttestations": 2,
+          "clusterId": "group-1"
+        },
+        {
+          "id": "val-2",
+          "index": 123457,
+          "pubkey": "0x8765...3210",
+          "status": "active",
+          "balance": 32.12,
+          "effectiveBalance": 32,
+          "performance": 100,
+          "missedAttestations": 0,
+          "clusterId": "group-1"
+        }
+      ],
+      "totalBalance": 64.57,
+      "totalEffectiveBalance": 64,
+      "claimableRewards": 0.08,
+      "performance": 99.9
+    },
+    {
+      "id": "group-2",
+      "name": "Group Beta",
+      "visibility": "shared",
+      "ownerId": "mock-user-123",
+      "withdrawalAddresses": ["0x2345...6789"],
+      "feeRecipientAddress": "0xbcde...f012",
+      "validatorIndices": [234567, 234568, 234569],
+      "validators": [
+        {
+          "id": "val-3",
+          "index": 234567,
+          "pubkey": "0x7654...2109",
+          "status": "active",
+          "balance": 32.89,
+          "effectiveBalance": 32,
+          "performance": 99.5,
+          "missedAttestations": 5,
+          "clusterId": "group-2"
+        },
+        {
+          "id": "val-4",
+          "index": 234568,
+          "pubkey": "0x6543...1098",
+          "status": "slashed",
+          "balance": 32.34,
+          "effectiveBalance": 32,
+          "performance": 99.7,
+          "missedAttestations": 3,
+          "clusterId": "group-2"
+        },
+        {
+          "id": "val-5",
+          "index": 234569,
+          "pubkey": "0x5432...0987",
+          "status": "exited",
+          "balance": 32.13,
+          "effectiveBalance": 32,
+          "performance": 95.2,
+          "missedAttestations": 48,
+          "clusterId": "group-2"
+        }
+      ],
+      "totalBalance": 97.36,
+      "totalEffectiveBalance": 96,
+      "claimableRewards": 0.06,
+      "performance": 98.1
+    }
+  ],
+  "alertConfig": {
+    "performanceThreshold": 98,
+    "inactivitySlots": 32,
+    "rewardThreshold": 0.1,
+    "alertFrequency": 60,
+    "alerts": {
+      "syncCommitteeParticipation": true,
+      "withdrawals": true,
+      "blockProposer": false
+    }
+  },
+  "stats": {
+    "performance1h": 75.0,
+    "balance": 168.93,
+    "balanceUsd": 23537,
+    "claimable": 0.14,
+    "claimableUsd": 19,
+    "apyDay": 8.44,
+    "apyWeek": 8.04,
+    "apyMonth": 2.27,
+    "gnoDay": 0.04,
+    "gnoWeek": 0.25,
+    "gnoMonth": 0.31,
+    "xdaiDay": 0.05,
+    "xdaiWeek": 0.25,
+    "xdaiMonth": 0.27,
+    "missedDay": 0.02,
+    "missedWeek": 0.08,
+    "missedMonth": 0.15,
+    "totalDay": 5.27,
+    "totalWeek": 35.15,
+    "totalMonth": 43.68,
+    "gnoPrice": 139.33,
+    "lastUpdated": "10/27 08:31pm UTC"
+  },
+  "missedAttestations": [
+    { "timestamp": "2024-10-27T08:00:00Z", "count": 1, "validatorCount": 1 },
+    { "timestamp": "2024-10-27T09:00:00Z", "count": 0, "validatorCount": 0 },
+    { "timestamp": "2024-10-27T10:00:00Z", "count": 2, "validatorCount": 1 },
+    { "timestamp": "2024-10-27T11:00:00Z", "count": 0, "validatorCount": 0 },
+    { "timestamp": "2024-10-27T12:00:00Z", "count": 3, "validatorCount": 2 },
+    { "timestamp": "2024-10-27T13:00:00Z", "count": 1, "validatorCount": 1 },
+    { "timestamp": "2024-10-27T14:00:00Z", "count": 0, "validatorCount": 0 },
+    { "timestamp": "2024-10-27T15:00:00Z", "count": 4, "validatorCount": 2 },
+    { "timestamp": "2024-10-27T16:00:00Z", "count": 2, "validatorCount": 1 },
+    { "timestamp": "2024-10-27T17:00:00Z", "count": 0, "validatorCount": 0 },
+    { "timestamp": "2024-10-27T18:00:00Z", "count": 1, "validatorCount": 1 },
+    { "timestamp": "2024-10-27T19:00:00Z", "count": 0, "validatorCount": 0 },
+    { "timestamp": "2024-10-27T20:00:00Z", "count": 5, "validatorCount": 3 }
+  ],
+  "events": [
+    {
+      "id": "evt-1",
+      "type": "block_proposed",
+      "validatorIndex": 123456,
+      "timestamp": "2024-10-27T20:15:00Z",
+      "details": "Block #8234567 proposed successfully",
+      "blockNumber": 8234567
+    },
+    {
+      "id": "evt-2",
+      "type": "partial_withdrawal",
+      "validatorIndex": 123457,
+      "timestamp": "2024-10-27T19:45:00Z",
+      "details": "Partial withdrawal processed",
+      "amount": 0.45
+    },
+    {
+      "id": "evt-3",
+      "type": "inactive",
+      "validatorIndex": 234569,
+      "timestamp": "2024-10-27T18:30:00Z",
+      "details": "Validator became inactive after missing 32 consecutive slots"
+    },
+    {
+      "id": "evt-4",
+      "type": "consolidation",
+      "validatorIndex": 234567,
+      "timestamp": "2024-10-27T16:20:00Z",
+      "details": "Validator #234567 consolidated into validator #234570",
+      "targetValidator": 234570
+    },
+    {
+      "id": "evt-5",
+      "type": "deposit",
+      "validatorIndex": 123456,
+      "timestamp": "2024-10-27T14:10:00Z",
+      "details": "Deposit of 32 GNO confirmed",
+      "amount": 32
+    },
+    {
+      "id": "evt-6",
+      "type": "attestation",
+      "validatorIndex": 123456,
+      "timestamp": "2024-10-27T20:30:00Z",
+      "details": "Attestation submitted for slot 8234580"
+    },
+    {
+      "id": "evt-7",
+      "type": "attestation",
+      "validatorIndex": 123457,
+      "timestamp": "2024-10-27T20:25:00Z",
+      "details": "Attestation submitted for slot 8234575"
+    },
+    {
+      "id": "evt-8",
+      "type": "attestation",
+      "validatorIndex": 234567,
+      "timestamp": "2024-10-27T20:20:00Z",
+      "details": "Attestation submitted for slot 8234570"
+    },
+    {
+      "id": "evt-9",
+      "type": "inactive",
+      "validatorIndex": 123456,
+      "timestamp": "2024-10-27T12:15:00Z",
+      "details": "Validator became inactive due to network connectivity issues"
+    },
+    {
+      "id": "evt-10",
+      "type": "slashed",
+      "validatorIndex": 234568,
+      "timestamp": "2024-10-27T08:45:00Z",
+      "details": "Validator slashed for double signing violation"
+    },
+    {
+      "id": "evt-11",
+      "type": "full_withdrawal",
+      "validatorIndex": 234569,
+      "timestamp": "2024-10-27T17:30:00Z",
+      "details": "Full withdrawal of 32 GNO processed",
+      "amount": 32
+    },
+    {
+      "id": "evt-12",
+      "type": "block_proposed",
+      "validatorIndex": 234567,
+      "timestamp": "2024-10-27T15:20:00Z",
+      "details": "Block #8234320 proposed successfully with 150 transactions",
+      "blockNumber": 8234320
+    },
+    {
+      "id": "evt-13",
+      "type": "deposit",
+      "validatorIndex": 234568,
+      "timestamp": "2024-10-27T10:00:00Z",
+      "details": "Deposit of 32 GNO confirmed on Ethereum mainnet",
+      "amount": 32
+    },
+    {
+      "id": "evt-14",
+      "type": "partial_withdrawal",
+      "validatorIndex": 123456,
+      "timestamp": "2024-10-27T13:45:00Z",
+      "details": "Partial withdrawal of rewards processed",
+      "amount": 0.89
+    },
+    {
+      "id": "evt-15",
+      "type": "block_proposed",
+      "validatorIndex": 123457,
+      "timestamp": "2024-10-27T11:10:00Z",
+      "details": "Block #8234100 proposed with 200 transactions",
+      "blockNumber": 8234100
+    },
+    {
+      "id": "evt-16",
+      "type": "deposit",
+      "validatorIndex": 234569,
+      "timestamp": "2024-10-27T07:30:00Z",
+      "details": "Initial deposit of 32 GNO received",
+      "amount": 32
+    },
+    {
+      "id": "evt-17",
+      "type": "consolidation",
+      "validatorIndex": 123457,
+      "timestamp": "2024-10-27T09:15:00Z",
+      "details": "Validator #123457 consolidated into validator #123460",
+      "targetValidator": 123460
+    },
+    {
+      "id": "evt-18",
+      "type": "consolidation",
+      "validatorIndex": 234569,
+      "timestamp": "2024-10-27T06:30:00Z",
+      "details": "Validator #234569 consolidated into validator #234571",
+      "targetValidator": 234571
+    }
+  ]
+}

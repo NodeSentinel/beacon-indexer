@@ -1,0 +1,116 @@
+import type { Chain } from '@beacon-indexer/beacon-utils';
+import { BeaconTime } from '@beacon-indexer/beacon-utils/beaconTime';
+
+import {
+  getDailyArchiveActor,
+  getDailyArchiveDetailCleanupActor,
+  getHourlyArchiveActor,
+  getMonthlyArchiveActor,
+} from './archive/index.js';
+import { getChainStatsActor } from './chainStats/index.js';
+import { getCreateEpochActor, getEpochOrchestratorActor } from './epoch/index.js';
+import { getIncidentRewardsActor } from './incidentRewards/index.js';
+import { getLagAlertingActor } from './lagAlerting/index.js';
+import { getSnapshotActor } from './snapshot/index.js';
+import { getValidatorActivityStatusActor } from './validatorActivityStatus/index.js';
+
+import { ChainStatsController } from '@/src/services/consensus/controllers/chainStats.js';
+import type { ClaimableWithdrawalsController } from '@/src/services/consensus/controllers/claimableWithdrawals.js';
+import { DailyArchiveController } from '@/src/services/consensus/controllers/dailyArchive.js';
+import { DailyArchiveDetailCleanupController } from '@/src/services/consensus/controllers/dailyArchiveDetailCleanup.js';
+import { EpochController } from '@/src/services/consensus/controllers/epoch.js';
+import { HourlyArchiveController } from '@/src/services/consensus/controllers/hourlyArchive.js';
+import { IncidentRewardsController } from '@/src/services/consensus/controllers/incidentRewards.js';
+import { MonthlyArchiveController } from '@/src/services/consensus/controllers/monthlyArchive.js';
+import { PartitionController } from '@/src/services/consensus/controllers/partition.js';
+import { SlotController } from '@/src/services/consensus/controllers/slot.js';
+import { SnapshotController } from '@/src/services/consensus/controllers/snapshot.js';
+import { ValidatorActivityStatusController } from '@/src/services/consensus/controllers/validatorActivityStatus.js';
+import { ValidatorsController } from '@/src/services/consensus/controllers/validators.js';
+export default function initXstateMachines(
+  epochController: EpochController,
+  partitionController: PartitionController,
+  beaconTime: BeaconTime,
+  slotDuration: number,
+  slotsPerEpoch: number,
+  slotController: SlotController,
+  validatorsController: ValidatorsController,
+  hourlyArchiveController: HourlyArchiveController,
+  dailyArchiveController: DailyArchiveController,
+  dailyArchiveDetailCleanupController: DailyArchiveDetailCleanupController,
+  monthlyArchiveController: MonthlyArchiveController,
+  chainStatsController: ChainStatsController,
+  snapshotController: SnapshotController,
+  incidentRewardsController: IncidentRewardsController,
+  validatorActivityStatusController: ValidatorActivityStatusController,
+  chain: Chain,
+  maxAttestationDelay: number,
+  delaySlotsToHead: number,
+  missedAttestationsForInactivity: number,
+  claimableWithdrawalsController?: ClaimableWithdrawalsController,
+) {
+  // Create and start hourly archive actor
+  const hourlyArchiveActor = getHourlyArchiveActor(hourlyArchiveController);
+  hourlyArchiveActor.start();
+
+  // Create and start daily archive actor
+  const dailyArchiveActor = getDailyArchiveActor(dailyArchiveController);
+  dailyArchiveActor.start();
+
+  // Create and start daily archive detail cleanup actor
+  const dailyArchiveDetailCleanupActor = getDailyArchiveDetailCleanupActor(
+    dailyArchiveDetailCleanupController,
+  );
+  dailyArchiveDetailCleanupActor.start();
+
+  // Create and start monthly archive actor
+  const monthlyArchiveActor = getMonthlyArchiveActor(monthlyArchiveController);
+  monthlyArchiveActor.start();
+
+  // Create and start chain stats actor
+  const chainStatsActor = getChainStatsActor(chainStatsController);
+  chainStatsActor.start();
+
+  getCreateEpochActor(epochController, slotDuration).start();
+
+  // Epoch orchestrator receives archive and chain stats actors to forward EPOCH_PROCESSED events
+  getEpochOrchestratorActor(
+    epochController,
+    partitionController,
+    beaconTime,
+    slotDuration,
+    slotsPerEpoch,
+    slotController,
+    validatorsController,
+    hourlyArchiveActor,
+    dailyArchiveActor,
+    monthlyArchiveActor,
+    chainStatsActor,
+  ).start();
+
+  const validatorActivityStatusActor = getValidatorActivityStatusActor(
+    validatorActivityStatusController,
+    maxAttestationDelay,
+    missedAttestationsForInactivity,
+  );
+  validatorActivityStatusActor.start();
+
+  const incidentRewardsActor = getIncidentRewardsActor(incidentRewardsController);
+  incidentRewardsActor.start();
+
+  const snapshotActor = getSnapshotActor(
+    snapshotController,
+    slotDuration,
+    slotsPerEpoch,
+    chain,
+    maxAttestationDelay,
+    delaySlotsToHead,
+    missedAttestationsForInactivity,
+    claimableWithdrawalsController,
+  );
+  snapshotActor.start();
+
+  // Create and start lag alerting actor (monitors indexer lag and sends Telegram alerts)
+  const lagAlertingActor = getLagAlertingActor(slotController, beaconTime, chain);
+  lagAlertingActor.start();
+}
