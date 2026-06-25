@@ -764,6 +764,7 @@ export const epochProcessorMachine = setup({
                       target: 'activationTracked',
                     },
                     onError: {
+                      target: 'waitingRetry',
                       actions: pinoLog(
                         ({ context, event }) =>
                           `error processing validators activation for epoch ${context.epoch}: ${event.error}`,
@@ -773,6 +774,11 @@ export const epochProcessorMachine = setup({
                     },
                   },
                 }),
+                waitingRetry: {
+                  after: {
+                    retryWait: 'trackingActivation',
+                  },
+                },
                 activationTracked: {
                   type: 'final',
                   entry: [

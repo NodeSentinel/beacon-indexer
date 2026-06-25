@@ -137,6 +137,9 @@ function resetMocks() {
   (
     mockValidatorsController.trackTransitioningValidators as ReturnType<typeof vi.fn>
   ).mockResolvedValue(undefined);
+  (mockValidatorsController.discoverNewValidators as ReturnType<typeof vi.fn>).mockResolvedValue(
+    undefined,
+  );
 }
 
 /**
@@ -820,6 +823,58 @@ describe('epochProcessorMachine', () => {
         ) as string | null;
         expect(activationState).toBe('activationTracked');
 
+        actor.stop();
+        subscription.unsubscribe();
+      });
+
+      test('retries tracking activation after waiting five seconds', async () => {
+        // Scenario: tracking transitioning validators queries the beacon API for pending
+        // validators, so a transient provider error must retry instead of leaving the
+        // tracking branch stuck forever.
+        vi.setSystemTime(new Date(EPOCH_101_START_TIME + 50));
+
+        // This mock represents a temporary beacon provider failure followed by recovery
+        // on the next XState-level attempt.
+        (mockValidatorsController.trackTransitioningValidators as ReturnType<typeof vi.fn>)
+          .mockRejectedValueOnce(new Error('beacon validators timeout'))
+          .mockResolvedValueOnce(undefined);
+
+        // Start the processor with an already-started epoch so tracking activation can
+        // run immediately after discovery completes.
+        const { actor, stateTransitions, subscription } = createAndStartActor(
+          epochProcessorMachine,
+          createProcessorMachineDefaultInput(100),
+        );
+        await vi.advanceTimersByTimeAsync(0);
+        await waitForXStateTransitions();
+
+        // The first tracking attempt should fail and move into the retry wait state.
+        expect(mockValidatorsController.trackTransitioningValidators).toHaveBeenCalledTimes(1);
+        let lastState = getLastState(stateTransitions);
+        let activationState = getNestedState(
+          lastState,
+          'epochProcessing.fetching.trackingValidatorsActivation',
+        ) as string | null;
+        expect(activationState).toBe('waitingRetry');
+
+        // The retry delay must hold the branch steady until the full five seconds elapse.
+        await vi.advanceTimersByTimeAsync(4_999);
+        await waitForXStateTransitions();
+        expect(mockValidatorsController.trackTransitioningValidators).toHaveBeenCalledTimes(1);
+
+        // Advancing the last millisecond triggers the retry and the successful attempt
+        // should let the tracking branch reach its final state.
+        await vi.advanceTimersByTimeAsync(1);
+        await waitForXStateTransitions();
+        expect(mockValidatorsController.trackTransitioningValidators).toHaveBeenCalledTimes(2);
+        lastState = getLastState(stateTransitions);
+        activationState = getNestedState(
+          lastState,
+          'epochProcessing.fetching.trackingValidatorsActivation',
+        ) as string | null;
+        expect(activationState).toBe('activationTracked');
+
+        // Stop the actor so no retry timers remain after the assertion.
         actor.stop();
         subscription.unsubscribe();
       });
