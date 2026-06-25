@@ -3,11 +3,14 @@ import ms from 'ms';
 import pLimit from 'p-limit';
 
 import { logError, logRequest, logResponse } from '@/src/lib/httpPino.js';
+import createLogger from '@/src/lib/pino.js';
 import {
   JsonRpcResponse,
   RpcBlock,
   RpcTransactionReceipt,
 } from '@/src/services/execution/types.js';
+
+const logger = createLogger('ExecutionClient');
 
 export type BlockResponse = {
   address: string;
@@ -64,6 +67,14 @@ export class ExecutionClient {
         try {
           return await this.fetchBlockFromRpc(endpoint.url, blockNumber);
         } catch (error) {
+          logger.error('Execution RPC attempt failed', {
+            attempt: cycle + 1,
+            blockNumber,
+            endpoint: endpoint.name,
+            error: this.formatErrorForLog(error),
+            maxAttempts: maxCycles,
+            url: endpoint.url,
+          });
           lastError = new Error(
             `[${endpoint.name}] failed for block ${blockNumber}${this.formatErrorContext(error)}`,
             { cause: error },
@@ -193,6 +204,20 @@ export class ExecutionClient {
     return (
       (status ? ` (HTTP ${status})` : '') +
       (responseData ? ` - response: ${JSON.stringify(responseData)}` : ` - ${message}`)
+    );
+  }
+
+  /**
+   * Format retry failure details for structured logs without message punctuation.
+   */
+  private formatErrorForLog(error: unknown): string {
+    const status = axios.isAxiosError(error) ? error.response?.status : undefined;
+    const responseData = axios.isAxiosError(error) ? error.response?.data : undefined;
+    const message = error instanceof Error ? error.message : String(error);
+
+    return (
+      (status ? `HTTP ${status}: ` : '') +
+      (responseData ? `response: ${JSON.stringify(responseData)}` : message)
     );
   }
 }

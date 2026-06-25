@@ -1,5 +1,14 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+const mockExecutionLogger = vi.hoisted(() => ({
+  error: vi.fn(),
+  info: vi.fn(),
+}));
+
+vi.mock('@/src/lib/pino.js', () => ({
+  default: vi.fn(() => mockExecutionLogger),
+}));
+
 import { ExecutionClient } from '@/src/services/execution/execution.js';
 
 // This test suite verifies the generic execution RPC reward calculation and fallback strategy.
@@ -10,6 +19,7 @@ describe('ExecutionClient', () => {
   // This hook resets mocks and creates a clean execution client before each test.
   beforeEach(() => {
     vi.restoreAllMocks();
+    vi.clearAllMocks();
     vi.useRealTimers();
     executionClient = new ExecutionClient({
       mainExecutionRpc: 'http://main-rpc',
@@ -246,5 +256,61 @@ describe('ExecutionClient', () => {
 
     // This cleanup restores real timers for the rest of the test process.
     vi.useRealTimers();
+  });
+
+  // This test verifies every failed execution endpoint attempt is visible in logs.
+  it('logs each failed execution RPC endpoint attempt with block and retry context', async () => {
+    // This successful response arrives after both endpoints fail in the first cycle.
+    const successResponse = [
+      {
+        jsonrpc: '2.0',
+        id: 1,
+        result: {
+          number: '0xa',
+          timestamp: '0x64',
+          miner: '0xfeeRecipient',
+          baseFeePerGas: '0xa',
+        },
+      },
+      {
+        jsonrpc: '2.0',
+        id: 2,
+        result: [{ gasUsed: '0x1', effectiveGasPrice: '0xb' }],
+      },
+    ];
+
+    // This spy simulates a main RPC failure, then a backup RPC failure, then recovery.
+    const axiosInstance = (executionClient as unknown as { axiosInstance: { post: unknown } })
+      .axiosInstance;
+    vi.spyOn(axiosInstance, 'post' as never)
+      .mockRejectedValueOnce(new Error('main dns failure') as never)
+      .mockRejectedValueOnce(new Error('backup dns failure') as never)
+      .mockResolvedValueOnce({ data: successResponse } as never);
+
+    // This call exercises the retry loop until the second cycle succeeds.
+    await expect(executionClient.getBlock(10)).resolves.toMatchObject({
+      address: '0xfeeRecipient',
+      amount: '1',
+      blockNumber: 10,
+    });
+
+    // These assertions make sure both failed endpoints are logged with enough
+    // context to reconstruct fallback order for a stuck slot investigation.
+    expect(mockExecutionLogger.error).toHaveBeenNthCalledWith(1, 'Execution RPC attempt failed', {
+      attempt: 1,
+      blockNumber: 10,
+      endpoint: 'MAIN',
+      error: 'main dns failure',
+      maxAttempts: 5,
+      url: 'http://main-rpc',
+    });
+    expect(mockExecutionLogger.error).toHaveBeenNthCalledWith(2, 'Execution RPC attempt failed', {
+      attempt: 1,
+      blockNumber: 10,
+      endpoint: 'BKP',
+      error: 'backup dns failure',
+      maxAttempts: 5,
+      url: 'http://bkp-rpc',
+    });
   });
 });
