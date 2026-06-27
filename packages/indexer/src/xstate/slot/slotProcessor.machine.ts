@@ -24,6 +24,9 @@ import { Block } from '@/src/services/consensus/types.js';
 import { monitoredState } from '@/src/xstate/monitoring/taskMonitor.js';
 import { pinoLog } from '@/src/xstate/pinoLog.js';
 
+// Reward endpoints can take longer than two slots on archive nodes, so delayed indexers warm four slots ahead.
+const REWARD_PREFETCH_SLOT_LOOKAHEAD = 4;
+
 export interface SlotProcessorContext {
   epoch: number;
   slot: number;
@@ -155,12 +158,12 @@ export const slotProcessorMachine = setup({
   actions: {
     prefetchNextSlotRewards: ({ context }) => {
       // prefetch block rewards
-      for (let slotOffset = 1; slotOffset <= 2; slotOffset++) {
+      for (let slotOffset = 1; slotOffset <= REWARD_PREFETCH_SLOT_LOOKAHEAD; slotOffset++) {
         context.slotController.prefetchBlockRewards(context.slot + slotOffset);
       }
 
       // sync committee rewards
-      for (let slotOffset = 1; slotOffset <= 2; slotOffset++) {
+      for (let slotOffset = 1; slotOffset <= REWARD_PREFETCH_SLOT_LOOKAHEAD; slotOffset++) {
         void context.slotController
           .prefetchSyncCommitteeRewards(context.slot + slotOffset)
           .catch(() => undefined);

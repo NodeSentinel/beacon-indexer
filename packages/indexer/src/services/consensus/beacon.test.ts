@@ -50,6 +50,68 @@ describe('BeaconClient reward cache', () => {
     expect(getSpy).toHaveBeenCalledTimes(2);
   });
 
+  // This test verifies normal block reward processing joins an already-running prefetch request.
+  it('serves block rewards from an in-flight prefetch request', async () => {
+    // This client is configured far behind head so block reward prefetching is enabled.
+    const beaconClient = new BeaconClient({
+      fullNodeUrl: 'http://full-node',
+      fullNodeConcurrency: 1,
+      fullNodeRetries: 0,
+      archiveNodeUrl: 'http://archive-node',
+      archiveNodeConcurrency: 1,
+      archiveNodeRetries: 0,
+      baseDelay: 1,
+      slotStartIndexing: 1,
+      slotsPerEpoch: 32,
+    });
+
+    // This deferred response represents a slow archive reward endpoint that is still in flight.
+    let resolvePrefetchResponse: (response: unknown) => void;
+    const prefetchResponsePromise = new Promise((resolve) => {
+      resolvePrefetchResponse = resolve;
+    });
+
+    // This spy keeps the prefetch pending so normal processing can attach to that same request.
+    const axiosInstance = (beaconClient as unknown as { axiosInstance: { get: unknown } })
+      .axiosInstance;
+    const getSpy = vi
+      .spyOn(axiosInstance, 'get' as never)
+      .mockReturnValueOnce(prefetchResponsePromise as never);
+
+    // This call starts the archive request before the slot reaches normal processing.
+    beaconClient.prefetchBlockRewards(1);
+
+    // This wait confirms the prefetch request is active and no response is cached yet.
+    await vi.waitFor(() => expect(getSpy).toHaveBeenCalledTimes(1));
+
+    // This normal processing call should wait for the in-flight prefetch instead of fetching again.
+    const resultPromise = beaconClient.getBlockRewards(1);
+
+    // This assertion verifies normal processing did not duplicate the slow archive request.
+    expect(getSpy).toHaveBeenCalledTimes(1);
+
+    // This response completes the original prefetch request with valid block reward data.
+    resolvePrefetchResponse!({
+      data: {
+        data: {
+          proposer_index: '1',
+          total: '10',
+        },
+      },
+    });
+
+    // This assertion verifies normal processing receives the response from the in-flight prefetch.
+    await expect(resultPromise).resolves.toEqual({
+      data: {
+        proposer_index: '1',
+        total: '10',
+      },
+    });
+
+    // This assertion verifies the prefetch response was consumed without a second endpoint call.
+    expect(getSpy).toHaveBeenCalledTimes(1);
+  });
+
   // This test verifies prefetching a block reward warms the cache for normal processing.
   it('serves block rewards from a prefetched request', async () => {
     // This client is configured far behind head so block reward prefetching is enabled.
@@ -774,6 +836,66 @@ describe('BeaconClient reward cache', () => {
     await new Promise((resolve) => setTimeout(resolve, 1200));
 
     // This assertion verifies prefetch treated the failed response as final.
+    expect(postSpy).toHaveBeenCalledTimes(1);
+  });
+
+  // This test verifies normal sync committee processing joins an already-running prefetch request.
+  it('serves sync committee rewards from an in-flight prefetch request', async () => {
+    // This client is configured far behind head so sync committee reward prefetching is enabled.
+    const beaconClient = new BeaconClient({
+      fullNodeUrl: 'http://full-node',
+      fullNodeConcurrency: 1,
+      fullNodeRetries: 0,
+      archiveNodeUrl: 'http://archive-node',
+      archiveNodeConcurrency: 1,
+      archiveNodeRetries: 0,
+      baseDelay: 1,
+      slotStartIndexing: 1,
+      slotsPerEpoch: 32,
+    });
+
+    // This deferred response represents a slow archive sync rewards endpoint still running.
+    let resolvePrefetchResponse: (response: unknown) => void;
+    const prefetchResponsePromise = new Promise((resolve) => {
+      resolvePrefetchResponse = resolve;
+    });
+
+    // This spy keeps the prefetch pending so normal processing can attach to that same request.
+    const axiosInstance = (beaconClient as unknown as { axiosInstance: { post: unknown } })
+      .axiosInstance;
+    const postSpy = vi
+      .spyOn(axiosInstance, 'post' as never)
+      .mockReturnValueOnce(prefetchResponsePromise as never);
+
+    // This call starts the archive request for the slot and sync committee validators.
+    beaconClient.prefetchSyncCommitteeRewards(1, ['1']);
+
+    // This wait confirms the prefetch request is active and no response is cached yet.
+    await vi.waitFor(() => expect(postSpy).toHaveBeenCalledTimes(1));
+
+    // This normal processing call should wait for the in-flight prefetch instead of fetching again.
+    const resultPromise = beaconClient.getSyncCommitteeRewards(1, ['1']);
+
+    // This assertion verifies normal processing did not duplicate the slow archive request.
+    expect(postSpy).toHaveBeenCalledTimes(1);
+
+    // This response completes the original prefetch request with valid sync reward data.
+    resolvePrefetchResponse!({
+      data: {
+        data: [{ validator_index: '1', reward: '10' }],
+        execution_optimistic: false,
+        finalized: true,
+      },
+    });
+
+    // This assertion verifies normal processing receives the response from the in-flight prefetch.
+    await expect(resultPromise).resolves.toEqual({
+      data: [{ validator_index: '1', reward: '10' }],
+      execution_optimistic: false,
+      finalized: true,
+    });
+
+    // This assertion verifies the prefetch response was consumed without a second endpoint call.
     expect(postSpy).toHaveBeenCalledTimes(1);
   });
 

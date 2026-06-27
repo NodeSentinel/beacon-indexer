@@ -72,6 +72,67 @@ describe('slotProcessorMachine', () => {
     vi.clearAllTimers();
   });
 
+  // This test verifies reward prefetching looks far enough ahead while delayed archive endpoints are slow.
+  test('prefetches block and sync rewards four slots ahead', async () => {
+    // This controller records reward prefetch calls while every processing step succeeds immediately.
+    const slotController = createSlotController();
+
+    // This parent receives the slot completion event from the real slot processor.
+    const parentMachine = setup({
+      actors: {
+        slotProcessor: slotProcessorMachine,
+      },
+    }).createMachine({
+      id: 'testRewardPrefetchParent',
+      initial: 'running',
+      states: {
+        running: {
+          invoke: {
+            id: 'slotProcessor',
+            src: 'slotProcessor',
+            input: {
+              epoch: 1,
+              lookbackSlot: 0,
+              slot: 32,
+              slotController: slotController as never,
+              slotDuration: 12_000,
+            },
+            onDone: {
+              target: 'completed',
+            },
+          },
+        },
+        completed: {
+          type: 'final',
+        },
+      },
+    });
+
+    // This actor runs one successful slot so the fetchingBeaconBlock entry action can prefetch ahead.
+    const actor = createActor(parentMachine);
+
+    // Start processing and let the slot complete.
+    actor.start();
+    await vi.runAllTimersAsync();
+
+    // These assertions verify block rewards are prefetched for the next four slots.
+    expect(slotController.prefetchBlockRewards).toHaveBeenCalledTimes(4);
+    expect(slotController.prefetchBlockRewards).toHaveBeenNthCalledWith(1, 33);
+    expect(slotController.prefetchBlockRewards).toHaveBeenNthCalledWith(2, 34);
+    expect(slotController.prefetchBlockRewards).toHaveBeenNthCalledWith(3, 35);
+    expect(slotController.prefetchBlockRewards).toHaveBeenNthCalledWith(4, 36);
+
+    // These assertions verify sync committee rewards use the same four-slot prefetch horizon.
+    expect(slotController.prefetchSyncCommitteeRewards).toHaveBeenCalledTimes(4);
+    expect(slotController.prefetchSyncCommitteeRewards).toHaveBeenNthCalledWith(1, 33);
+    expect(slotController.prefetchSyncCommitteeRewards).toHaveBeenNthCalledWith(2, 34);
+    expect(slotController.prefetchSyncCommitteeRewards).toHaveBeenNthCalledWith(3, 35);
+    expect(slotController.prefetchSyncCommitteeRewards).toHaveBeenNthCalledWith(4, 36);
+
+    // Stop the actor so no state machine work leaks into other tests.
+    actor.stop();
+  });
+
   // This test verifies sync committee rewards retry once after a transient empty-rewards error.
   test('retries sync committee rewards when the first attempt has no rewards', async () => {
     // This controller simulates a period-boundary miss followed by a successful retry.

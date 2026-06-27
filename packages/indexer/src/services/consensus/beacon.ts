@@ -565,13 +565,13 @@ export class BeaconClient extends ReliableRequestClient {
   }
 
   /**
-   * Get block rewards for a specific slot, consuming one completed prefetch when available.
+   * Get block rewards for a specific slot, consuming a completed or in-flight prefetch when available.
    */
   getBlockRewards = async (slot: number): Promise<BlockRewards | 'SLOT MISSED'> => {
-    const rewards = this.blockRewardsCache.get(slot);
-    this.blockRewardsCache.delete(slot);
+    const rewards = await this.blockRewardsCache.fetch(slot);
 
     if (rewards !== undefined) {
+      this.blockRewardsCache.delete(slot);
       return rewards;
     }
 
@@ -579,7 +579,7 @@ export class BeaconClient extends ReliableRequestClient {
   };
 
   /**
-   * Get sync committee rewards for specific validators, consuming one completed prefetch when available.
+   * Get sync committee rewards for validators, consuming a completed or in-flight prefetch when available.
    */
   getSyncCommitteeRewards = async (
     slot: number,
@@ -590,10 +590,10 @@ export class BeaconClient extends ReliableRequestClient {
     }
 
     const key = this.getSyncCommitteeRewardsCacheKey(slot, validatorIndexes);
-    const rewards = this.syncCommitteeRewardsCache.get(key);
-    this.syncCommitteeRewardsCache.delete(key);
+    const rewards = await this.syncCommitteeRewardsCache.fetch(key);
 
     if (rewards !== undefined) {
+      this.syncCommitteeRewardsCache.delete(key);
       return rewards;
     }
 
