@@ -1,12 +1,16 @@
 import type { Chain } from '@beacon-indexer/beacon-utils';
+import type { BeaconTime } from '@beacon-indexer/beacon-utils/beaconTime';
 import { assign, fromPromise, setup } from 'xstate';
 
 import type { ClaimableWithdrawalsController } from '@/src/services/consensus/controllers/claimableWithdrawals.js';
+import type { SlotController } from '@/src/services/consensus/controllers/slot.js';
 import { SnapshotController } from '@/src/services/consensus/controllers/snapshot.js';
 import { pinoLog } from '@/src/xstate/pinoLog.js';
 
 type SnapshotContext = {
   snapshotController: SnapshotController;
+  slotController: SlotController;
+  beaconTime: BeaconTime;
   slotDuration: number;
   slotsPerEpoch: number;
   chain: Chain;
@@ -40,12 +44,45 @@ const INTERVAL_CLAIMABLE = 60 * 60 * 1000; // 1 hour
 const INTERVAL_D = 30 * 60 * 1000; // 30 minutes
 const INTERVAL_W = 3 * 60 * 60 * 1000; // 3 hours
 const INTERVAL_M = 6 * 60 * 60 * 1000; // 6 hours
+const MAX_SNAPSHOT_LAG_EPOCHS = 5;
 
+// Checks whether snapshot work is safe to run against the indexed data window.
+async function getIndexerLagStatus(ctx: SnapshotContext) {
+  const headSlot = ctx.beaconTime.getChainCurrentSlot();
+  const lastProcessedSlot = await ctx.slotController.getLastProcessedSlot();
+  const lagSlots =
+    lastProcessedSlot !== null
+      ? headSlot - lastProcessedSlot
+      : headSlot - ctx.beaconTime.getLookbackSlot();
+
+  return {
+    headSlot,
+    lagSlots,
+    lastProcessedSlot,
+    isDelayed: lagSlots > ctx.slotsPerEpoch * MAX_SNAPSHOT_LAG_EPOCHS,
+  };
+}
+
+// Runs one snapshot scheduling tick and skips heavy work while indexing is behind head.
 const runTick = fromPromise(async ({ input }: { input: { context: SnapshotContext } }) => {
   const ctx = input.context;
   const controller = ctx.snapshotController;
   const now = Date.now();
   const updatedLevels: string[] = [];
+  const lagStatus = await getIndexerLagStatus(ctx);
+
+  if (lagStatus.isDelayed) {
+    return {
+      updatedLevels: [],
+      lastProcessedSlot: lagStatus.lastProcessedSlot,
+      lastEpochUpdate: ctx.lastEpochUpdate,
+      lastDUpdate: ctx.lastDUpdate,
+      lastWUpdate: ctx.lastWUpdate,
+      lastMUpdate: ctx.lastMUpdate,
+      lastNewValidatorCheck: ctx.lastNewValidatorCheck,
+      lastClaimableUpdate: ctx.lastClaimableUpdate,
+    } satisfies TickResult;
+  }
 
   const currentEpoch = controller.getCurrentEpoch();
   let lastEpochUpdate = ctx.lastEpochUpdate;
@@ -112,7 +149,7 @@ const runTick = fromPromise(async ({ input }: { input: { context: SnapshotContex
 
   return {
     updatedLevels,
-    lastProcessedSlot: ctx.lastProcessedSlot,
+    lastProcessedSlot: lagStatus.lastProcessedSlot,
     lastEpochUpdate,
     lastDUpdate,
     lastWUpdate,
@@ -127,6 +164,8 @@ export const snapshotMachine = setup({
     context: SnapshotContext;
     input: {
       snapshotController: SnapshotController;
+      slotController: SlotController;
+      beaconTime: BeaconTime;
       claimableWithdrawalsController?: ClaimableWithdrawalsController;
       slotDuration: number;
       slotsPerEpoch: number;
@@ -147,6 +186,8 @@ export const snapshotMachine = setup({
   initial: 'waiting',
   context: ({ input }) => ({
     snapshotController: input.snapshotController,
+    slotController: input.slotController,
+    beaconTime: input.beaconTime,
     claimableWithdrawalsController: input.claimableWithdrawalsController,
     slotDuration: input.slotDuration,
     slotsPerEpoch: input.slotsPerEpoch,

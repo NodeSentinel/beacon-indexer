@@ -100,6 +100,8 @@ export default function initXstateMachines(
 
   const snapshotActor = getSnapshotActor(
     snapshotController,
+    slotController,
+    beaconTime,
     slotDuration,
     slotsPerEpoch,
     chain,
