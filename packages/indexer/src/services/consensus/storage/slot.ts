@@ -325,6 +325,12 @@ export class SlotStorage {
         if (attestations.length > 0) {
           const updateChunks = chunk(attestations, attestationUpdateChunkSize);
           for (const batchUpdates of updateChunks) {
+            // The exact c.slot = v.slot match below preserves the write semantics, while
+            // this constant range lets PostgreSQL prune unrelated committee partitions.
+            const batchSlots = batchUpdates.map((update) => Number(update.slot));
+            const minSlot = Math.min(...batchSlots);
+            const maxSlot = Math.max(...batchSlots);
+
             queries.push(Prisma.sql`
               UPDATE "committee" c
               SET "attestation_delay" = v.delay
@@ -337,6 +343,8 @@ export class SlotStorage {
                 )}
               ) AS v(slot, index, "aggregation_bits_index", delay)
               WHERE c.slot = v.slot
+                AND c.slot >= ${minSlot}
+                AND c.slot <= ${maxSlot}
                 AND c.index = v.index
                 AND c."aggregation_bits_index" = v."aggregation_bits_index"
                 AND (c."attestation_delay" IS NULL OR c."attestation_delay" > v.delay);

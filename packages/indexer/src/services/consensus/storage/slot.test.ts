@@ -59,4 +59,44 @@ describe('SlotStorage', () => {
     // This assertion verifies the missing database result was not cached.
     expect(prisma.syncCommittee.findFirst).toHaveBeenCalledTimes(2);
   });
+
+  // This test verifies attestation updates keep their exact committee-row match while also
+  // exposing a constant slot range that PostgreSQL can use to prune committee partitions.
+  it('adds a constant slot range to attestation update batches without changing the row match', async () => {
+    // These updates represent attested committee rows from multiple source slots inside one
+    // save batch, which is the shape produced after block attestations are processed.
+    const attestations = [
+      { slot: 100, index: 1, aggregationBitsIndex: 2, attestationDelay: 0 },
+      { slot: 104, index: 3, aggregationBitsIndex: 4, attestationDelay: 1 },
+    ];
+
+    // This transaction stub captures the raw SQL generated for the committee update and
+    // keeps the slot upsert successful so the storage method can complete normally.
+    const executeRaw = vi.fn().mockResolvedValue(0);
+    const prisma = {
+      $transaction: vi.fn(async (callback) =>
+        callback({
+          $executeRaw: executeRaw,
+          slot: {
+            upsert: vi.fn().mockResolvedValue({}),
+          },
+        }),
+      ),
+    };
+
+    // This storage call exercises the real batching and SQL construction logic.
+    const storage = new SlotStorage(prisma as never);
+    await storage.saveSlotAttestations(attestations as never, 110);
+
+    // This assertion verifies the update still matches rows by the exact source slot carried
+    // by each VALUES row, preserving the previous write semantics.
+    const updateQuery = executeRaw.mock.calls[0]?.[0];
+    expect(updateQuery.text).toContain('c.slot = v.slot');
+
+    // These assertions verify the query also includes a constant min/max slot range, which
+    // lets PostgreSQL prune unrelated committee partitions before applying the exact match.
+    expect(updateQuery.text).toContain('c.slot >=');
+    expect(updateQuery.text).toContain('c.slot <=');
+    expect(updateQuery.values.slice(-2)).toEqual([100, 104]);
+  });
 });
