@@ -380,7 +380,7 @@ export class DailyArchiveStorage {
         return { hourStart: progress.current_hour, completed };
       },
       {
-        timeout: ms('5m'),
+        timeout: ms('10m'),
       },
     );
   }
