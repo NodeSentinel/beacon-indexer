@@ -59,6 +59,16 @@ function createSlotController() {
   };
 }
 
+/**
+ * Let XState settle promise completions and immediate transitions in tests.
+ */
+async function waitForXStateTransitions() {
+  // Multiple microtasks are needed because invoked promises can resolve and then trigger nested transitions.
+  await Promise.resolve();
+  await Promise.resolve();
+  await Promise.resolve();
+}
+
 // This suite verifies retry behavior for the slot processor state machine.
 describe('slotProcessorMachine', () => {
   beforeEach(() => {
@@ -270,6 +280,155 @@ describe('slotProcessorMachine', () => {
     expect(slotController.fetchBeaconBlock).toHaveBeenCalledTimes(2);
 
     // This assertion verifies the retry allowed the slot processor to complete normally.
+    expect(receivedSlotCompleted).toBe(true);
+    expect(actor.getSnapshot().value).toBe('completed');
+
+    // Stop the actor so no state machine work leaks into other tests.
+    actor.stop();
+  });
+
+  // This test verifies attestation processing retries after a transient storage or committee lookup failure.
+  test('retries attestation processing after waiting five seconds', async () => {
+    // This controller simulates a failed attestation update followed by a successful retry.
+    const slotController = createSlotController();
+    slotController.processAttestations
+      .mockRejectedValueOnce(new Error('committee rows locked'))
+      .mockResolvedValueOnce(undefined);
+
+    // This flag verifies the parent receives completion once the retry succeeds.
+    let receivedSlotCompleted = false;
+
+    // This parent receives the slot completion event from the real slot processor.
+    const parentMachine = setup({
+      actors: {
+        slotProcessor: slotProcessorMachine,
+      },
+    }).createMachine({
+      id: 'testAttestationsRetryParent',
+      initial: 'running',
+      states: {
+        running: {
+          invoke: {
+            id: 'slotProcessor',
+            src: 'slotProcessor',
+            input: {
+              epoch: 1,
+              lookbackSlot: 0,
+              slot: 32,
+              slotController: slotController as never,
+              slotDuration: 12_000,
+            },
+            onDone: {
+              target: 'completed',
+            },
+          },
+          on: {
+            SLOT_COMPLETED: {
+              actions: () => {
+                receivedSlotCompleted = true;
+              },
+            },
+          },
+        },
+        completed: {
+          type: 'final',
+        },
+      },
+    });
+
+    // Start processing and allow the first attestation processing attempt to fail.
+    const actor = createActor(parentMachine);
+    actor.start();
+    await vi.advanceTimersByTimeAsync(0);
+    await waitForXStateTransitions();
+
+    // The failed branch must stay parked until the full retry delay elapses.
+    expect(slotController.processAttestations).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(4_999);
+    await waitForXStateTransitions();
+    expect(slotController.processAttestations).toHaveBeenCalledTimes(1);
+
+    // Advancing the last millisecond triggers the retry and lets the slot finish.
+    await vi.advanceTimersByTimeAsync(1);
+    await vi.runAllTimersAsync();
+
+    // These assertions verify the retry happened and restored slot progress.
+    expect(slotController.processAttestations).toHaveBeenCalledTimes(2);
+    expect(receivedSlotCompleted).toBe(true);
+    expect(actor.getSnapshot().value).toBe('completed');
+
+    // Stop the actor so no state machine work leaks into other tests.
+    actor.stop();
+  });
+
+  // This test verifies the lookback-slot attestation marker retries when its storage update fails.
+  test('retries lookback-slot attestation marker after waiting five seconds', async () => {
+    // This controller simulates a failed processed-flag update followed by a successful retry.
+    const slotController = createSlotController();
+    slotController.updateAttestationsProcessed
+      .mockRejectedValueOnce(new Error('slot update timeout'))
+      .mockResolvedValueOnce(undefined);
+
+    // This flag verifies the parent receives completion after the retry succeeds.
+    let receivedSlotCompleted = false;
+
+    // This parent uses slot 32 as both the current slot and lookback slot so the
+    // attestation branch takes the updateAttestationsProcessed path.
+    const parentMachine = setup({
+      actors: {
+        slotProcessor: slotProcessorMachine,
+      },
+    }).createMachine({
+      id: 'testUpdateAttestationsRetryParent',
+      initial: 'running',
+      states: {
+        running: {
+          invoke: {
+            id: 'slotProcessor',
+            src: 'slotProcessor',
+            input: {
+              epoch: 1,
+              lookbackSlot: 32,
+              slot: 32,
+              slotController: slotController as never,
+              slotDuration: 12_000,
+            },
+            onDone: {
+              target: 'completed',
+            },
+          },
+          on: {
+            SLOT_COMPLETED: {
+              actions: () => {
+                receivedSlotCompleted = true;
+              },
+            },
+          },
+        },
+        completed: {
+          type: 'final',
+        },
+      },
+    });
+
+    // Start processing and allow the first processed-flag update to fail.
+    const actor = createActor(parentMachine);
+    actor.start();
+    await vi.advanceTimersByTimeAsync(0);
+    await waitForXStateTransitions();
+
+    // The failed update must not retry before five seconds pass.
+    expect(slotController.updateAttestationsProcessed).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(4_999);
+    await waitForXStateTransitions();
+    expect(slotController.updateAttestationsProcessed).toHaveBeenCalledTimes(1);
+
+    // Advancing the last millisecond triggers the retry and lets the slot finish.
+    await vi.advanceTimersByTimeAsync(1);
+    await vi.runAllTimersAsync();
+
+    // These assertions verify the retry happened and restored slot progress.
+    expect(slotController.updateAttestationsProcessed).toHaveBeenCalledTimes(2);
     expect(receivedSlotCompleted).toBe(true);
     expect(actor.getSnapshot().value).toBe('completed');
 

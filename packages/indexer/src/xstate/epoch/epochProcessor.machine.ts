@@ -678,6 +678,7 @@ export const epochProcessorMachine = setup({
                       target: 'slotsProcessed',
                     },
                     onError: {
+                      target: 'waitingSlotsFetchedRetry',
                       actions: pinoLog(
                         ({ context, event }) =>
                           `error updating slots fetched for epoch ${context.epoch}: ${event.error}`,
@@ -687,6 +688,11 @@ export const epochProcessorMachine = setup({
                     },
                   },
                 }),
+                waitingSlotsFetchedRetry: {
+                  after: {
+                    retryWait: 'updatingSlotsFetched',
+                  },
+                },
                 slotsProcessed: {
                   type: 'final',
                   entry: [
@@ -978,6 +984,7 @@ export const epochProcessorMachine = setup({
           ],
         },
         onError: {
+          target: 'waitingMarkEpochProcessedRetry',
           actions: pinoLog(
             ({ context, event }) =>
               `error marking epoch ${context.epoch} as processed: ${event.error}`,
@@ -987,6 +994,11 @@ export const epochProcessorMachine = setup({
         },
       },
     }),
+    waitingMarkEpochProcessedRetry: {
+      after: {
+        retryWait: 'markingEpochProcessed',
+      },
+    },
     epochCompleted: {
       type: 'final',
     },

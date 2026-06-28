@@ -360,6 +360,7 @@ export const slotProcessorMachine = setup({
                           target: 'complete',
                         },
                         onError: {
+                          target: 'waitingAttestationsRetry',
                           actions: pinoLog(
                             ({ context, event }) =>
                               `error processing attestations for slot ${context.slot}: ${event.error}`,
@@ -369,6 +370,11 @@ export const slotProcessorMachine = setup({
                         },
                       },
                     }),
+                    waitingAttestationsRetry: {
+                      after: {
+                        retryWait: 'processingAttestations',
+                      },
+                    },
                     updateAttestationsProcessed: monitoredState('update attestations', {
                       entry: [
                         pinoLog(
@@ -387,6 +393,7 @@ export const slotProcessorMachine = setup({
                           target: 'complete',
                         },
                         onError: {
+                          target: 'waitingAttestationsProcessedUpdateRetry',
                           actions: pinoLog(
                             ({ context, event }) =>
                               `error updating attestations processed flag for slot ${context.slot}: ${event.error}`,
@@ -396,6 +403,11 @@ export const slotProcessorMachine = setup({
                         },
                       },
                     }),
+                    waitingAttestationsProcessedUpdateRetry: {
+                      after: {
+                        retryWait: 'updateAttestationsProcessed',
+                      },
+                    },
                     complete: {
                       entry: pinoLog(
                         ({ context }) => `attestations complete for slot ${context.slot}`,
