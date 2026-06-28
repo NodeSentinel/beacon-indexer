@@ -113,3 +113,21 @@ export function getHourlyArchivePartitionName(tableNamePrefix: string, timestamp
   const datetimeSuffix = formatInTimeZone(timestamp, 'UTC', 'yyyyMMddHH');
   return `${tableNamePrefix}_${datetimeSuffix}`;
 }
+
+/**
+ * Quotes a PostgreSQL identifier for partition DDL and maintenance statements.
+ */
+export function quotePostgresIdentifier(identifier: string): string {
+  return `"${identifier.replaceAll('"', '""')}"`;
+}
+
+/**
+ * Quotes a published daily archive partition name after validating its format.
+ */
+export function quoteDailyArchivePartitionName(partitionName: string): string {
+  if (!/^validator_daily_archive_\d{8}$/.test(partitionName)) {
+    throw new Error(`Unsafe daily archive partition name: ${partitionName}`);
+  }
+
+  return quotePostgresIdentifier(partitionName);
+}

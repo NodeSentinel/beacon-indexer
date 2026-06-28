@@ -1,6 +1,8 @@
 import { PrismaClient } from '@beacon-indexer/db';
 import { subDays } from 'date-fns';
 
+import { quoteDailyArchivePartitionName } from '../controllers/helpers/partitionNaming.js';
+
 export type DailyArchiveDetailCleanupTarget = {
   targetDay: Date;
   partitionName: string;
@@ -114,17 +116,8 @@ export class DailyArchiveDetailCleanupStorage {
    * Run VACUUM FULL on the finished daily archive partition.
    */
   async vacuumDailyArchivePartition(partitionName: string): Promise<void> {
-    await this.prisma.$executeRawUnsafe(`VACUUM FULL ${quotePostgresIdentifier(partitionName)}`);
+    await this.prisma.$executeRawUnsafe(
+      `VACUUM FULL ${quoteDailyArchivePartitionName(partitionName)}`,
+    );
   }
-}
-
-/**
- * Quote a daily archive partition identifier after rejecting unsafe table names.
- */
-function quotePostgresIdentifier(identifier: string): string {
-  if (!/^validator_daily_archive_\d{8}$/.test(identifier)) {
-    throw new Error(`Unsafe daily archive partition name: ${identifier}`);
-  }
-
-  return `"${identifier.replaceAll('"', '""')}"`;
 }

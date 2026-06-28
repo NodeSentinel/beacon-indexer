@@ -1,5 +1,7 @@
-import { PrismaClient } from '@beacon-indexer/db';
+import { Prisma, PrismaClient } from '@beacon-indexer/db';
 import ms from 'ms';
+
+import { quotePostgresIdentifier } from '../controllers/helpers/partitionNaming.js';
 
 export const HOURLY_ARCHIVE_VALIDATOR_BATCH_SIZE = 25000;
 
@@ -117,6 +119,11 @@ export class HourlyArchiveStorage {
     committeePartitionName: string,
     epochRewardsPartitionName: string,
   ): Promise<void> {
+    const quotedCommitteePartitionName = quotePostgresIdentifier(committeePartitionName);
+    const quotedEpochRewardsPartitionName = quotePostgresIdentifier(epochRewardsPartitionName);
+    const committeePartitionSql = Prisma.raw(quotedCommitteePartitionName);
+    const epochRewardsPartitionSql = Prisma.raw(quotedEpochRewardsPartitionName);
+
     // Use Prisma interactive transaction for atomicity
     await this.prisma.$transaction(
       async (tx) => {
@@ -149,7 +156,7 @@ export class HourlyArchiveStorage {
                 c.validator_index,
                 c.slot,
                 c.attestation_delay
-              FROM committee c
+              FROM ${committeePartitionSql} c
               WHERE c.slot >= ${startSlot}::int AND c.slot <= ${endSlot}::int
                 AND c.validator_index >= ${batchStart}::int
                 AND c.validator_index < ${batchEnd}::int
@@ -283,7 +290,7 @@ export class HourlyArchiveStorage {
                 missed_target,
                 missed_source,
                 missed_inactivity
-              FROM epoch_rewards
+              FROM ${epochRewardsPartitionSql}
               WHERE epoch >= ${startEpoch}::int AND epoch <= ${endEpoch}::int
                 AND validator_index >= ${batchStart}::int
                 AND validator_index < ${batchEnd}::int
@@ -355,10 +362,10 @@ export class HourlyArchiveStorage {
         `;
 
         // Drop committee partition
-        await tx.$executeRawUnsafe(`DROP TABLE IF EXISTS "${committeePartitionName}"`);
+        await tx.$executeRawUnsafe(`DROP TABLE IF EXISTS ${quotedCommitteePartitionName}`);
 
         // Drop epoch_rewards partition
-        await tx.$executeRawUnsafe(`DROP TABLE IF EXISTS "${epochRewardsPartitionName}"`);
+        await tx.$executeRawUnsafe(`DROP TABLE IF EXISTS ${quotedEpochRewardsPartitionName}`);
 
         // Update archive master table to mark this hour as archived
         await tx.archive.update({
