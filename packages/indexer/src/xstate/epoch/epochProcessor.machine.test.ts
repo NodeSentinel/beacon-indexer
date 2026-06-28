@@ -693,6 +693,52 @@ describe('epochProcessorMachine', () => {
         actor.stop();
         subscription.unsubscribe();
       });
+
+      test('retries updating slots fetched after waiting five seconds', async () => {
+        // Scenario: slots completed successfully, but persisting the epoch slots-fetched flag
+        // fails once. The epoch processor must retry so the epoch can still finish.
+        vi.setSystemTime(new Date(EPOCH_100_START_TIME + 50));
+
+        // This storage update fails once and succeeds after the XState retry delay.
+        (mockEpochController.updateSlotsFetched as ReturnType<typeof vi.fn>)
+          .mockRejectedValueOnce(new Error('slots fetched update timeout'))
+          .mockResolvedValueOnce(undefined);
+
+        // Keep rewards pending so this test focuses only on the slotsProcessing branch.
+        const rewardsPromise = createControllablePromise<void>();
+        (mockEpochController.fetchEpochRewards as ReturnType<typeof vi.fn>).mockReturnValue(
+          rewardsPromise.promise,
+        );
+
+        // Start the epoch processor and let it spawn the slot orchestrator.
+        const { actor, subscription } = createAndStartActor(
+          epochProcessorMachine,
+          createProcessorMachineDefaultInput(100),
+        );
+        await vi.runAllTimersAsync();
+
+        // Simulate the slot orchestrator reporting that every slot in the epoch completed.
+        actor.send({ type: 'SLOTS_COMPLETED', epoch: 100 });
+        await vi.advanceTimersByTimeAsync(0);
+        await waitForXStateTransitions();
+
+        // The failed update must not retry before the five-second recovery delay elapses.
+        expect(mockEpochController.updateSlotsFetched).toHaveBeenCalledTimes(1);
+        await vi.advanceTimersByTimeAsync(4_999);
+        await waitForXStateTransitions();
+        expect(mockEpochController.updateSlotsFetched).toHaveBeenCalledTimes(1);
+
+        // Advancing the final millisecond triggers the retry and marks slots as processed.
+        await vi.advanceTimersByTimeAsync(1);
+        await waitForXStateTransitions();
+
+        // This assertion verifies the epoch did not remain stuck after the transient failure.
+        expect(mockEpochController.updateSlotsFetched).toHaveBeenCalledTimes(2);
+
+        // Stop the actor so no pending retry or reward work leaks into other tests.
+        actor.stop();
+        subscription.unsubscribe();
+      });
     });
 
     describe('trackingValidatorsActivation', () => {
@@ -1177,6 +1223,86 @@ describe('epochProcessorMachine', () => {
       // Verify parent reached completed state (proves the full lifecycle worked)
       expect(parentActor.getSnapshot().value).toBe('completed');
 
+      parentActor.stop();
+    });
+
+    test('retries marking epoch processed after waiting five seconds', async () => {
+      // Scenario: all epoch branches complete, but the final processed marker fails once.
+      // The parent must receive EPOCH_COMPLETED only after the retry succeeds.
+      const epochEndTime = EPOCH_101_START_TIME + SLOTS_PER_EPOCH * SLOT_DURATION + 100;
+      vi.setSystemTime(new Date(epochEndTime));
+
+      // This final epoch update fails once and succeeds after the XState retry delay.
+      (mockEpochController.markEpochAsProcessed as ReturnType<typeof vi.fn>)
+        .mockRejectedValueOnce(new Error('mark processed transaction timeout'))
+        .mockResolvedValueOnce(undefined);
+
+      // Create a parent machine so the test can verify the retried child emits EPOCH_COMPLETED.
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const { createActor, setup } = require('xstate');
+
+      // This flag records whether the final parent event was emitted after retry.
+      let receivedEpochCompleted = false;
+
+      // This parent invokes the real epoch processor and completes when the child reports success.
+      const parentMachine = setup({
+        actors: {
+          epochProcessor: epochProcessorMachine,
+        },
+      }).createMachine({
+        id: 'testMarkProcessedRetryParent',
+        initial: 'running',
+        states: {
+          running: {
+            invoke: {
+              id: 'epochProcessor',
+              src: 'epochProcessor',
+              input: createProcessorMachineDefaultInput(100),
+            },
+            on: {
+              EPOCH_COMPLETED: {
+                target: 'completed',
+                actions: () => {
+                  receivedEpochCompleted = true;
+                },
+              },
+            },
+          },
+          completed: {
+            type: 'final',
+          },
+        },
+      });
+
+      // Start the full epoch processor and let every branch except slots finish.
+      const parentActor = createActor(parentMachine);
+      parentActor.start();
+      await vi.runAllTimersAsync();
+
+      // Complete the mocked slot orchestrator so the processor reaches markingEpochProcessed.
+      const epochProcessorActor = parentActor.getSnapshot().children.epochProcessor;
+      const slotOrchestratorActor =
+        epochProcessorActor?.getSnapshot().context.actors.slotOrchestratorActor;
+      slotOrchestratorActor?.send({ type: 'COMPLETE_SLOTS' });
+      await vi.advanceTimersByTimeAsync(0);
+      await waitForXStateTransitions();
+
+      // The failed mark must not retry before the five-second recovery delay elapses.
+      expect(mockEpochController.markEpochAsProcessed).toHaveBeenCalledTimes(1);
+      await vi.advanceTimersByTimeAsync(4_999);
+      await waitForXStateTransitions();
+      expect(mockEpochController.markEpochAsProcessed).toHaveBeenCalledTimes(1);
+
+      // Advancing the final millisecond triggers the retry and lets the parent complete.
+      await vi.advanceTimersByTimeAsync(1);
+      await waitForXStateTransitions();
+
+      // These assertions verify the retry restored epoch progress and emitted completion.
+      expect(mockEpochController.markEpochAsProcessed).toHaveBeenCalledTimes(2);
+      expect(receivedEpochCompleted).toBe(true);
+      expect(parentActor.getSnapshot().value).toBe('completed');
+
+      // Stop the parent actor so no state machine work leaks into other tests.
       parentActor.stop();
     });
   });
