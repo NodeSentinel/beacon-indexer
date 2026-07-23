@@ -2,6 +2,7 @@ import { createBlocksRouter } from './blocks/index.js';
 import { createBotRouter } from './bot/index.js';
 import { createChainRouter } from './chain.js';
 import { createClusterRouter } from './cluster/index.js';
+import { createConsolidationsRouter } from './consolidations/index.js';
 import { createHealthRouter } from './health.js';
 import { createIndexerRouter } from './indexer/index.js';
 import { createUserRouter } from './user/index.js';
@@ -21,6 +22,7 @@ export function createRouter(deps: ApiDependencies) {
     bot: createBotRouter(deps),
     chain: createChainRouter(deps),
     cluster: createClusterRouter(deps),
+    consolidations: createConsolidationsRouter(deps),
     health: createHealthRouter(deps),
     indexer: createIndexerRouter(deps),
     user: createUserRouter(deps),

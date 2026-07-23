@@ -49,7 +49,7 @@ export default function EventsFeedContent({ clusterId }: EventsFeedContentProps)
         </UnderlineTabsContent>
 
         <UnderlineTabsContent value="consolidations" className="space-y-2 mt-4 min-h-[400px]">
-          <ConsolidationsTab />
+          <ConsolidationsTab clusterId={clusterId} />
         </UnderlineTabsContent>
 
         <UnderlineTabsContent value="deposits" className="space-y-2 mt-4 min-h-[400px]">
