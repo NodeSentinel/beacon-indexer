@@ -7,6 +7,7 @@ import { createIndexerRouter } from './indexer/index.js';
 import { createUserRouter } from './user/index.js';
 import { createUtilsRouter } from './utils.js';
 import { createValidatorRouter } from './validator/index.js';
+import { createWithdrawalsRouter } from './withdrawals/index.js';
 import type { ApiDependencies } from '@/dependencies.js';
 
 export type Router = ReturnType<typeof createRouter>;
@@ -26,5 +27,6 @@ export function createRouter(deps: ApiDependencies) {
     user: createUserRouter(deps),
     utils: createUtilsRouter(deps),
     validator: createValidatorRouter(deps),
+    withdrawals: createWithdrawalsRouter(deps),
   };
 }

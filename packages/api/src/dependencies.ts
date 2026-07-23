@@ -15,6 +15,7 @@ import type { ClusterStorage } from '@/storage/cluster.js';
 import type { IncidentStorage } from '@/storage/incident.js';
 import type { UserStorage } from '@/storage/user.js';
 import type { ValidatorStorage } from '@/storage/validator.js';
+import type { WithdrawalStorage } from '@/storage/withdrawal.js';
 import type { BeaconHelpers } from '@/utils/beaconTime.js';
 
 /**
@@ -42,6 +43,7 @@ export interface ApiDependencies {
   userStorage: UserStorage;
   validatorController: ValidatorController;
   validatorStorage: ValidatorStorage;
+  withdrawalStorage: WithdrawalStorage;
   chain: 'ethereum' | 'gnosis';
   claimWithdrawalsService: ClaimWithdrawalsService | null;
 }

@@ -57,7 +57,7 @@ export default function EventsFeedContent({ clusterId }: EventsFeedContentProps)
         </UnderlineTabsContent>
 
         <UnderlineTabsContent value="withdrawals" className="space-y-2 mt-4 min-h-[400px]">
-          <WithdrawalsTab />
+          <WithdrawalsTab clusterId={clusterId} />
         </UnderlineTabsContent>
       </UnderlineTabs>
     </div>

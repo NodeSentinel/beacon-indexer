@@ -23,6 +23,7 @@ import { IncidentStorage } from './storage/incident.js';
 import { SystemConfigStorage } from './storage/systemConfig.js';
 import { UserStorage } from './storage/user.js';
 import { ValidatorStorage } from './storage/validator.js';
+import { WithdrawalStorage } from './storage/withdrawal.js';
 import { createBeaconHelpers } from './utils/beaconTime.js';
 
 /**
@@ -94,6 +95,7 @@ async function main() {
     userStorage,
     validatorController,
     validatorStorage,
+    withdrawalStorage: new WithdrawalStorage(prisma),
   });
 
   const server = createHttpServer({
