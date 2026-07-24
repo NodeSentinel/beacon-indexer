@@ -10,60 +10,46 @@ export interface DepositEventRow {
   validatorIndex: number;
 }
 
+export interface DepositEventsResult {
+  hasNextPage: boolean;
+  rows: DepositEventRow[];
+}
+
 export class DepositStorage {
   constructor(private readonly prisma: PrismaClient) {}
 
   /**
    * Lists deposits whose deposited pubkeys belong to validators in the selected cluster.
    */
-  async getDeposits(params: { clusterId: string; page: number; pageSize: number }) {
+  async getDeposits(params: {
+    clusterId: string;
+    page: number;
+    pageSize: number;
+  }): Promise<DepositEventsResult> {
     const { clusterId, page, pageSize } = params;
     const offset = (page - 1) * pageSize;
+    const limit = pageSize + 1;
 
-    const validators = await this.prisma.validator.findMany({
-      where: {
-        clusters: { some: { clusterId } },
-        pubkey: { not: null },
-      },
-      select: {
-        id: true,
-        pubkey: true,
-      },
-    });
-    const validatorIndexByPubkey = new Map(
-      validators
-        .filter(
-          (validator): validator is { id: number; pubkey: string } => validator.pubkey !== null,
-        )
-        .map((validator) => [validator.pubkey, validator.id]),
-    );
-    const pubkeys = Array.from(validatorIndexByPubkey.keys());
+    const rows = await this.prisma.$queryRaw<DepositEventRow[]>`
+      SELECT
+        d.slot,
+        d.source,
+        d.index,
+        d.pubkey,
+        d.withdrawal_credentials AS "withdrawalCredentials",
+        d.amount,
+        v.id AS "validatorIndex"
+      FROM validator_deposits d
+      JOIN validator v ON v.pubkey = d.pubkey
+      JOIN cluster_validator cv ON cv.validator_index = v.id
+      WHERE cv.cluster_id = ${clusterId}
+      ORDER BY d.slot DESC, d.source ASC, d.index DESC
+      LIMIT ${limit} OFFSET ${offset}
+    `;
 
-    if (pubkeys.length === 0) {
-      return { rows: [], totalCount: 0 };
-    }
-
-    const [deposits, totalCount] = await Promise.all([
-      this.prisma.validatorDeposits.findMany({
-        where: { pubkey: { in: pubkeys } },
-        orderBy: [{ slot: 'desc' }, { source: 'asc' }, { index: 'desc' }],
-        skip: offset,
-        take: pageSize,
-      }),
-      this.prisma.validatorDeposits.count({
-        where: { pubkey: { in: pubkeys } },
-      }),
-    ]);
-    const rows = deposits.map((deposit) => ({
-      slot: deposit.slot,
-      source: deposit.source,
-      index: deposit.index,
-      pubkey: deposit.pubkey,
-      withdrawalCredentials: deposit.withdrawalCredentials,
-      amount: deposit.amount,
-      validatorIndex: validatorIndexByPubkey.get(deposit.pubkey)!,
-    }));
-
-    return { rows, totalCount };
+    return {
+      hasNextPage: rows.length > pageSize,
+      rows: rows.slice(0, pageSize),
+    };
   }
 }

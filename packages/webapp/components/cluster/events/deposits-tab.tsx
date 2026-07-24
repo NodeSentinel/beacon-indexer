@@ -29,9 +29,6 @@ interface DepositItemProps {
 export function DepositsTab({ clusterId }: DepositsTabProps) {
   const [depositsPage, setDepositsPage] = useState(1);
   const { data: depositsData, error, isLoading } = useDeposits(clusterId, depositsPage);
-  const totalDepositPages = depositsData
-    ? Math.ceil(depositsData.totalCount / depositsData.pageSize)
-    : 0;
   const tokenSymbol = getTokenSymbol(env.NEXT_PUBLIC_CHAIN);
 
   if (!clusterId) {
@@ -65,12 +62,12 @@ export function DepositsTab({ clusterId }: DepositsTabProps) {
           tokenSymbol={tokenSymbol}
         />
       ))}
-      {totalDepositPages > 1 && (
+      {(depositsPage > 1 || depositsData.hasNextPage) && (
         <EventsTabPagination
           currentPage={depositsPage}
-          totalPages={totalDepositPages}
+          hasNextPage={depositsData.hasNextPage}
           onPreviousPage={() => setDepositsPage((page) => Math.max(1, page - 1))}
-          onNextPage={() => setDepositsPage((page) => Math.min(totalDepositPages, page + 1))}
+          onNextPage={() => setDepositsPage((page) => page + 1)}
         />
       )}
     </div>
@@ -82,7 +79,7 @@ export function DepositsTab({ clusterId }: DepositsTabProps) {
  */
 function DepositItem({ deposit, tokenSymbol }: DepositItemProps) {
   const [isOpen, setIsOpen] = useState(false);
-  const sourceLabel = deposit.source === 'execution_request' ? 'Execution Request' : 'Beacon Body';
+  const sourceLabel = deposit.source === 'execution_request' ? 'Execution Request' : 'Eth1Data';
 
   return (
     <Collapsible open={isOpen} onOpenChange={setIsOpen}>

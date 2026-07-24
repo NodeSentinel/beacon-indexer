@@ -7,7 +7,7 @@ export const DepositsInputSchema = z.object({
 
 export const DepositEventSchema = z.object({
   slot: z.number(),
-  source: z.enum(['body', 'execution_request']),
+  source: z.enum(['eth1data', 'execution_request']),
   index: z.number(),
   pubkey: z.string(),
   withdrawalCredentials: z.string(),
@@ -18,7 +18,6 @@ export const DepositEventSchema = z.object({
 
 export const DepositsOutputSchema = z.object({
   deposits: z.array(DepositEventSchema),
-  totalCount: z.number(),
+  hasNextPage: z.boolean(),
   page: z.number(),
-  pageSize: z.number(),
 });

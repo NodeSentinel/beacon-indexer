@@ -6,7 +6,7 @@ import { orpcClient } from '@/lib/orpc';
 
 export interface DepositEvent {
   slot: number;
-  source: 'body' | 'execution_request';
+  source: 'eth1data' | 'execution_request';
   index: number;
   pubkey: string;
   withdrawalCredentials: string;
@@ -17,9 +17,8 @@ export interface DepositEvent {
 
 export interface DepositsResult {
   deposits: DepositEvent[];
-  totalCount: number;
+  hasNextPage: boolean;
   page: number;
-  pageSize: number;
 }
 
 /**

@@ -7,13 +7,13 @@ import { formatBalance } from '@/utils/tokenFormat.js';
 
 const PAGE_SIZE = 10;
 
-type DepositSource = 'body' | 'execution_request';
+type DepositSource = 'eth1data' | 'execution_request';
 
 /**
  * Converts compact database source codes into API source labels.
  */
 function formatDepositSource(source: string): DepositSource {
-  return source === 'e' ? 'execution_request' : 'body';
+  return source === 'e' ? 'execution_request' : 'eth1data';
 }
 
 /**
@@ -30,7 +30,7 @@ export function createListDepositsRoute(
     .output(ApiResponseSchema(DepositsOutputSchema))
     .handler(async ({ input }) => {
       try {
-        const { rows, totalCount } = await params.depositStorage.getDeposits({
+        const { hasNextPage, rows } = await params.depositStorage.getDeposits({
           clusterId: input.clusterId,
           page: input.page,
           pageSize: PAGE_SIZE,
@@ -49,9 +49,8 @@ export function createListDepositsRoute(
               validatorIndex: row.validatorIndex,
               timestamp: params.beaconHelpers.beaconTime.getTimestampFromSlotNumber(row.slot),
             })),
-            totalCount,
+            hasNextPage,
             page: input.page,
-            pageSize: PAGE_SIZE,
           },
           meta: { timestamp: new Date().toISOString() },
         };
