@@ -31,9 +31,6 @@ export function ConsolidationsTab({ clusterId }: ConsolidationsTabProps) {
     error,
     isLoading,
   } = useConsolidations(clusterId, consolidationsPage);
-  const totalConsolidationPages = consolidationsData
-    ? Math.ceil(consolidationsData.totalCount / consolidationsData.pageSize)
-    : 0;
 
   if (!clusterId) {
     return <EmptyStateTab message="Select a cluster" />;
@@ -65,14 +62,12 @@ export function ConsolidationsTab({ clusterId }: ConsolidationsTabProps) {
           consolidation={consolidation}
         />
       ))}
-      {totalConsolidationPages > 1 && (
+      {(consolidationsPage > 1 || consolidationsData.hasNextPage) && (
         <EventsTabPagination
           currentPage={consolidationsPage}
-          totalPages={totalConsolidationPages}
+          hasNextPage={consolidationsData.hasNextPage}
           onPreviousPage={() => setConsolidationsPage((page) => Math.max(1, page - 1))}
-          onNextPage={() =>
-            setConsolidationsPage((page) => Math.min(totalConsolidationPages, page + 1))
-          }
+          onNextPage={() => setConsolidationsPage((page) => page + 1)}
         />
       )}
     </div>

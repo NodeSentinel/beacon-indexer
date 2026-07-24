@@ -20,7 +20,7 @@ export function createListConsolidationsRoute(
     .output(ApiResponseSchema(ConsolidationsOutputSchema))
     .handler(async ({ input }) => {
       try {
-        const { rows, totalCount } = await params.consolidationStorage.getConsolidations({
+        const { hasNextPage, rows } = await params.consolidationStorage.getConsolidations({
           clusterId: input.clusterId,
           page: input.page,
           pageSize: PAGE_SIZE,
@@ -39,9 +39,8 @@ export function createListConsolidationsRoute(
               targetValidatorIndex: row.target_validator_index,
               timestamp: params.beaconHelpers.beaconTime.getTimestampFromSlotNumber(row.slot),
             })),
-            totalCount,
+            hasNextPage,
             page: input.page,
-            pageSize: PAGE_SIZE,
           },
           meta: { timestamp: new Date().toISOString() },
         };

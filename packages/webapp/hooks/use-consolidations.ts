@@ -17,9 +17,8 @@ export interface ConsolidationEvent {
 
 export interface ConsolidationsResult {
   consolidations: ConsolidationEvent[];
-  totalCount: number;
+  hasNextPage: boolean;
   page: number;
-  pageSize: number;
 }
 
 /**

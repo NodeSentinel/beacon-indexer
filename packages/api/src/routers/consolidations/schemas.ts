@@ -18,7 +18,6 @@ export const ConsolidationEventSchema = z.object({
 
 export const ConsolidationsOutputSchema = z.object({
   consolidations: z.array(ConsolidationEventSchema),
-  totalCount: z.number(),
+  hasNextPage: z.boolean(),
   page: z.number(),
-  pageSize: z.number(),
 });
