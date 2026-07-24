@@ -5,9 +5,9 @@ export interface DepositEventRow {
   source: string;
   index: number;
   pubkey: string;
-  withdrawal_credentials: string;
+  withdrawalCredentials: string;
   amount: bigint;
-  validator_index: number;
+  validatorIndex: number;
 }
 
 export class DepositStorage {
@@ -20,32 +20,50 @@ export class DepositStorage {
     const { clusterId, page, pageSize } = params;
     const offset = (page - 1) * pageSize;
 
-    const [rows, countResult] = await Promise.all([
-      this.prisma.$queryRaw<DepositEventRow[]>`
-        SELECT
-          d.slot,
-          d.source,
-          d.index,
-          d.pubkey,
-          d.withdrawal_credentials,
-          d.amount,
-          v.id AS validator_index
-        FROM validator_deposits d
-        JOIN validator v ON v.pubkey = d.pubkey
-        JOIN cluster_validator cv ON cv.validator_index = v.id
-        WHERE cv.cluster_id = ${clusterId}
-        ORDER BY d.slot DESC, d.source ASC, d.index DESC
-        LIMIT ${pageSize} OFFSET ${offset}
-      `,
-      this.prisma.$queryRaw<[{ count: bigint }]>`
-        SELECT COUNT(*)::bigint AS count
-        FROM validator_deposits d
-        JOIN validator v ON v.pubkey = d.pubkey
-        JOIN cluster_validator cv ON cv.validator_index = v.id
-        WHERE cv.cluster_id = ${clusterId}
-      `,
-    ]);
+    const validators = await this.prisma.validator.findMany({
+      where: {
+        clusters: { some: { clusterId } },
+        pubkey: { not: null },
+      },
+      select: {
+        id: true,
+        pubkey: true,
+      },
+    });
+    const validatorIndexByPubkey = new Map(
+      validators
+        .filter(
+          (validator): validator is { id: number; pubkey: string } => validator.pubkey !== null,
+        )
+        .map((validator) => [validator.pubkey, validator.id]),
+    );
+    const pubkeys = Array.from(validatorIndexByPubkey.keys());
 
-    return { rows, totalCount: Number(countResult[0].count) };
+    if (pubkeys.length === 0) {
+      return { rows: [], totalCount: 0 };
+    }
+
+    const [deposits, totalCount] = await Promise.all([
+      this.prisma.validatorDeposits.findMany({
+        where: { pubkey: { in: pubkeys } },
+        orderBy: [{ slot: 'desc' }, { source: 'asc' }, { index: 'desc' }],
+        skip: offset,
+        take: pageSize,
+      }),
+      this.prisma.validatorDeposits.count({
+        where: { pubkey: { in: pubkeys } },
+      }),
+    ]);
+    const rows = deposits.map((deposit) => ({
+      slot: deposit.slot,
+      source: deposit.source,
+      index: deposit.index,
+      pubkey: deposit.pubkey,
+      withdrawalCredentials: deposit.withdrawalCredentials,
+      amount: deposit.amount,
+      validatorIndex: validatorIndexByPubkey.get(deposit.pubkey)!,
+    }));
+
+    return { rows, totalCount };
   }
 }
