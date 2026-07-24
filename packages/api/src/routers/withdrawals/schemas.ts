@@ -18,7 +18,6 @@ export const WithdrawalEventSchema = z.object({
 
 export const WithdrawalsOutputSchema = z.object({
   withdrawals: z.array(WithdrawalEventSchema),
-  totalCount: z.number(),
+  hasNextPage: z.boolean(),
   page: z.number(),
-  pageSize: z.number(),
 });

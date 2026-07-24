@@ -29,9 +29,6 @@ interface WithdrawalItemProps {
 export function WithdrawalsTab({ clusterId }: WithdrawalsTabProps) {
   const [withdrawalsPage, setWithdrawalsPage] = useState(1);
   const { data: withdrawalsData, error, isLoading } = useWithdrawals(clusterId, withdrawalsPage);
-  const totalWithdrawalPages = withdrawalsData
-    ? Math.ceil(withdrawalsData.totalCount / withdrawalsData.pageSize)
-    : 0;
   const tokenSymbol = getTokenSymbol(env.NEXT_PUBLIC_CHAIN);
 
   if (!clusterId) {
@@ -65,12 +62,12 @@ export function WithdrawalsTab({ clusterId }: WithdrawalsTabProps) {
           withdrawal={withdrawal}
         />
       ))}
-      {totalWithdrawalPages > 1 && (
+      {(withdrawalsPage > 1 || withdrawalsData.hasNextPage) && (
         <EventsTabPagination
           currentPage={withdrawalsPage}
-          totalPages={totalWithdrawalPages}
+          hasNextPage={withdrawalsData.hasNextPage}
           onPreviousPage={() => setWithdrawalsPage((page) => Math.max(1, page - 1))}
-          onNextPage={() => setWithdrawalsPage((page) => Math.min(totalWithdrawalPages, page + 1))}
+          onNextPage={() => setWithdrawalsPage((page) => page + 1)}
         />
       )}
     </div>

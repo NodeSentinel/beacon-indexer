@@ -10,32 +10,9 @@ export interface WithdrawalEventRow {
   amount: bigint;
 }
 
-interface SortableWithdrawalEventRow extends WithdrawalEventRow {
-  sort_index: bigint;
-}
-
-/**
- * Sorts mixed withdrawal sources the same way the previous SQL union did.
- */
-function compareWithdrawalEvents(
-  left: SortableWithdrawalEventRow,
-  right: SortableWithdrawalEventRow,
-) {
-  if (left.slot !== right.slot) {
-    return right.slot - left.slot;
-  }
-
-  const sourceRank = { payload: 0, request: 1 };
-  const sourceOrder = sourceRank[left.source] - sourceRank[right.source];
-  if (sourceOrder !== 0) {
-    return sourceOrder;
-  }
-
-  if (left.sort_index === right.sort_index) {
-    return 0;
-  }
-
-  return left.sort_index > right.sort_index ? -1 : 1;
+export interface WithdrawalEventsResult {
+  hasNextPage: boolean;
+  rows: WithdrawalEventRow[];
 }
 
 export class WithdrawalStorage {
@@ -44,86 +21,55 @@ export class WithdrawalStorage {
   /**
    * Lists execution payload and request withdrawals for validators in the selected cluster.
    */
-  async getWithdrawals(params: { clusterId: string; page: number; pageSize: number }) {
+  async getWithdrawals(params: {
+    clusterId: string;
+    page: number;
+    pageSize: number;
+  }): Promise<WithdrawalEventsResult> {
     const { clusterId, page, pageSize } = params;
     const offset = (page - 1) * pageSize;
-    const pageWindowSize = offset + pageSize;
+    const limit = pageSize + 1;
 
-    const clusterValidators = await this.prisma.clusterValidator.findMany({
-      where: { clusterId },
-      select: {
-        validatorIndex: true,
-        validator: { select: { pubkey: true } },
-      },
-    });
-    const validatorIndexes = clusterValidators.map(
-      (clusterValidator) => clusterValidator.validatorIndex,
-    );
-    const validatorIndexStrings = validatorIndexes.map(String);
-    const validatorIndexByPubkey = new Map(
-      clusterValidators
-        .filter(
-          (
-            clusterValidator,
-          ): clusterValidator is { validatorIndex: number; validator: { pubkey: string } } =>
-            clusterValidator.validator.pubkey !== null,
-        )
-        .map((clusterValidator) => [
-          clusterValidator.validator.pubkey,
-          clusterValidator.validatorIndex,
-        ]),
-    );
-    const pubkeys = Array.from(validatorIndexByPubkey.keys());
+    const rows = await this.prisma.$queryRaw<WithdrawalEventRow[]>`
+      WITH withdrawal_events AS (
+        SELECT
+          'payload'::text AS source,
+          w.slot,
+          w.withdrawal_index::text AS event_index,
+          w.withdrawal_index::numeric AS sort_index,
+          w.validator_index::integer AS validator_index,
+          NULL::text AS pubkey,
+          NULL::text AS source_address,
+          w.amount
+        FROM validator_withdrawals w
+        JOIN cluster_validator cv ON cv.validator_index::text = w.validator_index
+        WHERE cv.cluster_id = ${clusterId}
 
-    if (validatorIndexes.length === 0) {
-      return { rows: [], totalCount: 0 };
-    }
+        UNION ALL
 
-    const [payloadWithdrawals, requestWithdrawals, payloadCount, requestCount] = await Promise.all([
-      this.prisma.validatorWithdrawals.findMany({
-        where: { validatorIndex: { in: validatorIndexStrings } },
-        orderBy: [{ slot: 'desc' }, { withdrawalIndex: 'desc' }],
-        take: pageWindowSize,
-      }),
-      this.prisma.validatorWithdrawalsRequests.findMany({
-        where: { pubKey: { in: pubkeys } },
-        orderBy: [{ slot: 'desc' }, { requestIndex: 'desc' }],
-        take: pageWindowSize,
-      }),
-      this.prisma.validatorWithdrawals.count({
-        where: { validatorIndex: { in: validatorIndexStrings } },
-      }),
-      this.prisma.validatorWithdrawalsRequests.count({
-        where: { pubKey: { in: pubkeys } },
-      }),
-    ]);
-    const events: SortableWithdrawalEventRow[] = [
-      ...payloadWithdrawals.map((withdrawal) => ({
-        source: 'payload' as const,
-        slot: withdrawal.slot,
-        event_index: withdrawal.withdrawalIndex.toString(),
-        sort_index: withdrawal.withdrawalIndex,
-        validator_index: Number(withdrawal.validatorIndex),
-        pubkey: null,
-        source_address: null,
-        amount: withdrawal.amount,
-      })),
-      ...requestWithdrawals.map((withdrawal) => ({
-        source: 'request' as const,
-        slot: withdrawal.slot,
-        event_index: withdrawal.requestIndex.toString(),
-        sort_index: BigInt(withdrawal.requestIndex),
-        validator_index: validatorIndexByPubkey.get(withdrawal.pubKey)!,
-        pubkey: withdrawal.pubKey,
-        source_address: withdrawal.sourceAddress,
-        amount: withdrawal.amount,
-      })),
-    ];
-    const rows = events
-      .sort(compareWithdrawalEvents)
-      .slice(offset, offset + pageSize)
-      .map(({ sort_index: _sortIndex, ...event }) => event);
+        SELECT
+          'request'::text AS source,
+          wr.slot,
+          wr.request_index::text AS event_index,
+          wr.request_index::numeric AS sort_index,
+          v.id AS validator_index,
+          wr.pub_key AS pubkey,
+          wr.source_address,
+          wr.amount
+        FROM validator_request_withdrawals wr
+        JOIN validator v ON v.pubkey = wr.pub_key
+        JOIN cluster_validator cv ON cv.validator_index = v.id
+        WHERE cv.cluster_id = ${clusterId}
+      )
+      SELECT source, slot, event_index, validator_index, pubkey, source_address, amount
+      FROM withdrawal_events
+      ORDER BY slot DESC, source ASC, sort_index DESC
+      LIMIT ${limit} OFFSET ${offset}
+    `;
 
-    return { rows, totalCount: payloadCount + requestCount };
+    return {
+      hasNextPage: rows.length > pageSize,
+      rows: rows.slice(0, pageSize),
+    };
   }
 }

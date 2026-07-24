@@ -17,9 +17,8 @@ export interface WithdrawalEvent {
 
 export interface WithdrawalsResult {
   withdrawals: WithdrawalEvent[];
-  totalCount: number;
+  hasNextPage: boolean;
   page: number;
-  pageSize: number;
 }
 
 /**

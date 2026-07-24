@@ -30,7 +30,7 @@ export function createListWithdrawalsRoute(
     .output(ApiResponseSchema(WithdrawalsOutputSchema))
     .handler(async ({ input }) => {
       try {
-        const { rows, totalCount } = await params.withdrawalStorage.getWithdrawals({
+        const { hasNextPage, rows } = await params.withdrawalStorage.getWithdrawals({
           clusterId: input.clusterId,
           page: input.page,
           pageSize: PAGE_SIZE,
@@ -49,9 +49,8 @@ export function createListWithdrawalsRoute(
               amount: formatBalance(row.amount, params.chain),
               timestamp: params.beaconHelpers.beaconTime.getTimestampFromSlotNumber(row.slot),
             })),
-            totalCount,
+            hasNextPage,
             page: input.page,
-            pageSize: PAGE_SIZE,
           },
           meta: { timestamp: new Date().toISOString() },
         };
