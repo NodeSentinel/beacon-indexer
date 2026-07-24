@@ -3,6 +3,7 @@ import { createBotRouter } from './bot/index.js';
 import { createChainRouter } from './chain.js';
 import { createClusterRouter } from './cluster/index.js';
 import { createConsolidationsRouter } from './consolidations/index.js';
+import { createDepositsRouter } from './deposits/index.js';
 import { createHealthRouter } from './health.js';
 import { createIndexerRouter } from './indexer/index.js';
 import { createUserRouter } from './user/index.js';
@@ -23,6 +24,7 @@ export function createRouter(deps: ApiDependencies) {
     chain: createChainRouter(deps),
     cluster: createClusterRouter(deps),
     consolidations: createConsolidationsRouter(deps),
+    deposits: createDepositsRouter(deps),
     health: createHealthRouter(deps),
     indexer: createIndexerRouter(deps),
     user: createUserRouter(deps),

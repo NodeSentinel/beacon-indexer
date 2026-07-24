@@ -13,6 +13,7 @@ import type { BotNotificationsStorage } from '@/storage/bot-notifications.js';
 import type { BotUsersStorage } from '@/storage/bot-users.js';
 import type { ClusterStorage } from '@/storage/cluster.js';
 import type { ConsolidationStorage } from '@/storage/consolidation.js';
+import type { DepositStorage } from '@/storage/deposit.js';
 import type { IncidentStorage } from '@/storage/incident.js';
 import type { UserStorage } from '@/storage/user.js';
 import type { ValidatorStorage } from '@/storage/validator.js';
@@ -32,6 +33,7 @@ export interface ApiDependencies {
   botUsersStorage: BotUsersStorage;
   clusterStorage: ClusterStorage;
   consolidationStorage: ConsolidationStorage;
+  depositStorage: DepositStorage;
   executionRpcUrl: string;
   incidentStorage: IncidentStorage;
   logger: Logger;
