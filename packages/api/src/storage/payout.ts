@@ -31,10 +31,10 @@ export class PayoutStorage {
       SELECT
         w.slot,
         w.withdrawal_index::text AS payout_index,
-        w.validator_index::integer AS validator_index,
+        w.validator_index,
         w.amount
       FROM validator_withdrawals w
-      JOIN cluster_validator cv ON cv.validator_index::text = w.validator_index
+      JOIN cluster_validator cv ON cv.validator_index = w.validator_index
       WHERE cv.cluster_id = ${clusterId}
       ORDER BY w.slot DESC, w.withdrawal_index DESC
       LIMIT ${limit} OFFSET ${offset}

@@ -513,6 +513,27 @@ export class SlotStorage {
   }
 
   /**
+   * Resolves unique validator pubkeys to the integer indexes stored by withdrawal requests.
+   */
+  async getValidatorIndexesByPubkeys(pubkeys: string[]) {
+    if (pubkeys.length === 0) {
+      return [];
+    }
+
+    return this.prisma.validator.findMany({
+      where: {
+        pubkey: {
+          in: [...new Set(pubkeys)],
+        },
+      },
+      select: {
+        id: true,
+        pubkey: true,
+      },
+    });
+  }
+
+  /**
    * Save validator withdrawal requests to database
    */
   async saveValidatorWithdrawalsRequests(

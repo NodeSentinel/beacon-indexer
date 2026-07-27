@@ -4,14 +4,23 @@ import { SlotController } from './slot.js';
 
 // This suite verifies slot controller transformations before storage writes.
 describe('SlotController', () => {
-  // This test protects duplicate withdrawal requests for the same validator in one slot.
-  it('preserves execution withdrawal request order and source address', async () => {
-    // This storage mock returns the base slot and captures withdrawal request rows.
+  // This test protects request order while excluding pubkeys that cannot resolve to indexed validators.
+  it('stores resolved withdrawal requests and skips unresolved pubkeys', async () => {
+    // This pubkey represents a known validator referenced twice in the same execution request list.
+    const knownValidatorPubkey =
+      '0xa5256ce2de7b9bd44f3dc7e368d27386b1958373e7c04bcb97805bf382ecd6cd56716499f4dc625f3fab6f2cfca8fa0b';
+    // This pubkey represents a request that must be omitted because it has no indexed validator.
+    const unknownValidatorPubkey =
+      '0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff';
+    // This storage mock resolves only the known pubkey and captures the compact request rows.
     const slotStorage = {
       getBaseSlot: vi.fn().mockResolvedValue({
         slot: 123,
         erWithdrawalsFetched: false,
       }),
+      getValidatorIndexesByPubkeys: vi
+        .fn()
+        .mockResolvedValue([{ id: 987, pubkey: knownValidatorPubkey }]),
       saveValidatorWithdrawalsRequests: vi.fn().mockResolvedValue(undefined),
     };
 
@@ -24,39 +33,46 @@ describe('SlotController', () => {
       {} as never,
     );
 
-    // This call uses two requests for the same validator pubkey in the same slot.
+    // This call places one unresolved request between two valid requests for the same validator.
     await controller.processErWithdrawals(123, [
       {
         source_address: '0x1111111111111111111111111111111111111111',
-        validator_pubkey:
-          '0xa5256ce2de7b9bd44f3dc7e368d27386b1958373e7c04bcb97805bf382ecd6cd56716499f4dc625f3fab6f2cfca8fa0b',
+        validator_pubkey: knownValidatorPubkey,
         amount: '1',
       },
       {
         source_address: '0x2222222222222222222222222222222222222222',
-        validator_pubkey:
-          '0xa5256ce2de7b9bd44f3dc7e368d27386b1958373e7c04bcb97805bf382ecd6cd56716499f4dc625f3fab6f2cfca8fa0b',
+        validator_pubkey: unknownValidatorPubkey,
         amount: '2',
+      },
+      {
+        source_address: '0x3333333333333333333333333333333333333333',
+        validator_pubkey: knownValidatorPubkey,
+        amount: '3',
       },
     ]);
 
-    // This assertion verifies duplicate pubkeys are kept as separate ordered rows.
+    // The lookup receives the complete request set so storage can resolve it in one database query.
+    expect(slotStorage.getValidatorIndexesByPubkeys).toHaveBeenCalledWith([
+      knownValidatorPubkey,
+      unknownValidatorPubkey,
+      knownValidatorPubkey,
+    ]);
+    // The unresolved request is omitted while resolved rows retain their original request indexes.
     expect(slotStorage.saveValidatorWithdrawalsRequests).toHaveBeenCalledWith(123, [
       {
         slot: 123,
         requestIndex: 0,
         sourceAddress: '0x1111111111111111111111111111111111111111',
-        pubKey:
-          '0xa5256ce2de7b9bd44f3dc7e368d27386b1958373e7c04bcb97805bf382ecd6cd56716499f4dc625f3fab6f2cfca8fa0b',
+        validatorIndex: 987,
         amount: BigInt(1),
       },
       {
         slot: 123,
-        requestIndex: 1,
-        sourceAddress: '0x2222222222222222222222222222222222222222',
-        pubKey:
-          '0xa5256ce2de7b9bd44f3dc7e368d27386b1958373e7c04bcb97805bf382ecd6cd56716499f4dc625f3fab6f2cfca8fa0b',
-        amount: BigInt(2),
+        requestIndex: 2,
+        sourceAddress: '0x3333333333333333333333333333333333333333',
+        validatorIndex: 987,
+        amount: BigInt(3),
       },
     ]);
   });

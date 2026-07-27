@@ -267,7 +267,7 @@ export class SlotController extends SlotControllerHelpers {
       withdrawals.map((withdrawal) => ({
         withdrawalIndex: BigInt(withdrawal.index),
         slot: baseSlot.slot,
-        validatorIndex: withdrawal.validator_index,
+        validatorIndex: Number(withdrawal.validator_index),
         amount: BigInt(withdrawal.amount),
       })),
     );
@@ -375,16 +375,34 @@ export class SlotController extends SlotControllerHelpers {
       return;
     }
 
-    await this.slotStorage.saveValidatorWithdrawalsRequests(
-      baseSlot.slot,
-      withdrawals.map((withdrawal, requestIndex) => ({
-        slot: baseSlot.slot,
-        requestIndex,
-        sourceAddress: withdrawal.source_address,
-        pubKey: withdrawal.validator_pubkey,
-        amount: BigInt(withdrawal.amount),
-      })),
+    const validatorRows = await this.slotStorage.getValidatorIndexesByPubkeys(
+      withdrawals.map((withdrawal) => withdrawal.validator_pubkey),
     );
+    const validatorIndexByPubkey = new Map(
+      validatorRows.flatMap((validator) =>
+        validator.pubkey ? [[validator.pubkey, validator.id] as const] : [],
+      ),
+    );
+
+    // Requests that do not resolve to indexed validators cannot affect monitored validators.
+    const resolvedWithdrawals = withdrawals.flatMap((withdrawal, requestIndex) => {
+      const validatorIndex = validatorIndexByPubkey.get(withdrawal.validator_pubkey);
+      if (validatorIndex === undefined) {
+        return [];
+      }
+
+      return [
+        {
+          slot: baseSlot.slot,
+          requestIndex,
+          sourceAddress: withdrawal.source_address,
+          validatorIndex,
+          amount: BigInt(withdrawal.amount),
+        },
+      ];
+    });
+
+    await this.slotStorage.saveValidatorWithdrawalsRequests(baseSlot.slot, resolvedWithdrawals);
   }
 
   /**
