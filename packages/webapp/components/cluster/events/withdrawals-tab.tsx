@@ -50,7 +50,7 @@ export function WithdrawalsTab({ clusterId }: WithdrawalsTabProps) {
   }
 
   if (!withdrawalsData || withdrawalsData.withdrawals.length === 0) {
-    return <EmptyStateTab message="No withdrawals" />;
+    return <EmptyStateTab message="No withdrawal requests" />;
   }
 
   return (

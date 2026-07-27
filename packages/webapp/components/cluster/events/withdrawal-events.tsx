@@ -22,7 +22,7 @@ export function WithdrawalEvents({ clusterId }: WithdrawalEventsProps) {
     <UnderlineTabs defaultValue="payouts">
       <UnderlineTabsList>
         <UnderlineTabsTrigger value="payouts">Payouts</UnderlineTabsTrigger>
-        <UnderlineTabsTrigger value="withdrawals">Withdrawals</UnderlineTabsTrigger>
+        <UnderlineTabsTrigger value="withdrawals">Withdrawal Requests</UnderlineTabsTrigger>
       </UnderlineTabsList>
 
       <UnderlineTabsContent value="payouts" className="space-y-2 mt-4">
