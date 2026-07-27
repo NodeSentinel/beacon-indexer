@@ -24,7 +24,7 @@ interface WithdrawalItemProps {
 }
 
 /**
- * Renders the paginated withdrawals list for the selected cluster.
+ * Renders paginated operator-initiated withdrawal requests for the selected cluster.
  */
 export function WithdrawalsTab({ clusterId }: WithdrawalsTabProps) {
   const [withdrawalsPage, setWithdrawalsPage] = useState(1);
@@ -57,7 +57,7 @@ export function WithdrawalsTab({ clusterId }: WithdrawalsTabProps) {
     <div className="space-y-2">
       {withdrawalsData.withdrawals.map((withdrawal) => (
         <WithdrawalItem
-          key={`${withdrawal.slot}-${withdrawal.source}-${withdrawal.index}`}
+          key={`${withdrawal.slot}-${withdrawal.requestIndex}`}
           tokenSymbol={tokenSymbol}
           withdrawal={withdrawal}
         />
@@ -75,12 +75,12 @@ export function WithdrawalsTab({ clusterId }: WithdrawalsTabProps) {
 }
 
 /**
- * Renders one withdrawal row and expands into withdrawal details.
+ * Renders one operator withdrawal request and its execution-request details.
  */
 function WithdrawalItem({ tokenSymbol, withdrawal }: WithdrawalItemProps) {
   const [isOpen, setIsOpen] = useState(false);
-  const sourceLabel =
-    withdrawal.source === 'execution_request' ? 'Execution Request' : 'Execution Payload';
+  const isFullExit = withdrawal.type === 'full_exit';
+  const requestLabel = isFullExit ? 'Full Exit' : 'Withdrawal';
 
   return (
     <Collapsible open={isOpen} onOpenChange={setIsOpen}>
@@ -88,7 +88,7 @@ function WithdrawalItem({ tokenSymbol, withdrawal }: WithdrawalItemProps) {
         <div className="flex items-center gap-2 md:gap-3 p-2 md:p-3 rounded-lg bg-accent hover:bg-accent/80 transition-colors group cursor-pointer border border-border/50 hover:border-border">
           <div className="flex-1 flex items-center gap-2 text-left min-w-0">
             <Badge variant="default" className="uppercase shrink-0">
-              Withdrawal
+              {requestLabel}
             </Badge>
             <span className="text-xs md:text-sm font-mono text-muted-foreground whitespace-nowrap">
               {format(new Date(withdrawal.timestamp), 'yyyy-MM-dd')}
@@ -97,7 +97,7 @@ function WithdrawalItem({ tokenSymbol, withdrawal }: WithdrawalItemProps) {
               Val #{withdrawal.validatorIndex}
             </span>
             <span className="text-xs md:text-sm font-normal text-success ml-auto whitespace-nowrap">
-              {withdrawal.amount} {tokenSymbol}
+              {isFullExit ? 'Full exit' : `${withdrawal.amount} ${tokenSymbol}`}
             </span>
           </div>
 
@@ -114,6 +114,14 @@ function WithdrawalItem({ tokenSymbol, withdrawal }: WithdrawalItemProps) {
       <CollapsibleContent>
         <div className="px-3 py-3 ml-6 md:ml-11 space-y-2 text-sm border-l-2 border-border">
           <div className="flex items-center justify-between gap-4">
+            <span className="text-muted-foreground text-xs md:text-sm">Request Type</span>
+            <span className="font-mono text-xs md:text-sm">{requestLabel}</span>
+          </div>
+          <div className="flex items-center justify-between gap-4">
+            <span className="text-muted-foreground text-xs md:text-sm">Request Index</span>
+            <span className="font-mono text-xs md:text-sm">{withdrawal.requestIndex}</span>
+          </div>
+          <div className="flex items-center justify-between gap-4">
             <span className="text-muted-foreground text-xs md:text-sm">Validator Index</span>
             <span className="font-mono text-xs md:text-sm">{withdrawal.validatorIndex}</span>
           </div>
@@ -121,28 +129,24 @@ function WithdrawalItem({ tokenSymbol, withdrawal }: WithdrawalItemProps) {
             <span className="text-muted-foreground text-xs md:text-sm">Slot</span>
             <span className="font-mono text-xs md:text-sm">{withdrawal.slot.toLocaleString()}</span>
           </div>
-          <div className="flex items-center justify-between gap-4">
-            <span className="text-muted-foreground text-xs md:text-sm">Source</span>
-            <span className="font-mono text-xs md:text-sm">{sourceLabel}</span>
-          </div>
-          <div className="flex items-center justify-between gap-4">
-            <span className="text-muted-foreground text-xs md:text-sm">Amount</span>
-            <span className="font-normal text-success text-xs md:text-sm">
-              {withdrawal.amount} {tokenSymbol}
-            </span>
-          </div>
+          {!isFullExit && (
+            <div className="flex items-center justify-between gap-4">
+              <span className="text-muted-foreground text-xs md:text-sm">Amount</span>
+              <span className="font-normal text-success text-xs md:text-sm">
+                {withdrawal.amount} {tokenSymbol}
+              </span>
+            </div>
+          )}
           <div className="flex items-center justify-between gap-4">
             <span className="text-muted-foreground text-xs md:text-sm">Timestamp</span>
             <span className="font-mono text-xs break-all">
               {new Date(withdrawal.timestamp).toISOString()}
             </span>
           </div>
-          {withdrawal.pubkey && (
-            <div className="flex items-center justify-between gap-4">
-              <span className="text-muted-foreground text-xs md:text-sm">Pubkey</span>
-              <span className="font-mono text-xs break-all text-right">{withdrawal.pubkey}</span>
-            </div>
-          )}
+          <div className="flex items-center justify-between gap-4">
+            <span className="text-muted-foreground text-xs md:text-sm">Pubkey</span>
+            <span className="font-mono text-xs break-all text-right">{withdrawal.pubkey}</span>
+          </div>
           {withdrawal.sourceAddress && (
             <div className="flex items-center justify-between gap-4">
               <span className="text-muted-foreground text-xs md:text-sm">Source Address</span>

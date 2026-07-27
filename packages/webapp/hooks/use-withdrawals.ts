@@ -6,10 +6,10 @@ import { orpcClient } from '@/lib/orpc';
 
 export interface WithdrawalEvent {
   slot: number;
-  source: 'payload' | 'execution_request';
-  index: string;
+  requestIndex: number;
+  type: 'partial' | 'full_exit';
   validatorIndex: number;
-  pubkey: string | null;
+  pubkey: string;
   sourceAddress: string | null;
   amount: string;
   timestamp: number;
@@ -22,7 +22,7 @@ export interface WithdrawalsResult {
 }
 
 /**
- * Fetches paginated withdrawals for the selected cluster.
+ * Fetches paginated operator withdrawal requests for the selected cluster.
  */
 export function useWithdrawals(clusterId: string | null, page: number) {
   return useQuery({

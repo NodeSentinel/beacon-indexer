@@ -6,7 +6,7 @@ import { BlocksTab } from './blocks-tab';
 import { ConsolidationsTab } from './consolidations-tab';
 import { DepositsTab } from './deposits-tab';
 import { IncidentsTab } from './incidents-tab';
-import { WithdrawalsTab } from './withdrawals-tab';
+import { WithdrawalEvents } from './withdrawal-events';
 
 import {
   UnderlineTabs,
@@ -57,7 +57,7 @@ export default function EventsFeedContent({ clusterId }: EventsFeedContentProps)
         </UnderlineTabsContent>
 
         <UnderlineTabsContent value="withdrawals" className="space-y-2 mt-4 min-h-[400px]">
-          <WithdrawalsTab clusterId={clusterId} />
+          <WithdrawalEvents clusterId={clusterId} />
         </UnderlineTabsContent>
       </UnderlineTabs>
     </div>
