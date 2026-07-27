@@ -1,28 +1,28 @@
-import { WithdrawalsInputSchema, WithdrawalsOutputSchema } from './schemas.js';
+import { PayoutsInputSchema, PayoutsOutputSchema } from './schemas.js';
 
 import type { ApiDependencies } from '@/dependencies.js';
 import { requireOwnedCluster } from '@/routers/cluster/ownership.js';
-import type { WithdrawalEventRow } from '@/storage/withdrawal.js';
+import type { PayoutEventRow } from '@/storage/payout.js';
 import { ApiResponseSchema } from '@/utils/response.js';
 import { formatBalance } from '@/utils/tokenFormat.js';
 
 const PAGE_SIZE = 10;
 
 /**
- * Creates the paginated operator withdrawal requests route.
+ * Creates the paginated completed payouts route.
  */
-export function createListWithdrawalsRoute(
+export function createListPayoutsRoute(
   params: Pick<
     ApiDependencies,
-    'beaconHelpers' | 'chain' | 'clusterStorage' | 'procedures' | 'withdrawalStorage'
+    'beaconHelpers' | 'chain' | 'clusterStorage' | 'payoutStorage' | 'procedures'
   >,
 ) {
   const { securedProcedure } = params.procedures;
 
   return securedProcedure
-    .route({ method: 'GET', path: '/withdrawals' })
-    .input(WithdrawalsInputSchema)
-    .output(ApiResponseSchema(WithdrawalsOutputSchema))
+    .route({ method: 'GET', path: '/payouts' })
+    .input(PayoutsInputSchema)
+    .output(ApiResponseSchema(PayoutsOutputSchema))
     .handler(async ({ context, input }) => {
       const ownershipError = await requireOwnedCluster(
         params.clusterStorage,
@@ -34,7 +34,7 @@ export function createListWithdrawalsRoute(
       }
 
       try {
-        const { hasNextPage, rows } = await params.withdrawalStorage.getWithdrawals({
+        const { hasNextPage, rows } = await params.payoutStorage.getPayouts({
           clusterId: input.clusterId,
           page: input.page,
           pageSize: PAGE_SIZE,
@@ -43,13 +43,10 @@ export function createListWithdrawalsRoute(
         return {
           success: true,
           data: {
-            withdrawals: rows.map((row: WithdrawalEventRow) => ({
+            payouts: rows.map((row: PayoutEventRow) => ({
               slot: row.slot,
-              requestIndex: row.request_index,
-              type: row.amount === BigInt(0) ? ('full_exit' as const) : ('partial' as const),
+              index: row.payout_index,
               validatorIndex: row.validator_index,
-              pubkey: row.pubkey,
-              sourceAddress: row.source_address,
               amount: formatBalance(row.amount, params.chain),
               timestamp: params.beaconHelpers.beaconTime.getTimestampFromSlotNumber(row.slot),
             })),
@@ -62,8 +59,8 @@ export function createListWithdrawalsRoute(
         return {
           success: false,
           error: {
-            code: 'WITHDRAWALS_ERROR',
-            message: error instanceof Error ? error.message : 'Failed to fetch withdrawals',
+            code: 'PAYOUTS_ERROR',
+            message: error instanceof Error ? error.message : 'Failed to fetch payouts',
           },
           meta: { timestamp: new Date().toISOString() },
         };

@@ -7,10 +7,10 @@ export const WithdrawalsInputSchema = z.object({
 
 export const WithdrawalEventSchema = z.object({
   slot: z.number(),
-  source: z.enum(['payload', 'execution_request']),
-  index: z.string(),
+  requestIndex: z.number(),
+  type: z.enum(['partial', 'full_exit']),
   validatorIndex: z.number(),
-  pubkey: z.string().nullable(),
+  pubkey: z.string(),
   sourceAddress: z.string().nullable(),
   amount: z.string(),
   timestamp: z.number(),

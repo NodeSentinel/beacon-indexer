@@ -15,6 +15,7 @@ import type { ClusterStorage } from '@/storage/cluster.js';
 import type { ConsolidationStorage } from '@/storage/consolidation.js';
 import type { DepositStorage } from '@/storage/deposit.js';
 import type { IncidentStorage } from '@/storage/incident.js';
+import type { PayoutStorage } from '@/storage/payout.js';
 import type { UserStorage } from '@/storage/user.js';
 import type { ValidatorStorage } from '@/storage/validator.js';
 import type { WithdrawalStorage } from '@/storage/withdrawal.js';
@@ -39,6 +40,7 @@ export interface ApiDependencies {
   incidentStorage: IncidentStorage;
   logger: Logger;
   nativeTokenDecimals: number;
+  payoutStorage: PayoutStorage;
   prisma: PrismaClient;
   procedures: ApiProcedures;
   systemConfigController: SystemConfigController;
