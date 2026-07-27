@@ -137,6 +137,8 @@ model epochRewards {
   @@map("epoch_rewards")
 }
 
+// Stores transfers executed by the beacon chain and included in execution payloads.
+// Rows are completed payouts, including automatic rewards and processed partial or full withdrawals.
 model validatorWithdrawals {
   withdrawalIndex BigInt @id @map("withdrawal_index")
   slot            Int    @map("slot")
@@ -186,6 +188,8 @@ model validatorExits {
   @@map("validator_voluntary_exits")
 }
 
+// Stores EIP-7002 withdrawal requests initiated by the withdrawal-address controller.
+// An amount of zero requests a full validator exit; a positive amount requests a partial withdrawal.
 model validatorWithdrawalsRequests {
   slot          Int     @map("slot")
   requestIndex  Int     @map("request_index")
