@@ -20,6 +20,7 @@ import { BotIncidentNotificationsStorage } from '@/storage/bot-incident-notifica
 import { BotNotificationsStorage } from '@/storage/bot-notifications.js';
 import { BotUsersStorage } from '@/storage/bot-users.js';
 import { ClusterStorage } from '@/storage/cluster.js';
+import { ConsolidationStorage } from '@/storage/consolidation.js';
 import { DepositStorage } from '@/storage/deposit.js';
 import { IncidentStorage } from '@/storage/incident.js';
 import { SystemConfigStorage } from '@/storage/systemConfig.js';
@@ -200,6 +201,7 @@ export async function startE2EServer(overrides: E2EServerOverrides = {}): Promis
       rpcUrl: env.EXECUTION_RPC_URL,
     }),
     clusterStorage: new ClusterStorage(prisma),
+    consolidationStorage: new ConsolidationStorage(prisma),
     depositStorage: new DepositStorage(prisma),
     executionRpcUrl: env.EXECUTION_RPC_URL,
     incidentStorage: new IncidentStorage(prisma),
