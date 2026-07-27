@@ -19,7 +19,7 @@ export class ConsolidationStorage {
   constructor(private readonly prisma: PrismaClient) {}
 
   /**
-   * Lists consolidation requests whose source validator belongs to the selected cluster.
+   * Lists consolidation requests where either side belongs to the selected cluster.
    */
   async getConsolidations(params: {
     clusterId: string;
@@ -41,9 +41,13 @@ export class ConsolidationStorage {
         target_validator.id AS target_validator_index
       FROM validator_request_consolidations c
       JOIN validator source_validator ON source_validator.pubkey = c.source_pubkey
-      JOIN cluster_validator cv ON cv.validator_index = source_validator.id
       LEFT JOIN validator target_validator ON target_validator.pubkey = c.target_pubkey
-      WHERE cv.cluster_id = ${clusterId}
+      WHERE EXISTS (
+        SELECT 1
+        FROM cluster_validator cv
+        WHERE cv.cluster_id = ${clusterId}
+          AND cv.validator_index IN (source_validator.id, target_validator.id)
+      )
       ORDER BY c.slot DESC, c.request_index DESC
       LIMIT ${limit} OFFSET ${offset}
     `;
