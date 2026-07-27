@@ -23,9 +23,11 @@ import { ClusterStorage } from '@/storage/cluster.js';
 import { ConsolidationStorage } from '@/storage/consolidation.js';
 import { DepositStorage } from '@/storage/deposit.js';
 import { IncidentStorage } from '@/storage/incident.js';
+import { PayoutStorage } from '@/storage/payout.js';
 import { SystemConfigStorage } from '@/storage/systemConfig.js';
 import { UserStorage } from '@/storage/user.js';
 import { ValidatorStorage } from '@/storage/validator.js';
+import { WithdrawalStorage } from '@/storage/withdrawal.js';
 import { createBeaconHelpers } from '@/utils/beaconTime.js';
 
 interface E2EServerOverrides {
@@ -207,6 +209,7 @@ export async function startE2EServer(overrides: E2EServerOverrides = {}): Promis
     incidentStorage: new IncidentStorage(prisma),
     logger,
     nativeTokenDecimals: env.NATIVE_TOKEN_DECIMALS,
+    payoutStorage: new PayoutStorage(prisma),
     prisma,
     procedures,
     systemConfigController,
@@ -215,6 +218,7 @@ export async function startE2EServer(overrides: E2EServerOverrides = {}): Promis
     userStorage,
     validatorController,
     validatorStorage,
+    withdrawalStorage: new WithdrawalStorage(prisma),
   };
   const router = createRouter(deps);
   const server = createHttpServer({

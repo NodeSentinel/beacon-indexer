@@ -6,9 +6,11 @@ import { createConsolidationsRouter } from './consolidations/index.js';
 import { createDepositsRouter } from './deposits/index.js';
 import { createHealthRouter } from './health.js';
 import { createIndexerRouter } from './indexer/index.js';
+import { createPayoutsRouter } from './payouts/index.js';
 import { createUserRouter } from './user/index.js';
 import { createUtilsRouter } from './utils.js';
 import { createValidatorRouter } from './validator/index.js';
+import { createWithdrawalsRouter } from './withdrawals/index.js';
 import type { ApiDependencies } from '@/dependencies.js';
 
 export type Router = ReturnType<typeof createRouter>;
@@ -27,8 +29,10 @@ export function createRouter(deps: ApiDependencies) {
     deposits: createDepositsRouter(deps),
     health: createHealthRouter(deps),
     indexer: createIndexerRouter(deps),
+    payouts: createPayoutsRouter(deps),
     user: createUserRouter(deps),
     utils: createUtilsRouter(deps),
     validator: createValidatorRouter(deps),
+    withdrawals: createWithdrawalsRouter(deps),
   };
 }
