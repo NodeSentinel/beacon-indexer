@@ -27,7 +27,7 @@ export function usePayouts(clusterId: string | null, page: number) {
     queryFn: async () => {
       if (!clusterId) throw new Error('No cluster provided');
 
-      const response = await orpcClient.payouts.list({
+      const response = await orpcClient.payouts({
         clusterId,
         page,
       });

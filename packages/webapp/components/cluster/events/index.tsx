@@ -6,7 +6,8 @@ import { BlocksTab } from './blocks-tab';
 import { ConsolidationsTab } from './consolidations-tab';
 import { DepositsTab } from './deposits-tab';
 import { IncidentsTab } from './incidents-tab';
-import { WithdrawalEvents } from './withdrawal-events';
+import { PayoutsTab } from './payouts-tab';
+import { WithdrawalsTab } from './withdrawals-tab';
 
 import {
   UnderlineTabs,
@@ -37,7 +38,10 @@ export default function EventsFeedContent({ clusterId }: EventsFeedContentProps)
           <UnderlineTabsTrigger value="blocks">Blocks</UnderlineTabsTrigger>
           <UnderlineTabsTrigger value="consolidations">Consolidations</UnderlineTabsTrigger>
           <UnderlineTabsTrigger value="deposits">Deposits</UnderlineTabsTrigger>
-          <UnderlineTabsTrigger value="withdrawals">Withdrawals</UnderlineTabsTrigger>
+          <UnderlineTabsTrigger value="payouts">Payouts</UnderlineTabsTrigger>
+          <UnderlineTabsTrigger value="withdrawal-requests">
+            Withdrawal Requests
+          </UnderlineTabsTrigger>
         </UnderlineTabsList>
 
         <UnderlineTabsContent value="incidents" className="space-y-2 mt-4 min-h-[400px]">
@@ -56,8 +60,12 @@ export default function EventsFeedContent({ clusterId }: EventsFeedContentProps)
           <DepositsTab clusterId={clusterId} />
         </UnderlineTabsContent>
 
-        <UnderlineTabsContent value="withdrawals" className="space-y-2 mt-4 min-h-[400px]">
-          <WithdrawalEvents clusterId={clusterId} />
+        <UnderlineTabsContent value="payouts" className="space-y-2 mt-4 min-h-[400px]">
+          <PayoutsTab clusterId={clusterId} />
+        </UnderlineTabsContent>
+
+        <UnderlineTabsContent value="withdrawal-requests" className="space-y-2 mt-4 min-h-[400px]">
+          <WithdrawalsTab clusterId={clusterId} />
         </UnderlineTabsContent>
       </UnderlineTabs>
     </div>

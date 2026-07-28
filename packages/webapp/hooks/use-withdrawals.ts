@@ -30,7 +30,7 @@ export function useWithdrawals(clusterId: string | null, page: number) {
     queryFn: async () => {
       if (!clusterId) throw new Error('No cluster provided');
 
-      const response = await orpcClient.withdrawals.list({
+      const response = await orpcClient.withdrawals({
         clusterId,
         page,
       });
