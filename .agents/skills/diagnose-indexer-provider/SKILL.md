@@ -92,6 +92,35 @@ do not infer provider health from one request.
 Keep archive provider latency distinct from NodeSentinel's Hourly/Daily Archive processes. They
 share the word "archive" but are unrelated systems.
 
+## Calculate Operational Metrics
+
+Use one consistent measurement window based on the timestamps of the first and last
+`Completed slot` lines. Do not divide a lag change by the requested log window unless the lag
+samples actually span that entire window.
+
+- `processed slots = last completed slot - first completed slot`
+- `average slot processing = elapsed seconds / processed slots`
+- `estimated epoch processing = average slot processing * slots per epoch`
+- `indexing speed = processed slots / elapsed hours`
+- `chain growth = 3600 / chain slot duration`
+- `recovery speed = indexing speed - chain growth`
+- `behind head = latest lag * chain slot duration`
+- `estimated catch-up = latest lag / recovery speed`
+
+Ethereum has a 12-second slot duration, 32 slots per epoch, and therefore grows by 300 slots per
+hour. For another chain, use its configured slot duration and slots per epoch. If the chain cannot
+be identified safely, mark chain growth, recovery speed, delay, and catch-up time as unavailable
+instead of assuming Ethereum.
+
+Use `Recovering` when recovery speed is positive and observed lag is decreasing. Use
+`Falling behind` when recovery speed is zero or negative or observed lag is increasing. If these
+signals disagree, state that the status is uncertain.
+
+For provider performance, report the arithmetic mean response time for each relevant endpoint.
+Show the operation name and normalized endpoint together. Do not report percentiles unless the
+user explicitly asks for them. Mark providers without requests in the measurement window as
+`No requests observed`.
+
 ## Source Map
 
 Do not read source before inspecting logs. If needed, select at most three files initially, locate
@@ -118,16 +147,40 @@ Read `packages/indexer/AGENTS.md` before source inspection. Do not inspect
 
 ## Report
 
-Return a short evidence-based report:
+Return this concise operational report. Format durations for humans and round rates to whole slots
+per hour. Include up to three slow endpoints, ordered from slowest to fastest.
 
 ```text
-Primary diagnosis:
-Affected provider:
-Evidence:
-Throughput and lag direction:
-Confidence:
-Unknowns:
-Recommended next check:
+Status: <Recovering | Falling behind | Uncertain>
+
+Behind head: <duration>
+Average slot processing: <duration>
+Estimated epoch processing: <duration>
+
+Indexing speed: <slots/hour>
+Recovery speed: <slots/hour>
+Estimated catch-up: <duration | Not recovering>
+
+Main bottleneck: <provider name>
+
+Slow endpoints:
+- <operation>: <average response time>
+  <METHOD normalized endpoint>
+- <operation>: <average response time>
+  <METHOD normalized endpoint>
+- <operation>: <average response time>
+  <METHOD normalized endpoint>
+
+Comparison:
+- Execution RPC: <average response time | No requests observed>
+- Full Beacon API: <average response time | No requests observed>
+
+Current condition:
+<One or two sentences explaining whether the indexer is recovering and whether recent timeouts,
+rate limits, retries, or server errors were detected.>
 ```
 
-State explicitly when evidence is insufficient to distinguish archive, full, or execution.
+The main bottleneck line must name the provider, while the slow-endpoint list must explain exactly
+which operations make it slow. Do not describe a provider as slow without listing supporting
+endpoints. State explicitly when evidence is insufficient to distinguish archive, full, or
+execution.
