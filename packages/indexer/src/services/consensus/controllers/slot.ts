@@ -267,7 +267,7 @@ export class SlotController extends SlotControllerHelpers {
       withdrawals.map((withdrawal) => ({
         withdrawalIndex: BigInt(withdrawal.index),
         slot: baseSlot.slot,
-        validatorIndex: withdrawal.validator_index,
+        validatorIndex: Number(withdrawal.validator_index),
         amount: BigInt(withdrawal.amount),
       })),
     );
@@ -377,11 +377,9 @@ export class SlotController extends SlotControllerHelpers {
 
     await this.slotStorage.saveValidatorWithdrawalsRequests(
       baseSlot.slot,
-      withdrawals.map((withdrawal, requestIndex) => ({
-        slot: baseSlot.slot,
-        requestIndex,
+      withdrawals.map((withdrawal) => ({
         sourceAddress: withdrawal.source_address,
-        pubKey: withdrawal.validator_pubkey,
+        validatorPubkey: withdrawal.validator_pubkey,
         amount: BigInt(withdrawal.amount),
       })),
     );

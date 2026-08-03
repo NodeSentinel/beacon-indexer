@@ -33,13 +33,13 @@ export class WithdrawalStorage {
       SELECT
         wr.slot,
         wr.request_index,
-        v.id AS validator_index,
-        wr.pub_key AS pubkey,
+        wr.validator_index,
+        v.pubkey,
         wr.source_address,
         wr.amount
       FROM validator_request_withdrawals wr
-      JOIN validator v ON v.pubkey = wr.pub_key
-      JOIN cluster_validator cv ON cv.validator_index = v.id
+      JOIN validator v ON v.id = wr.validator_index
+      JOIN cluster_validator cv ON cv.validator_index = wr.validator_index
       WHERE cv.cluster_id = ${clusterId}
       ORDER BY wr.slot DESC, wr.request_index DESC
       LIMIT ${limit} OFFSET ${offset}

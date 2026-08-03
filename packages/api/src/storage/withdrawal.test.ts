@@ -32,6 +32,8 @@ describe('payout and withdrawal storage', () => {
     const sql = getSqlText(queryRaw.mock.calls[0]?.[0]);
     expect(sql).toContain('FROM validator_withdrawals w');
     expect(sql).not.toContain('validator_request_withdrawals');
+    expect(sql).toContain('cv.validator_index = w.validator_index');
+    expect(sql).not.toContain('validator_index::integer');
   });
 
   // This scenario expects the withdrawals listing to read EIP-7002 operator requests only.
@@ -46,6 +48,9 @@ describe('payout and withdrawal storage', () => {
     // The emitted SQL must use the request table and must not union completed payout rows.
     const sql = getSqlText(queryRaw.mock.calls[0]?.[0]);
     expect(sql).toContain('FROM validator_request_withdrawals wr');
+    expect(sql).toContain('v.id = wr.validator_index');
+    expect(sql).toContain('cv.validator_index = wr.validator_index');
+    expect(sql).not.toContain('wr.pub_key');
     expect(sql).not.toContain('FROM validator_withdrawals w');
     expect(sql).not.toContain('UNION ALL');
   });
