@@ -375,34 +375,14 @@ export class SlotController extends SlotControllerHelpers {
       return;
     }
 
-    const validatorRows = await this.slotStorage.getValidatorIndexesByPubkeys(
-      withdrawals.map((withdrawal) => withdrawal.validator_pubkey),
+    await this.slotStorage.saveValidatorWithdrawalsRequests(
+      baseSlot.slot,
+      withdrawals.map((withdrawal) => ({
+        sourceAddress: withdrawal.source_address,
+        validatorPubkey: withdrawal.validator_pubkey,
+        amount: BigInt(withdrawal.amount),
+      })),
     );
-    const validatorIndexByPubkey = new Map(
-      validatorRows.flatMap((validator) =>
-        validator.pubkey ? [[validator.pubkey, validator.id] as const] : [],
-      ),
-    );
-
-    // Requests that do not resolve to indexed validators cannot affect monitored validators.
-    const resolvedWithdrawals = withdrawals.flatMap((withdrawal, requestIndex) => {
-      const validatorIndex = validatorIndexByPubkey.get(withdrawal.validator_pubkey);
-      if (validatorIndex === undefined) {
-        return [];
-      }
-
-      return [
-        {
-          slot: baseSlot.slot,
-          requestIndex,
-          sourceAddress: withdrawal.source_address,
-          validatorIndex,
-          amount: BigInt(withdrawal.amount),
-        },
-      ];
-    });
-
-    await this.slotStorage.saveValidatorWithdrawalsRequests(baseSlot.slot, resolvedWithdrawals);
   }
 
   /**

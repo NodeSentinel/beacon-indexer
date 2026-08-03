@@ -4,23 +4,20 @@ import { SlotController } from './slot.js';
 
 // This suite verifies slot controller transformations before storage writes.
 describe('SlotController', () => {
-  // This test protects request order while excluding pubkeys that cannot resolve to indexed validators.
-  it('stores resolved withdrawal requests and skips unresolved pubkeys', async () => {
-    // This pubkey represents a known validator referenced twice in the same execution request list.
+  // This test protects request order while delegating validator resolution to the atomic storage write.
+  it('passes ordered withdrawal requests to storage for atomic resolution', async () => {
+    // This pubkey represents a validator that storage will resolve during the insert.
     const knownValidatorPubkey =
       '0xa5256ce2de7b9bd44f3dc7e368d27386b1958373e7c04bcb97805bf382ecd6cd56716499f4dc625f3fab6f2cfca8fa0b';
-    // This pubkey represents a request that must be omitted because it has no indexed validator.
+    // This pubkey verifies the controller does not silently discard unresolved requests.
     const unknownValidatorPubkey =
       '0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff';
-    // This storage mock resolves only the known pubkey and captures the compact request rows.
+    // This storage mock captures the complete request list passed to the atomic database operation.
     const slotStorage = {
       getBaseSlot: vi.fn().mockResolvedValue({
         slot: 123,
         erWithdrawalsFetched: false,
       }),
-      getValidatorIndexesByPubkeys: vi
-        .fn()
-        .mockResolvedValue([{ id: 987, pubkey: knownValidatorPubkey }]),
       saveValidatorWithdrawalsRequests: vi.fn().mockResolvedValue(undefined),
     };
 
@@ -33,7 +30,7 @@ describe('SlotController', () => {
       {} as never,
     );
 
-    // This call places one unresolved request between two valid requests for the same validator.
+    // This call places a potentially unresolved request between two requests for a known validator.
     await controller.processErWithdrawals(123, [
       {
         source_address: '0x1111111111111111111111111111111111111111',
@@ -52,26 +49,21 @@ describe('SlotController', () => {
       },
     ]);
 
-    // The lookup receives the complete request set so storage can resolve it in one database query.
-    expect(slotStorage.getValidatorIndexesByPubkeys).toHaveBeenCalledWith([
-      knownValidatorPubkey,
-      unknownValidatorPubkey,
-      knownValidatorPubkey,
-    ]);
-    // The unresolved request is omitted while resolved rows retain their original request indexes.
+    // Storage receives every request in protocol order and is responsible for rejecting unknown pubkeys.
     expect(slotStorage.saveValidatorWithdrawalsRequests).toHaveBeenCalledWith(123, [
       {
-        slot: 123,
-        requestIndex: 0,
         sourceAddress: '0x1111111111111111111111111111111111111111',
-        validatorIndex: 987,
+        validatorPubkey: knownValidatorPubkey,
         amount: BigInt(1),
       },
       {
-        slot: 123,
-        requestIndex: 2,
+        sourceAddress: '0x2222222222222222222222222222222222222222',
+        validatorPubkey: unknownValidatorPubkey,
+        amount: BigInt(2),
+      },
+      {
         sourceAddress: '0x3333333333333333333333333333333333333333',
-        validatorIndex: 987,
+        validatorPubkey: knownValidatorPubkey,
         amount: BigInt(3),
       },
     ]);

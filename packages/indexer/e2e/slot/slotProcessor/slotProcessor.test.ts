@@ -534,6 +534,9 @@ describe('Slot Processor E2E Tests', () => {
     // This real block pubkey verifies request ingestion resolves protocol pubkeys to compact indexes.
     const withdrawalRequestValidatorPubkey =
       '0xa5256ce2de7b9bd44f3dc7e368d27386b1958373e7c04bcb97805bf382ecd6cd56716499f4dc625f3fab6f2cfca8fa0b';
+    // This pubkey has no validator row and must make the atomic request write fail.
+    const unknownWithdrawalRequestValidatorPubkey =
+      '0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff';
 
     // Validators that missed slot 24672000
     const missedValidators = [272515, 98804, 421623, 62759] as const;
@@ -801,6 +804,37 @@ describe('Slot Processor E2E Tests', () => {
         expect(actual.sourceAddress).toBe(expectedWithdrawalRequest.sourceAddress);
         expect(actual.validatorIndex).toBe(expectedWithdrawalRequest.validatorIndex);
         expect(actual.amount.toString()).toBe(expectedWithdrawalRequest.amount.toString());
+      });
+
+      // This scenario verifies one unresolved request rolls back the complete request batch and slot flag.
+      it('should reject the withdrawal request batch when a validator pubkey cannot resolve', async () => {
+        // Slot 24672002 belongs to the seeded epoch but has no execution-request data yet.
+        const unresolvedRequestSlot = 24672002;
+        // The first request resolves successfully, while the second exercises the missing-validator failure.
+        const withdrawalRequests = [
+          {
+            source_address: '0x1111111111111111111111111111111111111111',
+            validator_pubkey: withdrawalRequestValidatorPubkey,
+            amount: '1',
+          },
+          {
+            source_address: '0x2222222222222222222222222222222222222222',
+            validator_pubkey: unknownWithdrawalRequestValidatorPubkey,
+            amount: '2',
+          },
+        ];
+
+        // The unresolved validator must reject the database statement instead of dropping one request.
+        await expect(
+          slotControllerWithMock.processErWithdrawals(unresolvedRequestSlot, withdrawalRequests),
+        ).rejects.toThrow();
+
+        // Atomicity requires both the valid request and fetched flag to remain absent after the failure.
+        const storedRequests =
+          await slotStorage.getValidatorWithdrawalsRequestsForSlot(unresolvedRequestSlot);
+        const slotData = await slotStorage.getBaseSlot(unresolvedRequestSlot);
+        expect(storedRequests).toHaveLength(0);
+        expect(slotData.erWithdrawalsFetched).toBe(false);
       });
 
       it('should verify consolidation requests from execution requests were saved correctly', async () => {

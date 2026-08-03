@@ -513,42 +513,55 @@ export class SlotStorage {
   }
 
   /**
-   * Resolves unique validator pubkeys to the integer indexes stored by withdrawal requests.
-   */
-  async getValidatorIndexesByPubkeys(pubkeys: string[]) {
-    if (pubkeys.length === 0) {
-      return [];
-    }
-
-    return this.prisma.validator.findMany({
-      where: {
-        pubkey: {
-          in: [...new Set(pubkeys)],
-        },
-      },
-      select: {
-        id: true,
-        pubkey: true,
-      },
-    });
-  }
-
-  /**
-   * Save validator withdrawal requests to database
+   * Resolves and saves withdrawal requests atomically, rejecting unknown validator pubkeys.
    */
   async saveValidatorWithdrawalsRequests(
     slot: number,
-    withdrawals: Prisma.validatorWithdrawalsRequestsUncheckedCreateInput[],
+    withdrawals: Array<{
+      sourceAddress: string | null;
+      validatorPubkey: string;
+      amount: bigint;
+    }>,
   ) {
-    await this.prisma.$transaction(async (tx) => {
-      await tx.validatorWithdrawalsRequests.createMany({
-        data: withdrawals,
-      });
-      await tx.slot.update({
-        where: { slot },
-        data: { erWithdrawalsFetched: true },
-      });
-    });
+    await this.prisma.$executeRaw`
+      WITH withdrawal_requests AS (
+        SELECT
+          request.validator_pubkey,
+          request.source_address,
+          request.amount,
+          (request.ordinality - 1)::integer AS request_index
+        FROM unnest(
+          ${withdrawals.map((withdrawal) => withdrawal.validatorPubkey)}::text[],
+          ${withdrawals.map((withdrawal) => withdrawal.sourceAddress)}::text[],
+          ${withdrawals.map((withdrawal) => withdrawal.amount)}::bigint[]
+        ) WITH ORDINALITY AS request(validator_pubkey, source_address, amount, ordinality)
+      ),
+      inserted_requests AS (
+        INSERT INTO validator_request_withdrawals (
+          slot,
+          request_index,
+          source_address,
+          validator_index,
+          amount
+        )
+        SELECT
+          ${slot},
+          request.request_index,
+          request.source_address,
+          (
+            SELECT validator.id
+            FROM validator
+            WHERE validator.pubkey = request.validator_pubkey
+          ),
+          request.amount
+        FROM withdrawal_requests request
+        RETURNING 1
+      )
+      UPDATE slot
+      SET er_withdrawals_fetched = true
+      WHERE slot = ${slot}
+        AND (SELECT COUNT(*) FROM inserted_requests) = ${withdrawals.length}
+    `;
   }
 
   /**
